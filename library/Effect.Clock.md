@@ -62,27 +62,19 @@ system's vocabulary.
 
 ## `Duration`
 
-```cinch
-data Duration
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Duration</span></code></pre>
 
 A length of time in milliseconds.
 
 [Source](/reference-sources/Effect.Clock.cinch) · line 52
 
-```cinch
-Duration :: (Nat -> Duration)
-```
-
-A length of time in milliseconds.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Duration</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>)</code></pre>
 
 <a id="type-54696d656f7574"></a>
 
 ## `Timeout`
 
-```cinch
-data Timeout (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Timeout</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The outcome of a computation raced against its deadline: it
 finished (`Finished x`), or the deadline fired first and cancelled
@@ -90,13 +82,9 @@ it (`TimedOut`).
 
 [Source](/reference-sources/Effect.Clock.cinch) · line 88
 
-```cinch
-TimedOut :: forall a . Timeout a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimedOut</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Finished :: forall a . (a -> Timeout a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Finished</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -104,9 +92,7 @@ Finished :: forall a . (a -> Timeout a)
 
 ## `clock-monotonic-ns`
 
-```cinch
-clock-monotonic-ns :: forall r . using (io :: Io r) => (Unit ->{IO r} Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-monotonic-ns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 Nanoseconds since an arbitrary origin: non-decreasing across
 calls (two readings never go backwards).
@@ -117,9 +103,7 @@ calls (two readings never go backwards).
 
 ## `clock-wall-ns`
 
-```cinch
-clock-wall-ns :: forall r . using (io :: Io r) => (Unit ->{IO r} Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-wall-ns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 Nanoseconds since the Unix epoch (the clamped range above).
 
@@ -129,29 +113,23 @@ Nanoseconds since the Unix epoch (the clamped range above).
 
 ## `duration-from-millis`
 
-```cinch
-duration-from-millis :: (Nat -> Duration)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-millis</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Clock.cinch) · line 55
+[Source](/reference-sources/Effect.Clock.cinch)
 
 <a id="value-6475726174696f6e2d6d696c6c6973"></a>
 
 ## `duration-millis`
 
-```cinch
-duration-millis :: (Duration -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-millis</span> :: (<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Clock.cinch) · line 58
+[Source](/reference-sources/Effect.Clock.cinch)
 
 <a id="value-6d6f6e6f746f6e69632d656c6170736564"></a>
 
 ## `monotonic-elapsed`
 
-```cinch
-monotonic-elapsed :: (Nat -> (Nat -> Duration))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">monotonic-elapsed</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>))</code></pre>
 
 The time between two monotonic readings (the first earlier):
 milliseconds, truncated. A duration is never negative, so readings
@@ -163,9 +141,7 @@ passed in the other order measure zero.
 
 ## `timeout`
 
-```cinch
-timeout :: forall a r . using (io :: Io r) => (Duration -> ((Unit ->{IO r, Cancel r} a) %1 ->{Async r, IO r, Cancel r, Diverge} Timeout a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timeout</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) %1 -&gt;{<span class="tok-constructor">Async</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>))</code></pre>
 
 Run `work` under the deadline `d`: `Finished` its value when it
 ran first, `TimedOut` when the deadline fired first and cancelled

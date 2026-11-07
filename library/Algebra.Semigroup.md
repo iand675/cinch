@@ -43,21 +43,17 @@ lives with its type and a newtype's home is its class module.
 
 ## `Semigroup`
 
-```cinch
-signature Semigroup a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Semigroup.cinch) · line 27
+[Source](/reference-sources/Algebra.Semigroup.cinch)
 
 <a id="method-53656d6967726f75702e3c3e"></a>
 
 ## `Semigroup.<>`
 
-```cinch
-<> :: forall a . using (dict :: Semigroup a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;&gt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Semigroup.cinch) · line 28
+
 
 # Values
 
@@ -65,9 +61,7 @@ signature Semigroup a
 
 ## `combine-pairs`
 
-```cinch
-combine-pairs :: forall a . using (sa :: Semigroup a) => (List a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">combine-pairs</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">sa</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
 One round of a balanced combine: adjacent pairs combined in order,
 an odd last value carried unchanged (shared with Algebra.Monoid's
@@ -79,15 +73,7 @@ an odd last value carried unchanged (shared with Algebra.Monoid's
 
 ## `sconcat`
 
-```cinch
-sconcat :: forall a . using (s :: Semigroup a) => (List a -> Option a)
-```
-
-The class-generic folds. These are free functions with a `using`
-constraint, not new class methods (the scheme of `sum-list` and
-`enum-from-to`): the class is the interface and reaching one of
-these costs an explicit import of this module, since the facade
-re-exports no class home.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sconcat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 `sconcat`: combine the whole list with `<>`, in order, or `None`
 when there is nothing to combine. The carrier is `List a` and the
@@ -109,9 +95,7 @@ every step, O(n^2) bytes, where the rounds copy O(n log n).
 
 ## `stimes`
 
-```cinch
-stimes :: forall a . using (s :: Semigroup a) => (Nat -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stimes</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 `stimes n x`: `n` copies of `x` combined with `<>`. A `Nat` cannot
 be negative, but it can be zero, and a bare `Semigroup` has no
@@ -127,9 +111,7 @@ its operands, O(n^2) bytes.
 
 # Operator fixities
 
-```cinch
-infixr 6 <>
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixr</span> <span class="tok-number">6</span> <span class="tok-operator">&lt;&gt;</span></code></pre>
 
 # Instances
 
@@ -139,6 +121,14 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Algebra.Semigroup.Semigroup_Function` | `Semigroup (t -> u)` | Implicit |
 | `Algebra.Semigroup.Semigroup_Pair` | `Semigroup (t, u)` | Implicit |
+
+**`Algebra.Semigroup.Semigroup_Function`**: Structural: pointwise combination of functions into a semigroup.
+(t -> u) is a semigroup whenever the result is; the constraint is
+stated, never entailed. The method is eta-expanded (`f <> g` at x
+is `f x <> g x`) because the bootstrap checks equations against
+every arrow of the substituted method type.
+**`Algebra.Semigroup.Semigroup_Pair`**: Structural: tuples combine componentwise, each side under its own
+constraint.
 
 # Reference provenance
 

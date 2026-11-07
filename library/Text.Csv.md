@@ -102,9 +102,7 @@ empty field).
 
 ## `CsvError`
 
-```cinch
-data CsvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CsvError</span></code></pre>
 
 The error vocabulary: one named variant per refusal, each carrying
 the `Span` it stands at, plus the bridge into `Text.Parse`'s
@@ -112,25 +110,15 @@ vocabulary so `render-bundle` renders it (the `Text.Json` shape).
 
 [Source](/reference-sources/Text.Csv.cinch) · line 102
 
-```cinch
-CsvUnterminatedQuote :: (Span -> CsvError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvUnterminatedQuote</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">CsvError</span>)</code></pre>
 
-```cinch
-CsvStrayQuote :: (Span -> CsvError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvStrayQuote</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">CsvError</span>)</code></pre>
 
-```cinch
-CsvTextAfterQuote :: (Span -> CsvError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvTextAfterQuote</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">CsvError</span>)</code></pre>
 
-```cinch
-CsvBareCarriageReturn :: (Span -> CsvError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvBareCarriageReturn</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">CsvError</span>)</code></pre>
 
-```cinch
-CsvRowArity :: (Span -> (Int -> (Int -> CsvError)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvRowArity</span> :: (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">CsvError</span>)))</code></pre>
 
 # Values
 
@@ -138,9 +126,7 @@ CsvRowArity :: (Span -> (Int -> (Int -> CsvError)))
 
 ## `csv-error-message`
 
-```cinch
-csv-error-message :: (CsvError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-message</span> :: (<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The diagnostic line for a variant: what was refused, and (for the
 arity case) both counts, since the row alone does not say which
@@ -152,19 +138,15 @@ side moved.
 
 ## `csv-error-span`
 
-```cinch
-csv-error-span :: (CsvError -> Span)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-span</span> :: (<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">Span</span>)</code></pre>
 
-[Source](/reference-sources/Text.Csv.cinch) · line 109
+[Source](/reference-sources/Text.Csv.cinch)
 
 <a id="value-6373762d6572726f722d746f2d70617273652d6572726f72"></a>
 
 ## `csv-error-to-parse-error`
 
-```cinch
-csv-error-to-parse-error :: (CsvError -> ParseError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-to-parse-error</span> :: (<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">ParseError</span>)</code></pre>
 
 Every variant is a fancy error at its own span (nothing is an
 `EUnexpected`: the scanner's refusals are statements about the
@@ -176,19 +158,15 @@ dialect, not a missing token).
 
 ## `csv-parse`
 
-```cinch
-csv-parse :: (String -> Result CsvError (List (List String)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">CsvError</span> (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)))</code></pre>
 
-[Source](/reference-sources/Text.Csv.cinch) · line 217
+[Source](/reference-sources/Text.Csv.cinch)
 
 <a id="value-6373762d70617273652d776974682d68656164657273"></a>
 
 ## `csv-parse-with-headers`
 
-```cinch
-csv-parse-with-headers :: (String -> Result CsvError (List String, List (List (String, String))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-parse-with-headers</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">CsvError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>, <span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>))))</code></pre>
 
 The header is the first row; every later row is keyed by it as
 (name, field) pairs in header order. A document with no rows has no
@@ -200,12 +178,7 @@ header and no keyed rows.
 
 ## `csv-print`
 
-```cinch
-csv-print :: (List (List String) -> String)
-```
-
-Printing (total): fields joined by the comma, rows by LF, and a
-field quoted exactly when it must be.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-print</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The document's pieces are collected and flattened once: nesting
 `string-concat` would re-copy the rest of the document at every row
@@ -217,9 +190,7 @@ and field.
 
 ## `render-csv-error`
 
-```cinch
-render-csv-error :: (String -> (String -> (CsvError -> String)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-csv-error</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
 
 The megaparsec-style rendering: the error against the source it
 came from (`Text.Parse.render-bundle`), the shape a grammar failure

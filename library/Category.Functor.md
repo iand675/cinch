@@ -53,37 +53,29 @@ Data.List/Data.Option/Data.Result now.
 
 ## `Functor`
 
-```cinch
-signature Functor f
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Functor</span> <span class="tok-variable">f</span></code></pre>
 
-[Source](/reference-sources/Category.Functor.cinch) · line 33
+[Source](/reference-sources/Category.Functor.cinch)
 
 <a id="method-46756e63746f722e6d6170"></a>
 
 ## `Functor.map`
 
-```cinch
-map :: forall (f :: Type -> Type) a b . using (dict :: Functor f) => ((a -> b) -> ((f a) -> (f b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Functor.cinch) · line 34
+
 
 <a id="method-46756e63746f722e3c243e"></a>
 
 ## `Functor.<$>`
 
-```cinch
-<$> :: forall (f :: Type -> Type) a b . using (dict :: Functor f) => ((a -> b) -> ((f a) -> (f b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;$&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Functor.cinch) · line 35
+
 
 # Operator fixities
 
-```cinch
-infixl 4 <$>
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">4</span> <span class="tok-operator">&lt;$&gt;</span></code></pre>
 
 # Instances
 
@@ -92,6 +84,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 | Instance | Target | Resolution |
 | --- | --- | --- |
 | `Category.Functor.Functor_Function` | `Functor (((->) r))` | Implicit |
+
+**`Category.Functor.Functor_Function`**: Structural: map over a function's result (the reader functor).
 
 # Reference provenance
 

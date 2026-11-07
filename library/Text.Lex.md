@@ -85,9 +85,7 @@ this module has not learned.
 
 ## `LToken`
 
-```cinch
-data LToken
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LToken</span></code></pre>
 
 A token with its span; the flag marks `{`, `;`, `}` inserted by
 the layout pass (the compiler's `Token.virtual_`).
@@ -98,25 +96,17 @@ the layout pass (the compiler's `Token.virtual_`).
 
 ## `LexError`
 
-```cinch
-data LexError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LexError</span></code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 354
+[Source](/reference-sources/Text.Lex.cinch)
 
-```cinch
-LexError :: (Span -> (LexErrorKind -> LexError))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexError</span> :: (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">LexError</span>))</code></pre>
 
 <a id="type-4c65784572726f724b696e64"></a>
 
 ## `LexErrorKind`
 
-```cinch
-data LexErrorKind
-```
-
-Lex errors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LexErrorKind</span></code></pre>
 
 Every rejection this module can produce. The layout kinds carry
 the columns the compiler's diagnostics name; the refusal kinds are
@@ -124,119 +114,68 @@ the named unproductions of the module header.
 
 [Source](/reference-sources/Text.Lex.cinch) · line 336
 
-```cinch
-TabInIndentation :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TabInIndentation</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-UnterminatedComment :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedComment</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-UnterminatedString :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedString</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-UnterminatedChar :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedChar</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-BadEscape :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadEscape</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-MalformedNumber :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedNumber</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-UnexpectedChar :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedChar</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-MalformedTick :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedTick</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-LayoutTooShallow :: (Nat -> LexErrorKind)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LayoutTooShallow</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">LexErrorKind</span>)</code></pre>
 
-```cinch
-MismatchedDelimiter :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MismatchedDelimiter</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-UnclosedDelimiter :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnclosedDelimiter</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-InWithoutLet :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InWithoutLet</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-InCrossesDelimiter :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InCrossesDelimiter</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-RefusedAttr :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedAttr</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-RefusedPrim :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedPrim</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
-```cinch
-RefusedTickName :: LexErrorKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedTickName</span> :: <span class="tok-constructor">LexErrorKind</span></code></pre>
 
 <a id="type-4c65786564"></a>
 
 ## `Lexed`
 
-```cinch
-data Lexed
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Lexed</span></code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 386
+[Source](/reference-sources/Text.Lex.cinch)
 
-```cinch
-LexedTokens :: (List LToken -> Lexed)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedTokens</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Lexed</span>)</code></pre>
 
-```cinch
-LexedFail :: (Span -> (LexErrorKind -> Lexed))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedFail</span> :: (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">Lexed</span>))</code></pre>
 
 <a id="type-5370616e"></a>
 
 ## `Span`
 
-```cinch
-data Span
-```
-
-Spans, tokens, located tokens.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Span</span></code></pre>
 
 A source span: byte offsets [start, end) and the start position as
 line and character column (the compiler's `Span` shape).
 
 [Source](/reference-sources/Text.Lex.cinch) · line 125
 
-```cinch
-Span :: (Nat -> (Nat -> (Nat -> (Nat -> Span))))
-```
-
-Spans, tokens, located tokens.
-
-A source span: byte offsets [start, end) and the start position as
-line and character column (the compiler's `Span` shape).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Span</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Span</span>))))</code></pre>
 
 <a id="type-546f6b656e"></a>
 
 ## `Token`
 
-```cinch
-data Token
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Token</span></code></pre>
 
 One token of the surface grammar's tokenization: the lexical
 classes of "Layout and lexing" after the local amendments. The
@@ -248,75 +187,33 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 [Source](/reference-sources/Text.Lex.cinch) · line 151
 
-```cinch
-TVar :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TVar</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TCon :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TCon</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TOp :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TOp</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TInt :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TInt</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TFloat :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TFloat</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TStr :: (Bytes -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TStr</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TChar :: (Nat -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TChar</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TWord :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TWord</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TPunct :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPunct</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TAttr :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TAttr</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-One `#[...]` attribute annotation: the inner text between `#[`
-and `]` (the compiler's `Attr`, whose name and raw argument text
-a parser splits out).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPrimFrag</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TPrimFrag :: (String -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickName</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-The verbatim inner text of a `prim` body's inline target-IR
-fragment (the compiler's `Fragment`): the balanced `{ ... }`
-region a registered family name opens, captured raw so fragment
-grammars never pass through the surface tokenizer.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickType</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-```cinch
-TTickName :: (String -> Token)
-```
-
-`'name`: the tick lexeme's symbol form (amendment section 12),
-the name `lex_word`'s shape, dashes included.
-
-```cinch
-TTickType :: (String -> Token)
-```
-
-`''T`: the tick lexeme's type-name form (amendment section 12).
-
-```cinch
-TEOF :: Token
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TEOF</span> :: <span class="tok-constructor">Token</span></code></pre>
 
 # Values
 
@@ -324,207 +221,145 @@ TEOF :: Token
 
 ## `bytes-slice`
 
-```cinch
-bytes-slice :: using (arg2 <= (Data.Bytes.bytes-len arg0)) => ((arg0 :: Bytes) -> ((arg1 :: Nat) -> ((arg2 :: Nat) -> Bytes)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-slice</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg2</span> <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bytes</span>)))</code></pre>
 
-Small text helpers.
-
-`pack` is provided by Data.String (the type home); this module
-imports it for its char-list-to-String conversions.
-
-The byte range [i, j) of a buffer as a fresh copy; a reversed range
-(`j < i`) holds no bytes, so it is the empty copy. The range's end
-must lie inside the buffer: every caller slices between offsets it
-has already scanned, so it holds that bound.
-
-[Source](/reference-sources/Text.Lex.cinch) · line 96
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-63686172732d6279746573"></a>
 
 ## `chars-bytes`
 
-```cinch
-chars-bytes :: (List Char -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chars-bytes</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 116
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-65712d746f6b656e"></a>
 
 ## `eq-token`
 
-```cinch
-eq-token :: (Token -> (Token -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-token</span> :: (<span class="tok-constructor">Token</span> -&gt; (<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-Token equality over the kind and its spelling: `Text.Parse`'s
-token matchers compare with this.
-
-[Source](/reference-sources/Text.Lex.cinch) · line 206
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c61796f75742d746f6b656e73"></a>
 
 ## `layout-tokens`
 
-```cinch
-layout-tokens :: (List LToken -> Lexed)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">layout-tokens</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Lexed</span>)</code></pre>
 
-fields: out, stack, prev, pending-span, pending-is-let, with-paren-pending,
-supply-close-pending
-
-[Source](/reference-sources/Text.Lex.cinch) · line 1376
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c65782d6572726f722d6b696e64"></a>
 
 ## `lex-error-kind`
 
-```cinch
-lex-error-kind :: (LexError -> LexErrorKind)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-kind</span> :: (<span class="tok-constructor">LexError</span> -&gt; <span class="tok-constructor">LexErrorKind</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 361
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c65782d6572726f722d6d657373616765"></a>
 
 ## `lex-error-message`
 
-```cinch
-lex-error-message :: (LexErrorKind -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-message</span> :: (<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 365
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c65782d6572726f722d7370616e"></a>
 
 ## `lex-error-span`
 
-```cinch
-lex-error-span :: (LexError -> Span)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-span</span> :: (<span class="tok-constructor">LexError</span> -&gt; <span class="tok-constructor">Span</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 357
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c65782d736f75726365"></a>
 
 ## `lex-source`
 
-```cinch
-lex-source :: (Bytes -> Lexed)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-source</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Lexed</span>)</code></pre>
 
-lex-tokens over a source `String`'s bytes.
-
-[Source](/reference-sources/Text.Lex.cinch) · line 1294
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c65782d746f6b656e73"></a>
 
 ## `lex-tokens`
 
-```cinch
-lex-tokens :: (Bytes -> Lexed)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-tokens</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Lexed</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 1198
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c742d7370616e"></a>
 
 ## `lt-span`
 
-```cinch
-lt-span :: (LToken -> Span)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-span</span> :: (<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Span</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 182
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c742d746f6b656e"></a>
 
 ## `lt-token`
 
-```cinch
-lt-token :: (LToken -> Token)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-token</span> :: (<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Token</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 190
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-6c742d7669727475616c"></a>
 
 ## `lt-virtual`
 
-```cinch
-lt-virtual :: (LToken -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-virtual</span> :: (<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 186
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-72656e6465722d746f6b656e"></a>
 
 ## `render-token`
 
-```cinch
-render-token :: (LToken -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-token</span> :: (<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-The canonical rendering the drift tests compare against the
-compiler's lexer: `kind:spelling@line:col`, with `!v` marking a
-layout-inserted token. A spelling's `\` and newline characters
-render as the two-character escapes `\\` and `\n`, so one token
-is always one line of the rendering (the drift tests split on
-lines); a `TChar` renders its scalar's UTF-8 text (the compiler
-records the decoded char).
-
-[Source](/reference-sources/Text.Lex.cinch) · line 292
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-7370616e2d636f6c"></a>
 
 ## `span-col`
 
-```cinch
-span-col :: (Span -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-col</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 140
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-7370616e2d656e64"></a>
 
 ## `span-end`
 
-```cinch
-span-end :: (Span -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-end</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 132
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-7370616e2d6c696e65"></a>
 
 ## `span-line`
 
-```cinch
-span-line :: (Span -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-line</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 136
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-7370616e2d7374617274"></a>
 
 ## `span-start`
 
-```cinch
-span-start :: (Span -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-start</span> :: (<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 128
+[Source](/reference-sources/Text.Lex.cinch)
 
 <a id="value-746f6b656e2d6b696e642d6e616d65"></a>
 
 ## `token-kind-name`
 
-```cinch
-token-kind-name :: (Token -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">token-kind-name</span> :: (<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Lex.cinch) · line 251
+[Source](/reference-sources/Text.Lex.cinch)
 
 # Reference provenance
 

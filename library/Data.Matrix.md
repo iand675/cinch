@@ -73,9 +73,7 @@ Named refusals (boundaries this module deliberately does not cross):
 
 ## `Matrix`
 
-```cinch
-data Matrix
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Matrix</span></code></pre>
 
 The dense matrix: the dimensions and the row-major rows. The
 constructor is module-private (the ragged invariant lives at
@@ -87,48 +85,22 @@ constructor is module-private (the ragged invariant lives at
 
 ## `MatrixError`
 
-```cinch
-data MatrixError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MatrixError</span></code></pre>
 
 The named errors; every shape violation is one of these, never a
 wrong-shaped result.
 
 [Source](/reference-sources/Data.Matrix.cinch) · line 70
 
-```cinch
-RaggedRows :: (Nat -> (Nat -> (Nat -> MatrixError)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RaggedRows</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>)))</code></pre>
 
-(row index, expected width, found width): a row of a ragged
-`matrix` call, found at construction.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DimensionMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))))</code></pre>
 
-```cinch
-DimensionMismatch :: (Nat -> (Nat -> (Nat -> (Nat -> MatrixError))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VectorMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))</code></pre>
 
-(rows a, cols a, rows b, cols b): two matrices whose shapes do
-not fit the operation (`add`/`sub` need equal shapes, `mul`
-needs `cols a == rows b`).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IndexOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))))</code></pre>
 
-```cinch
-VectorMismatch :: (Nat -> (Nat -> MatrixError))
-```
-
-(cols a, vector length): `mul-vector` needs `cols a` equal to
-the vector length.
-
-```cinch
-IndexOutOfRange :: (Nat -> (Nat -> (Nat -> (Nat -> MatrixError))))
-```
-
-(row, col, rows, cols): an `at` index outside the matrix.
-
-```cinch
-NotSquare :: (Nat -> (Nat -> MatrixError))
-```
-
-(rows, cols): `determinant` of a non-square matrix.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotSquare</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))</code></pre>
 
 # Values
 
@@ -136,19 +108,15 @@ NotSquare :: (Nat -> (Nat -> MatrixError))
 
 ## `add`
 
-```cinch
-add :: (Matrix -> (Matrix -> Result MatrixError Matrix))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 205
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-6174"></a>
 
 ## `at`
 
-```cinch
-at :: (Matrix -> (Nat -> (Nat -> Result MatrixError F64)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">at</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>)))</code></pre>
 
 The cell, or a named `IndexOutOfRange`. Both indices are
 zero-based; the guard makes `row-of`/`element-of` total so their
@@ -160,19 +128,15 @@ fallback is never observed.
 
 ## `cols`
 
-```cinch
-cols :: (Matrix -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cols</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 91
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-64657465726d696e616e74"></a>
 
 ## `determinant`
 
-```cinch
-determinant :: (Matrix -> Result MatrixError F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">determinant</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>)</code></pre>
 
 Cofactor expansion along the first row (see the header: O(n!) time,
 each minor rebuild O(n^2)). A non-square matrix is refused before
@@ -184,39 +148,31 @@ any expansion.
 
 ## `equals`
 
-```cinch
-equals :: (Matrix -> (Matrix -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 317
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-657175616c732d77697468696e"></a>
 
 ## `equals-within`
 
-```cinch
-equals-within :: (F64 -> (Matrix -> (Matrix -> Bool)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals-within</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 344
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-6964656e74697479"></a>
 
 ## `identity`
 
-```cinch
-identity :: (Nat -> Matrix)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Matrix</span>)</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 260
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-6d6174726978"></a>
 
 ## `matrix`
 
-```cinch
-matrix :: (List (List F64) -> Result MatrixError Matrix)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">matrix</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>)</code></pre>
 
 Construct a matrix from its rows: the first row fixes the width
 and every later row must match it. Ragged input is refused here,
@@ -229,71 +185,57 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `mul`
 
-```cinch
-mul :: (Matrix -> (Matrix -> Result MatrixError Matrix))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 239
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-6d756c2d766563746f72"></a>
 
 ## `mul-vector`
 
-```cinch
-mul-vector :: (Matrix -> (List F64 -> Result MatrixError (List F64)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-vector</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 250
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-726f7773"></a>
 
 ## `rows`
 
-```cinch
-rows :: (Matrix -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rows</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 87
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-7363616c65"></a>
 
 ## `scale`
 
-```cinch
-scale :: (F64 -> (Matrix -> Matrix))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scale</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Matrix</span>))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 217
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-737562"></a>
 
 ## `sub`
 
-```cinch
-sub :: (Matrix -> (Matrix -> Result MatrixError Matrix))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 211
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-746f2d737472696e67"></a>
 
 ## `to-string`
 
-```cinch
-to-string :: (Matrix -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 396
+[Source](/reference-sources/Data.Matrix.cinch)
 
 <a id="value-7472616e73706f7365"></a>
 
 ## `transpose`
 
-```cinch
-transpose :: (Matrix -> Matrix)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Matrix</span>)</code></pre>
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 256
+[Source](/reference-sources/Data.Matrix.cinch)
 
 # Reference provenance
 

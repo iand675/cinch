@@ -54,54 +54,37 @@ implement; each is a named boundary, never a silent gap):
 
 ## `ArgSpec`
 
-```cinch
-data ArgSpec
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ArgSpec</span></code></pre>
 
 One option's spec: a flag (no value), a value option, or a
 required wrapper around either.
 
 [Source](/reference-sources/Text.Args.cinch) · line 52
 
-```cinch
-FlagSpec :: (String -> ArgSpec)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
 
-```cinch
-ValueSpec :: (String -> ArgSpec)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ValueSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
 
-```cinch
-Required :: (ArgSpec -> ArgSpec)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Required</span> :: (<span class="tok-constructor">ArgSpec</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
 
 <a id="type-41726773"></a>
 
 ## `Args`
 
-```cinch
-data Args
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Args</span></code></pre>
 
 The parse result: the option occurrences in argv order and the
 positional values in argv order.
 
 [Source](/reference-sources/Text.Args.cinch) · line 72
 
-```cinch
-Args :: (List OptVal -> (List String -> Args))
-```
-
-The parse result: the option occurrences in argv order and the
-positional values in argv order.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Args</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Args</span>))</code></pre>
 
 <a id="type-417267734572726f72"></a>
 
 ## `ArgsError`
 
-```cinch
-data ArgsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ArgsError</span></code></pre>
 
 The named errors: an option the specs do not know, a value option
 without its value, a value on a flag, a required spec that did
@@ -109,41 +92,26 @@ not occur.
 
 [Source](/reference-sources/Text.Args.cinch) · line 86
 
-```cinch
-UnknownOption :: (String -> ArgsError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
 
-```cinch
-MissingValue :: (String -> ArgsError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
 
-```cinch
-UnexpectedValue :: (String -> ArgsError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
 
-```cinch
-MissingRequired :: (String -> ArgsError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingRequired</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
 
 <a id="type-4f707456616c"></a>
 
 ## `OptVal`
 
-```cinch
-data OptVal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OptVal</span></code></pre>
 
 One option occurrence: its name and its value (a flag's value is
 `None`).
 
 [Source](/reference-sources/Text.Args.cinch) · line 59
 
-```cinch
-OptVal :: (String -> (Option String -> OptVal))
-```
-
-One option occurrence: its name and its value (a flag's value is
-`None`).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptVal</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptVal</span>))</code></pre>
 
 # Values
 
@@ -151,49 +119,39 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `args-options`
 
-```cinch
-args-options :: (Args -> List OptVal)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-options</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">OptVal</span>)</code></pre>
 
-[Source](/reference-sources/Text.Args.cinch) · line 75
+[Source](/reference-sources/Text.Args.cinch)
 
 <a id="value-617267732d76616c756573"></a>
 
 ## `args-values`
 
-```cinch
-args-values :: (Args -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-values</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Args.cinch) · line 79
+[Source](/reference-sources/Text.Args.cinch)
 
 <a id="value-6f70742d6e616d65"></a>
 
 ## `opt-name`
 
-```cinch
-opt-name :: (OptVal -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-name</span> :: (<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Args.cinch) · line 62
+[Source](/reference-sources/Text.Args.cinch)
 
 <a id="value-6f70742d76616c7565"></a>
 
 ## `opt-value`
 
-```cinch
-opt-value :: (OptVal -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-value</span> :: (<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Args.cinch) · line 66
+[Source](/reference-sources/Text.Args.cinch)
 
 <a id="value-70617273652d61726773"></a>
 
 ## `parse-args`
 
-```cinch
-parse-args :: (List ArgSpec -> (List String -> Result ArgsError Args))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-args</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">ArgSpec</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ArgsError</span> <span class="tok-constructor">Args</span>))</code></pre>
 
 The argv walk: options and values accumulate in order; `--` ends
 the options.
@@ -204,19 +162,15 @@ the options.
 
 ## `render-args-error`
 
-```cinch
-render-args-error :: (ArgsError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-args-error</span> :: (<span class="tok-constructor">ArgsError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Args.cinch) · line 92
+[Source](/reference-sources/Text.Args.cinch)
 
 <a id="value-72656e6465722d61726776"></a>
 
 ## `render-argv`
 
-```cinch
-render-argv :: (Args -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-argv</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
 The canonical argv of one parse: `--name=value` per value
 occurrence, `--name` per flag, then the positional values.

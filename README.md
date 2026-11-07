@@ -119,3 +119,5 @@ Pages authored locally in this repository after the 2026-10-22 export. They are 
 - [Ownership, usage and regions design](design/ownership-and-usage.md) · design note: `%0`/`%1`/`%aff`/`%many` usage checking, `Share`, `Ref`/`Mut` regions and escape rules (P5).
 - [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md) · design note: handler calculus, `do` with sequencing modules, lexical capabilities and runtime identity (P6).
 - [Codata and guardedness design](design/codata-guardedness.md) · design note: `codata`, `Later`, `corec` productivity and bisimulation (P8).
+- [Package management](design/package-management.md) · design note: release identity, checked compatibility, client-side resolution, the registry protocol, public and private packages, withdrawal and takedown, and the SLSA provenance layer.
+- [Registry service](registry/README.md) · runnable v0 with public and private packages: `cd registry && npm test`, then `CINCH_REGISTRY_ADMIN_TOKEN=... node server.mjs`. Node 24 with built-in SQLite and no third-party dependencies.

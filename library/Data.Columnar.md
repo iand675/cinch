@@ -31,81 +31,65 @@ This module exports no type declarations.
 
 ## `columnar-array`
 
-```cinch
-columnar-array :: forall a . (Columnar a -> Option (Array a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-array</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 17
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d636f6c756d6e"></a>
 
 ## `columnar-column`
 
-```cinch
-columnar-column :: forall a . (Array a -> Columnar a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-column</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 8
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d636f6c756d6e73"></a>
 
 ## `columnar-columns`
 
-```cinch
-columnar-columns :: forall a . (Columnar a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-columns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 11
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d676574"></a>
 
 ## `columnar-get`
 
-```cinch
-columnar-get :: forall a . (Columnar a -> (Nat -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 12
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d6c656674"></a>
 
 ## `columnar-left`
 
-```cinch
-columnar-left :: forall a b . (Columnar (a, b) -> Option (Columnar a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 15
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d7269676874"></a>
 
 ## `columnar-right`
 
-```cinch
-columnar-right :: forall a b . (Columnar (a, b) -> Option (Columnar b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 16
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d726f7773"></a>
 
 ## `columnar-rows`
 
-```cinch
-columnar-rows :: forall a . (Columnar a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-rows</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 10
+[Source](/reference-sources/Data.Columnar.cinch)
 
 <a id="value-636f6c756d6e61722d7a6970"></a>
 
 ## `columnar-zip`
 
-```cinch
-columnar-zip :: forall a b . (Columnar a -> (Columnar b -> Option (Columnar (a, b))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-zip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Columnar.cinch) · line 9
+[Source](/reference-sources/Data.Columnar.cinch)
 
 # Reference provenance
 

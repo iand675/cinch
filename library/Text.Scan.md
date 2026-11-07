@@ -63,9 +63,7 @@ provided: CRLF and lone CR line endings fold to LF.
 
 ## `FormatError`
 
-```cinch
-data FormatError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FormatError</span></code></pre>
 
 `format`: template interpolation over `{}` holes (the sprintf
 replacement; the arguments render themselves at their own
@@ -73,17 +71,11 @@ types).
 
 [Source](/reference-sources/Text.Scan.cinch) · line 401
 
-```cinch
-MissingFormatArgument :: (Nat -> FormatError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
 
-```cinch
-UnusedFormatArgument :: (Nat -> FormatError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnusedFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
 
-```cinch
-UnmatchedFormatBrace :: (Nat -> FormatError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedFormatBrace</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
 
 # Values
 
@@ -91,39 +83,31 @@ UnmatchedFormatBrace :: (Nat -> FormatError)
 
 ## `format`
 
-```cinch
-format :: (String -> (List String -> Result FormatError String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">FormatError</span> <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 412
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-72656e6465722d666f726d61742d6572726f72"></a>
 
 ## `render-format-error`
 
-```cinch
-render-format-error :: (FormatError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-format-error</span> :: (<span class="tok-constructor">FormatError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 406
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d6361706974616c697a652d6173636969"></a>
 
 ## `string-capitalize-ascii`
 
-```cinch
-string-capitalize-ascii :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-capitalize-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 336
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d63656e746572"></a>
 
 ## `string-center`
 
-```cinch
-string-center :: (Nat -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-center</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
 Center in `w` scalars; the extra space of an odd pad goes right.
 
@@ -133,9 +117,7 @@ Center in `w` scalars; the extra space of an odd pad goes right.
 
 ## `string-char-index-of`
 
-```cinch
-string-char-index-of :: (Char -> (String -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-index-of</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The scalar index of the first occurrence of a single scalar (the
 one-scalar special case of `string-index-of`; `None` when the
@@ -148,9 +130,7 @@ rule above).
 
 ## `string-chomp`
 
-```cinch
-string-chomp :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chomp</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Drop one trailing line ending: LF, CRLF or CR.
 
@@ -160,9 +140,7 @@ Drop one trailing line ending: LF, CRLF or CR.
 
 ## `string-chop`
 
-```cinch
-string-chop :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chop</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Drop the last scalar.
 
@@ -172,61 +150,47 @@ Drop the last scalar.
 
 ## `string-contains`
 
-```cinch
-string-contains :: (String -> (String -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-contains</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 145
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d646f776e636173652d6173636969"></a>
 
 ## `string-downcase-ascii`
 
-```cinch
-string-downcase-ascii :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-downcase-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 333
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d64726f70"></a>
 
 ## `string-drop`
 
-```cinch
-string-drop :: (Nat -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 268
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d64726f702d7768696c65"></a>
 
 ## `string-drop-while`
 
-```cinch
-string-drop-while :: ((Char -> Bool) -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 277
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d656e64732d77697468"></a>
 
 ## `string-ends-with`
 
-```cinch
-string-ends-with :: (String -> (String -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-ends-with</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 165
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d696e6465782d6f66"></a>
 
 ## `string-index-of`
 
-```cinch
-string-index-of :: (String -> (String -> Option Nat))
-```
-
-Scanning (subject last).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-index-of</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The scalar index where `needle` first occurs in `s` (an empty
 needle occurs at 0).
@@ -237,9 +201,7 @@ needle occurs at 0).
 
 ## `string-join`
 
-```cinch
-string-join :: (String -> (List String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
 Join with a separator between every pair.
 
@@ -249,9 +211,7 @@ Join with a separator between every pair.
 
 ## `string-lines`
 
-```cinch
-string-lines :: (String -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lines</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
 The lines of a string: the segments between LF scalars, with one
 trailing empty segment dropped when the string ends in LF (an
@@ -263,19 +223,15 @@ empty string has no lines).
 
 ## `string-lstrip`
 
-```cinch
-string-lstrip :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lstrip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 297
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d6e6f726d616c697a652d6e65776c696e6573"></a>
 
 ## `string-normalize-newlines`
 
-```cinch
-string-normalize-newlines :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-normalize-newlines</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Line-ending normalization (the one normalization the UTF-8
 layers permit: CRLF and lone CR fold to LF).
@@ -286,9 +242,7 @@ layers permit: CRLF and lone CR fold to LF).
 
 ## `string-pad-left`
 
-```cinch
-string-pad-left :: (Nat -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-left</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
 Padding (scalar widths, spaces).
 
@@ -298,29 +252,23 @@ Padding (scalar widths, spaces).
 
 ## `string-pad-right`
 
-```cinch
-string-pad-right :: (Nat -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-right</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 356
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d727374726970"></a>
 
 ## `string-rstrip`
 
-```cinch
-string-rstrip :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-rstrip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 300
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d73706c69742d6174"></a>
 
 ## `string-split-at`
 
-```cinch
-string-split-at :: (Nat -> (String -> (String, String)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-at</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>)))</code></pre>
 
 Splitting at a scalar count, over scalar boundaries (a count past
 the end puts everything in the first part; 0 puts everything in
@@ -332,9 +280,7 @@ the second).
 
 ## `string-split-on`
 
-```cinch
-string-split-on :: (String -> (String -> List String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-on</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
 
 Split at every occurrence of the separator (the separators are
 removed). Trailing empty pieces are dropped (Ruby's default) and
@@ -347,19 +293,15 @@ an empty separator splits into single-scalar strings (Ruby's
 
 ## `string-starts-with`
 
-```cinch
-string-starts-with :: (String -> (String -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-starts-with</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 162
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d7374726970"></a>
 
 ## `string-strip`
 
-```cinch
-string-strip :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-strip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Trimming and case (ASCII).
 
@@ -369,19 +311,15 @@ Trimming and case (ASCII).
 
 ## `string-take`
 
-```cinch
-string-take :: (Nat -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Text.Scan.cinch) · line 265
+[Source](/reference-sources/Text.Scan.cinch)
 
 <a id="value-737472696e672d74616b652d7768696c65"></a>
 
 ## `string-take-while`
 
-```cinch
-string-take-while :: ((Char -> Bool) -> (String -> String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
 
 The longest prefix (suffix) whose scalars all satisfy `p`; unlike
 `string-take`/`string-drop` the cut is predicate-driven, so the
@@ -393,9 +331,7 @@ caller supplies the scalar test.
 
 ## `string-unlines`
 
-```cinch
-string-unlines :: (List String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unlines</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The inverse of `string-lines`: every line followed by LF, so
 `string-unlines (string-lines s)` is `s` with exactly one trailing
@@ -409,9 +345,7 @@ the last line unterminated.
 
 ## `string-unwords`
 
-```cinch
-string-unwords :: (List String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unwords</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The inverse of `string-words`: a single space between elements
 (the empty list is the empty string, matching `string-words ""`).
@@ -422,9 +356,7 @@ The inverse of `string-words`: a single space between elements
 
 ## `string-upcase-ascii`
 
-```cinch
-string-upcase-ascii :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-upcase-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 ASCII case mapping only (the honest boundary: no Unicode case
 data exists in the UTF-8 layers).
@@ -435,9 +367,7 @@ data exists in the UTF-8 layers).
 
 ## `string-words`
 
-```cinch
-string-words :: (String -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-words</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
 The whitespace-separated words (ASCII whitespace runs delimit).
 

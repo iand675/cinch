@@ -29,10 +29,19 @@ cinch run examples/compiler/fib.cinch
 cinch emit-ir examples/compiler/fib.cinch -o fib.ll
 cinch build examples/compiler/fib.cinch -o fib
 cinch-test       # cargo test
+cinch doc extract compiler/prelude/Data/Option.cinch --legacy -o /tmp/option.cinchdoc
+cinch doc render compiler/prelude/Data/Option.cinch --legacy
 ```
 
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
+
+`cinch doc` is the documentation-comment front end. It parses `.cinchdoc`
+canonical JSON, looks up symbols, indexes a source tree, runs `cinch test`
+blocks, and renders Markdown. Cinch code fences in rendered output are
+highlighted by the grammar in `tooling/tree-sitter-cinch`; `--plain` keeps
+fenced code, and `cinch doc markdown` applies the same highlighting to an
+arbitrary Markdown stream.
 
 `cinch emit-object Library.cinch -o library.o` emits a library dependency
 object, its LLVM text (`library.ll`) and physical ABI (`library.abi.json`).

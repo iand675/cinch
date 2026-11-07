@@ -50,9 +50,7 @@ This module exports no type declarations.
 
 ## `checked-div`
 
-```cinch
-checked-div :: (Nat -> (Nat -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Division where a zero divisor is an ordinary input the caller
 handles: `None` exactly when `d` is zero. The decision is the
@@ -64,9 +62,7 @@ divisor's evidence, so the division inside is the total one.
 
 ## `checked-nat-from-i64`
 
-```cinch
-checked-nat-from-i64 :: (I64 -> Option Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-from-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 The `I64` conversions where an out-of-range value is an ordinary
 input: `None` exactly then.
@@ -77,29 +73,23 @@ input: `None` exactly then.
 
 ## `checked-nat-to-i64`
 
-```cinch
-checked-nat-to-i64 :: (Nat -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-to-i64</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 89
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-636865636b65642d72656d"></a>
 
 ## `checked-rem`
 
-```cinch
-checked-rem :: (Nat -> (Nat -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 68
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-636865636b65642d737562"></a>
 
 ## `checked-sub`
 
-```cinch
-checked-sub :: (Nat -> (Nat -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Subtraction where `b > a` is an ordinary input the caller handles:
 `None` exactly then. The test is the subtraction's evidence.
@@ -110,9 +100,7 @@ Subtraction where `b > a` is an ordinary input the caller handles:
 
 ## `nat-add`
 
-```cinch
-nat-add :: (Nat -> (Nat -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-add</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 The mathematical `Nat` and `Int` (primitive types specification,
 section 1): boxed bignums, distinct from every machine scalar.
@@ -123,29 +111,23 @@ section 1): boxed bignums, distinct from every machine scalar.
 
 ## `nat-cmp`
 
-```cinch
-nat-cmp :: (Nat -> (Nat -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-cmp</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 45
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-6e61742d646976"></a>
 
 ## `nat-div`
 
-```cinch
-nat-div :: (Nat -> (NonZero Nat -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 41
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-6e61742d66726f6d2d693634"></a>
 
 ## `nat-from-i64`
 
-```cinch
-nat-from-i64 :: using (0 <= arg0) => ((arg0 :: I64) -> refined (r == arg0) Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-from-i64</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">Nat</span>)</code></pre>
 
 The `I64` conversions keep the value (`n == x`), and each states
 the range it needs: a negative `I64` is no `Nat`, and a `Nat` past
@@ -160,29 +142,23 @@ value may be out of range, `checked-nat-from-i64`/
 
 ## `nat-from-int`
 
-```cinch
-nat-from-int :: using (0 <= arg0) => ((arg0 :: Int) -> refined (r == arg0) Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-from-int</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Int</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 58
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-6e61742d6d756c"></a>
 
 ## `nat-mul`
 
-```cinch
-nat-mul :: (Nat -> (Nat -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-mul</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 40
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-6e61742d72656d"></a>
 
 ## `nat-rem`
 
-```cinch
-nat-rem :: (Nat -> ((a1 :: NonZero Nat) -> refined (r < a1) Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-rem</span> :: (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a1</span> :: <span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">&lt;</span> <span class="tok-variable">a1</span>) <span class="tok-constructor">Nat</span>))</code></pre>
 
 The remainder is below the divisor (`r < d`, a fact about each
 call's result: `let r = nat-rem v 256` knows `r < 256`).
@@ -193,9 +169,7 @@ call's result: `let r = nat-rem v 256` knows `r < 256`).
 
 ## `nat-sub`
 
-```cinch
-nat-sub :: using (arg1 <= arg0) => ((arg0 :: Nat) -> ((arg1 :: Nat) -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-sub</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 The exact difference: the caller proves it is a `Nat`.
 
@@ -205,19 +179,15 @@ The exact difference: the caller proves it is a `Nat`.
 
 ## `nat-to-i64`
 
-```cinch
-nat-to-i64 :: using (arg0 <= 9223372036854775807) => ((arg0 :: Nat) -> refined (r == arg0) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-i64</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg0</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">9223372036854775807</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Nat.cinch) · line 53
+[Source](/reference-sources/Data.Nat.cinch)
 
 <a id="value-6e61742d746f2d696e74"></a>
 
 ## `nat-to-int`
 
-```cinch
-nat-to-int :: ((a0 :: Nat) -> refined (r == a0) Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-int</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Int</span>)</code></pre>
 
 The `Int` conversions: every `Nat` is an `Int`, and a non-negative
 `Int` is a `Nat`, both keeping the value (no `I64` in between, so a
@@ -229,9 +199,7 @@ value of any size converts).
 
 ## `saturating-sub`
 
-```cinch
-saturating-sub :: (Nat -> (Nat -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 Truncated subtraction ("monus", Rust's `saturating_sub`): `a - b`
 when `b <= a`, else `0`. Use it where clamping at zero is what the
@@ -255,6 +223,20 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Nat.Rem_Nat` | `Rem Nat` | Implicit |
 | `Data.Nat.Semiring_Nat` | `Semiring Nat` | Implicit |
 | `Data.Nat.Sub_Nat` | `Sub Nat` | Implicit |
+
+**`Data.Nat.Enum_Nat`**: The enumeration of natural numbers (Data.Enum): codes are the
+values; `pred 0` and `to-enum` of a negative code are `None`
+(instances live with their type).
+**`Data.Nat.Hash_Nat`**: A `Nat` is its own bucket digest (identity hashing; instances
+live with their type).
+**`Data.Nat.Semiring_Nat`**: The semiring of natural numbers: addition and multiplication with
+their identities (see the header; instances live with their type).
+**`Data.Nat.Sub_Nat`**: `-` at `Nat` is the exact difference, so this instance states the
+precondition over the method's arguments: every direct `x - y`
+discharges `y <= x` (a numeral pair decides it, a branch fact or
+`Dec` evidence supplies it). The class is unchanged, so `-` at
+`Int` needs nothing; and since generic code over `Sub a` could
+apply `-` to anything, this dictionary is never passed to it.
 
 # Reference provenance
 

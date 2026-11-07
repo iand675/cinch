@@ -39,9 +39,7 @@ the identity and its instance lives here with its class.
 
 ## `DirectSequencing`
 
-```cinch
-signature DirectSequencing 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">DirectSequencing</span> </code></pre>
 
 Sequencing providers for `do` notation (runtime capabilities,
 effects and sequencing specification, "Unqualified do through
@@ -56,81 +54,65 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `DirectSequencing.pure`
 
-```cinch
-pure :: forall a . using (dict :: DirectSequencing) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-44697265637453657175656e63696e672e62696e64"></a>
 
 ## `DirectSequencing.bind`
 
-```cinch
-bind :: forall a b ef . using (dict :: DirectSequencing) => (a -> ((a ->{ef} b) ->{ef} b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 <a id="class-4f7074696f6e53657175656e63696e67"></a>
 
 ## `OptionSequencing`
 
-```cinch
-signature OptionSequencing 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">OptionSequencing</span> </code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 41
+[Source](/reference-sources/Effect.Sequencing.cinch)
 
 <a id="method-4f7074696f6e53657175656e63696e672e70757265"></a>
 
 ## `OptionSequencing.pure`
 
-```cinch
-pure :: forall a . using (dict :: OptionSequencing) => (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-4f7074696f6e53657175656e63696e672e62696e64"></a>
 
 ## `OptionSequencing.bind`
 
-```cinch
-bind :: forall a b ef . using (dict :: OptionSequencing) => (Option a -> ((a ->{ef} Option b) ->{ef} Option b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 <a id="class-526573756c7453657175656e63696e67"></a>
 
 ## `ResultSequencing`
 
-```cinch
-signature ResultSequencing e
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span></code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 37
+[Source](/reference-sources/Effect.Sequencing.cinch)
 
 <a id="method-526573756c7453657175656e63696e672e70757265"></a>
 
 ## `ResultSequencing.pure`
 
-```cinch
-pure :: forall e a . using (dict :: ResultSequencing e) => (a -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-526573756c7453657175656e63696e672e62696e64"></a>
 
 ## `ResultSequencing.bind`
 
-```cinch
-bind :: forall e a b ef . using (dict :: ResultSequencing e) => (Result e a -> ((a ->{ef} Result e b) ->{ef} Result e b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 # Instances
 

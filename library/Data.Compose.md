@@ -29,15 +29,11 @@ family's shape is complete.
 
 ## `Compose`
 
-```cinch
-data Compose (f :: Type) (g :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Compose</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Compose.cinch) · line 13
+[Source](/reference-sources/Data.Compose.cinch)
 
-```cinch
-Compose :: forall f g a . ((f ((g a))) -> Compose f g a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Compose</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">f</span> ((<span class="tok-variable">g</span> <span class="tok-variable">a</span>))) -&gt; <span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -45,11 +41,9 @@ Compose :: forall f g a . ((f ((g a))) -> Compose f g a)
 
 ## `get-compose`
 
-```cinch
-get-compose :: forall (f :: Type -> Type) (g :: Type -> Type) a . (Compose f g a -> (f ((g a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-compose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . (<span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">g</span> <span class="tok-variable">a</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Compose.cinch) · line 16
+[Source](/reference-sources/Data.Compose.cinch)
 
 # Reference provenance
 

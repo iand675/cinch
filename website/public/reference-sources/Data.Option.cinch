@@ -82,6 +82,16 @@ module Data.Option where
   -- The option's own map, for a caller who has only the prelude: the
   -- `Functor` method of the same name (`map` in Data.List's surface) is
   -- reached through its constraint or with `import Category.Functor`.
+  --
+  -- ```cinch test name=map-some
+  -- --- input
+  -- main :: Int
+  -- main = case map-option (\x -> x + 1) (Some 1) of
+  --   Some n -> n - 2
+  --   None -> 1
+  -- --- exit
+  -- 0
+  -- ```
   map-option :: forall a b. (a -> b) -> Option a -> Option b
   map-option f o = case o of
     None -> None

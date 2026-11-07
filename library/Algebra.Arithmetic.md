@@ -32,9 +32,7 @@ Division and remainder are total by construction: the divisor is a
 
 ## `InRange`
 
-```cinch
-type InRange (lo :: Int) (hi :: Int) (a :: Type) = refine (x :: a) with (lo <= x && x <= hi)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">InRange</span> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (<span class="tok-variable">lo</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">x</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">x</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">hi</span>)</code></pre>
 
 A range of a number, the result type of every operation whose
 result lies in known bounds by construction (`u32-to-i64 :: U32 ->
@@ -52,9 +50,7 @@ the value is its number (`c - 48`, `nat-add c 1`).
 
 ## `NonZero`
 
-```cinch
-type NonZero (a :: Type) = refine (n :: a) with NonZero n
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonZero</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NonZero</span> <span class="tok-variable">n</span></code></pre>
 
 The divisor type, declared here because the `Div`/`Rem` classes
 and the `Nat`/`Int` homes (checked right after this module) name
@@ -73,89 +69,71 @@ predicate at compile time.
 
 ## `Add`
 
-```cinch
-signature Add a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Add</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 44
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4164642e2b"></a>
 
 ## `Add.+`
 
-```cinch
-+ :: forall a . using (dict :: Add a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">+</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 45
+
 
 <a id="class-446976"></a>
 
 ## `Div`
 
-```cinch
-signature Div a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Div</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 68
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4469762e2f"></a>
 
 ## `Div./`
 
-```cinch
-/ :: forall a . using (dict :: Div a) => (a -> (NonZero a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Div</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 69
+
 
 <a id="class-4d756c"></a>
 
 ## `Mul`
 
-```cinch
-signature Mul a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 50
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4d756c2e2a"></a>
 
 ## `Mul.*`
 
-```cinch
-* :: forall a . using (dict :: Mul a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">*</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 51
+
 
 <a id="class-4e6567"></a>
 
 ## `Neg`
 
-```cinch
-signature Neg a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 53
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4e65672e6e6567617465"></a>
 
 ## `Neg.negate`
 
-```cinch
-negate :: forall a . using (dict :: Neg a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">negate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 54
+
 
 <a id="class-52656d"></a>
 
 ## `Rem`
 
-```cinch
-signature Rem a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span></code></pre>
 
 Modulo and division for the mathematical types (decision D91).
 The divisor carries its evidence: a `NonZero a`, so no instance
@@ -173,41 +151,33 @@ checked family only, per the primitive types specification.
 
 ## `Rem.%`
 
-```cinch
-% :: forall a . using (dict :: Rem a) => (a -> (NonZero a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">%</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 66
+
 
 <a id="class-537562"></a>
 
 ## `Sub`
 
-```cinch
-signature Sub a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 47
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-5375622e2d"></a>
 
 ## `Sub.-`
 
-```cinch
-- :: forall a . using (dict :: Sub a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">-</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 48
+
 
 # Operator fixities
 
-```cinch
-infixl 9 %
-infixl 9 *
-infixl 8 +
-infixl 8 -
-infixl 9 /
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">%</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">*</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">+</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">-</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">/</span></code></pre>
 
 # Reference provenance
 

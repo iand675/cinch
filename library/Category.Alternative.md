@@ -39,37 +39,29 @@ prelude split (Data.List/Data.Option).
 
 ## `Alternative`
 
-```cinch
-signature Alternative f
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span></code></pre>
 
-[Source](/reference-sources/Category.Alternative.cinch) · line 19
+[Source](/reference-sources/Category.Alternative.cinch)
 
 <a id="method-416c7465726e61746976652e656d707479"></a>
 
 ## `Alternative.empty`
 
-```cinch
-empty :: forall (f :: Type -> Type) a . using (dict :: Alternative f) => (f a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Category.Alternative.cinch) · line 20
+
 
 <a id="method-416c7465726e61746976652e3c7c3e"></a>
 
 ## `Alternative.<|>`
 
-```cinch
-<|> :: forall (f :: Type -> Type) a . using (dict :: Alternative f) => ((f a) -> ((f a) -> (f a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;|&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Alternative.cinch) · line 21
+
 
 # Operator fixities
 
-```cinch
-infixl 3 <|>
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;|&gt;</span></code></pre>
 
 # Reference provenance
 

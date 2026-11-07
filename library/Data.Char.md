@@ -35,9 +35,7 @@ This module exports no type declarations.
 
 ## `char-code`
 
-```cinch
-char-code :: (Char -> InRange 0 1114111 Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-code</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">1114111</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 The scalar value as a `Nat`: the conversion the text and data
 homes all spelled out by hand before this was its home. A scalar
@@ -49,9 +47,7 @@ value is at most 0x10FFFF, and the result says so.
 
 ## `char-from-code`
 
-```cinch
-char-from-code :: (Nat -> Option Char)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-from-code</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)</code></pre>
 
 The inverse, partial exactly as `u32-to-char` is: a value outside
 the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
@@ -64,9 +60,7 @@ a wrapped scalar.
 
 ## `char-to-u32`
 
-```cinch
-char-to-u32 :: ((a0 :: Char) -> refined (((0 <= r && r <= 1114111) && r == a0)) U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Char</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
 
 Primitive types specification, section 6: Char values are Unicode
 scalar values, in code point order. `u32-to-char` rejects surrogates
@@ -78,9 +72,7 @@ and values above 0x10FFFF.
 
 ## `digit-value`
 
-```cinch
-digit-value :: (Char -> Option Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 `Some 0..9` for the ASCII digits, `None` otherwise (the caller
 has already decided what a non-digit means).
@@ -91,39 +83,31 @@ has already decided what a non-digit means).
 
 ## `eq-char`
 
-```cinch
-eq-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 27
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-67652d63686172"></a>
 
 ## `ge-char`
 
-```cinch
-ge-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 32
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-67742d63686172"></a>
 
 ## `gt-char`
 
-```cinch
-gt-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 31
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-6865782d64696769742d76616c7565"></a>
 
 ## `hex-digit-value`
 
-```cinch
-hex-digit-value :: (Char -> Option Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
 
@@ -133,29 +117,23 @@ hex-digit-value :: (Char -> Option Nat)
 
 ## `is-ascii-alpha`
 
-```cinch
-is-ascii-alpha :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-alpha</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 102
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-69732d61736369692d616c7068612d6e756d65726963"></a>
 
 ## `is-ascii-alpha-numeric`
 
-```cinch
-is-ascii-alpha-numeric :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-alpha-numeric</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 105
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-69732d61736369692d6469676974"></a>
 
 ## `is-ascii-digit`
 
-```cinch
-is-ascii-digit :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-digit</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 The ASCII digit and hex-digit test/value pairs. Every text and
 data home that parses numeric text had written its own (under
@@ -170,29 +148,23 @@ database here, and none is claimed.
 
 ## `is-ascii-hex-digit`
 
-```cinch
-is-ascii-hex-digit :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-hex-digit</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 76
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-69732d61736369692d6c6f776572"></a>
 
 ## `is-ascii-lower`
 
-```cinch
-is-ascii-lower :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-lower</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 97
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-69732d61736369692d7370616365"></a>
 
 ## `is-ascii-space`
 
-```cinch
-is-ascii-space :: (Char -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-space</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 ASCII whitespace: space, tab, LF, VT, FF, CR (the ASCII subset of
 base's `isSpace`; the other three controls are the whitespace
@@ -204,19 +176,7 @@ classes that exist outside ASCII).
 
 ## `is-ascii-upper`
 
-```cinch
-is-ascii-upper :: (Char -> Bool)
-```
-
-The ASCII character classes and the ASCII case fold, the whole
-families every text home had spelled out by hand before this was
-their home (`is-alpha-char`/`is-upper-char` in Text.Lex,
-`is-ws-char` in Text.Scan, `ascii-up`/`ascii-down` there and in
-Effect.Http). The names say ASCII because that is the whole class
-they accept: there is no Unicode letter, whitespace, case or
-digit database in the UTF-8 layers, and none is claimed (the
-Unicode scope statement in Text.Scan's header is the house
-position). `is-ascii-digit` above follows the same rule.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-upper</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
 
@@ -226,49 +186,39 @@ A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
 
 ## `le-char`
 
-```cinch
-le-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 30
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-6c742d63686172"></a>
 
 ## `lt-char`
 
-```cinch
-lt-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 29
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-6e652d63686172"></a>
 
 ## `ne-char`
 
-```cinch
-ne-char :: (Char -> (Char -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 28
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-746f2d6c6f7765722d6173636969"></a>
 
 ## `to-lower-ascii`
 
-```cinch
-to-lower-ascii :: (Char -> Char)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-lower-ascii</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 128
+[Source](/reference-sources/Data.Char.cinch)
 
 <a id="value-746f2d75707065722d6173636969"></a>
 
 ## `to-upper-ascii`
 
-```cinch
-to-upper-ascii :: (Char -> Char)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-upper-ascii</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
 
 The ASCII case fold. A scalar outside the affected range is
 returned unchanged, which is the documented behaviour for every
@@ -282,11 +232,9 @@ arm returns the input unchanged (never a magic placeholder).
 
 ## `u32-to-char`
 
-```cinch
-u32-to-char :: (U32 -> Option Char)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-char</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)</code></pre>
 
-[Source](/reference-sources/Data.Char.cinch) · line 26
+[Source](/reference-sources/Data.Char.cinch)
 
 # Instances
 
@@ -297,6 +245,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Char.Eq_Char` | `Eq Char` | Implicit |
 | `Data.Char.Hash_Char` | `Hash Char` | Implicit |
 | `Data.Char.Ord_Char` | `Ord Char` | Implicit |
+
+**`Data.Char.Hash_Char`**: The scalar value is the digest (instances live with their type).
 
 # Reference provenance
 

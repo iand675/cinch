@@ -46,9 +46,7 @@ the contract `Text.Otlp` exports over the wire (OTLP/JSON).
 
 ## `LogLevel`
 
-```cinch
-data LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LogLevel</span></code></pre>
 
 The level of a log record. The lowercase values (`info` and
 friends) are the DX spelling at a `log` call; the constructors
@@ -56,29 +54,19 @@ surface (D308) for handler clauses that match on them.
 
 [Source](/reference-sources/Effect.Log.cinch) · line 36
 
-```cinch
-Debug :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Debug</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-```cinch
-Info :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Info</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-```cinch
-Warn :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Warn</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-```cinch
-Error :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Error</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
 <a id="type-4d65747269634b696e64"></a>
 
 ## `MetricKind`
 
-```cinch
-data MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MetricKind</span></code></pre>
 
 The instrument family of a metric record: a counter accumulates
 deltas, a gauge carries the latest reading, a histogram observes
@@ -87,17 +75,11 @@ values into buckets. The lowercase values are the DX spelling at a
 
 [Source](/reference-sources/Effect.Log.cinch) · line 67
 
-```cinch
-Counter :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Counter</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
-```cinch
-Gauge :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gauge</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
-```cinch
-Histogram :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Histogram</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
 # Values
 
@@ -105,99 +87,79 @@ Histogram :: MetricKind
 
 ## `arr`
 
-```cinch
-arr :: (List Json -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arr</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 117
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-636f756e746572"></a>
 
 ## `counter`
 
-```cinch
-counter :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">counter</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 72
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6465627567"></a>
 
 ## `debug`
 
-```cinch
-debug :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">debug</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 42
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6572726f72"></a>
 
 ## `error`
 
-```cinch
-error :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 51
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6669656c6473"></a>
 
 ## `fields`
 
-```cinch
-fields :: (List (String, Json) -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fields</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 102
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-666c6167"></a>
 
 ## `flag`
 
-```cinch
-flag :: (Bool -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flag</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 114
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6761756765"></a>
 
 ## `gauge`
 
-```cinch
-gauge :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gauge</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 75
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-686973746f6772616d"></a>
 
 ## `histogram`
 
-```cinch
-histogram :: MetricKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">histogram</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 78
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-696e666f"></a>
 
 ## `info`
 
-```cinch
-info :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">info</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 45
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6c6576656c2d6e616d65"></a>
 
 ## `level-name`
 
-```cinch
-level-name :: (LogLevel -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">level-name</span> :: (<span class="tok-constructor">LogLevel</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The level's text in a record (`"debug"`, `"info"`, `"warn"`,
 `"error"`).
@@ -208,9 +170,7 @@ The level's text in a record (`"debug"`, `"info"`, `"warn"`,
 
 ## `log-record`
 
-```cinch
-log-record :: (LogLevel -> (String -> (Json -> Json)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log-record</span> :: (<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
 
 A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
@@ -220,19 +180,15 @@ A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
 ## `metric-kind-name`
 
-```cinch
-metric-kind-name :: (MetricKind -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-kind-name</span> :: (<span class="tok-constructor">MetricKind</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 81
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-6d65747269632d7265636f7264"></a>
 
 ## `metric-record`
 
-```cinch
-metric-record :: (MetricKind -> (String -> (Int -> (Json -> Json))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-record</span> :: (<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>))))</code></pre>
 
 A metric record: `{"metric": ..., "name": ..., "value": ...,
 "fields": ...}`.
@@ -243,9 +199,7 @@ A metric record: `{"metric": ..., "name": ..., "value": ...,
 
 ## `no-fields`
 
-```cinch
-no-fields :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">no-fields</span> :: <span class="tok-constructor">Json</span></code></pre>
 
 The field payload of a record: a `Json` object. `no-fields` is the
 empty payload; `fields` builds one from its pairs (the DX shape:
@@ -259,31 +213,25 @@ array.
 
 ## `num`
 
-```cinch
-num :: (Int -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">num</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 108
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-737472"></a>
 
 ## `str`
 
-```cinch
-str :: (String -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">str</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 111
+[Source](/reference-sources/Effect.Log.cinch)
 
 <a id="value-7761726e"></a>
 
 ## `warn`
 
-```cinch
-warn :: LogLevel
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">warn</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
 
-[Source](/reference-sources/Effect.Log.cinch) · line 48
+[Source](/reference-sources/Effect.Log.cinch)
 
 # Reference provenance
 

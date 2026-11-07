@@ -50,15 +50,7 @@ rewrite citing it records the assumption in the artifact manifest
 
 ## `AVX2_256`
 
-```cinch
-data AVX2_256
-```
-
-Target profiles and the scalar/SIMD pair (P10): target capability
-evidence, the scalar/SIMD pair of the platform chapter's section 5
-example, capability dispatch, and the step-form producer library
-that fusion composes (modules and compilation specification
-section 6).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AVX2_256</span></code></pre>
 
 Target profiles and vector shapes as marker types: the platform
 chapter's `Target` kind and the compile-time lane width are
@@ -66,17 +58,13 @@ represented as types in the bootstrap (decision D58).
 
 [Source](/reference-sources/Data.Target.cinch) · line 47
 
-```cinch
-AVX2_256Tag :: AVX2_256
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">AVX2_256</span></code></pre>
 
 <a id="type-436170417661696c61626c65"></a>
 
 ## `CapAvailable`
 
-```cinch
-data CapAvailable (t :: Type) (w :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CapAvailable</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 Operational evidence that a capability is valid in the current
 validity scope (platform section 2): the lexical region and thread
@@ -84,51 +72,37 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch) · line 69
 
-```cinch
-Available :: forall t w . (VecU32Target t w -> CapAvailable t w)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
 
 <a id="type-45696768744c616e6573"></a>
 
 ## `EightLanes`
 
-```cinch
-data EightLanes
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">EightLanes</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 56
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-EightLanesTag :: EightLanes
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">EightLanes</span></code></pre>
 
 <a id="type-4e454f4e3634"></a>
 
 ## `NEON64`
 
-```cinch
-data NEON64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">NEON64</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 50
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-NEON64Tag :: NEON64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">NEON64</span></code></pre>
 
 <a id="type-5363616c61626c655368617065"></a>
 
 ## `ScalableShape`
 
-```cinch
-data ScalableShape
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScalableShape</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 53
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-ScalableShapeTag :: ScalableShape
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">ScalableShape</span></code></pre>
 
 # Signatures and methods
 
@@ -136,9 +110,7 @@ ScalableShapeTag :: ScalableShape
 
 ## `SumProofs`
 
-```cinch
-signature SumProofs 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">SumProofs</span> </code></pre>
 
 The instruction law (platform section 5): the scalar model and the
 SIMD intrinsic compute the same sum. Discharging it is a proof
@@ -151,19 +123,15 @@ assumption in the artifact manifest (decision D55).
 
 ## `SumProofs.scalar-to-simd`
 
-```cinch
-scalar-to-simd :: forall t w n region . using (dict :: SumProofs) => ((vectors :: VecU32Target t w) -> ((xs :: Ref region Vec n U32) -> Eq (Data.Producer.scalar-sum-wrap32 xs) (Data.Target.simd-sum-wrap32 vectors xs)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> <span class="tok-variable">n</span> <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 90
+
 
 <a id="class-566563553332546172676574"></a>
 
 ## `VecU32Target`
 
-```cinch
-signature VecU32Target t w
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></pre>
 
 The u32-sum capability: its construction establishes that the sum
 intrinsics may execute in the current environment (platform proofs
@@ -176,11 +144,9 @@ a generic proof consumes (section 6).
 
 ## `VecU32Target.positive-width`
 
-```cinch
-positive-width :: forall t w . using (dict :: VecU32Target t w) => (Unit -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">positive-width</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 64
+
 
 # Values
 
@@ -188,9 +154,7 @@ positive-width :: forall t w . using (dict :: VecU32Target t w) => (Unit -> Nat)
 
 ## `detect-vec-u32`
 
-```cinch
-detect-vec-u32 :: (Unit -> Option (VecU32Target AVX2_256 EightLanes))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">detect-vec-u32</span> :: (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">VecU32Target</span> <span class="tok-constructor">AVX2_256</span> <span class="tok-constructor">EightLanes</span>))</code></pre>
 
 Capability dispatch (platform section 7): the bootstrap runtime
 performs no feature detection, so dispatch conservatively selects
@@ -203,9 +167,7 @@ folds this call or the `case` around it.
 
 ## `simd-sum-wrap32`
 
-```cinch
-simd-sum-wrap32 :: forall t w (n :: Nat) region . (VecU32Target t w -> (Ref region Vec n U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-sum-wrap32</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
 The SIMD intrinsic (the scalar/SIMD pair): its bootstrap lowering is
 the scalar loop, and the artifact manifest records which lowering

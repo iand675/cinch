@@ -83,50 +83,33 @@ Named refusals (boundaries this module deliberately does not cross):
 
 ## `NetError`
 
-```cinch
-data NetError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">NetError</span></code></pre>
 
 What went wrong, named. The constructors correspond one for one to
 the platform layer's shared codes.
 
 [Source](/reference-sources/Effect.Net.cinch) · line 73
 
-```cinch
-NetNotFound :: NetError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetNotFound</span> :: <span class="tok-constructor">NetError</span></code></pre>
 
-```cinch
-NetPermissionDenied :: NetError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetPermissionDenied</span> :: <span class="tok-constructor">NetError</span></code></pre>
 
-```cinch
-NetInvalidArgument :: NetError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetInvalidArgument</span> :: <span class="tok-constructor">NetError</span></code></pre>
 
-```cinch
-NetIoError :: NetError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetIoError</span> :: <span class="tok-constructor">NetError</span></code></pre>
 
 <a id="type-536f636b6574"></a>
 
 ## `Socket`
 
-```cinch
-data Socket
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Socket</span></code></pre>
 
 An open TCP connection, as the runtime's socket handle word (kept
 as the runtime's `I64`: it only ever goes back to the runtime).
 
 [Source](/reference-sources/Effect.Net.cinch) · line 81
 
-```cinch
-Socket :: (I64 -> Socket)
-```
-
-An open TCP connection, as the runtime's socket handle word (kept
-as the runtime's `I64`: it only ever goes back to the runtime).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Socket</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Socket</span>)</code></pre>
 
 # Values
 
@@ -134,9 +117,7 @@ as the runtime's `I64`: it only ever goes back to the runtime).
 
 ## `net-close`
 
-```cinch
-net-close :: forall r . using (io :: Io r) => (Socket ->{IO r} Result NetError Unit)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-close</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Socket</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">NetError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Close the socket: the handle is gone afterwards, so every later
 operation on it is `Err NetInvalidArgument`.
@@ -147,9 +128,7 @@ operation on it is `Err NetInvalidArgument`.
 
 ## `net-connect`
 
-```cinch
-net-connect :: forall r . using (io :: Io r) => (String -> (Nat ->{IO r} Result NetError Socket))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-connect</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">NetError</span> <span class="tok-constructor">Socket</span>))</code></pre>
 
 Connect to `host` (UTF-8 host text) at `port` (0..=65535) over TCP:
 the open socket, or the named error. The name is resolved by the
@@ -162,9 +141,7 @@ other port past 65535.
 
 ## `net-read`
 
-```cinch
-net-read :: forall r . using (io :: Io r) => (Socket -> (Nat ->{IO r} Result NetError Bytes))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Socket</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">NetError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 Read up to `max` bytes of the socket: `Ok` of what one platform
 call produced (empty at the end of the stream), or the named error.
@@ -175,9 +152,7 @@ call produced (empty at the end of the stream), or the named error.
 
 ## `net-resolve`
 
-```cinch
-net-resolve :: forall r . using (io :: Io r) => (String -> (Nat ->{IO r} Result NetError Bytes))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-resolve</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">NetError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 Resolve `host` (UTF-8 host text) at `port`: `Ok` of one
 `<ip>:<port>` line per resolved address (each newline terminated,
@@ -190,9 +165,7 @@ an empty buffer: the resolver answered with no address.
 
 ## `net-write`
 
-```cinch
-net-write :: forall r . using (io :: Io r) => (Socket -> (Bytes ->{IO r} Result NetError Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-write</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Socket</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">NetError</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Write `bs` to the socket: the byte count (the whole buffer goes),
 or the named error.
@@ -203,9 +176,7 @@ or the named error.
 
 ## `socket-handle`
 
-```cinch
-socket-handle :: (Socket -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">socket-handle</span> :: (<span class="tok-constructor">Socket</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The handle word of a socket, for the layers above this one.
 

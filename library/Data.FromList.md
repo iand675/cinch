@@ -32,9 +32,7 @@ Data.Set).
 
 ## `FromList`
 
-```cinch
-signature FromList c e
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></pre>
 
 Collection literals (surface grammar local amendments, section 10):
 `[a, b, c]` desugars to `from-list` at the expected type's `FromList
@@ -48,11 +46,9 @@ they default to `List` and `Map`. Instances opt in per container.
 
 ## `FromList.from-list`
 
-```cinch
-from-list :: forall c e . using (dict :: FromList c e) => (List e -> c)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">e</span> -&gt; <span class="tok-variable">c</span>)</code></pre>
 
-[Source](/reference-sources/Data.FromList.cinch) · line 20
+
 
 # Reference provenance
 

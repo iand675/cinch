@@ -58,9 +58,7 @@ header text conversion lives in `Text.Otlp` (the wire formats).
 
 ## `TraceContext`
 
-```cinch
-data TraceContext (r :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TraceContext</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The W3C trace context of runtime identity `r` (trace context
 recommendation, section 3.2): the traceparent header's fields,
@@ -71,16 +69,7 @@ context propagates through.
 
 [Source](/reference-sources/Effect.Trace.cinch) · line 59
 
-```cinch
-TraceContext :: forall r . (Nat -> (String -> (String -> (Nat -> TraceContext r))))
-```
-
-The W3C trace context of runtime identity `r` (trace context
-recommendation, section 3.2): the traceparent header's fields,
-version (`0`-`255`, `255` is the forbidden `ff`), the 32
-lowercase-hex trace id, the 16 lowercase-hex parent span id and
-the trace flags (`0`-`255`), all indexed by the identity the
-context propagates through.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
 
 # Values
 
@@ -88,9 +77,7 @@ context propagates through.
 
 ## `end-marker`
 
-```cinch
-end-marker :: (String -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-marker</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
 The scope-end marker a collecting handler's `end-span` clause
 conses onto the resumption chain; `span-scope` consumes it. The
@@ -102,9 +89,7 @@ name is the scope being closed (the bracket pair's check).
 
 ## `span-record`
 
-```cinch
-span-record :: (String -> (Json -> (List Json -> Json)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-record</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
 
 A span record: `{"name": ..., "fields": ..., "children": [...]}`,
 where children are the collected records of the scope (log,
@@ -116,9 +101,7 @@ metric and nested span records).
 
 ## `span-scope`
 
-```cinch
-span-scope :: (String -> (Json -> (List Json -> List Json)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-scope</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Json</span>)))</code></pre>
 
 The collecting handler's `span` clause body: wrap `scope` (the
 resumption's records) in the span record, children ending at the

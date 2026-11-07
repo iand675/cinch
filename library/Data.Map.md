@@ -32,9 +32,7 @@ Module scheme (design/base-library.md): the type's home carries its
 
 ## `Map`
 
-```cinch
-data Map (k :: Type) (v :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Map</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The ordered map: an unbalanced binary search tree over `Ord k`
 (decision D105). `map-insert` keeps the left subtree strictly
@@ -43,13 +41,9 @@ the stored value in place.
 
 [Source](/reference-sources/Data.Map.cinch) · line 24
 
-```cinch
-Tip :: forall k v . Map k v
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
-```cinch
-Bin :: forall k v . (k -> (v -> (Map k v -> (Map k v -> Map k v))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
 
 # Values
 
@@ -57,9 +51,7 @@ Bin :: forall k v . (k -> (v -> (Map k v -> (Map k v -> Map k v))))
 
 ## `map-delete`
 
-```cinch
-map-delete :: forall k v . using (ord :: Ord k) => (k -> (Map k v -> Map k v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-delete</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
 
 Removal: the search descends as `map-lookup` does, and the found
 node's subtrees rejoin through `map-glue`. An absent key rebuilds
@@ -72,9 +64,7 @@ the identity.
 
 ## `map-empty`
 
-```cinch
-map-empty :: forall k v . Map k v
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
 The empty map, as a name (the family's other homes already spell
 theirs `set-empty`/`hash-map-empty`; the bootstrap exposed `Tip`
@@ -86,9 +76,7 @@ only through the data declaration).
 
 ## `map-filter`
 
-```cinch
-map-filter :: forall k v . ((k -> (v -> Bool)) -> (Map k v -> Map k v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-filter</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
 
 Keep the entries the predicate accepts; a dropped node's children
 rejoin with `map-glue`, so no `Ord` is needed either (Data.Map's
@@ -101,9 +89,7 @@ the entry, not the bare value, is what this module lists.
 
 ## `map-fold`
 
-```cinch
-map-fold :: forall k v b . ((k -> (v -> (b -> b))) -> (b -> (Map k v -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>))) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 A RIGHT fold in ascending key order (Data.Map's `foldrWithKey`).
 The right direction is the one that agrees with the view: folding
@@ -116,29 +102,23 @@ the identity. The accumulator's role is the right (second) value.
 
 ## `map-from-pairs`
 
-```cinch
-map-from-pairs :: forall k v . using (ord :: Ord k) => (List (k, v) -> Map k v)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-from-pairs</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
 
-[Source](/reference-sources/Data.Map.cinch) · line 44
+[Source](/reference-sources/Data.Map.cinch)
 
 <a id="value-6d61702d696e73657274"></a>
 
 ## `map-insert`
 
-```cinch
-map-insert :: forall k v . using (ord :: Ord k) => (k -> (v -> (Map k v -> Map k v)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-insert</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Map.cinch) · line 28
+[Source](/reference-sources/Data.Map.cinch)
 
 <a id="value-6d61702d69732d656d707479"></a>
 
 ## `map-is-empty`
 
-```cinch
-map-is-empty :: forall k v . (Map k v -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 Named `map-is-empty` because the bare `is-empty` is the list's
 (`List a -> Bool`) and this language has no overloading to share
@@ -152,9 +132,7 @@ disambiguates. (`map-null` was the alternative; `null` is the
 
 ## `map-keys`
 
-```cinch
-map-keys :: forall k v . (Map k v -> List k)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-keys</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">k</span>)</code></pre>
 
 The keys in ascending order.
 
@@ -164,19 +142,15 @@ The keys in ascending order.
 
 ## `map-lookup`
 
-```cinch
-map-lookup :: forall k v . using (ord :: Ord k) => (k -> (Map k v -> Option v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-lookup</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">v</span>))</code></pre>
 
-[Source](/reference-sources/Data.Map.cinch) · line 36
+[Source](/reference-sources/Data.Map.cinch)
 
 <a id="value-6d61702d6d6170"></a>
 
 ## `map-map`
 
-```cinch
-map-map :: forall k v w . ((v -> w) -> (Map k v -> Map k w))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">w</span> . ((<span class="tok-variable">v</span> -&gt; <span class="tok-variable">w</span>) -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">w</span>))</code></pre>
 
 Rewrite the values, leave the keys where they are. The shape is
 preserved, so no `Ord` is needed (Data.Map's `map`).
@@ -187,9 +161,7 @@ preserved, so no `Ord` is needed (Data.Map's `map`).
 
 ## `map-size`
 
-```cinch
-map-size :: forall k v . (Map k v -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-size</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The entry count: the O(n) walk (the node carries no size, only the
 key/value pair).
@@ -200,9 +172,7 @@ key/value pair).
 
 ## `map-to-list`
 
-```cinch
-map-to-list :: forall k v . (Map k v -> List (k, v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>))</code></pre>
 
 The entries in ascending key order. The tree IS an ordered search
 tree, so this order is observable and stable: the tests pin it
@@ -214,9 +184,7 @@ against a known construction, and a caller may rely on it.
 
 ## `map-union`
 
-```cinch
-map-union :: forall k v . using (ord :: Ord k) => (Map k v -> (Map k v -> Map k v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-union</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
 
 The LEFT map's value wins a shared key (Data.Map's `union`): the
 left map's entries are inserted into the right, and `map-insert`
@@ -229,9 +197,7 @@ O(n log n).
 
 ## `map-union-with`
 
-```cinch
-map-union-with :: forall k v . using (ord :: Ord k) => ((v -> (v -> v)) -> (Map k v -> (Map k v -> Map k v)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-union-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-variable">v</span>)) -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
 
 The union of `map-union` with a shared key combined instead of
 chosen: `f` sees the LEFT value first and the right value second
@@ -243,9 +209,7 @@ chosen: `f` sees the LEFT value first and the right value second
 
 ## `map-values`
 
-```cinch
-map-values :: forall k v . (Map k v -> List v)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-values</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">v</span>)</code></pre>
 
 The values in ascending KEY order (Data.Map's `elems`), never in
 insertion order.

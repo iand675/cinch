@@ -47,22 +47,16 @@ error vocabulary sits with the class, like `Text.Parse`'s
 
 ## `JsonDecodeError`
 
-```cinch
-data JsonDecodeError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonDecodeError</span></code></pre>
 
 The named decode errors: a wrong shape (the expected column kind)
 and a value outside the column's range.
 
 [Source](/reference-sources/Text.Codec.cinch) · line 40
 
-```cinch
-TypeMismatch :: (String -> JsonDecodeError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TypeMismatch</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JsonDecodeError</span>)</code></pre>
 
-```cinch
-OutOfRange :: (String -> JsonDecodeError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OutOfRange</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JsonDecodeError</span>)</code></pre>
 
 # Signatures and methods
 
@@ -70,61 +64,49 @@ OutOfRange :: (String -> JsonDecodeError)
 
 ## `Codec`
 
-```cinch
-signature Codec a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 34
+[Source](/reference-sources/Text.Codec.cinch)
 
 <a id="method-436f6465632e656e636f6465"></a>
 
 ## `Codec.encode`
 
-```cinch
-encode :: forall a . using (dict :: Codec a) => (a -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 35
+
 
 <a id="method-436f6465632e6465636f6465"></a>
 
 ## `Codec.decode`
 
-```cinch
-decode :: forall a . using (dict :: Codec a) => (Bytes -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 36
+
 
 <a id="class-4a736f6e436f646563"></a>
 
 ## `JsonCodec`
 
-```cinch
-signature JsonCodec a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 49
+[Source](/reference-sources/Text.Codec.cinch)
 
 <a id="method-4a736f6e436f6465632e656e636f64652d6a736f6e"></a>
 
 ## `JsonCodec.encode-json`
 
-```cinch
-encode-json :: forall a . using (dict :: JsonCodec a) => (a -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode-json</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 50
+
 
 <a id="method-4a736f6e436f6465632e6465636f64652d6a736f6e"></a>
 
 ## `JsonCodec.decode-json`
 
-```cinch
-decode-json :: forall a . using (dict :: JsonCodec a) => (Json -> Result JsonDecodeError a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode-json</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">JsonDecodeError</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 51
+
 
 # Values
 
@@ -132,11 +114,9 @@ decode-json :: forall a . using (dict :: JsonCodec a) => (Json -> Result JsonDec
 
 ## `json-error-message`
 
-```cinch
-json-error-message :: (JsonDecodeError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-error-message</span> :: (<span class="tok-constructor">JsonDecodeError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Codec.cinch) · line 44
+[Source](/reference-sources/Text.Codec.cinch)
 
 # Reference provenance
 

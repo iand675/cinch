@@ -61,21 +61,15 @@ Module scheme (design/base-library.md): the type's home carries its
 
 ## `Set`
 
-```cinch
-data Set (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Set</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The ordered set: a height-augmented AVL tree over `Ord a`.
 
 [Source](/reference-sources/Data.Set.cinch) · line 50
 
-```cinch
-Tip :: forall a . Set a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Set</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Bin :: forall a . (Nat -> (a -> (Set a -> (Set a -> Set a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))))</code></pre>
 
 # Values
 
@@ -83,9 +77,7 @@ Bin :: forall a . (Nat -> (a -> (Set a -> (Set a -> Set a))))
 
 ## `set-delete`
 
-```cinch
-set-delete :: forall a . using (ord :: Ord a) => (a -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-delete</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
 Removal: the search descends as `set-member` does, and a found
 node's subtrees rejoin through the right subtree's smallest element
@@ -98,9 +90,7 @@ element rebuilds the same tree.
 
 ## `set-difference`
 
-```cinch
-set-difference :: forall a . using (ord :: Ord a) => (Set a -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-difference</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
 The elements of the left set that the right set does NOT hold.
 
@@ -110,19 +100,15 @@ The elements of the left set that the right set does NOT hold.
 
 ## `set-empty`
 
-```cinch
-set-empty :: forall a . Set a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Set</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 54
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d66696c746572"></a>
 
 ## `set-filter`
 
-```cinch
-set-filter :: forall a . using (ord :: Ord a) => ((a -> Bool) -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-filter</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
 The elements the predicate accepts, rebuilt from the surviving
 ascending listing. The rebuild is why this states `Ord a` where
@@ -138,9 +124,7 @@ ascending order is re-derived.
 
 ## `set-fold`
 
-```cinch
-set-fold :: forall a b . ((a -> (b -> b)) -> (b -> (Set a -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 A RIGHT fold in ascending order (Data.Set's `foldr`): folding with
 `Cons` rebuilds `set-to-list`, and the empty set is the identity.
@@ -151,29 +135,23 @@ A RIGHT fold in ascending order (Data.Set's `foldr`): folding with
 
 ## `set-from-list`
 
-```cinch
-set-from-list :: forall a . using (ord :: Ord a) => (List a -> Set a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 132
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d696e73657274"></a>
 
 ## `set-insert`
 
-```cinch
-set-insert :: forall a . using (ord :: Ord a) => (a -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-insert</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 102
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d696e74657273656374696f6e"></a>
 
 ## `set-intersection`
 
-```cinch
-set-intersection :: forall a . using (ord :: Ord a) => (Set a -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-intersection</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
 The elements of the left set that the right set also holds.
 
@@ -183,9 +161,7 @@ The elements of the left set that the right set also holds.
 
 ## `set-is-empty`
 
-```cinch
-set-is-empty :: forall a . (Set a -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 Named `set-is-empty` because the bare `is-empty` is the list's
 (`List a -> Bool`) and there is no overloading to share one
@@ -197,9 +173,7 @@ spelling; the module prefix is how the family disambiguates.
 
 ## `set-map`
 
-```cinch
-set-map :: forall a b . using (ord :: Ord b) => ((a -> b) -> (Set a -> Set b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">b</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">b</span>))</code></pre>
 
 The image of a set under a function (Data.Set's `map`): every
 element is rewritten and reinserted, so two elements that collide
@@ -212,29 +186,23 @@ keep one copy and the result is ordered by the NEW values, hence
 
 ## `set-member`
 
-```cinch
-set-member :: forall a . using (ord :: Ord a) => (a -> (Set a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-member</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 110
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d73697a65"></a>
 
 ## `set-size`
 
-```cinch
-set-size :: forall a . (Set a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-size</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 127
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d737562736574"></a>
 
 ## `set-subset`
 
-```cinch
-set-subset :: forall a . using (ord :: Ord a) => (Set a -> (Set a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-subset</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 Whether every element of the first set is in the second (Data.Set's
 `isSubsetOf`, kept under the module prefix, which is how every
@@ -246,19 +214,15 @@ other ordered operation here names itself).
 
 ## `set-to-list`
 
-```cinch
-set-to-list :: forall a . (Set a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Set.cinch) · line 124
+[Source](/reference-sources/Data.Set.cinch)
 
 <a id="value-7365742d756e696f6e"></a>
 
 ## `set-union`
 
-```cinch
-set-union :: forall a . using (ord :: Ord a) => (Set a -> (Set a -> Set a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-union</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
 
 The union inserts the left set's ascending listing into the right;
 `set-insert` keeps one copy per element and rebalances, so the
@@ -274,6 +238,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 | Instance | Target | Resolution |
 | --- | --- | --- |
 | `Data.Set.FromList_Set` | `FromList (Set a) a` | Implicit |
+
+**`Data.Set.FromList_Set`**: Collection literals at `Set` (surface grammar local amendments
+section 10).
 
 # Reference provenance
 

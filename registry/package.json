@@ -1,0 +1,14 @@
+{
+  "name": "cinch-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cinch package registry prototype: public and private packages, token auth, signed registry events.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/registry.test.mjs"
+  }
+}

@@ -36,9 +36,7 @@ live here with the type.
 
 ## `Down`
 
-```cinch
-data Down (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Down</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The order-reversing newtype: `Down x` is `x` with the order
 swapped, so `comparing (\p -> Down (key p))` sorts by `key`
@@ -47,14 +45,7 @@ ordering methods reverse).
 
 [Source](/reference-sources/Relation.Ord.cinch) · line 46
 
-```cinch
-Down :: forall a . (a -> Down a)
-```
-
-The order-reversing newtype: `Down x` is `x` with the order
-swapped, so `comparing (\p -> Down (key p))` sorts by `key`
-descending. Equality is unaffected by the flip (only the four
-ordering methods reverse).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Signatures and methods
 
@@ -62,51 +53,41 @@ ordering methods reverse).
 
 ## `Ord`
 
-```cinch
-signature Ord a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 25
+[Source](/reference-sources/Relation.Ord.cinch)
 
 <a id="method-4f72642e3c"></a>
 
 ## `Ord.<`
 
-```cinch
-< :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 26
+
 
 <a id="method-4f72642e3c3d"></a>
 
 ## `Ord.<=`
 
-```cinch
-<= :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 27
+
 
 <a id="method-4f72642e3e"></a>
 
 ## `Ord.>`
 
-```cinch
-> :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 28
+
 
 <a id="method-4f72642e3e3d"></a>
 
 ## `Ord.>=`
 
-```cinch
->= :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 29
+
 
 # Values
 
@@ -114,9 +95,7 @@ signature Ord a
 
 ## `comparing`
 
-```cinch
-comparing :: forall a b . using (ord :: Ord b) => ((a -> b) -> (a -> (a -> Ordering)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">comparing</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">b</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)))</code></pre>
 
 Keyed comparison: `comparing k x y` orders `x` and `y` by the
 projections of `k`. The `Ord` class carries only the four boolean
@@ -127,12 +106,10 @@ key is `<`, `GT` when it is `>`, `EQ` otherwise.
 
 # Operator fixities
 
-```cinch
-infix 3 <
-infix 3 <=
-infix 3 >
-infix 3 >=
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;=</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;=</span></code></pre>
 
 # Instances
 

@@ -30,9 +30,7 @@ Effect.Sequencing).
 
 ## `Result`
 
-```cinch
-data Result (e :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Result</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 `Result` is here for the same reason: `Data.Result`'s
 `partition-results` and `results` consume a `List`, and it too is
@@ -40,13 +38,9 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Core.cinch) · line 37
 
-```cinch
-Err :: forall e a . (e -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-```cinch
-Ok :: forall e a . (a -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -54,20 +48,7 @@ Ok :: forall e a . (a -> Result e a)
 
 ## `either`
 
-```cinch
-either :: forall e a b . ((e -> b) -> ((a -> b) -> (Result e a -> b)))
-```
-
-`Result`, `Err` and `Ok` are declared in `Data.Core` and re-exported
-here (that module's header says why: this home consumes a `List` in
-its signatures and is checked before `Data.List`, so one of the two
-types has to be declared ahead of both).
-
-The combinators: `Data.Either`'s folds and conversions, as free
-functions beside the class instances below. Every one of them is a
-total function, and every one of them is a `case` over the two
-constructors: no combinator re-wraps an untouched side, so a caller
-can see which side it costs.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">either</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">e</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 The two-branch fold: `f` consumes an error, `g` a value. The error
 branch leads, matching Haskell's `either` and this type's
@@ -80,9 +61,7 @@ including `Result e a` itself).
 
 ## `errors`
 
-```cinch
-errors :: forall e a . (List (Result e a) -> List e)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">errors</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">e</span>)</code></pre>
 
 The error projection, the values dropped (`Data.Either.lefts`).
 
@@ -92,9 +71,7 @@ The error projection, the values dropped (`Data.Either.lefts`).
 
 ## `from-result`
 
-```cinch
-from-result :: forall e a . (a -> (Result e a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-result</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 The value, or the default when there is an error
 (`Data.Either.fromRight`); the default leads, like `from-option`'s.
@@ -105,19 +82,15 @@ The value, or the default when there is an error
 
 ## `is-err`
 
-```cinch
-is-err :: forall e a . (Result e a -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Result.cinch) · line 51
+[Source](/reference-sources/Data.Result.cinch)
 
 <a id="value-69732d6f6b"></a>
 
 ## `is-ok`
 
-```cinch
-is-ok :: forall e a . (Result e a -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 The branch tests: the tag read, no payload work, no constraint.
 
@@ -127,9 +100,7 @@ The branch tests: the tag read, no payload work, no constraint.
 
 ## `map-err`
 
-```cinch
-map-err :: forall e f a . ((e -> f) -> (Result e a -> Result f a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">e</span> -&gt; <span class="tok-variable">f</span>) -&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
 
 The error's map (`Data.Either`'s `first`, `mapLeft` in ML-family
 spellings: it maps the LEFT type). The value side is untouched.
@@ -140,9 +111,7 @@ spellings: it maps the LEFT type). The value side is untouched.
 
 ## `map-result`
 
-```cinch
-map-result :: forall e a b . ((a -> b) -> (Result e a -> Result e b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-result</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
 
 The value's own map, for a caller who has only the prelude: the
 `Functor` method of the same name (`map` in Data.List's surface) is
@@ -155,9 +124,7 @@ The error side is untouched.
 
 ## `option-to-result`
 
-```cinch
-option-to-result :: forall e a . (e -> (Option a -> Result e a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-to-result</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>))</code></pre>
 
 The option as a result, with the error value supplied for `None`
 (`Data.Either.note`); the error leads, as everywhere in this module.
@@ -168,9 +135,7 @@ The option as a result, with the error value supplied for `None`
 
 ## `partition-results`
 
-```cinch
-partition-results :: forall e a . (List (Result e a) -> (List e, List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">partition-results</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">e</span>, <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The classic `partitionEithers`: every error and every value, each
 side in the input order with its relative order preserved. One pass,
@@ -183,9 +148,7 @@ taken apart by pattern, so neither side is walked twice).
 
 ## `result-to-option`
 
-```cinch
-result-to-option :: forall e a . (Result e a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">result-to-option</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 The value as an option, the error dropped. This is the projection a
 caller reaches for in this repo because `Ok` is the success; the
@@ -199,9 +162,7 @@ caller has asked for it).
 
 ## `results`
 
-```cinch
-results :: forall e a . (List (Result e a) -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">results</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
 The value projection, the errors dropped (`Data.Either.rights`).
 `partition-results` is the pair form; these two are the single-side
@@ -219,6 +180,15 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Result.Functor_Result` | `Functor (Result e)` | Implicit |
 | `Data.Result.Monad_Result` | `Monad (Result e)` | Implicit |
 | `Data.Result.SeqResult` | `ResultSequencing e` | Implicit |
+
+**`Data.Result.Applicative_Result`**: `pure` is `Ok`; application propagates the FIRST `Err` (the left
+operand's error wins), which is what makes `traverse` into `Result`
+short-circuit on the first error in traversal order (moved from
+Category.Applicative).
+**`Data.Result.Functor_Result`**: The error side is untouched: `map f (Err e)` is `Err e` (moved
+from Category.Functor at the prelude split).
+**`Data.Result.Monad_Result`**: The error case short-circuits: `Err e >>= k` is `Err e` (moved
+from Category.Monad).
 
 # Reference provenance
 

@@ -101,9 +101,7 @@ system's vocabulary.
 
 ## `Signal`
 
-```cinch
-data Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Signal</span></code></pre>
 
 A signal this module will send. The set is the portable core: the
 four signals whose numbers agree on Darwin and Linux plus
@@ -112,52 +110,29 @@ kernel delivers to nothing).
 
 [Source](/reference-sources/Effect.Signal.cinch) · line 90
 
-```cinch
-SigNone :: Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigNone</span> :: <span class="tok-constructor">Signal</span></code></pre>
 
-```cinch
-SigHup :: Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigHup</span> :: <span class="tok-constructor">Signal</span></code></pre>
 
-```cinch
-SigInt :: Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigInt</span> :: <span class="tok-constructor">Signal</span></code></pre>
 
-```cinch
-SigKill :: Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigKill</span> :: <span class="tok-constructor">Signal</span></code></pre>
 
-```cinch
-SigTerm :: Signal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigTerm</span> :: <span class="tok-constructor">Signal</span></code></pre>
 
 <a id="type-5369676e616c4572726f72"></a>
 
 ## `SignalError`
 
-```cinch
-data SignalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">SignalError</span></code></pre>
 
 Why a delivery did not happen.
 
 [Source](/reference-sources/Effect.Signal.cinch) · line 98
 
-```cinch
-SignalNotDelivered :: SignalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalNotDelivered</span> :: <span class="tok-constructor">SignalError</span></code></pre>
 
-`kill(2)` failed: the target is gone or the caller is not
-permitted to signal it (the two are one here, see the errno
-note above), or another OS failure.
-
-```cinch
-SignalInvalidNumber :: SignalError
-```
-
-The pid or the signal number fell outside the host's `i32`
-range (the runtime's `INVALID_ARGUMENT` sentinel, `-6`).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalInvalidNumber</span> :: <span class="tok-constructor">SignalError</span></code></pre>
 
 # Values
 
@@ -165,9 +140,7 @@ range (the runtime's `INVALID_ARGUMENT` sentinel, `-6`).
 
 ## `signal-number`
 
-```cinch
-signal-number :: (Signal -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-number</span> :: (<span class="tok-constructor">Signal</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The host's POSIX number for a signal (the table is the host's;
 see the header).
@@ -178,9 +151,7 @@ see the header).
 
 ## `signal-probe`
 
-```cinch
-signal-probe :: forall r . using (io :: Io r) => (I64 ->{IO r} Result SignalError Unit)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-probe</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Probe `pid` without delivering anything (the zero signal): `Ok ()`
 when the process exists and the caller may signal it, the named
@@ -193,9 +164,7 @@ how a caller checks the target before a real delivery.
 
 ## `signal-send`
 
-```cinch
-signal-send :: forall r . using (io :: Io r) => (I64 -> (Signal ->{IO r} Result SignalError Unit))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-send</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Signal</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 Deliver `sig` to `pid` (pid first, then the signal): the named
 error on any failure, `Ok ()` when the kernel accepted it.

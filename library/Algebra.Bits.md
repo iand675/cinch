@@ -38,9 +38,7 @@ both candidate symbols are reserved punctuation (`!` and `~`); use
 
 ## `Bits`
 
-```cinch
-signature Bits a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span></code></pre>
 
 Bit manipulation (primitive types specification section 4).
 
@@ -60,151 +58,121 @@ shift rule.
 
 ## `Bits.bit-and`
 
-```cinch
-bit-and :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 42
+
 
 <a id="method-426974732e6269742d6f72"></a>
 
 ## `Bits.bit-or`
 
-```cinch
-bit-or :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 43
+
 
 <a id="method-426974732e6269742d786f72"></a>
 
 ## `Bits.bit-xor`
 
-```cinch
-bit-xor :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 44
+
 
 <a id="method-426974732e6269742d6e6f74"></a>
 
 ## `Bits.bit-not`
 
-```cinch
-bit-not :: forall a . using (dict :: Bits a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 45
+
 
 <a id="method-426974732e73686966742d6c656674"></a>
 
 ## `Bits.shift-left`
 
-```cinch
-shift-left :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 46
+
 
 <a id="method-426974732e73686966742d7269676874"></a>
 
 ## `Bits.shift-right`
 
-```cinch
-shift-right :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 47
+
 
 <a id="method-426974732e726f746174652d6c656674"></a>
 
 ## `Bits.rotate-left`
 
-```cinch
-rotate-left :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 48
+
 
 <a id="method-426974732e726f746174652d7269676874"></a>
 
 ## `Bits.rotate-right`
 
-```cinch
-rotate-right :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 49
+
 
 <a id="method-426974732e746573742d626974"></a>
 
 ## `Bits.test-bit`
 
-```cinch
-test-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">test-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 50
+
 
 <a id="method-426974732e7365742d626974"></a>
 
 ## `Bits.set-bit`
 
-```cinch
-set-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 51
+
 
 <a id="method-426974732e636c6561722d626974"></a>
 
 ## `Bits.clear-bit`
 
-```cinch
-clear-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clear-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 52
+
 
 <a id="method-426974732e636f6d706c656d656e742d626974"></a>
 
 ## `Bits.complement-bit`
 
-```cinch
-complement-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complement-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 53
+
 
 <a id="method-426974732e636f756e742d6f6e6573"></a>
 
 ## `Bits.count-ones`
 
-```cinch
-count-ones :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 54
+
 
 <a id="method-426974732e6c656164696e672d7a65726f73"></a>
 
 ## `Bits.leading-zeros`
 
-```cinch
-leading-zeros :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 55
+
 
 <a id="method-426974732e747261696c696e672d7a65726f73"></a>
 
 ## `Bits.trailing-zeros`
 
-```cinch
-trailing-zeros :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 56
+
 
 # Values
 
@@ -212,9 +180,7 @@ trailing-zeros :: forall a . using (dict :: Bits a) => (a -> U32)
 
 ## `&`
 
-```cinch
-& :: forall a . using (bits :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&amp;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">bits</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 Traditional bitwise operator spellings over the `Bits` class
 (decision D90): wrappers like the weight wrappers, never new
@@ -230,51 +196,41 @@ below cover the mathematical `Nat` and `Int` only.
 
 ## `<<`
 
-```cinch
-<< :: forall a . using (bits :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;&lt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">bits</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 74
+[Source](/reference-sources/Algebra.Bits.cinch)
 
 <a id="value-3e3e"></a>
 
 ## `>>`
 
-```cinch
->> :: forall a . using (bits :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;&gt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">bits</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 77
+[Source](/reference-sources/Algebra.Bits.cinch)
 
 <a id="value-5e"></a>
 
 ## `^`
 
-```cinch
-^ :: forall a . using (bits :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">^</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">bits</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 71
+[Source](/reference-sources/Algebra.Bits.cinch)
 
 <a id="value-7c"></a>
 
 ## `|`
 
-```cinch
-| :: forall a . using (bits :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch">| :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">bits</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 68
+[Source](/reference-sources/Algebra.Bits.cinch)
 
 # Operator fixities
 
-```cinch
-infixl 6 &
-infixl 7 <<
-infixl 7 >>
-infixl 5 ^
-infixl 4 |
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">6</span> <span class="tok-operator">&amp;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&lt;&lt;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&gt;&gt;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">5</span> <span class="tok-operator">^</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">4</span> |</code></pre>
 
 # Reference provenance
 

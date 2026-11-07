@@ -70,9 +70,7 @@ and the type's home carries its `Eq`/`Ord`/`Hash` instance family.
 
 ## `Rational`
 
-```cinch
-data Rational
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rational</span></code></pre>
 
 The rational number: `Rat n d` is `n/d`, `d` strictly positive and
 `gcd(|n|, d)` equal to 1. The constructor is module-private: only
@@ -86,9 +84,7 @@ satisfies the invariant.
 
 ## `RationalError`
 
-```cinch
-data RationalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">RationalError</span></code></pre>
 
 Why a rational is not a value or is not invertible: both refusals
 reach a zero denominator, and both are reported rather than
@@ -96,13 +92,9 @@ faulted.
 
 [Source](/reference-sources/Data.Rational.cinch) · line 76
 
-```cinch
-ZeroDenominator :: RationalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZeroDenominator</span> :: <span class="tok-constructor">RationalError</span></code></pre>
 
-```cinch
-DivideByZero :: RationalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DivideByZero</span> :: <span class="tok-constructor">RationalError</span></code></pre>
 
 # Values
 
@@ -110,9 +102,7 @@ DivideByZero :: RationalError
 
 ## `add`
 
-```cinch
-add :: (Rational -> (Rational -> Rational))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
 
 Exact arithmetic: one cross-product over the bignum, then one
 reduction. The denominators are positive products, and `normalise`
@@ -124,19 +114,15 @@ resolves the sign the addition itself cannot introduce.
 
 ## `denominator`
 
-```cinch
-denominator :: (Rational -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">denominator</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.Rational.cinch) · line 129
+[Source](/reference-sources/Data.Rational.cinch)
 
 <a id="value-646976"></a>
 
 ## `div`
 
-```cinch
-div :: (Rational -> (Rational -> Result RationalError Rational))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">RationalError</span> <span class="tok-constructor">Rational</span>))</code></pre>
 
 Division, the one partial operation: a zero divisor (a zero
 numerator on the right) is the named refusal, otherwise the cross
@@ -148,9 +134,7 @@ product `n1*d2 / d1*n2` normalises.
 
 ## `from-int`
 
-```cinch
-from-int :: (Int -> Rational)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Rational</span>)</code></pre>
 
 The integer embedding `x/1`, already normalised (1 is coprime to
 every integer).
@@ -161,29 +145,23 @@ every integer).
 
 ## `mul`
 
-```cinch
-mul :: (Rational -> (Rational -> Rational))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
 
-[Source](/reference-sources/Data.Rational.cinch) · line 153
+[Source](/reference-sources/Data.Rational.cinch)
 
 <a id="value-6e756d657261746f72"></a>
 
 ## `numerator`
 
-```cinch
-numerator :: (Rational -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">numerator</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.Rational.cinch) · line 125
+[Source](/reference-sources/Data.Rational.cinch)
 
 <a id="value-726174696f6e616c"></a>
 
 ## `rational`
 
-```cinch
-rational :: (Int -> (Int -> Result RationalError Rational))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">RationalError</span> <span class="tok-constructor">Rational</span>))</code></pre>
 
 The smart constructor and the only general route to a `Rational`:
 a zero denominator is the named refusal, everything else
@@ -195,9 +173,7 @@ normalises.
 
 ## `rational-cmp`
 
-```cinch
-rational-cmp :: (Rational -> (Rational -> Ordering))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational-cmp</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
 
 Order by cross multiplication: both denominators are positive, so
 `n1*d2` against `n2*d1` has the sign of `x - y`. `Relation.Ord`
@@ -210,29 +186,23 @@ and the instance below derives the operators from it.
 
 ## `render-rational-error`
 
-```cinch
-render-rational-error :: (RationalError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-rational-error</span> :: (<span class="tok-constructor">RationalError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Rational.cinch) · line 204
+[Source](/reference-sources/Data.Rational.cinch)
 
 <a id="value-737562"></a>
 
 ## `sub`
 
-```cinch
-sub :: (Rational -> (Rational -> Rational))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
 
-[Source](/reference-sources/Data.Rational.cinch) · line 147
+[Source](/reference-sources/Data.Rational.cinch)
 
 <a id="value-746f2d663634"></a>
 
 ## `to-f64`
 
-```cinch
-to-f64 :: (Rational -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The value as a machine float (see the boundary note in the
 header).
@@ -243,9 +213,7 @@ header).
 
 ## `to-string`
 
-```cinch
-to-string :: (Rational -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The reduced rendering `n/d`: `1/2` for `Rational(1,2)`, `-1/2` for
 `Rational(-1,2)`, and `n/1` (not `n`) for a whole number, Ruby's
@@ -262,6 +230,13 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Rational.Eq_Rational` | `Eq Rational` | Implicit |
 | `Data.Rational.Hash_Rational` | `Hash Rational` | Implicit |
 | `Data.Rational.Ord_Rational` | `Ord Rational` | Implicit |
+
+**`Data.Rational.Eq_Rational`**: Structural equality IS value equality: the invariant makes the
+representative unique, so equal values compare equal.
+**`Data.Rational.Hash_Rational`**: Equal values hash alike: the normalised pair is the canonical
+form, so mixing the two component hashes can never separate `r`
+from an `r == s` partner.
+**`Data.Rational.Ord_Rational`**: The order of the line, through the named comparison above.
 
 # Reference provenance
 

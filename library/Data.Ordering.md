@@ -27,23 +27,15 @@ instance family (the parked-instance deviation of D159 is over).
 
 ## `Ordering`
 
-```cinch
-data Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ordering</span></code></pre>
 
-[Source](/reference-sources/Data.Ordering.cinch) · line 13
+[Source](/reference-sources/Data.Ordering.cinch)
 
-```cinch
-LT :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
-```cinch
-EQ :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
-```cinch
-GT :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
 # Instances
 
@@ -53,6 +45,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.Ordering.Monoid_Ordering` | `Monoid Ordering` | Implicit |
 | `Data.Ordering.Semigroup_Ordering` | `Semigroup Ordering` | Implicit |
+
+**`Data.Ordering.Monoid_Ordering`**: `EQ` is the identity (moved from Algebra.Monoid).
+**`Data.Ordering.Semigroup_Ordering`**: Lexicographic composition of comparisons: `compare x y <> compare
+y z` gives `compare x z` when the first is not EQ (moved from
+Algebra.Semigroup at the prelude split).
 
 # Reference provenance
 

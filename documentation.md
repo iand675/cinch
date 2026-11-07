@@ -29,6 +29,7 @@ Precise coverage of commands, syntax, types, instances, modules, effects, owners
 | Resolve a bounds/proof error | [Refinements and obligations](reference/06-refinements.md) |
 | Use tasks, I/O, or memory controls | [Runtime](reference/13-concurrency-and-runtime.md), [ownership and memory](reference/10-ownership-and-memory.md) |
 | Look up a `#[...]` pragma | [Complete attribute index](reference/23-attributes-and-pragmas.md) |
+| Write or look up API documentation | [Documentation comments and symbol lookup](reference/28-documentation.md) |
 | Understand a type’s memory layout | [Type layout and representations](reference/24-type-layout.md) |
 | Choose or customize an allocator | [Allocator design and heap customization](reference/25-allocators.md) |
 | Find a special compiler name | [Compiler-provided vocabulary](reference/20-compiler-vocabulary.md) |

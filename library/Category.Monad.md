@@ -50,31 +50,25 @@ module (the class homes collect in dependency order).
 
 ## `Monad`
 
-```cinch
-signature Monad f
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Monad</span> <span class="tok-variable">f</span></code></pre>
 
-[Source](/reference-sources/Category.Monad.cinch) · line 30
+[Source](/reference-sources/Category.Monad.cinch)
 
 <a id="method-4d6f6e61642e3e3e3d"></a>
 
 ## `Monad.>>=`
 
-```cinch
->>= :: forall (f :: Type -> Type) a b . using (dict :: Monad f) => ((f a) -> ((a -> (f b)) -> (f b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;&gt;=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Monad.cinch) · line 31
+
 
 <a id="method-4d6f6e61642e6a6f696e"></a>
 
 ## `Monad.join`
 
-```cinch
-join :: forall (f :: Type -> Type) a . using (dict :: Monad f) => ((f ((f a))) -> (f a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>))) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Monad.cinch) · line 32
+
 
 # Values
 
@@ -82,9 +76,7 @@ join :: forall (f :: Type -> Type) a . using (dict :: Monad f) => ((f ((f a))) -
 
 ## `<=<`
 
-```cinch
-<=< :: forall (m :: Type -> Type) a b c . using (mon :: Monad m) => ((b -> (m c)) -> ((a -> (m b)) -> (a -> (m c))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=&lt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
 
 Right to left: `g <=< f` is `f >=> g`, the direction that reads
 like function composition. Eta-expanded to the signature's arity
@@ -98,16 +90,7 @@ two against an arity-three signature).
 
 ## `>=>`
 
-```cinch
->=> :: forall (m :: Type -> Type) a b c . using (mon :: Monad m) => ((a -> (m b)) -> ((b -> (m c)) -> (a -> (m c))))
-```
-
-Kleisli composition: two monadic steps composed into one, the
-first step's result feeding the second (base's Control.Monad
-operators, whose fixity is redeclared here per decision D2 so a
-consumer importing this module parses them). Only `>>=` is used,
-so `Monad` is the whole constraint. `join` is not redefined: the
-class method is the whole of it.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
 
 Left to right: `f >=> g` is the sequenced pair, the order effects
 run and results flow in.
@@ -116,11 +99,9 @@ run and results flow in.
 
 # Operator fixities
 
-```cinch
-infixr 1 <=<
-infixr 1 >=>
-infixl 1 >>=
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixr</span> <span class="tok-number">1</span> <span class="tok-operator">&lt;=&lt;</span>
+<span class="tok-keyword">infixr</span> <span class="tok-number">1</span> <span class="tok-operator">&gt;=&gt;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">1</span> <span class="tok-operator">&gt;&gt;=</span></code></pre>
 
 # Instances
 
@@ -129,6 +110,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 | Instance | Target | Resolution |
 | --- | --- | --- |
 | `Category.Monad.Monad_Function` | `Monad (((->) r))` | Implicit |
+
+**`Category.Monad.Monad_Function`**: Structural: feed a function's result into the continuation.
 
 # Reference provenance
 

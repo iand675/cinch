@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import tempfile
+import shutil
 
 ROOT = Path(__file__).resolve().parents[2]
 PRELUDE = ROOT / 'compiler/prelude'
@@ -130,23 +131,25 @@ def code(text): return f'```cinch\n{text}\n```\n'
 def public_class(item): return bool(item.get('exports'))
 def markdown_text(text): return text.replace('|', '\\|').replace('\n', ' ')
 
-def source_comments(text):
-    lines=text.splitlines(); found={}
-    for i,line in enumerate(lines):
-        match=re.match(r'\s*(?:foreign import ccall "[^"]+"\s+)?(\([^\s]+\)|[\w\'-]+)\s*::',line)
-        decl=re.match(r'\s*(?:data|record|codata|signature|type)\s+([\w\'-]+)',line)
-        name=(match or decl)
-        if not name:continue
-        name=name[1].strip('()'); comments=[];j=i-1
-        while j>=0 and (lines[j].lstrip().startswith('--') or not lines[j].strip()):
-            value=lines[j].strip()
-            comments.append(re.sub(r'^-- ?', '',value) if value else '')
-            j-=1
-        description='\n'.join(reversed(comments)).strip()
-        # Separator-only comment bars are visual source organization, not prose.
-        description='\n'.join(x for x in description.splitlines() if not re.fullmatch(r'[-= ]+',x))
-        found.setdefault(name, {'line':i+1,'doc':description.strip()})
-    return found
+def flatten_decls(declarations):
+    for decl in declarations:
+        yield decl
+        yield from flatten_decls(decl['children'])
+
+def doc_json(compiler, path, module, iface=None):
+    command=[str(compiler),'doc','extract',str(path),'--module',module,'--legacy']
+    if iface:command+=['--iface',str(iface)]
+    result=subprocess.run(command,capture_output=True,text=True,timeout=120)
+    if result.returncode not in (0,2):
+        raise RuntimeError(f'{path}: cinch doc extract failed\n{result.stderr}')
+    return json.loads(result.stdout)
+
+def highlighted_markdown(compiler, text):
+    result=subprocess.run([str(compiler),'doc','markdown'],input=text,capture_output=True,text=True,timeout=120)
+    if result.returncode:
+        raise RuntimeError(f'cinch doc markdown failed\n{result.stderr}')
+    return result.stdout
+
 
 def collect_interfaces(compiler):
     temp=tempfile.TemporaryDirectory(prefix='cinch-library-')
@@ -167,13 +170,22 @@ def collect_interfaces(compiler):
         if name not in embedded:check(name)
     return temp,work/'build'
 
-def generate(ifaces):
+def generate(ifaces, compiler):
     all_sources=sources()
     embedded={m['name'] for m in json.loads((PRELUDE/'cinch-base.cinchpkg').read_text())['modules']}
     interfaces={name:json.loads((ifaces/(name+'.cinchif')).read_text()) for name in all_sources}
-    comments={name:source_comments(path.read_text()) for name,path in all_sources.items()}
+    documents={name:doc_json(compiler,path,name,ifaces/(name+'.cinchif')) for name,path in all_sources.items()}
+    doc_by_id={decl['id']:decl for parsed in documents.values() for decl in flatten_decls(parsed['declarations'])}
+    comments={name:{decl['name']:{'line':decl['source']['line'],'doc':decl['doc']['markdown']} for decl in flatten_decls(parsed['declarations']) if decl['doc']} for name,parsed in documents.items()}
     downloads=ROOT/'website/public/reference-sources';downloads.mkdir(parents=True,exist_ok=True)
     def info(identity,name):
+        decl=doc_by_id.get(identity)
+        if decl and decl['doc']:
+            return {'line':decl['source']['line'],'doc':decl['doc']['markdown'],
+                    'params':decl['doc']['tags'].get('params',[]),
+                    'typeParams':decl['doc']['tags'].get('typeParams',[]),
+                    'fields':decl['doc']['tags'].get('fields',[]),
+                    'returns':decl['doc']['tags'].get('returns')}
         module=identity.rsplit('.',1)[0] if '.' in identity else ''
         return comments.get(module,{}).get(name,{})
     def details(identity,name):
@@ -183,6 +195,14 @@ def generate(ifaces):
         source_link=f'/reference-sources/{module}.cinch' if module in all_sources else ''
         parts=[]
         if prose:parts.append(prose)
+        extras=[]
+        for label,key in (('Parameters','params'),('Type parameters','typeParams'),('Fields','fields')):
+            entries=item.get(key)
+            if entries:
+                extras+=[f'**{label}**','']+[f"- `{entry['name']}`: {entry['text']}" for entry in entries]+['']
+        if item.get('returns'):
+            extras+=[f"**Returns:** {item['returns']}",'']
+        if extras:parts.append('\n'.join(extras))
         if source_link:parts.append(f'[Source]({source_link})'+(f' · line {item["line"]}' if item.get('line') else ''))
         return '\n\n'.join(parts)+'\n'
     total_values=0;total_methods=0; entries=[]
@@ -201,8 +221,11 @@ def generate(ifaces):
         if imports:lines+=['# Dependencies','',', '.join(f'[{i}]({i}.md)' if i in all_sources else f'`{i}` (compiler-generated vocabulary)' for i in imports)+'.','']
         if not embedded_here:
             lines+=['Non-embedded source closure: '+', '.join(f'[{m}]({m}.md)' for m in sorted(closure))+'.','']
-        header=re.split(r'^module ', text, maxsplit=1, flags=re.M)[0]
-        header='\n'.join(re.sub(r'^-- ?', '',l) for l in header.splitlines()).strip()
+        module_doc=documents[name]['doc']
+        header=module_doc['markdown'] if module_doc else ''
+        if not header:
+            header=re.split(r'^module ', text, maxsplit=1, flags=re.M)[0]
+            header='\n'.join(re.sub(r'^-- ?', '',l) for l in header.splitlines()).strip()
         if header:lines+=['<details><summary>Behaviour and boundary notes from the source</summary>','',header,'','</details>','']
         lines+=['# Types and constructors','']
         if not export['types']:lines+=['This module exports no type declarations.','']
@@ -218,7 +241,7 @@ def generate(ifaces):
             lines+=[details(ty.get('identity',name+'.'+ty['name']),ty['name'])]
             for ctor in ty.get('ctors',[]):
                 lines+=[code(f'{ctor["name"]} :: {ctor.get("scheme") or " -> ".join(ctor.get("fields",[]) + [ty["name"]])}')]
-                doc=info(ctor.get('symbol',name+'.'+ctor['name']),ctor['name']).get('doc')
+                doc=info(name+'.'+ty['name']+'.'+ctor['name'],ctor['name']).get('doc')
                 if doc:lines+=[doc,'']
             if ty.get('fields'):
                 lines+=['Fields:','',code('\n'.join(f'{f["name"]} :: {f.get("ty",f.get("scheme",""))}' if isinstance(f,dict) else str(f) for f in ty['fields']))]
@@ -229,7 +252,7 @@ def generate(ifaces):
             for method in sig['methods']:
                 if not method.get('exports'):continue
                 total_methods+=1
-                lines+=[heading('method',sig['name']+'.'+method['name']),code(f'{method["name"]} :: {method["scheme"]}'),details(sig.get('identity',name+'.'+sig['name']),method['name'])]
+                lines+=[heading('method',sig['name']+'.'+method['name']),code(f'{method["name"]} :: {method["scheme"]}'),details(f"{sig.get('identity',name+'.'+sig['name'])}.{method['name']}",method['name'])]
         if export['values']:lines+=['# Values','']
         for value in export['values']:
             total_values+=1
@@ -250,8 +273,14 @@ def generate(ifaces):
             for inst in export['instances']:
                 lines.append(f'| `{markdown_text(inst["id"])}` | `{markdown_text(inst["target"])}` | '+('Implicit' if inst['implicit'] else 'Explicit')+' |')
             lines+=['']
+            notes=[]
+            for inst in export['instances']:
+                decl=doc_by_id.get(inst.get('id',''))
+                if decl and decl['doc']:
+                    notes.append(f'**`{inst["id"]}`**: {decl["doc"]["markdown"]}')
+            if notes:lines+=notes+['']
         lines+=['# Reference provenance','',f'Generated from the Rust compiler\'s checked exports and `compiler/prelude/{path.relative_to(PRELUDE)}`. Source SHA-256: `{digest(path)}`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.','']
-        (OUTPUT/(name+'.md')).write_text('\n'.join(lines))
+        (OUTPUT/(name+'.md')).write_text(highlighted_markdown(compiler,'\n'.join(lines)))
         entries.append({'module':name,'path':str(path.relative_to(ROOT)),'sha256':digest(path),'embedded':embedded_here,'values':len(export['values']),'public_methods':sum(bool(m.get('exports')) for s in export['signatures'] for m in s['methods'])})
     manifest={'format':1,'base_manifest_sha256':digest(PRELUDE/'cinch-base.cinchpkg'),'modules':entries}
     MANIFEST.write_text(json.dumps(manifest,indent=2)+'\n')
@@ -272,7 +301,24 @@ def main():
     args.add_argument('--compiler')
     args.add_argument('--interfaces',type=Path,help='Use a previously checked interface directory from the same source snapshot')
     args.add_argument('--check',action='store_true')
+    args.add_argument('--validate-docs',action='store_true',help='Parse documentation comments in every library source without regenerating pages')
     options=args.parse_args()
+    if options.validate_docs:
+        compiler=options.compiler or shutil.which('cinch')
+        if not compiler:args.error('supply --compiler with a built cinch executable')
+        compiler=str(Path(compiler).resolve())
+        diagnostics=0;orphans=0
+        library_sources=sources()
+        for name,path in library_sources.items():
+            parsed=doc_json(compiler,path,name)
+            for item in parsed['diagnostics']:
+                diagnostics+=1
+                print(f'{path}:{item["line"]}: {item["code"]}: {item["message"]}')
+            for item in parsed['orphans']:
+                orphans+=1
+                print(f'{path}:{item["line"]}: orphan {item["kind"]} doc: {item["text"][:80]}')
+        print(f'Validated documentation comments in {len(library_sources)} module sources: {diagnostics} diagnostics, {orphans} orphan docs')
+        return 1 if diagnostics or orphans else 0
     if options.check:
         recorded=json.loads(MANIFEST.read_text())
         actual=sources()
@@ -284,13 +330,15 @@ def main():
             assert (ROOT/'website/public/reference-sources'/(entry['module']+'.cinch')).read_bytes()==actual[entry['module']].read_bytes(),f'Stale source download: {entry["module"]}'
         print(f'Library reference matches all {len(actual)} module sources and the base manifest')
         return
+    compiler=options.compiler or shutil.which('cinch')
+    if not compiler:args.error('supply --compiler to the Rust cinch executable')
+    compiler=str(Path(compiler).resolve())
     temp=None
     if options.interfaces:
         ifaces=options.interfaces
     else:
-        if not options.compiler:args.error('supply --compiler to the Rust cinch executable')
-        temp,ifaces=collect_interfaces(str(Path(options.compiler).resolve()))
-    try:generate(ifaces)
+        temp,ifaces=collect_interfaces(compiler)
+    try:generate(ifaces,compiler)
     finally:
         if temp:temp.cleanup()
 

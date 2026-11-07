@@ -49,31 +49,25 @@ Data/NonEmpty.cinch and reuses the List instance on the tail.
 
 ## `Traversable`
 
-```cinch
-signature Traversable t
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span></code></pre>
 
-[Source](/reference-sources/Category.Traversable.cinch) · line 30
+[Source](/reference-sources/Category.Traversable.cinch)
 
 <a id="method-5472617665727361626c652e7472617665727365"></a>
 
 ## `Traversable.traverse`
 
-```cinch
-traverse :: forall (t :: Type -> Type) (f :: Type -> Type) a b . using (dict :: Traversable t, app :: Applicative f) => ((a -> (f b)) -> ((t a) -> (f ((t b)))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">traverse</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">t</span> <span class="tok-variable">b</span>)))))</code></pre>
 
-[Source](/reference-sources/Category.Traversable.cinch) · line 31
+
 
 <a id="method-5472617665727361626c652e73657175656e6365"></a>
 
 ## `Traversable.sequence`
 
-```cinch
-sequence :: forall (t :: Type -> Type) f a . using (dict :: Traversable t, app :: Applicative f) => ((t ((f a))) -> (f ((t a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sequence</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">f</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">t</span> ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>))) -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>))))</code></pre>
 
-[Source](/reference-sources/Category.Traversable.cinch) · line 32
+
 
 # Values
 
@@ -81,9 +75,7 @@ sequence :: forall (t :: Type -> Type) f a . using (dict :: Traversable t, app :
 
 ## `for`
 
-```cinch
-for :: forall (t :: Type -> Type) (f :: Type -> Type) a b . using (trav :: Traversable t, app :: Applicative f) => ((t a) -> ((a -> (f b)) -> (f ((t b)))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">for</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">trav</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">t</span> <span class="tok-variable">b</span>)))))</code></pre>
 
 `for` is `traverse` with the container first, so a call reads as a
 walk over the container.
@@ -94,19 +86,15 @@ walk over the container.
 
 ## `for-m`
 
-```cinch
-for-m :: forall (t :: Type -> Type) (m :: Type -> Type) a b . using (trav :: Traversable t, mon :: Monad m, app :: Applicative m) => ((t a) -> ((a -> (m b)) -> (m ((t b)))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">for-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">trav</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">m</span> ((<span class="tok-variable">t</span> <span class="tok-variable">b</span>)))))</code></pre>
 
-[Source](/reference-sources/Category.Traversable.cinch) · line 59
+[Source](/reference-sources/Category.Traversable.cinch)
 
 <a id="value-6d61702d6d"></a>
 
 ## `map-m`
 
-```cinch
-map-m :: forall (t :: Type -> Type) (m :: Type -> Type) a b . using (trav :: Traversable t, mon :: Monad m, app :: Applicative m) => ((a -> (m b)) -> ((t a) -> (m ((t b)))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">trav</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">m</span> ((<span class="tok-variable">t</span> <span class="tok-variable">b</span>)))))</code></pre>
 
 `map-m`/`for-m` are the monadic traversals (base's `mapM`/`forM`).
 Beyond the container they state two constraints on the effect: its
@@ -121,13 +109,7 @@ no-superbundle rule) and the traversal needs the latter.
 
 ## `sequence-a`
 
-```cinch
-sequence-a :: forall (t :: Type -> Type) (f :: Type -> Type) a . using (trav :: Traversable t, app :: Applicative f) => ((t ((f a))) -> (f ((t a))))
-```
-
-The free combinators. Each states its constraints (the class has no
-default methods) and reaches the container through the class
-method, so a new instance inherits all of them.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sequence-a</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">trav</span> :: <span class="tok-constructor">Traversable</span> <span class="tok-variable">t</span>, <span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">t</span> ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>))) -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>))))</code></pre>
 
 `sequence-a` is `sequence` under its `Applicative` spelling: base
 keeps both names for the one function, because the traversal only

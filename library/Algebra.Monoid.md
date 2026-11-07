@@ -52,9 +52,7 @@ here too (it lives with its type): the opposite group of any group.
 
 ## `All`
 
-```cinch
-data All
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">All</span></code></pre>
 
 Bool under conjunction. A list of `Bool` folds through `Monoid`
 only under an explicit choice of which boolean monoid is meant
@@ -65,64 +63,39 @@ identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 110
 
-```cinch
-All :: (Bool -> All)
-```
-
-Bool under conjunction. A list of `Bool` folds through `Monoid`
-only under an explicit choice of which boolean monoid is meant
-(the bare `Bool` carries none), so `All` picks conjunction and
-`Any` picks disjunction, the pair base's `Data.Monoid` names. The
-identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
-`All True`.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">All</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">All</span>)</code></pre>
 
 <a id="type-416e79"></a>
 
 ## `Any`
 
-```cinch
-data Any
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Any</span></code></pre>
 
 Bool under disjunction: `Any`'s identity is `False`, so
 `mconcat Nil` (an `Any`) is `Any False`.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 123
 
-```cinch
-Any :: (Bool -> Any)
-```
-
-Bool under disjunction: `Any`'s identity is `False`, so
-`mconcat Nil` (an `Any`) is `Any False`.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Any</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Any</span>)</code></pre>
 
 <a id="type-4475616c"></a>
 
 ## `Dual`
 
-```cinch
-data Dual (t :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Dual</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 Dual: composition in the opposite order. `Dual x <> Dual y`
 combines y before x, turning any monoid into its opposite.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 136
 
-```cinch
-Dual :: forall t . (t -> Dual t)
-```
-
-Dual: composition in the opposite order. `Dual x <> Dual y`
-combines y before x, turning any monoid into its opposite.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Dual</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Dual</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-456e646f"></a>
 
 ## `Endo`
 
-```cinch
-data Endo (t :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Endo</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 Endo: endomorphisms under composition. `Endo f <> Endo g` is
 `f` after `g` (like `(.)`), and `mempty` is the identity, so
@@ -130,21 +103,13 @@ folding `<>` over endomorphisms chains them left to right.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 185
 
-```cinch
-Endo :: forall t . ((t -> t) -> Endo t)
-```
-
-Endo: endomorphisms under composition. `Endo f <> Endo g` is
-`f` after `g` (like `(.)`), and `mempty` is the identity, so
-folding `<>` over endomorphisms chains them left to right.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Endo</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . ((<span class="tok-variable">t</span> -&gt; <span class="tok-variable">t</span>) -&gt; <span class="tok-constructor">Endo</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-4669727374"></a>
 
 ## `First`
 
-```cinch
-data First (t :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">First</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 First: the leftmost `Some`, in a wrapper that keeps this choice
 apart from Option's own first-some reading (they agree today; the
@@ -152,79 +117,44 @@ wrapper makes the intent explicit and leaves Option free).
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 157
 
-```cinch
-First :: forall t . (Option t -> First t)
-```
-
-First: the leftmost `Some`, in a wrapper that keeps this choice
-apart from Option's own first-some reading (they agree today; the
-wrapper makes the intent explicit and leaves Option free).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">First</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">First</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-4c617374"></a>
 
 ## `Last`
 
-```cinch
-data Last (t :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Last</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 Last: the rightmost `Some`.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 170
 
-```cinch
-Last :: forall t . (Option t -> Last t)
-```
-
-Last: the rightmost `Some`.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Last</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Last</span> <span class="tok-variable">t</span>)</code></pre>
 
 <a id="type-50726f64756374"></a>
 
 ## `Product`
 
-```cinch
-data Product
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Product</span></code></pre>
 
 Nat under multiplication.
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 93
 
-```cinch
-Product :: (Nat -> Product)
-```
-
-Nat under multiplication.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Product</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Product</span>)</code></pre>
 
 <a id="type-53756d"></a>
 
 ## `Sum`
 
-```cinch
-data Sum
-```
-
-The instance-carrying newtypes (design/base-library.md: "the
-newtypes that exist only to carry instances live with their class
-module"). Their instances live with their type, so both the
-Semigroup and Monoid instances of each are declared here.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Sum</span></code></pre>
 
 Nat under addition: `Sum x <> Sum y` adds. The bare `Nat` gets no
 Semigroup instance (two monoids live on Nat; the newtype chooses).
 
 [Source](/reference-sources/Algebra.Monoid.cinch) · line 81
 
-```cinch
-Sum :: (Nat -> Sum)
-```
-
-The instance-carrying newtypes (design/base-library.md: "the
-newtypes that exist only to carry instances live with their class
-module"). Their instances live with their type, so both the
-Semigroup and Monoid instances of each are declared here.
-
-Nat under addition: `Sum x <> Sum y` adds. The bare `Nat` gets no
-Semigroup instance (two monoids live on Nat; the newtype chooses).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Sum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Sum</span>)</code></pre>
 
 # Signatures and methods
 
@@ -232,29 +162,23 @@ Semigroup instance (two monoids live on Nat; the newtype chooses).
 
 ## `Monoid`
 
-```cinch
-signature Monoid a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 36
+[Source](/reference-sources/Algebra.Monoid.cinch)
 
 <a id="method-4d6f6e6f69642e6d656d707479"></a>
 
 ## `Monoid.mempty`
 
-```cinch
-mempty :: forall a . using (dict :: Monoid a) => a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mempty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 37
+
 
 <a id="method-4d6f6e6f69642e6d636f6e636174"></a>
 
 ## `Monoid.mconcat`
 
-```cinch
-mconcat :: forall a . using (dict :: Monoid a, sa :: Semigroup a) => (List a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mconcat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 `mconcat`: combine the whole list with `<>`, in order, or `mempty`
 for the empty list. This is the operation the text homes kept
@@ -279,8 +203,6 @@ suffix at every step, O(n^2) bytes, while each balanced round copies
 every byte once, O(n log n) over the log n rounds. An override must
 equal the default. The rounds are Algebra.Semigroup's balanced
 `sconcat`, with `mempty` for the empty list.
-
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 61
 
 # Instances
 
@@ -307,6 +229,15 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Algebra.Monoid.Semigroup_Last` | `Semigroup (Last t)` | Implicit |
 | `Algebra.Monoid.Semigroup_Product` | `Semigroup Product` | Implicit |
 | `Algebra.Monoid.Semigroup_Sum` | `Semigroup Sum` | Implicit |
+
+**`Algebra.Monoid.Group_Dual`**: The opposite group: `invert (Dual x)` is `Dual (invert x)`. The
+inverse laws hold in the opposite order (instances live with
+their type).
+**`Algebra.Monoid.Monoid_Function`**: A function into a monoid is a monoid pointwise: the identity is the
+function returning the identity. Eta-expanded like the function
+Semigroup above: `mempty x` is the identity at x. `mconcat` is the
+class default, eta-expanded by the checker to this carrier's arity.
+**`Algebra.Monoid.Monoid_Pair`**: Tuples of monoids are monoids componentwise.
 
 # Reference provenance
 

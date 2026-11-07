@@ -73,32 +73,18 @@ Not carried (unproductions this module deliberately does not build):
 
 ## `Base64Error`
 
-```cinch
-data Base64Error
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base64Error</span></code></pre>
 
 The named decode failures (the house style: Text.Parse's named
 vocabulary shape, never a fault).
 
 [Source](/reference-sources/Text.Base64.cinch) · line 68
 
-```cinch
-InvalidBase64Character :: (Char -> Base64Error)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Character</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Base64Error</span>)</code></pre>
 
-A scalar value outside the alphabet the decoder accepts.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Base64Error</span>)</code></pre>
 
-```cinch
-InvalidBase64Length :: (Nat -> Base64Error)
-```
-
-The scalar count is not a multiple of 4.
-
-```cinch
-InvalidBase64Padding :: Base64Error
-```
-
-`=` appears before the last group or as a third pad.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Padding</span> :: <span class="tok-constructor">Base64Error</span></code></pre>
 
 # Values
 
@@ -106,9 +92,7 @@ InvalidBase64Padding :: Base64Error
 
 ## `base64-decode`
 
-```cinch
-base64-decode :: (String -> Result Base64Error Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
 Strict decoding.
 
@@ -118,9 +102,7 @@ Strict decoding.
 
 ## `base64-decode-lenient`
 
-```cinch
-base64-decode-lenient :: (String -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode-lenient</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 Lenient decoding (Ruby's `decode64`): drop every non-alphabet
 scalar and pack what remains, never failing.
@@ -131,9 +113,7 @@ scalar and pack what remains, never failing.
 
 ## `base64-encode`
 
-```cinch
-base64-encode :: (Bytes -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Encoding.
 
@@ -143,21 +123,17 @@ Encoding.
 
 ## `base64-url-decode`
 
-```cinch
-base64-url-decode :: (String -> Result Base64Error Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Text.Base64.cinch) · line 194
+[Source](/reference-sources/Text.Base64.cinch)
 
 <a id="value-6261736536342d75726c2d656e636f6465"></a>
 
 ## `base64-url-encode`
 
-```cinch
-base64-url-encode :: (Bytes -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Base64.cinch) · line 132
+[Source](/reference-sources/Text.Base64.cinch)
 
 # Reference provenance
 

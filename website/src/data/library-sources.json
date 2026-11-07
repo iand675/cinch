@@ -333,7 +333,7 @@
     {
       "module": "Data.Option",
       "path": "compiler/prelude/Data/Option.cinch",
-      "sha256": "d6a557314549a9576de94de2260fdd0d8005cb703eeb075274bbe9d54b7c6a49",
+      "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
       "embedded": true,
       "values": 9,
       "public_methods": 0

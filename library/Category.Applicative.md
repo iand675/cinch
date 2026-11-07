@@ -56,41 +56,33 @@ Each states its own constraint and is reached with an explicit
 
 ## `Applicative`
 
-```cinch
-signature Applicative f
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span></code></pre>
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 36
+[Source](/reference-sources/Category.Applicative.cinch)
 
 <a id="method-4170706c696361746976652e70757265"></a>
 
 ## `Applicative.pure`
 
-```cinch
-pure :: forall (f :: Type -> Type) a . using (dict :: Applicative f) => (a -> (f a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 37
+
 
 <a id="method-4170706c696361746976652e3c2a3e"></a>
 
 ## `Applicative.<*>`
 
-```cinch
-<*> :: forall (f :: Type -> Type) a b . using (dict :: Applicative f) => ((f (a -> b)) -> ((f a) -> (f b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;*&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 38
+
 
 <a id="method-4170706c696361746976652e6c6966742d6132"></a>
 
 ## `Applicative.lift-a2`
 
-```cinch
-lift-a2 :: forall (f :: Type -> Type) a b c . using (dict :: Applicative f) => ((a -> (b -> c)) -> ((f a) -> ((f b) -> (f c))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">c</span>))))</code></pre>
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 39
+
 
 # Values
 
@@ -98,9 +90,7 @@ lift-a2 :: forall (f :: Type -> Type) a b c . using (dict :: Applicative f) => (
 
 ## `ap`
 
-```cinch
-ap :: forall (f :: Type -> Type) a b . using (app :: Applicative f) => ((f (a -> b)) -> ((f a) -> (f b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
 `ap` is `(<*>)` under the name `Control.Monad` carries for it.
 `base` states it at `Monad` because its body there reaches `pure`;
@@ -113,9 +103,7 @@ the `Applicative` itself, whose `<*>` is this function.
 
 ## `replicate-m`
 
-```cinch
-replicate-m :: forall (f :: Type -> Type) a . using (app :: Applicative f) => (Nat -> ((f a) -> (f (List a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
 
 `replicate-m`: the action run `n` times, its results in order. Zero
 runs nothing and yields the empty list inside the effect; n runs
@@ -129,24 +117,15 @@ negative needs no refusal.
 
 ## `unless`
 
-```cinch
-unless :: forall (f :: Type -> Type) . using (app :: Applicative f) => (Bool -> ((f Unit) -> (f Unit)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unless</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 69
+[Source](/reference-sources/Category.Applicative.cinch)
 
 <a id="value-766f6964"></a>
 
 ## `void`
 
-```cinch
-void :: forall (f :: Type -> Type) a . using (fun :: Functor f) => ((f a) -> (f Unit))
-```
-
-The free combinators. Each states its constraint: the class has no
-default methods, and a `Monad` does not entail an `Applicative`
-(the no-superbundle rule), so the constraint named is the one the
-body actually uses.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">void</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `void` keeps the structure and discards its values (base's
 Data.Functor.void). Its home is this module, whose combinators
@@ -159,9 +138,7 @@ nothing is built and nothing is observed.
 
 ## `when`
 
-```cinch
-when :: forall (f :: Type -> Type) . using (app :: Applicative f) => (Bool -> ((f Unit) -> (f Unit)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">when</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 `when`/`unless`: run the action only under the condition. The
 branch that does not run still needs a value of the effect's type
@@ -172,9 +149,7 @@ the constraint is `Applicative` (base's own constraint for both).
 
 # Operator fixities
 
-```cinch
-infixl 4 <*>
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">4</span> <span class="tok-operator">&lt;*&gt;</span></code></pre>
 
 # Instances
 
@@ -183,6 +158,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 | Instance | Target | Resolution |
 | --- | --- | --- |
 | `Category.Applicative.Applicative_Function` | `Applicative (((->) r))` | Implicit |
+
+**`Category.Applicative.Applicative_Function`**: Structural: apply a function in an environment to a value in it.
 
 # Reference provenance
 

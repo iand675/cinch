@@ -45,9 +45,7 @@ This module exports no type declarations.
 
 ## `intern`
 
-```cinch
-intern :: (String -> Sym)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intern</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Sym</span>)</code></pre>
 
 The prelude surface of section 9.
 
@@ -57,11 +55,9 @@ The prelude surface of section 9.
 
 ## `sym-name`
 
-```cinch
-sym-name :: (Sym -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sym-name</span> :: (<span class="tok-constructor">Sym</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Sym.cinch) · line 42
+[Source](/reference-sources/Data.Sym.cinch)
 
 # Instances
 
@@ -73,6 +69,26 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Sym.Hash_Sym` | `Hash Sym` | Implicit |
 | `Data.Sym.Ord_Sym` | `Ord Sym` | Implicit |
 | `Data.Sym.Show_Sym` | `Show Sym` | Implicit |
+
+**`Data.Sym.Eq_Sym`**: `Eq` is identity: the same interned cell (section 9).
+**`Data.Sym.Hash_Sym`**: The digest is the interned name's bytes through the `Bytes`
+instance (Data.Bytes owns the fold), read straight off the
+intrinsic layer with no `String` in between. Interning keys on the
+name, so two names equal under `Eq` are the same cell and hash
+alike (the `Hash` law), and the digest never reads a cell address,
+so it is deterministic across runs exactly as `Ord` is.
+
+The cell's own word would be the stronger answer (identity is
+already the `Eq`), but nothing here exposes a handle as data: the
+type has no C counterpart and no `Sym`-to-word conversion exists,
+and inventing one to hash by address would buy only the weaker
+property (addresses are not reproducible across runs).
+`symName` hands out a fresh buffer per call, so a hash allocates
+once.
+**`Data.Sym.Ord_Sym`**: `Ord` is lexicographic by name: `symCmp`'s immediate against 0
+(the `natCmp`/`intCmp` reading), never the cell addresses.
+**`Data.Sym.Show_Sym`**: `Show` prints `'foo` (section 9): the tick is `char-string '\''`
+(raw ASCII 39), the name renders as itself.
 
 # Reference provenance
 

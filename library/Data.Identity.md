@@ -52,15 +52,11 @@ declarations), so no per-type operator stand-ins are defined here.
 
 ## `Identity`
 
-```cinch
-data Identity (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Identity.cinch) · line 36
+[Source](/reference-sources/Data.Identity.cinch)
 
-```cinch
-Identity :: forall a . (a -> Identity a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Values
 
@@ -68,9 +64,7 @@ Identity :: forall a . (a -> Identity a)
 
 ## `ap-identity`
 
-```cinch
-ap-identity :: forall a b . (Identity (a -> b) -> (Identity a -> Identity b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
 
 Applicative body: apply a wrapped function to a wrapped value.
 
@@ -80,9 +74,7 @@ Applicative body: apply a wrapped function to a wrapped value.
 
 ## `bind-identity`
 
-```cinch
-bind-identity :: forall a b . (Identity a -> ((a -> Identity b) -> Identity b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
 
 Monad body: sequence a dependent computation.
 
@@ -92,9 +84,7 @@ Monad body: sequence a dependent computation.
 
 ## `join-identity`
 
-```cinch
-join-identity :: forall a . (Identity (Identity a) -> Identity a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Identity</span> (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
 
 Monad body: collapse one layer.
 
@@ -104,9 +94,7 @@ Monad body: collapse one layer.
 
 ## `lift-a2-identity`
 
-```cinch
-lift-a2-identity :: forall a b c . ((a -> (b -> c)) -> (Identity a -> (Identity b -> Identity c)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">c</span>)))</code></pre>
 
 Applicative body: lift a two-argument function.
 
@@ -116,9 +104,7 @@ Applicative body: lift a two-argument function.
 
 ## `map-identity`
 
-```cinch
-map-identity :: forall a b . ((a -> b) -> (Identity a -> Identity b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
 
 Functor body: map over the wrapped value.
 
@@ -128,9 +114,7 @@ Functor body: map over the wrapped value.
 
 ## `pure-identity`
 
-```cinch
-pure-identity :: forall a . (a -> Identity a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
 
 Applicative body.
 
@@ -140,9 +124,7 @@ Applicative body.
 
 ## `run-identity`
 
-```cinch
-run-identity :: forall a . (Identity a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 Elimination: the wrapped value.
 
@@ -157,6 +139,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Identity.Applicative_Identity` | `Applicative Identity` | Implicit |
 | `Data.Identity.Functor_Identity` | `Functor Identity` | Implicit |
 | `Data.Identity.Monad_Identity` | `Monad Identity` | Implicit |
+
+**`Data.Identity.Functor_Identity`**: The class instances (instances live with their type), defined
+through the bodies above.
 
 # Reference provenance
 

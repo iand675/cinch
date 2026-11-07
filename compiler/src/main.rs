@@ -11,6 +11,13 @@ usage:
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
+  cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
+  cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
+  cinch doc lookup <symbol> [--dir <root>] [--legacy] [--json]
+  cinch doc index <root> [--legacy] [--out <json>]
+  cinch doc test <root...> [--compiler <cinch>] [--legacy] [--match <text>]
+  cinch doc markdown [<file.md>] [--out <html>]  highlight cinch fences on stdin or a file
+  cinch doc highlight <file.cinch> [--out <html>]
 
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
@@ -33,6 +40,7 @@ fn main() {
         Some("emit-object") => (Mode::EmitObject, &args[1..]),
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
+        Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("lsp") => {
             // The language server over stdio (LSP's standard transport):
             // the same `LspServer` the REPL analysis layer and the

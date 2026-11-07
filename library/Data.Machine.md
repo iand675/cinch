@@ -52,34 +52,23 @@ This module exports no type declarations.
 
 ## `abs-f32`
 
-```cinch
-abs-f32 :: (F32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 450
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6162732d663634"></a>
 
 ## `abs-f64`
 
-```cinch
-abs-f64 :: (F64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 473
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6164642d663332"></a>
 
 ## `add-f32`
 
-```cinch
-add-f32 :: (F32 -> (F32 -> F32))
-```
-
-Primitive types specification, section 5: IEEE 754 binary32 and
-binary64 arithmetic with round-to-nearest ties-to-even. Floats have
-no Eq and no Ord instance (`==` and `<` on F64 are rejected); the
-comparisons below are the quiet, non-signaling IEEE ones.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
 F32.
 
@@ -89,9 +78,7 @@ F32.
 
 ## `add-f64`
 
-```cinch
-add-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
 F64.
 
@@ -101,1139 +88,911 @@ F64.
 
 ## `bit-and-i16`
 
-```cinch
-bit-and-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 111
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d693332"></a>
 
 ## `bit-and-i32`
 
-```cinch
-bit-and-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 150
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d693634"></a>
 
 ## `bit-and-i64`
 
-```cinch
-bit-and-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 189
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d6938"></a>
 
 ## `bit-and-i8`
 
-```cinch
-bit-and-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 72
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d6973697a65"></a>
 
 ## `bit-and-isize`
 
-```cinch
-bit-and-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 423
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d753136"></a>
 
 ## `bit-and-u16`
 
-```cinch
-bit-and-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 267
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d753332"></a>
 
 ## `bit-and-u32`
 
-```cinch
-bit-and-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 306
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d753634"></a>
 
 ## `bit-and-u64`
 
-```cinch
-bit-and-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 345
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d7538"></a>
 
 ## `bit-and-u8`
 
-```cinch
-bit-and-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 228
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d616e642d7573697a65"></a>
 
 ## `bit-and-usize`
 
-```cinch
-bit-and-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 384
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d693136"></a>
 
 ## `bit-not-i16`
 
-```cinch
-bit-not-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 114
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d693332"></a>
 
 ## `bit-not-i32`
 
-```cinch
-bit-not-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 153
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d693634"></a>
 
 ## `bit-not-i64`
 
-```cinch
-bit-not-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 192
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d6938"></a>
 
 ## `bit-not-i8`
 
-```cinch
-bit-not-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 75
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d6973697a65"></a>
 
 ## `bit-not-isize`
 
-```cinch
-bit-not-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 426
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d753136"></a>
 
 ## `bit-not-u16`
 
-```cinch
-bit-not-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 270
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d753332"></a>
 
 ## `bit-not-u32`
 
-```cinch
-bit-not-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 309
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d753634"></a>
 
 ## `bit-not-u64`
 
-```cinch
-bit-not-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 348
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d7538"></a>
 
 ## `bit-not-u8`
 
-```cinch
-bit-not-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 231
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6e6f742d7573697a65"></a>
 
 ## `bit-not-usize`
 
-```cinch
-bit-not-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 387
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d693136"></a>
 
 ## `bit-or-i16`
 
-```cinch
-bit-or-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 112
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d693332"></a>
 
 ## `bit-or-i32`
 
-```cinch
-bit-or-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 151
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d693634"></a>
 
 ## `bit-or-i64`
 
-```cinch
-bit-or-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 190
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d6938"></a>
 
 ## `bit-or-i8`
 
-```cinch
-bit-or-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 73
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d6973697a65"></a>
 
 ## `bit-or-isize`
 
-```cinch
-bit-or-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 424
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d753136"></a>
 
 ## `bit-or-u16`
 
-```cinch
-bit-or-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 268
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d753332"></a>
 
 ## `bit-or-u32`
 
-```cinch
-bit-or-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 307
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d753634"></a>
 
 ## `bit-or-u64`
 
-```cinch
-bit-or-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 346
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d7538"></a>
 
 ## `bit-or-u8`
 
-```cinch
-bit-or-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 229
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d6f722d7573697a65"></a>
 
 ## `bit-or-usize`
 
-```cinch
-bit-or-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 385
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d693136"></a>
 
 ## `bit-xor-i16`
 
-```cinch
-bit-xor-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 113
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d693332"></a>
 
 ## `bit-xor-i32`
 
-```cinch
-bit-xor-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 152
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d693634"></a>
 
 ## `bit-xor-i64`
 
-```cinch
-bit-xor-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 191
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d6938"></a>
 
 ## `bit-xor-i8`
 
-```cinch
-bit-xor-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 74
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d6973697a65"></a>
 
 ## `bit-xor-isize`
 
-```cinch
-bit-xor-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 425
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d753136"></a>
 
 ## `bit-xor-u16`
 
-```cinch
-bit-xor-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 269
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d753332"></a>
 
 ## `bit-xor-u32`
 
-```cinch
-bit-xor-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 308
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d753634"></a>
 
 ## `bit-xor-u64`
 
-```cinch
-bit-xor-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 347
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d7538"></a>
 
 ## `bit-xor-u8`
 
-```cinch
-bit-xor-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 230
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6269742d786f722d7573697a65"></a>
 
 ## `bit-xor-usize`
 
-```cinch
-bit-xor-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 386
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d693136"></a>
 
 ## `checked-add-i16`
 
-```cinch
-checked-add-i16 :: (I16 -> (I16 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 91
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d693332"></a>
 
 ## `checked-add-i32`
 
-```cinch
-checked-add-i32 :: (I32 -> (I32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 130
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d693634"></a>
 
 ## `checked-add-i64`
 
-```cinch
-checked-add-i64 :: (I64 -> (I64 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 169
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d6938"></a>
 
 ## `checked-add-i8`
 
-```cinch
-checked-add-i8 :: (I8 -> (I8 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 52
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d6973697a65"></a>
 
 ## `checked-add-isize`
 
-```cinch
-checked-add-isize :: (Isize -> (Isize -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 403
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d753136"></a>
 
 ## `checked-add-u16`
 
-```cinch
-checked-add-u16 :: (U16 -> (U16 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 247
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d753332"></a>
 
 ## `checked-add-u32`
 
-```cinch
-checked-add-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 286
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d753634"></a>
 
 ## `checked-add-u64`
 
-```cinch
-checked-add-u64 :: (U64 -> (U64 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 325
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d7538"></a>
 
 ## `checked-add-u8`
 
-```cinch
-checked-add-u8 :: (U8 -> (U8 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 208
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6164642d7573697a65"></a>
 
 ## `checked-add-usize`
 
-```cinch
-checked-add-usize :: (Usize -> (Usize -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 364
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d693136"></a>
 
 ## `checked-div-i16`
 
-```cinch
-checked-div-i16 :: (I16 -> (I16 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 103
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d693332"></a>
 
 ## `checked-div-i32`
 
-```cinch
-checked-div-i32 :: (I32 -> (I32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 142
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d693634"></a>
 
 ## `checked-div-i64`
 
-```cinch
-checked-div-i64 :: (I64 -> (I64 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 181
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d6938"></a>
 
 ## `checked-div-i8`
 
-```cinch
-checked-div-i8 :: (I8 -> (I8 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 64
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d6973697a65"></a>
 
 ## `checked-div-isize`
 
-```cinch
-checked-div-isize :: (Isize -> (Isize -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 415
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d753136"></a>
 
 ## `checked-div-u16`
 
-```cinch
-checked-div-u16 :: (U16 -> (U16 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 259
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d753332"></a>
 
 ## `checked-div-u32`
 
-```cinch
-checked-div-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 298
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d753634"></a>
 
 ## `checked-div-u64`
 
-```cinch
-checked-div-u64 :: (U64 -> (U64 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 337
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d7538"></a>
 
 ## `checked-div-u8`
 
-```cinch
-checked-div-u8 :: (U8 -> (U8 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 220
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6469762d7573697a65"></a>
 
 ## `checked-div-usize`
 
-```cinch
-checked-div-usize :: (Usize -> (Usize -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 376
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d693136"></a>
 
 ## `checked-f32-to-i16`
 
-```cinch
-checked-f32-to-i16 :: (F32 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 874
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d693332"></a>
 
 ## `checked-f32-to-i32`
 
-```cinch
-checked-f32-to-i32 :: (F32 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 876
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d693634"></a>
 
 ## `checked-f32-to-i64`
 
-```cinch
-checked-f32-to-i64 :: (F32 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 878
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d6938"></a>
 
 ## `checked-f32-to-i8`
 
-```cinch
-checked-f32-to-i8 :: (F32 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 872
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d6973697a65"></a>
 
 ## `checked-f32-to-isize`
 
-```cinch
-checked-f32-to-isize :: (F32 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-isize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 890
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d753136"></a>
 
 ## `checked-f32-to-u16`
 
-```cinch
-checked-f32-to-u16 :: (F32 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 882
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d753332"></a>
 
 ## `checked-f32-to-u32`
 
-```cinch
-checked-f32-to-u32 :: (F32 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 884
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d753634"></a>
 
 ## `checked-f32-to-u64`
 
-```cinch
-checked-f32-to-u64 :: (F32 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 886
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d7538"></a>
 
 ## `checked-f32-to-u8`
 
-```cinch
-checked-f32-to-u8 :: (F32 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 880
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6633322d746f2d7573697a65"></a>
 
 ## `checked-f32-to-usize`
 
-```cinch
-checked-f32-to-usize :: (F32 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-usize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 888
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d693136"></a>
 
 ## `checked-f64-to-i16`
 
-```cinch
-checked-f64-to-i16 :: (F64 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 894
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d693332"></a>
 
 ## `checked-f64-to-i32`
 
-```cinch
-checked-f64-to-i32 :: (F64 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 896
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d693634"></a>
 
 ## `checked-f64-to-i64`
 
-```cinch
-checked-f64-to-i64 :: (F64 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 898
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d6938"></a>
 
 ## `checked-f64-to-i8`
 
-```cinch
-checked-f64-to-i8 :: (F64 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 892
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d6973697a65"></a>
 
 ## `checked-f64-to-isize`
 
-```cinch
-checked-f64-to-isize :: (F64 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-isize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 910
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d753136"></a>
 
 ## `checked-f64-to-u16`
 
-```cinch
-checked-f64-to-u16 :: (F64 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 902
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d753332"></a>
 
 ## `checked-f64-to-u32`
 
-```cinch
-checked-f64-to-u32 :: (F64 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 904
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d753634"></a>
 
 ## `checked-f64-to-u64`
 
-```cinch
-checked-f64-to-u64 :: (F64 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 906
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d7538"></a>
 
 ## `checked-f64-to-u8`
 
-```cinch
-checked-f64-to-u8 :: (F64 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 900
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6636342d746f2d7573697a65"></a>
 
 ## `checked-f64-to-usize`
 
-```cinch
-checked-f64-to-usize :: (F64 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-usize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 908
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d693136"></a>
 
 ## `checked-i16-to-i16`
 
-```cinch
-checked-i16-to-i16 :: (I16 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 605
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d693332"></a>
 
 ## `checked-i16-to-i32`
 
-```cinch
-checked-i16-to-i32 :: (I16 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 608
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d693634"></a>
 
 ## `checked-i16-to-i64`
 
-```cinch
-checked-i16-to-i64 :: (I16 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 611
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d6938"></a>
 
 ## `checked-i16-to-i8`
 
-```cinch
-checked-i16-to-i8 :: (I16 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 602
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d6973697a65"></a>
 
 ## `checked-i16-to-isize`
 
-```cinch
-checked-i16-to-isize :: (I16 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-isize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 629
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d753136"></a>
 
 ## `checked-i16-to-u16`
 
-```cinch
-checked-i16-to-u16 :: (I16 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 617
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d753332"></a>
 
 ## `checked-i16-to-u32`
 
-```cinch
-checked-i16-to-u32 :: (I16 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 620
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d753634"></a>
 
 ## `checked-i16-to-u64`
 
-```cinch
-checked-i16-to-u64 :: (I16 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 623
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d7538"></a>
 
 ## `checked-i16-to-u8`
 
-```cinch
-checked-i16-to-u8 :: (I16 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 614
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6931362d746f2d7573697a65"></a>
 
 ## `checked-i16-to-usize`
 
-```cinch
-checked-i16-to-usize :: (I16 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-usize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 626
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d693136"></a>
 
 ## `checked-i32-to-i16`
 
-```cinch
-checked-i32-to-i16 :: (I32 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 635
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d693332"></a>
 
 ## `checked-i32-to-i32`
 
-```cinch
-checked-i32-to-i32 :: (I32 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 638
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d693634"></a>
 
 ## `checked-i32-to-i64`
 
-```cinch
-checked-i32-to-i64 :: (I32 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 641
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d6938"></a>
 
 ## `checked-i32-to-i8`
 
-```cinch
-checked-i32-to-i8 :: (I32 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 632
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d6973697a65"></a>
 
 ## `checked-i32-to-isize`
 
-```cinch
-checked-i32-to-isize :: (I32 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-isize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 659
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d753136"></a>
 
 ## `checked-i32-to-u16`
 
-```cinch
-checked-i32-to-u16 :: (I32 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 647
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d753332"></a>
 
 ## `checked-i32-to-u32`
 
-```cinch
-checked-i32-to-u32 :: (I32 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 650
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d753634"></a>
 
 ## `checked-i32-to-u64`
 
-```cinch
-checked-i32-to-u64 :: (I32 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 653
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d7538"></a>
 
 ## `checked-i32-to-u8`
 
-```cinch
-checked-i32-to-u8 :: (I32 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 644
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6933322d746f2d7573697a65"></a>
 
 ## `checked-i32-to-usize`
 
-```cinch
-checked-i32-to-usize :: (I32 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-usize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 656
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d693136"></a>
 
 ## `checked-i64-to-i16`
 
-```cinch
-checked-i64-to-i16 :: (I64 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 665
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d693332"></a>
 
 ## `checked-i64-to-i32`
 
-```cinch
-checked-i64-to-i32 :: (I64 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 668
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d693634"></a>
 
 ## `checked-i64-to-i64`
 
-```cinch
-checked-i64-to-i64 :: (I64 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 671
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d6938"></a>
 
 ## `checked-i64-to-i8`
 
-```cinch
-checked-i64-to-i8 :: (I64 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 662
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d6973697a65"></a>
 
 ## `checked-i64-to-isize`
 
-```cinch
-checked-i64-to-isize :: (I64 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-isize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 689
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d753136"></a>
 
 ## `checked-i64-to-u16`
 
-```cinch
-checked-i64-to-u16 :: (I64 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 677
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d753332"></a>
 
 ## `checked-i64-to-u32`
 
-```cinch
-checked-i64-to-u32 :: (I64 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 680
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d753634"></a>
 
 ## `checked-i64-to-u64`
 
-```cinch
-checked-i64-to-u64 :: (I64 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 683
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d7538"></a>
 
 ## `checked-i64-to-u8`
 
-```cinch
-checked-i64-to-u8 :: (I64 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 674
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6936342d746f2d7573697a65"></a>
 
 ## `checked-i64-to-usize`
 
-```cinch
-checked-i64-to-usize :: (I64 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-usize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 686
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d693136"></a>
 
 ## `checked-i8-to-i16`
 
-```cinch
-checked-i8-to-i16 :: (I8 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 575
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d693332"></a>
 
 ## `checked-i8-to-i32`
 
-```cinch
-checked-i8-to-i32 :: (I8 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 578
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d693634"></a>
 
 ## `checked-i8-to-i64`
 
-```cinch
-checked-i8-to-i64 :: (I8 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 581
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d6938"></a>
 
 ## `checked-i8-to-i8`
 
-```cinch
-checked-i8-to-i8 :: (I8 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
 Checked, saturating and wrapping integer conversions; float to
 integer is checked or saturating (it is never total).
@@ -1244,1519 +1003,1215 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-isize`
 
-```cinch
-checked-i8-to-isize :: (I8 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-isize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 599
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d753136"></a>
 
 ## `checked-i8-to-u16`
 
-```cinch
-checked-i8-to-u16 :: (I8 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 587
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d753332"></a>
 
 ## `checked-i8-to-u32`
 
-```cinch
-checked-i8-to-u32 :: (I8 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 590
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d753634"></a>
 
 ## `checked-i8-to-u64`
 
-```cinch
-checked-i8-to-u64 :: (I8 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 593
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d7538"></a>
 
 ## `checked-i8-to-u8`
 
-```cinch
-checked-i8-to-u8 :: (I8 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 584
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d69382d746f2d7573697a65"></a>
 
 ## `checked-i8-to-usize`
 
-```cinch
-checked-i8-to-usize :: (I8 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-usize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 596
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d693136"></a>
 
 ## `checked-isize-to-i16`
 
-```cinch
-checked-isize-to-i16 :: (Isize -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 845
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d693332"></a>
 
 ## `checked-isize-to-i32`
 
-```cinch
-checked-isize-to-i32 :: (Isize -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 848
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d693634"></a>
 
 ## `checked-isize-to-i64`
 
-```cinch
-checked-isize-to-i64 :: (Isize -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 851
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d6938"></a>
 
 ## `checked-isize-to-i8`
 
-```cinch
-checked-isize-to-i8 :: (Isize -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 842
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d6973697a65"></a>
 
 ## `checked-isize-to-isize`
 
-```cinch
-checked-isize-to-isize :: (Isize -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 869
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d753136"></a>
 
 ## `checked-isize-to-u16`
 
-```cinch
-checked-isize-to-u16 :: (Isize -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 857
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d753332"></a>
 
 ## `checked-isize-to-u32`
 
-```cinch
-checked-isize-to-u32 :: (Isize -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 860
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d753634"></a>
 
 ## `checked-isize-to-u64`
 
-```cinch
-checked-isize-to-u64 :: (Isize -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 863
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d7538"></a>
 
 ## `checked-isize-to-u8`
 
-```cinch
-checked-isize-to-u8 :: (Isize -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 854
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6973697a652d746f2d7573697a65"></a>
 
 ## `checked-isize-to-usize`
 
-```cinch
-checked-isize-to-usize :: (Isize -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-usize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 866
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d693136"></a>
 
 ## `checked-mul-i16`
 
-```cinch
-checked-mul-i16 :: (I16 -> (I16 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 93
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d693332"></a>
 
 ## `checked-mul-i32`
 
-```cinch
-checked-mul-i32 :: (I32 -> (I32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 132
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d693634"></a>
 
 ## `checked-mul-i64`
 
-```cinch
-checked-mul-i64 :: (I64 -> (I64 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 171
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d6938"></a>
 
 ## `checked-mul-i8`
 
-```cinch
-checked-mul-i8 :: (I8 -> (I8 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 54
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d6973697a65"></a>
 
 ## `checked-mul-isize`
 
-```cinch
-checked-mul-isize :: (Isize -> (Isize -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 405
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d753136"></a>
 
 ## `checked-mul-u16`
 
-```cinch
-checked-mul-u16 :: (U16 -> (U16 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 249
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d753332"></a>
 
 ## `checked-mul-u32`
 
-```cinch
-checked-mul-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 288
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d753634"></a>
 
 ## `checked-mul-u64`
 
-```cinch
-checked-mul-u64 :: (U64 -> (U64 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 327
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d7538"></a>
 
 ## `checked-mul-u8`
 
-```cinch
-checked-mul-u8 :: (U8 -> (U8 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 210
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6d756c2d7573697a65"></a>
 
 ## `checked-mul-usize`
 
-```cinch
-checked-mul-usize :: (Usize -> (Usize -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 366
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d693136"></a>
 
 ## `checked-neg-i16`
 
-```cinch
-checked-neg-i16 :: (I16 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 100
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d693332"></a>
 
 ## `checked-neg-i32`
 
-```cinch
-checked-neg-i32 :: (I32 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 139
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d693634"></a>
 
 ## `checked-neg-i64`
 
-```cinch
-checked-neg-i64 :: (I64 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 178
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d6938"></a>
 
 ## `checked-neg-i8`
 
-```cinch
-checked-neg-i8 :: (I8 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 61
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d6973697a65"></a>
 
 ## `checked-neg-isize`
 
-```cinch
-checked-neg-isize :: (Isize -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 412
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d753136"></a>
 
 ## `checked-neg-u16`
 
-```cinch
-checked-neg-u16 :: (U16 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 256
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d753332"></a>
 
 ## `checked-neg-u32`
 
-```cinch
-checked-neg-u32 :: (U32 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 295
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d753634"></a>
 
 ## `checked-neg-u64`
 
-```cinch
-checked-neg-u64 :: (U64 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 334
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d7538"></a>
 
 ## `checked-neg-u8`
 
-```cinch
-checked-neg-u8 :: (U8 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 217
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d6e65672d7573697a65"></a>
 
 ## `checked-neg-usize`
 
-```cinch
-checked-neg-usize :: (Usize -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 373
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d693136"></a>
 
 ## `checked-rem-i16`
 
-```cinch
-checked-rem-i16 :: (I16 -> (I16 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 104
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d693332"></a>
 
 ## `checked-rem-i32`
 
-```cinch
-checked-rem-i32 :: (I32 -> (I32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 143
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d693634"></a>
 
 ## `checked-rem-i64`
 
-```cinch
-checked-rem-i64 :: (I64 -> (I64 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 182
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d6938"></a>
 
 ## `checked-rem-i8`
 
-```cinch
-checked-rem-i8 :: (I8 -> (I8 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 65
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d6973697a65"></a>
 
 ## `checked-rem-isize`
 
-```cinch
-checked-rem-isize :: (Isize -> (Isize -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 416
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d753136"></a>
 
 ## `checked-rem-u16`
 
-```cinch
-checked-rem-u16 :: (U16 -> (U16 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 260
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d753332"></a>
 
 ## `checked-rem-u32`
 
-```cinch
-checked-rem-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 299
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d753634"></a>
 
 ## `checked-rem-u64`
 
-```cinch
-checked-rem-u64 :: (U64 -> (U64 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 338
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d7538"></a>
 
 ## `checked-rem-u8`
 
-```cinch
-checked-rem-u8 :: (U8 -> (U8 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 221
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d72656d2d7573697a65"></a>
 
 ## `checked-rem-usize`
 
-```cinch
-checked-rem-usize :: (Usize -> (Usize -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 377
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d693136"></a>
 
 ## `checked-shl-i16`
 
-```cinch
-checked-shl-i16 :: (I16 -> (U32 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 105
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d693332"></a>
 
 ## `checked-shl-i32`
 
-```cinch
-checked-shl-i32 :: (I32 -> (U32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 144
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d693634"></a>
 
 ## `checked-shl-i64`
 
-```cinch
-checked-shl-i64 :: (I64 -> (U32 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 183
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d6938"></a>
 
 ## `checked-shl-i8`
 
-```cinch
-checked-shl-i8 :: (I8 -> (U32 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 66
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d6973697a65"></a>
 
 ## `checked-shl-isize`
 
-```cinch
-checked-shl-isize :: (Isize -> (U32 -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 417
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d753136"></a>
 
 ## `checked-shl-u16`
 
-```cinch
-checked-shl-u16 :: (U16 -> (U32 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 261
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d753332"></a>
 
 ## `checked-shl-u32`
 
-```cinch
-checked-shl-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 300
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d753634"></a>
 
 ## `checked-shl-u64`
 
-```cinch
-checked-shl-u64 :: (U64 -> (U32 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 339
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d7538"></a>
 
 ## `checked-shl-u8`
 
-```cinch
-checked-shl-u8 :: (U8 -> (U32 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 222
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d73686c2d7573697a65"></a>
 
 ## `checked-shl-usize`
 
-```cinch
-checked-shl-usize :: (Usize -> (U32 -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 378
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d693136"></a>
 
 ## `checked-shr-i16`
 
-```cinch
-checked-shr-i16 :: (I16 -> (U32 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 107
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d693332"></a>
 
 ## `checked-shr-i32`
 
-```cinch
-checked-shr-i32 :: (I32 -> (U32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 146
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d693634"></a>
 
 ## `checked-shr-i64`
 
-```cinch
-checked-shr-i64 :: (I64 -> (U32 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 185
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d6938"></a>
 
 ## `checked-shr-i8`
 
-```cinch
-checked-shr-i8 :: (I8 -> (U32 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 68
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d6973697a65"></a>
 
 ## `checked-shr-isize`
 
-```cinch
-checked-shr-isize :: (Isize -> (U32 -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 419
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d753136"></a>
 
 ## `checked-shr-u16`
 
-```cinch
-checked-shr-u16 :: (U16 -> (U32 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 263
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d753332"></a>
 
 ## `checked-shr-u32`
 
-```cinch
-checked-shr-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 302
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d753634"></a>
 
 ## `checked-shr-u64`
 
-```cinch
-checked-shr-u64 :: (U64 -> (U32 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 341
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d7538"></a>
 
 ## `checked-shr-u8`
 
-```cinch
-checked-shr-u8 :: (U8 -> (U32 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 224
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7368722d7573697a65"></a>
 
 ## `checked-shr-usize`
 
-```cinch
-checked-shr-usize :: (Usize -> (U32 -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 380
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d693136"></a>
 
 ## `checked-sub-i16`
 
-```cinch
-checked-sub-i16 :: (I16 -> (I16 -> Option I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 92
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d693332"></a>
 
 ## `checked-sub-i32`
 
-```cinch
-checked-sub-i32 :: (I32 -> (I32 -> Option I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 131
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d693634"></a>
 
 ## `checked-sub-i64`
 
-```cinch
-checked-sub-i64 :: (I64 -> (I64 -> Option I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 170
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d6938"></a>
 
 ## `checked-sub-i8`
 
-```cinch
-checked-sub-i8 :: (I8 -> (I8 -> Option I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 53
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d6973697a65"></a>
 
 ## `checked-sub-isize`
 
-```cinch
-checked-sub-isize :: (Isize -> (Isize -> Option Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 404
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d753136"></a>
 
 ## `checked-sub-u16`
 
-```cinch
-checked-sub-u16 :: (U16 -> (U16 -> Option U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 248
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d753332"></a>
 
 ## `checked-sub-u32`
 
-```cinch
-checked-sub-u32 :: (U32 -> (U32 -> Option U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 287
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d753634"></a>
 
 ## `checked-sub-u64`
 
-```cinch
-checked-sub-u64 :: (U64 -> (U64 -> Option U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 326
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d7538"></a>
 
 ## `checked-sub-u8`
 
-```cinch
-checked-sub-u8 :: (U8 -> (U8 -> Option U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 209
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7375622d7573697a65"></a>
 
 ## `checked-sub-usize`
 
-```cinch
-checked-sub-usize :: (Usize -> (Usize -> Option Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 365
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d693136"></a>
 
 ## `checked-u16-to-i16`
 
-```cinch
-checked-u16-to-i16 :: (U16 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 725
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d693332"></a>
 
 ## `checked-u16-to-i32`
 
-```cinch
-checked-u16-to-i32 :: (U16 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 728
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d693634"></a>
 
 ## `checked-u16-to-i64`
 
-```cinch
-checked-u16-to-i64 :: (U16 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 731
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d6938"></a>
 
 ## `checked-u16-to-i8`
 
-```cinch
-checked-u16-to-i8 :: (U16 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 722
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d6973697a65"></a>
 
 ## `checked-u16-to-isize`
 
-```cinch
-checked-u16-to-isize :: (U16 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-isize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 749
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d753136"></a>
 
 ## `checked-u16-to-u16`
 
-```cinch
-checked-u16-to-u16 :: (U16 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 737
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d753332"></a>
 
 ## `checked-u16-to-u32`
 
-```cinch
-checked-u16-to-u32 :: (U16 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 740
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d753634"></a>
 
 ## `checked-u16-to-u64`
 
-```cinch
-checked-u16-to-u64 :: (U16 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 743
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d7538"></a>
 
 ## `checked-u16-to-u8`
 
-```cinch
-checked-u16-to-u8 :: (U16 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 734
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7531362d746f2d7573697a65"></a>
 
 ## `checked-u16-to-usize`
 
-```cinch
-checked-u16-to-usize :: (U16 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-usize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 746
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d693136"></a>
 
 ## `checked-u32-to-i16`
 
-```cinch
-checked-u32-to-i16 :: (U32 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 755
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d693332"></a>
 
 ## `checked-u32-to-i32`
 
-```cinch
-checked-u32-to-i32 :: (U32 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 758
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d693634"></a>
 
 ## `checked-u32-to-i64`
 
-```cinch
-checked-u32-to-i64 :: (U32 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 761
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d6938"></a>
 
 ## `checked-u32-to-i8`
 
-```cinch
-checked-u32-to-i8 :: (U32 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 752
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d6973697a65"></a>
 
 ## `checked-u32-to-isize`
 
-```cinch
-checked-u32-to-isize :: (U32 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-isize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 779
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d753136"></a>
 
 ## `checked-u32-to-u16`
 
-```cinch
-checked-u32-to-u16 :: (U32 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 767
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d753332"></a>
 
 ## `checked-u32-to-u32`
 
-```cinch
-checked-u32-to-u32 :: (U32 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 770
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d753634"></a>
 
 ## `checked-u32-to-u64`
 
-```cinch
-checked-u32-to-u64 :: (U32 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 773
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d7538"></a>
 
 ## `checked-u32-to-u8`
 
-```cinch
-checked-u32-to-u8 :: (U32 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 764
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7533322d746f2d7573697a65"></a>
 
 ## `checked-u32-to-usize`
 
-```cinch
-checked-u32-to-usize :: (U32 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-usize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 776
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d693136"></a>
 
 ## `checked-u64-to-i16`
 
-```cinch
-checked-u64-to-i16 :: (U64 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 785
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d693332"></a>
 
 ## `checked-u64-to-i32`
 
-```cinch
-checked-u64-to-i32 :: (U64 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 788
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d693634"></a>
 
 ## `checked-u64-to-i64`
 
-```cinch
-checked-u64-to-i64 :: (U64 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 791
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d6938"></a>
 
 ## `checked-u64-to-i8`
 
-```cinch
-checked-u64-to-i8 :: (U64 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 782
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d6973697a65"></a>
 
 ## `checked-u64-to-isize`
 
-```cinch
-checked-u64-to-isize :: (U64 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-isize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 809
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d753136"></a>
 
 ## `checked-u64-to-u16`
 
-```cinch
-checked-u64-to-u16 :: (U64 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 797
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d753332"></a>
 
 ## `checked-u64-to-u32`
 
-```cinch
-checked-u64-to-u32 :: (U64 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 800
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d753634"></a>
 
 ## `checked-u64-to-u64`
 
-```cinch
-checked-u64-to-u64 :: (U64 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 803
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d7538"></a>
 
 ## `checked-u64-to-u8`
 
-```cinch
-checked-u64-to-u8 :: (U64 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 794
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7536342d746f2d7573697a65"></a>
 
 ## `checked-u64-to-usize`
 
-```cinch
-checked-u64-to-usize :: (U64 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-usize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 806
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d693136"></a>
 
 ## `checked-u8-to-i16`
 
-```cinch
-checked-u8-to-i16 :: (U8 -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 695
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d693332"></a>
 
 ## `checked-u8-to-i32`
 
-```cinch
-checked-u8-to-i32 :: (U8 -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 698
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d693634"></a>
 
 ## `checked-u8-to-i64`
 
-```cinch
-checked-u8-to-i64 :: (U8 -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 701
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d6938"></a>
 
 ## `checked-u8-to-i8`
 
-```cinch
-checked-u8-to-i8 :: (U8 -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 692
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d6973697a65"></a>
 
 ## `checked-u8-to-isize`
 
-```cinch
-checked-u8-to-isize :: (U8 -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-isize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 719
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d753136"></a>
 
 ## `checked-u8-to-u16`
 
-```cinch
-checked-u8-to-u16 :: (U8 -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 707
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d753332"></a>
 
 ## `checked-u8-to-u32`
 
-```cinch
-checked-u8-to-u32 :: (U8 -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 710
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d753634"></a>
 
 ## `checked-u8-to-u64`
 
-```cinch
-checked-u8-to-u64 :: (U8 -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 713
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d7538"></a>
 
 ## `checked-u8-to-u8`
 
-```cinch
-checked-u8-to-u8 :: (U8 -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 704
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d75382d746f2d7573697a65"></a>
 
 ## `checked-u8-to-usize`
 
-```cinch
-checked-u8-to-usize :: (U8 -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-usize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 716
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d693136"></a>
 
 ## `checked-usize-to-i16`
 
-```cinch
-checked-usize-to-i16 :: (Usize -> Option I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 815
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d693332"></a>
 
 ## `checked-usize-to-i32`
 
-```cinch
-checked-usize-to-i32 :: (Usize -> Option I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 818
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d693634"></a>
 
 ## `checked-usize-to-i64`
 
-```cinch
-checked-usize-to-i64 :: (Usize -> Option I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 821
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d6938"></a>
 
 ## `checked-usize-to-i8`
 
-```cinch
-checked-usize-to-i8 :: (Usize -> Option I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 812
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d6973697a65"></a>
 
 ## `checked-usize-to-isize`
 
-```cinch
-checked-usize-to-isize :: (Usize -> Option Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-isize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 839
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d753136"></a>
 
 ## `checked-usize-to-u16`
 
-```cinch
-checked-usize-to-u16 :: (Usize -> Option U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 827
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d753332"></a>
 
 ## `checked-usize-to-u32`
 
-```cinch
-checked-usize-to-u32 :: (Usize -> Option U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 830
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d753634"></a>
 
 ## `checked-usize-to-u64`
 
-```cinch
-checked-usize-to-u64 :: (Usize -> Option U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 833
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d7538"></a>
 
 ## `checked-usize-to-u8`
 
-```cinch
-checked-usize-to-u8 :: (Usize -> Option U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 824
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636865636b65642d7573697a652d746f2d7573697a65"></a>
 
 ## `checked-usize-to-usize`
 
-```cinch
-checked-usize-to-usize :: (Usize -> Option Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 836
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d693136"></a>
 
 ## `count-ones-i16`
 
-```cinch
-count-ones-i16 :: (I16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 115
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d693332"></a>
 
 ## `count-ones-i32`
 
-```cinch
-count-ones-i32 :: (I32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 154
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d693634"></a>
 
 ## `count-ones-i64`
 
-```cinch
-count-ones-i64 :: (I64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 193
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d6938"></a>
 
 ## `count-ones-i8`
 
-```cinch
-count-ones-i8 :: (I8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 76
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d6973697a65"></a>
 
 ## `count-ones-isize`
 
-```cinch
-count-ones-isize :: (Isize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 427
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d753136"></a>
 
 ## `count-ones-u16`
 
-```cinch
-count-ones-u16 :: (U16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 271
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d753332"></a>
 
 ## `count-ones-u32`
 
-```cinch
-count-ones-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 310
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d753634"></a>
 
 ## `count-ones-u64`
 
-```cinch
-count-ones-u64 :: (U64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 349
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d7538"></a>
 
 ## `count-ones-u8`
 
-```cinch
-count-ones-u8 :: (U8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 232
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-636f756e742d6f6e65732d7573697a65"></a>
 
 ## `count-ones-usize`
 
-```cinch
-count-ones-usize :: (Usize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 388
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6469762d663332"></a>
 
 ## `div-f32`
 
-```cinch
-div-f32 :: (F32 -> (F32 -> F32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 448
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6469762d663634"></a>
 
 ## `div-f64`
 
-```cinch
-div-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 471
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d693136"></a>
 
 ## `eq-i16`
 
-```cinch
-eq-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 120
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d693332"></a>
 
 ## `eq-i32`
 
-```cinch
-eq-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 159
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d693634"></a>
 
 ## `eq-i64`
 
-```cinch
-eq-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 198
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d6938"></a>
 
 ## `eq-i8`
 
-```cinch
-eq-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 81
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d6973697a65"></a>
 
 ## `eq-isize`
 
-```cinch
-eq-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 432
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d753136"></a>
 
 ## `eq-u16`
 
-```cinch
-eq-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 276
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d753332"></a>
 
 ## `eq-u32`
 
-```cinch
-eq-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 315
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d753634"></a>
 
 ## `eq-u64`
 
-```cinch
-eq-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 354
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d7538"></a>
 
 ## `eq-u8`
 
-```cinch
-eq-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 237
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-65712d7573697a65"></a>
 
 ## `eq-usize`
 
-```cinch
-eq-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 393
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6633322d746f2d663332"></a>
 
 ## `f32-to-f32`
 
-```cinch
-f32-to-f32 :: (F32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-to-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 565
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6633322d746f2d663634"></a>
 
 ## `f32-to-f64`
 
-```cinch
-f32-to-f64 :: (F32 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-to-f64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 566
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6636342d66726f6d2d646563696d616c"></a>
 
 ## `f64-from-decimal`
 
-```cinch
-f64-from-decimal :: (Bytes -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-from-decimal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1220
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6636342d746f2d646563696d616c"></a>
 
 ## `f64-to-decimal`
 
-```cinch
-f64-to-decimal :: (F64 -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-to-decimal</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The P31 text conversions of `F64` (compiler/runtime/src/text.rs;
 the `cinch.runtime.textF64*` intrinsics, nm-verified there):
@@ -2771,459 +2226,367 @@ defined `MalformedDecimal` fault (exit 71).
 
 ## `f64-to-f32`
 
-```cinch
-f64-to-f32 :: (F64 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-to-f32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 567
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6636342d746f2d663634"></a>
 
 ## `f64-to-f64`
 
-```cinch
-f64-to-f64 :: (F64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-to-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 568
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6665712d663332"></a>
 
 ## `feq-f32`
 
-```cinch
-feq-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">feq-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 454
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6665712d663634"></a>
 
 ## `feq-f64`
 
-```cinch
-feq-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">feq-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 477
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6667652d663332"></a>
 
 ## `fge-f32`
 
-```cinch
-fge-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fge-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 459
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6667652d663634"></a>
 
 ## `fge-f64`
 
-```cinch
-fge-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fge-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 482
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6667742d663332"></a>
 
 ## `fgt-f32`
 
-```cinch
-fgt-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fgt-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 458
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6667742d663634"></a>
 
 ## `fgt-f64`
 
-```cinch
-fgt-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fgt-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 481
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666c652d663332"></a>
 
 ## `fle-f32`
 
-```cinch
-fle-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fle-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 457
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666c652d663634"></a>
 
 ## `fle-f64`
 
-```cinch
-fle-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fle-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 480
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666c742d663332"></a>
 
 ## `flt-f32`
 
-```cinch
-flt-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flt-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 456
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666c742d663634"></a>
 
 ## `flt-f64`
 
-```cinch
-flt-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flt-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 479
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666e652d663332"></a>
 
 ## `fne-f32`
 
-```cinch
-fne-f32 :: (F32 -> (F32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fne-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 455
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-666e652d663634"></a>
 
 ## `fne-f64`
 
-```cinch
-fne-f64 :: (F64 -> (F64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fne-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 478
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d693136"></a>
 
 ## `ge-i16`
 
-```cinch
-ge-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 125
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d693332"></a>
 
 ## `ge-i32`
 
-```cinch
-ge-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 164
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d693634"></a>
 
 ## `ge-i64`
 
-```cinch
-ge-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 203
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d6938"></a>
 
 ## `ge-i8`
 
-```cinch
-ge-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 86
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d6973697a65"></a>
 
 ## `ge-isize`
 
-```cinch
-ge-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 437
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d753136"></a>
 
 ## `ge-u16`
 
-```cinch
-ge-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 281
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d753332"></a>
 
 ## `ge-u32`
 
-```cinch
-ge-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 320
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d753634"></a>
 
 ## `ge-u64`
 
-```cinch
-ge-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 359
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d7538"></a>
 
 ## `ge-u8`
 
-```cinch
-ge-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 242
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67652d7573697a65"></a>
 
 ## `ge-usize`
 
-```cinch
-ge-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 398
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d693136"></a>
 
 ## `gt-i16`
 
-```cinch
-gt-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 124
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d693332"></a>
 
 ## `gt-i32`
 
-```cinch
-gt-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 163
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d693634"></a>
 
 ## `gt-i64`
 
-```cinch
-gt-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 202
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d6938"></a>
 
 ## `gt-i8`
 
-```cinch
-gt-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 85
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d6973697a65"></a>
 
 ## `gt-isize`
 
-```cinch
-gt-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 436
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d753136"></a>
 
 ## `gt-u16`
 
-```cinch
-gt-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 280
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d753332"></a>
 
 ## `gt-u32`
 
-```cinch
-gt-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 319
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d753634"></a>
 
 ## `gt-u64`
 
-```cinch
-gt-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 358
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d7538"></a>
 
 ## `gt-u8`
 
-```cinch
-gt-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 241
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-67742d7573697a65"></a>
 
 ## `gt-usize`
 
-```cinch
-gt-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 397
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d663332"></a>
 
 ## `i16-to-f32`
 
-```cinch
-i16-to-f32 :: (I16 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-f32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 547
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d663634"></a>
 
 ## `i16-to-f64`
 
-```cinch
-i16-to-f64 :: (I16 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-f64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 548
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d693136"></a>
 
 ## `i16-to-i16`
 
-```cinch
-i16-to-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 509
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d693332"></a>
 
 ## `i16-to-i32`
 
-```cinch
-i16-to-i32 :: ((a0 :: I16) -> refined (((-32768 <= r && r <= 32767) && r == a0)) I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 510
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d693634"></a>
 
 ## `i16-to-i64`
 
-```cinch
-i16-to-i64 :: ((a0 :: I16) -> refined (((-32768 <= r && r <= 32767) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 511
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6931362d746f2d6973697a65"></a>
 
 ## `i16-to-isize`
 
-```cinch
-i16-to-isize :: ((a0 :: I16) -> refined (((-32768 <= r && r <= 32767) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 512
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6933322d746f2d663332"></a>
 
 ## `i32-to-f32`
 
-```cinch
-i32-to-f32 :: (I32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-f32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 549
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6933322d746f2d663634"></a>
 
 ## `i32-to-f64`
 
-```cinch
-i32-to-f64 :: (I32 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-f64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 550
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6933322d746f2d693332"></a>
 
 ## `i32-to-i32`
 
-```cinch
-i32-to-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 513
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6933322d746f2d693634"></a>
 
 ## `i32-to-i64`
 
-```cinch
-i32-to-i64 :: ((a0 :: I32) -> refined (((-2147483648 <= r && r <= 2147483647) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-2147483648</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">2147483647</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 514
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6933322d746f2d6973697a65"></a>
 
 ## `i32-to-isize`
 
-```cinch
-i32-to-isize :: ((a0 :: I32) -> refined (((-2147483648 <= r && r <= 2147483647) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-2147483648</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">2147483647</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 515
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6936342d6c652d62797465"></a>
 
 ## `i64-le-byte`
 
-```cinch
-i64-le-byte :: (I64 -> (U32 -> InRange 0 255 Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-le-byte</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 One little-endian byte of an `I64` at shift `k` bits (the A6
 INTEGER column format, modules specification section 11).
@@ -3234,99 +2597,79 @@ INTEGER column format, modules specification section 11).
 
 ## `i64-to-f32`
 
-```cinch
-i64-to-f32 :: (I64 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-to-f32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 551
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6936342d746f2d663634"></a>
 
 ## `i64-to-f64`
 
-```cinch
-i64-to-f64 :: (I64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-to-f64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 552
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6936342d746f2d693634"></a>
 
 ## `i64-to-i64`
 
-```cinch
-i64-to-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 516
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6936342d746f2d6973697a65"></a>
 
 ## `i64-to-isize`
 
-```cinch
-i64-to-isize :: ((a0 :: I64) -> refined (r == a0) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 517
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d663332"></a>
 
 ## `i8-to-f32`
 
-```cinch
-i8-to-f32 :: (I8 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-f32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 545
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d663634"></a>
 
 ## `i8-to-f64`
 
-```cinch
-i8-to-f64 :: (I8 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-f64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 546
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d693136"></a>
 
 ## `i8-to-i16`
 
-```cinch
-i8-to-i16 :: ((a0 :: I8) -> refined (((-128 <= r && r <= 127) && r == a0)) I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 505
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d693332"></a>
 
 ## `i8-to-i32`
 
-```cinch
-i8-to-i32 :: ((a0 :: I8) -> refined (((-128 <= r && r <= 127) && r == a0)) I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 506
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d693634"></a>
 
 ## `i8-to-i64`
 
-```cinch
-i8-to-i64 :: ((a0 :: I8) -> refined (((-128 <= r && r <= 127) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 507
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69382d746f2d6938"></a>
 
 ## `i8-to-i8`
 
-```cinch
-i8-to-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
 Primitive types specification, section 7: explicit conversions for
 every ordered pair of numeric machine types. The total family
@@ -3348,439 +2691,351 @@ matters.
 
 ## `i8-to-isize`
 
-```cinch
-i8-to-isize :: ((a0 :: I8) -> refined (((-128 <= r && r <= 127) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 508
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d66696e6974652d663332"></a>
 
 ## `is-finite-f32`
 
-```cinch
-is-finite-f32 :: (F32 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-finite-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 462
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d66696e6974652d663634"></a>
 
 ## `is-finite-f64`
 
-```cinch
-is-finite-f64 :: (F64 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-finite-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 485
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d696e66696e6974652d663332"></a>
 
 ## `is-infinite-f32`
 
-```cinch
-is-infinite-f32 :: (F32 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-infinite-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 461
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d696e66696e6974652d663634"></a>
 
 ## `is-infinite-f64`
 
-```cinch
-is-infinite-f64 :: (F64 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-infinite-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 484
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d6e612d6e663332"></a>
 
 ## `is-na-nf32`
 
-```cinch
-is-na-nf32 :: (F32 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-na-nf32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 460
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d6e612d6e663634"></a>
 
 ## `is-na-nf64`
 
-```cinch
-is-na-nf64 :: (F64 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-na-nf64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 483
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d6e6f726d616c2d663332"></a>
 
 ## `is-normal-f32`
 
-```cinch
-is-normal-f32 :: (F32 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-normal-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 463
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-69732d6e6f726d616c2d663634"></a>
 
 ## `is-normal-f64`
 
-```cinch
-is-normal-f64 :: (F64 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-normal-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 486
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6973697a652d746f2d663332"></a>
 
 ## `isize-to-f32`
 
-```cinch
-isize-to-f32 :: (Isize -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">isize-to-f32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 563
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6973697a652d746f2d663634"></a>
 
 ## `isize-to-f64`
 
-```cinch
-isize-to-f64 :: (Isize -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">isize-to-f64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 564
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6973697a652d746f2d693634"></a>
 
 ## `isize-to-i64`
 
-```cinch
-isize-to-i64 :: ((a0 :: Isize) -> refined (r == a0) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">isize-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Isize</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 543
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6973697a652d746f2d6973697a65"></a>
 
 ## `isize-to-isize`
 
-```cinch
-isize-to-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 544
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d693136"></a>
 
 ## `le-i16`
 
-```cinch
-le-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 123
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d693332"></a>
 
 ## `le-i32`
 
-```cinch
-le-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 162
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d693634"></a>
 
 ## `le-i64`
 
-```cinch
-le-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 201
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d6938"></a>
 
 ## `le-i8`
 
-```cinch
-le-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 84
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d6973697a65"></a>
 
 ## `le-isize`
 
-```cinch
-le-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 435
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d753136"></a>
 
 ## `le-u16`
 
-```cinch
-le-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 279
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d753332"></a>
 
 ## `le-u32`
 
-```cinch
-le-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 318
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d753634"></a>
 
 ## `le-u64`
 
-```cinch
-le-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 357
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d7538"></a>
 
 ## `le-u8`
 
-```cinch
-le-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 240
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c652d7573697a65"></a>
 
 ## `le-usize`
 
-```cinch
-le-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 396
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d693136"></a>
 
 ## `leading-zeros-i16`
 
-```cinch
-leading-zeros-i16 :: (I16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 116
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d693332"></a>
 
 ## `leading-zeros-i32`
 
-```cinch
-leading-zeros-i32 :: (I32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 155
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d693634"></a>
 
 ## `leading-zeros-i64`
 
-```cinch
-leading-zeros-i64 :: (I64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 194
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d6938"></a>
 
 ## `leading-zeros-i8`
 
-```cinch
-leading-zeros-i8 :: (I8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 77
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d6973697a65"></a>
 
 ## `leading-zeros-isize`
 
-```cinch
-leading-zeros-isize :: (Isize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 428
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d753136"></a>
 
 ## `leading-zeros-u16`
 
-```cinch
-leading-zeros-u16 :: (U16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 272
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d753332"></a>
 
 ## `leading-zeros-u32`
 
-```cinch
-leading-zeros-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 311
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d753634"></a>
 
 ## `leading-zeros-u64`
 
-```cinch
-leading-zeros-u64 :: (U64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 350
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d7538"></a>
 
 ## `leading-zeros-u8`
 
-```cinch
-leading-zeros-u8 :: (U8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 233
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c656164696e672d7a65726f732d7573697a65"></a>
 
 ## `leading-zeros-usize`
 
-```cinch
-leading-zeros-usize :: (Usize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 389
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d693136"></a>
 
 ## `lt-i16`
 
-```cinch
-lt-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 122
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d693332"></a>
 
 ## `lt-i32`
 
-```cinch
-lt-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 161
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d693634"></a>
 
 ## `lt-i64`
 
-```cinch
-lt-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 200
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d6938"></a>
 
 ## `lt-i8`
 
-```cinch
-lt-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 83
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d6973697a65"></a>
 
 ## `lt-isize`
 
-```cinch
-lt-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 434
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d753136"></a>
 
 ## `lt-u16`
 
-```cinch
-lt-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 278
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d753332"></a>
 
 ## `lt-u32`
 
-```cinch
-lt-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 317
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d753634"></a>
 
 ## `lt-u64`
 
-```cinch
-lt-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 356
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d7538"></a>
 
 ## `lt-u8`
 
-```cinch
-lt-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 239
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6c742d7573697a65"></a>
 
 ## `lt-usize`
 
-```cinch
-lt-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 395
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61736b2d693634"></a>
 
 ## `mask-i64`
 
-```cinch
-mask-i64 :: (I64 -> ((a1 :: InRange 0 9223372036854775807 I64) -> refined ((0 <= r && r <= a1)) I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mask-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">a1</span> :: <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> ((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">a1</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 A mask with a non-negative mask word: the `bit-and` of any word
 with `m >= 0` lies in `[0, m]` (the and clears the sign bit and
@@ -3795,129 +3050,103 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-i16`
 
-```cinch
-max-bound-i16 :: refined (r == 32767) I16
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">32767</span>) <span class="tok-constructor">I16</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 90
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d693332"></a>
 
 ## `max-bound-i32`
 
-```cinch
-max-bound-i32 :: refined (r == 2147483647) I32
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">2147483647</span>) <span class="tok-constructor">I32</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 129
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d693634"></a>
 
 ## `max-bound-i64`
 
-```cinch
-max-bound-i64 :: refined (r == 9223372036854775807) I64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">9223372036854775807</span>) <span class="tok-constructor">I64</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 168
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d6938"></a>
 
 ## `max-bound-i8`
 
-```cinch
-max-bound-i8 :: refined (r == 127) I8
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">127</span>) <span class="tok-constructor">I8</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 51
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d6973697a65"></a>
 
 ## `max-bound-isize`
 
-```cinch
-max-bound-isize :: Isize
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-isize</span> :: <span class="tok-constructor">Isize</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 402
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d753136"></a>
 
 ## `max-bound-u16`
 
-```cinch
-max-bound-u16 :: refined (r == 65535) U16
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">65535</span>) <span class="tok-constructor">U16</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 246
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d753332"></a>
 
 ## `max-bound-u32`
 
-```cinch
-max-bound-u32 :: refined (r == 4294967295) U32
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">4294967295</span>) <span class="tok-constructor">U32</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 285
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d753634"></a>
 
 ## `max-bound-u64`
 
-```cinch
-max-bound-u64 :: refined (r == 18446744073709551615) U64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">18446744073709551615</span>) <span class="tok-constructor">U64</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 324
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d7538"></a>
 
 ## `max-bound-u8`
 
-```cinch
-max-bound-u8 :: refined (r == 255) U8
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">255</span>) <span class="tok-constructor">U8</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 207
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d61782d626f756e642d7573697a65"></a>
 
 ## `max-bound-usize`
 
-```cinch
-max-bound-usize :: Usize
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-usize</span> :: <span class="tok-constructor">Usize</span></code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 363
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d6178696d756d2d663332"></a>
 
 ## `maximum-f32`
 
-```cinch
-maximum-f32 :: (F32 -> (F32 -> F32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maximum-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 453
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d6178696d756d2d663634"></a>
 
 ## `maximum-f64`
 
-```cinch
-maximum-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maximum-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 476
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d696e2d626f756e642d693136"></a>
 
 ## `min-bound-i16`
 
-```cinch
-min-bound-i16 :: refined (r == -32768) I16
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-32768</span>) <span class="tok-constructor">I16</span></code></pre>
 
 I16 (16 bits).
 
@@ -3927,9 +3156,7 @@ I16 (16 bits).
 
 ## `min-bound-i32`
 
-```cinch
-min-bound-i32 :: refined (r == -2147483648) I32
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-2147483648</span>) <span class="tok-constructor">I32</span></code></pre>
 
 I32 (32 bits).
 
@@ -3939,9 +3166,7 @@ I32 (32 bits).
 
 ## `min-bound-i64`
 
-```cinch
-min-bound-i64 :: refined (r == -9223372036854775808) I64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-9223372036854775808</span>) <span class="tok-constructor">I64</span></code></pre>
 
 I64 (64 bits).
 
@@ -3951,16 +3176,7 @@ I64 (64 bits).
 
 ## `min-bound-i8`
 
-```cinch
-min-bound-i8 :: refined (r == -128) I8
-```
-
-Primitive types specification, section 4: integer arithmetic for
-every machine integer type. Overflow behavior is never implicit:
-`checked` returns Option and never the wrapped value, `wrapping` is
-two's complement wrap, `saturating` clamps to the bounds. There is
-no Add/Sub/Mul/Neg instance for machine types: a class method has a
-single result type and cannot express which family is meant.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-128</span>) <span class="tok-constructor">I8</span></code></pre>
 
 I8 (8 bits).
 A bound states its value, so `nat-from-i64 max-bound-i64` and the
@@ -3972,9 +3188,7 @@ like discharge their range with nothing written.
 
 ## `min-bound-isize`
 
-```cinch
-min-bound-isize :: Isize
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-isize</span> :: <span class="tok-constructor">Isize</span></code></pre>
 
 Isize (64 bits, target word).
 
@@ -3984,9 +3198,7 @@ Isize (64 bits, target word).
 
 ## `min-bound-u16`
 
-```cinch
-min-bound-u16 :: refined (r == 0) U16
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U16</span></code></pre>
 
 U16 (16 bits).
 
@@ -3996,9 +3208,7 @@ U16 (16 bits).
 
 ## `min-bound-u32`
 
-```cinch
-min-bound-u32 :: refined (r == 0) U32
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U32</span></code></pre>
 
 U32 (32 bits).
 
@@ -4008,9 +3218,7 @@ U32 (32 bits).
 
 ## `min-bound-u64`
 
-```cinch
-min-bound-u64 :: refined (r == 0) U64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U64</span></code></pre>
 
 U64 (64 bits).
 
@@ -4020,9 +3228,7 @@ U64 (64 bits).
 
 ## `min-bound-u8`
 
-```cinch
-min-bound-u8 :: refined (r == 0) U8
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U8</span></code></pre>
 
 U8 (8 bits).
 
@@ -4032,9 +3238,7 @@ U8 (8 bits).
 
 ## `min-bound-usize`
 
-```cinch
-min-bound-usize :: Usize
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-usize</span> :: <span class="tok-constructor">Usize</span></code></pre>
 
 Usize (64 bits, target word).
 
@@ -4044,2629 +3248,2103 @@ Usize (64 bits, target word).
 
 ## `minimum-f32`
 
-```cinch
-minimum-f32 :: (F32 -> (F32 -> F32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minimum-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 452
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d696e696d756d2d663634"></a>
 
 ## `minimum-f64`
 
-```cinch
-minimum-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minimum-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 475
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d756c2d663332"></a>
 
 ## `mul-f32`
 
-```cinch
-mul-f32 :: (F32 -> (F32 -> F32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 447
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6d756c2d663634"></a>
 
 ## `mul-f64`
 
-```cinch
-mul-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 470
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d693136"></a>
 
 ## `ne-i16`
 
-```cinch
-ne-i16 :: (I16 -> (I16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 121
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d693332"></a>
 
 ## `ne-i32`
 
-```cinch
-ne-i32 :: (I32 -> (I32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 160
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d693634"></a>
 
 ## `ne-i64`
 
-```cinch
-ne-i64 :: (I64 -> (I64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 199
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d6938"></a>
 
 ## `ne-i8`
 
-```cinch
-ne-i8 :: (I8 -> (I8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 82
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d6973697a65"></a>
 
 ## `ne-isize`
 
-```cinch
-ne-isize :: (Isize -> (Isize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 433
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d753136"></a>
 
 ## `ne-u16`
 
-```cinch
-ne-u16 :: (U16 -> (U16 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 277
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d753332"></a>
 
 ## `ne-u32`
 
-```cinch
-ne-u32 :: (U32 -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 316
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d753634"></a>
 
 ## `ne-u64`
 
-```cinch
-ne-u64 :: (U64 -> (U64 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 355
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d7538"></a>
 
 ## `ne-u8`
 
-```cinch
-ne-u8 :: (U8 -> (U8 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 238
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e652d7573697a65"></a>
 
 ## `ne-usize`
 
-```cinch
-ne-usize :: (Usize -> (Usize -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 394
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e65672d663332"></a>
 
 ## `neg-f32`
 
-```cinch
-neg-f32 :: (F32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 449
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6e65672d663634"></a>
 
 ## `neg-f64`
 
-```cinch
-neg-f64 :: (F64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 472
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d693136"></a>
 
 ## `reverse-bits-i16`
 
-```cinch
-reverse-bits-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 118
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d693332"></a>
 
 ## `reverse-bits-i32`
 
-```cinch
-reverse-bits-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 157
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d693634"></a>
 
 ## `reverse-bits-i64`
 
-```cinch
-reverse-bits-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 196
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d6938"></a>
 
 ## `reverse-bits-i8`
 
-```cinch
-reverse-bits-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 79
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d6973697a65"></a>
 
 ## `reverse-bits-isize`
 
-```cinch
-reverse-bits-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 430
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d753136"></a>
 
 ## `reverse-bits-u16`
 
-```cinch
-reverse-bits-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 274
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d753332"></a>
 
 ## `reverse-bits-u32`
 
-```cinch
-reverse-bits-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 313
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d753634"></a>
 
 ## `reverse-bits-u64`
 
-```cinch
-reverse-bits-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 352
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d7538"></a>
 
 ## `reverse-bits-u8`
 
-```cinch
-reverse-bits-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 235
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726576657273652d626974732d7573697a65"></a>
 
 ## `reverse-bits-usize`
 
-```cinch
-reverse-bits-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 391
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d693136"></a>
 
 ## `rotate-left-i16`
 
-```cinch
-rotate-left-i16 :: (I16 -> (U32 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 109
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d693332"></a>
 
 ## `rotate-left-i32`
 
-```cinch
-rotate-left-i32 :: (I32 -> (U32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 148
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d693634"></a>
 
 ## `rotate-left-i64`
 
-```cinch
-rotate-left-i64 :: (I64 -> (U32 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 187
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d6938"></a>
 
 ## `rotate-left-i8`
 
-```cinch
-rotate-left-i8 :: (I8 -> (U32 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 70
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d6973697a65"></a>
 
 ## `rotate-left-isize`
 
-```cinch
-rotate-left-isize :: (Isize -> (U32 -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 421
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d753136"></a>
 
 ## `rotate-left-u16`
 
-```cinch
-rotate-left-u16 :: (U16 -> (U32 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 265
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d753332"></a>
 
 ## `rotate-left-u32`
 
-```cinch
-rotate-left-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 304
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d753634"></a>
 
 ## `rotate-left-u64`
 
-```cinch
-rotate-left-u64 :: (U64 -> (U32 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 343
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d7538"></a>
 
 ## `rotate-left-u8`
 
-```cinch
-rotate-left-u8 :: (U8 -> (U32 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 226
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d6c6566742d7573697a65"></a>
 
 ## `rotate-left-usize`
 
-```cinch
-rotate-left-usize :: (Usize -> (U32 -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 382
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d693136"></a>
 
 ## `rotate-right-i16`
 
-```cinch
-rotate-right-i16 :: (I16 -> (U32 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 110
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d693332"></a>
 
 ## `rotate-right-i32`
 
-```cinch
-rotate-right-i32 :: (I32 -> (U32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 149
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d693634"></a>
 
 ## `rotate-right-i64`
 
-```cinch
-rotate-right-i64 :: (I64 -> (U32 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 188
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d6938"></a>
 
 ## `rotate-right-i8`
 
-```cinch
-rotate-right-i8 :: (I8 -> (U32 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 71
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d6973697a65"></a>
 
 ## `rotate-right-isize`
 
-```cinch
-rotate-right-isize :: (Isize -> (U32 -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 422
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d753136"></a>
 
 ## `rotate-right-u16`
 
-```cinch
-rotate-right-u16 :: (U16 -> (U32 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 266
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d753332"></a>
 
 ## `rotate-right-u32`
 
-```cinch
-rotate-right-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 305
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d753634"></a>
 
 ## `rotate-right-u64`
 
-```cinch
-rotate-right-u64 :: (U64 -> (U32 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 344
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d7538"></a>
 
 ## `rotate-right-u8`
 
-```cinch
-rotate-right-u8 :: (U8 -> (U32 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 227
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-726f746174652d72696768742d7573697a65"></a>
 
 ## `rotate-right-usize`
 
-```cinch
-rotate-right-usize :: (Usize -> (U32 -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 383
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d693136"></a>
 
 ## `saturating-add-i16`
 
-```cinch
-saturating-add-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 97
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d693332"></a>
 
 ## `saturating-add-i32`
 
-```cinch
-saturating-add-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 136
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d693634"></a>
 
 ## `saturating-add-i64`
 
-```cinch
-saturating-add-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 175
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d6938"></a>
 
 ## `saturating-add-i8`
 
-```cinch
-saturating-add-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 58
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d6973697a65"></a>
 
 ## `saturating-add-isize`
 
-```cinch
-saturating-add-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 409
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d753136"></a>
 
 ## `saturating-add-u16`
 
-```cinch
-saturating-add-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 253
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d753332"></a>
 
 ## `saturating-add-u32`
 
-```cinch
-saturating-add-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 292
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d753634"></a>
 
 ## `saturating-add-u64`
 
-```cinch
-saturating-add-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 331
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d7538"></a>
 
 ## `saturating-add-u8`
 
-```cinch
-saturating-add-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 214
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6164642d7573697a65"></a>
 
 ## `saturating-add-usize`
 
-```cinch
-saturating-add-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 370
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d693136"></a>
 
 ## `saturating-f32-to-i16`
 
-```cinch
-saturating-f32-to-i16 :: (F32 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-i16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 875
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d693332"></a>
 
 ## `saturating-f32-to-i32`
 
-```cinch
-saturating-f32-to-i32 :: (F32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-i32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 877
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d693634"></a>
 
 ## `saturating-f32-to-i64`
 
-```cinch
-saturating-f32-to-i64 :: (F32 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-i64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 879
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d6938"></a>
 
 ## `saturating-f32-to-i8`
 
-```cinch
-saturating-f32-to-i8 :: (F32 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-i8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 873
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d6973697a65"></a>
 
 ## `saturating-f32-to-isize`
 
-```cinch
-saturating-f32-to-isize :: (F32 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-isize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 891
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d753136"></a>
 
 ## `saturating-f32-to-u16`
 
-```cinch
-saturating-f32-to-u16 :: (F32 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-u16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 883
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d753332"></a>
 
 ## `saturating-f32-to-u32`
 
-```cinch
-saturating-f32-to-u32 :: (F32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-u32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 885
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d753634"></a>
 
 ## `saturating-f32-to-u64`
 
-```cinch
-saturating-f32-to-u64 :: (F32 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-u64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 887
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d7538"></a>
 
 ## `saturating-f32-to-u8`
 
-```cinch
-saturating-f32-to-u8 :: (F32 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-u8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 881
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6633322d746f2d7573697a65"></a>
 
 ## `saturating-f32-to-usize`
 
-```cinch
-saturating-f32-to-usize :: (F32 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-usize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 889
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d693136"></a>
 
 ## `saturating-f64-to-i16`
 
-```cinch
-saturating-f64-to-i16 :: (F64 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-i16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 895
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d693332"></a>
 
 ## `saturating-f64-to-i32`
 
-```cinch
-saturating-f64-to-i32 :: (F64 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-i32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 897
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d693634"></a>
 
 ## `saturating-f64-to-i64`
 
-```cinch
-saturating-f64-to-i64 :: (F64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-i64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 899
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d6938"></a>
 
 ## `saturating-f64-to-i8`
 
-```cinch
-saturating-f64-to-i8 :: (F64 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-i8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 893
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d6973697a65"></a>
 
 ## `saturating-f64-to-isize`
 
-```cinch
-saturating-f64-to-isize :: (F64 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-isize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 911
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d753136"></a>
 
 ## `saturating-f64-to-u16`
 
-```cinch
-saturating-f64-to-u16 :: (F64 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-u16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 903
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d753332"></a>
 
 ## `saturating-f64-to-u32`
 
-```cinch
-saturating-f64-to-u32 :: (F64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-u32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 905
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d753634"></a>
 
 ## `saturating-f64-to-u64`
 
-```cinch
-saturating-f64-to-u64 :: (F64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-u64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 907
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d7538"></a>
 
 ## `saturating-f64-to-u8`
 
-```cinch
-saturating-f64-to-u8 :: (F64 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-u8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 901
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6636342d746f2d7573697a65"></a>
 
 ## `saturating-f64-to-usize`
 
-```cinch
-saturating-f64-to-usize :: (F64 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-usize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 909
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d693136"></a>
 
 ## `saturating-i16-to-i16`
 
-```cinch
-saturating-i16-to-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 606
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d693332"></a>
 
 ## `saturating-i16-to-i32`
 
-```cinch
-saturating-i16-to-i32 :: (I16 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-i32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 609
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d693634"></a>
 
 ## `saturating-i16-to-i64`
 
-```cinch
-saturating-i16-to-i64 :: (I16 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-i64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 612
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d6938"></a>
 
 ## `saturating-i16-to-i8`
 
-```cinch
-saturating-i16-to-i8 :: (I16 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-i8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 603
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d6973697a65"></a>
 
 ## `saturating-i16-to-isize`
 
-```cinch
-saturating-i16-to-isize :: (I16 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-isize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 630
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d753136"></a>
 
 ## `saturating-i16-to-u16`
 
-```cinch
-saturating-i16-to-u16 :: (I16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-u16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 618
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d753332"></a>
 
 ## `saturating-i16-to-u32`
 
-```cinch
-saturating-i16-to-u32 :: (I16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-u32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 621
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d753634"></a>
 
 ## `saturating-i16-to-u64`
 
-```cinch
-saturating-i16-to-u64 :: (I16 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-u64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 624
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d7538"></a>
 
 ## `saturating-i16-to-u8`
 
-```cinch
-saturating-i16-to-u8 :: (I16 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-u8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 615
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6931362d746f2d7573697a65"></a>
 
 ## `saturating-i16-to-usize`
 
-```cinch
-saturating-i16-to-usize :: (I16 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-usize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 627
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d693136"></a>
 
 ## `saturating-i32-to-i16`
 
-```cinch
-saturating-i32-to-i16 :: (I32 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-i16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 636
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d693332"></a>
 
 ## `saturating-i32-to-i32`
 
-```cinch
-saturating-i32-to-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 639
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d693634"></a>
 
 ## `saturating-i32-to-i64`
 
-```cinch
-saturating-i32-to-i64 :: (I32 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-i64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 642
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d6938"></a>
 
 ## `saturating-i32-to-i8`
 
-```cinch
-saturating-i32-to-i8 :: (I32 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-i8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 633
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d6973697a65"></a>
 
 ## `saturating-i32-to-isize`
 
-```cinch
-saturating-i32-to-isize :: (I32 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-isize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 660
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d753136"></a>
 
 ## `saturating-i32-to-u16`
 
-```cinch
-saturating-i32-to-u16 :: (I32 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-u16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 648
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d753332"></a>
 
 ## `saturating-i32-to-u32`
 
-```cinch
-saturating-i32-to-u32 :: (I32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-u32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 651
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d753634"></a>
 
 ## `saturating-i32-to-u64`
 
-```cinch
-saturating-i32-to-u64 :: (I32 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-u64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 654
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d7538"></a>
 
 ## `saturating-i32-to-u8`
 
-```cinch
-saturating-i32-to-u8 :: (I32 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-u8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 645
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6933322d746f2d7573697a65"></a>
 
 ## `saturating-i32-to-usize`
 
-```cinch
-saturating-i32-to-usize :: (I32 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-usize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 657
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d693136"></a>
 
 ## `saturating-i64-to-i16`
 
-```cinch
-saturating-i64-to-i16 :: (I64 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-i16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 666
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d693332"></a>
 
 ## `saturating-i64-to-i32`
 
-```cinch
-saturating-i64-to-i32 :: (I64 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-i32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 669
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d693634"></a>
 
 ## `saturating-i64-to-i64`
 
-```cinch
-saturating-i64-to-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 672
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d6938"></a>
 
 ## `saturating-i64-to-i8`
 
-```cinch
-saturating-i64-to-i8 :: (I64 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-i8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 663
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d6973697a65"></a>
 
 ## `saturating-i64-to-isize`
 
-```cinch
-saturating-i64-to-isize :: (I64 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-isize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 690
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d753136"></a>
 
 ## `saturating-i64-to-u16`
 
-```cinch
-saturating-i64-to-u16 :: (I64 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-u16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 678
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d753332"></a>
 
 ## `saturating-i64-to-u32`
 
-```cinch
-saturating-i64-to-u32 :: (I64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-u32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 681
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d753634"></a>
 
 ## `saturating-i64-to-u64`
 
-```cinch
-saturating-i64-to-u64 :: (I64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-u64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 684
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d7538"></a>
 
 ## `saturating-i64-to-u8`
 
-```cinch
-saturating-i64-to-u8 :: (I64 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-u8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 675
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6936342d746f2d7573697a65"></a>
 
 ## `saturating-i64-to-usize`
 
-```cinch
-saturating-i64-to-usize :: (I64 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-usize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 687
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d693136"></a>
 
 ## `saturating-i8-to-i16`
 
-```cinch
-saturating-i8-to-i16 :: (I8 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-i16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 576
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d693332"></a>
 
 ## `saturating-i8-to-i32`
 
-```cinch
-saturating-i8-to-i32 :: (I8 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-i32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 579
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d693634"></a>
 
 ## `saturating-i8-to-i64`
 
-```cinch
-saturating-i8-to-i64 :: (I8 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-i64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 582
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d6938"></a>
 
 ## `saturating-i8-to-i8`
 
-```cinch
-saturating-i8-to-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 573
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d6973697a65"></a>
 
 ## `saturating-i8-to-isize`
 
-```cinch
-saturating-i8-to-isize :: (I8 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-isize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 600
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d753136"></a>
 
 ## `saturating-i8-to-u16`
 
-```cinch
-saturating-i8-to-u16 :: (I8 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-u16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 588
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d753332"></a>
 
 ## `saturating-i8-to-u32`
 
-```cinch
-saturating-i8-to-u32 :: (I8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-u32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 591
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d753634"></a>
 
 ## `saturating-i8-to-u64`
 
-```cinch
-saturating-i8-to-u64 :: (I8 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-u64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 594
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d7538"></a>
 
 ## `saturating-i8-to-u8`
 
-```cinch
-saturating-i8-to-u8 :: (I8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-u8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 585
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d69382d746f2d7573697a65"></a>
 
 ## `saturating-i8-to-usize`
 
-```cinch
-saturating-i8-to-usize :: (I8 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-usize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 597
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d693136"></a>
 
 ## `saturating-isize-to-i16`
 
-```cinch
-saturating-isize-to-i16 :: (Isize -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-i16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 846
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d693332"></a>
 
 ## `saturating-isize-to-i32`
 
-```cinch
-saturating-isize-to-i32 :: (Isize -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-i32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 849
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d693634"></a>
 
 ## `saturating-isize-to-i64`
 
-```cinch
-saturating-isize-to-i64 :: (Isize -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-i64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 852
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d6938"></a>
 
 ## `saturating-isize-to-i8`
 
-```cinch
-saturating-isize-to-i8 :: (Isize -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-i8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 843
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d6973697a65"></a>
 
 ## `saturating-isize-to-isize`
 
-```cinch
-saturating-isize-to-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 870
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d753136"></a>
 
 ## `saturating-isize-to-u16`
 
-```cinch
-saturating-isize-to-u16 :: (Isize -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-u16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 858
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d753332"></a>
 
 ## `saturating-isize-to-u32`
 
-```cinch
-saturating-isize-to-u32 :: (Isize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-u32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 861
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d753634"></a>
 
 ## `saturating-isize-to-u64`
 
-```cinch
-saturating-isize-to-u64 :: (Isize -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-u64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 864
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d7538"></a>
 
 ## `saturating-isize-to-u8`
 
-```cinch
-saturating-isize-to-u8 :: (Isize -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-u8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 855
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6973697a652d746f2d7573697a65"></a>
 
 ## `saturating-isize-to-usize`
 
-```cinch
-saturating-isize-to-usize :: (Isize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-usize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 867
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d693136"></a>
 
 ## `saturating-mul-i16`
 
-```cinch
-saturating-mul-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 99
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d693332"></a>
 
 ## `saturating-mul-i32`
 
-```cinch
-saturating-mul-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 138
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d693634"></a>
 
 ## `saturating-mul-i64`
 
-```cinch
-saturating-mul-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 177
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d6938"></a>
 
 ## `saturating-mul-i8`
 
-```cinch
-saturating-mul-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 60
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d6973697a65"></a>
 
 ## `saturating-mul-isize`
 
-```cinch
-saturating-mul-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 411
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d753136"></a>
 
 ## `saturating-mul-u16`
 
-```cinch
-saturating-mul-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 255
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d753332"></a>
 
 ## `saturating-mul-u32`
 
-```cinch
-saturating-mul-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 294
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d753634"></a>
 
 ## `saturating-mul-u64`
 
-```cinch
-saturating-mul-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 333
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d7538"></a>
 
 ## `saturating-mul-u8`
 
-```cinch
-saturating-mul-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 216
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6d756c2d7573697a65"></a>
 
 ## `saturating-mul-usize`
 
-```cinch
-saturating-mul-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 372
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d693136"></a>
 
 ## `saturating-neg-i16`
 
-```cinch
-saturating-neg-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 102
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d693332"></a>
 
 ## `saturating-neg-i32`
 
-```cinch
-saturating-neg-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 141
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d693634"></a>
 
 ## `saturating-neg-i64`
 
-```cinch
-saturating-neg-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 180
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d6938"></a>
 
 ## `saturating-neg-i8`
 
-```cinch
-saturating-neg-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 63
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d6973697a65"></a>
 
 ## `saturating-neg-isize`
 
-```cinch
-saturating-neg-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 414
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d753136"></a>
 
 ## `saturating-neg-u16`
 
-```cinch
-saturating-neg-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 258
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d753332"></a>
 
 ## `saturating-neg-u32`
 
-```cinch
-saturating-neg-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 297
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d753634"></a>
 
 ## `saturating-neg-u64`
 
-```cinch
-saturating-neg-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 336
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d7538"></a>
 
 ## `saturating-neg-u8`
 
-```cinch
-saturating-neg-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 219
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d6e65672d7573697a65"></a>
 
 ## `saturating-neg-usize`
 
-```cinch
-saturating-neg-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 375
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d693136"></a>
 
 ## `saturating-sub-i16`
 
-```cinch
-saturating-sub-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 98
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d693332"></a>
 
 ## `saturating-sub-i32`
 
-```cinch
-saturating-sub-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 137
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d693634"></a>
 
 ## `saturating-sub-i64`
 
-```cinch
-saturating-sub-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 176
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d6938"></a>
 
 ## `saturating-sub-i8`
 
-```cinch
-saturating-sub-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 59
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d6973697a65"></a>
 
 ## `saturating-sub-isize`
 
-```cinch
-saturating-sub-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 410
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d753136"></a>
 
 ## `saturating-sub-u16`
 
-```cinch
-saturating-sub-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 254
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d753332"></a>
 
 ## `saturating-sub-u32`
 
-```cinch
-saturating-sub-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 293
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d753634"></a>
 
 ## `saturating-sub-u64`
 
-```cinch
-saturating-sub-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 332
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d7538"></a>
 
 ## `saturating-sub-u8`
 
-```cinch
-saturating-sub-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 215
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7375622d7573697a65"></a>
 
 ## `saturating-sub-usize`
 
-```cinch
-saturating-sub-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 371
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d693136"></a>
 
 ## `saturating-u16-to-i16`
 
-```cinch
-saturating-u16-to-i16 :: (U16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-i16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 726
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d693332"></a>
 
 ## `saturating-u16-to-i32`
 
-```cinch
-saturating-u16-to-i32 :: (U16 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-i32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 729
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d693634"></a>
 
 ## `saturating-u16-to-i64`
 
-```cinch
-saturating-u16-to-i64 :: (U16 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-i64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 732
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d6938"></a>
 
 ## `saturating-u16-to-i8`
 
-```cinch
-saturating-u16-to-i8 :: (U16 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-i8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 723
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d6973697a65"></a>
 
 ## `saturating-u16-to-isize`
 
-```cinch
-saturating-u16-to-isize :: (U16 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-isize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 750
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d753136"></a>
 
 ## `saturating-u16-to-u16`
 
-```cinch
-saturating-u16-to-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 738
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d753332"></a>
 
 ## `saturating-u16-to-u32`
 
-```cinch
-saturating-u16-to-u32 :: (U16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-u32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 741
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d753634"></a>
 
 ## `saturating-u16-to-u64`
 
-```cinch
-saturating-u16-to-u64 :: (U16 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-u64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 744
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d7538"></a>
 
 ## `saturating-u16-to-u8`
 
-```cinch
-saturating-u16-to-u8 :: (U16 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-u8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 735
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7531362d746f2d7573697a65"></a>
 
 ## `saturating-u16-to-usize`
 
-```cinch
-saturating-u16-to-usize :: (U16 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-usize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 747
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d693136"></a>
 
 ## `saturating-u32-to-i16`
 
-```cinch
-saturating-u32-to-i16 :: (U32 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-i16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 756
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d693332"></a>
 
 ## `saturating-u32-to-i32`
 
-```cinch
-saturating-u32-to-i32 :: (U32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-i32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 759
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d693634"></a>
 
 ## `saturating-u32-to-i64`
 
-```cinch
-saturating-u32-to-i64 :: (U32 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-i64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 762
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d6938"></a>
 
 ## `saturating-u32-to-i8`
 
-```cinch
-saturating-u32-to-i8 :: (U32 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-i8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 753
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d6973697a65"></a>
 
 ## `saturating-u32-to-isize`
 
-```cinch
-saturating-u32-to-isize :: (U32 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-isize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 780
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d753136"></a>
 
 ## `saturating-u32-to-u16`
 
-```cinch
-saturating-u32-to-u16 :: (U32 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-u16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 768
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d753332"></a>
 
 ## `saturating-u32-to-u32`
 
-```cinch
-saturating-u32-to-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 771
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d753634"></a>
 
 ## `saturating-u32-to-u64`
 
-```cinch
-saturating-u32-to-u64 :: (U32 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-u64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 774
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d7538"></a>
 
 ## `saturating-u32-to-u8`
 
-```cinch
-saturating-u32-to-u8 :: (U32 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-u8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 765
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7533322d746f2d7573697a65"></a>
 
 ## `saturating-u32-to-usize`
 
-```cinch
-saturating-u32-to-usize :: (U32 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-usize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 777
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d693136"></a>
 
 ## `saturating-u64-to-i16`
 
-```cinch
-saturating-u64-to-i16 :: (U64 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-i16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 786
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d693332"></a>
 
 ## `saturating-u64-to-i32`
 
-```cinch
-saturating-u64-to-i32 :: (U64 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-i32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 789
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d693634"></a>
 
 ## `saturating-u64-to-i64`
 
-```cinch
-saturating-u64-to-i64 :: (U64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-i64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 792
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d6938"></a>
 
 ## `saturating-u64-to-i8`
 
-```cinch
-saturating-u64-to-i8 :: (U64 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-i8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 783
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d6973697a65"></a>
 
 ## `saturating-u64-to-isize`
 
-```cinch
-saturating-u64-to-isize :: (U64 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-isize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 810
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d753136"></a>
 
 ## `saturating-u64-to-u16`
 
-```cinch
-saturating-u64-to-u16 :: (U64 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-u16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 798
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d753332"></a>
 
 ## `saturating-u64-to-u32`
 
-```cinch
-saturating-u64-to-u32 :: (U64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-u32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 801
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d753634"></a>
 
 ## `saturating-u64-to-u64`
 
-```cinch
-saturating-u64-to-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 804
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d7538"></a>
 
 ## `saturating-u64-to-u8`
 
-```cinch
-saturating-u64-to-u8 :: (U64 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-u8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 795
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7536342d746f2d7573697a65"></a>
 
 ## `saturating-u64-to-usize`
 
-```cinch
-saturating-u64-to-usize :: (U64 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-usize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 807
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d693136"></a>
 
 ## `saturating-u8-to-i16`
 
-```cinch
-saturating-u8-to-i16 :: (U8 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-i16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 696
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d693332"></a>
 
 ## `saturating-u8-to-i32`
 
-```cinch
-saturating-u8-to-i32 :: (U8 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-i32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 699
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d693634"></a>
 
 ## `saturating-u8-to-i64`
 
-```cinch
-saturating-u8-to-i64 :: (U8 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-i64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 702
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d6938"></a>
 
 ## `saturating-u8-to-i8`
 
-```cinch
-saturating-u8-to-i8 :: (U8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-i8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 693
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d6973697a65"></a>
 
 ## `saturating-u8-to-isize`
 
-```cinch
-saturating-u8-to-isize :: (U8 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-isize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 720
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d753136"></a>
 
 ## `saturating-u8-to-u16`
 
-```cinch
-saturating-u8-to-u16 :: (U8 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-u16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 708
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d753332"></a>
 
 ## `saturating-u8-to-u32`
 
-```cinch
-saturating-u8-to-u32 :: (U8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-u32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 711
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d753634"></a>
 
 ## `saturating-u8-to-u64`
 
-```cinch
-saturating-u8-to-u64 :: (U8 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-u64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 714
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d7538"></a>
 
 ## `saturating-u8-to-u8`
 
-```cinch
-saturating-u8-to-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 705
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d75382d746f2d7573697a65"></a>
 
 ## `saturating-u8-to-usize`
 
-```cinch
-saturating-u8-to-usize :: (U8 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-usize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 717
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d693136"></a>
 
 ## `saturating-usize-to-i16`
 
-```cinch
-saturating-usize-to-i16 :: (Usize -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-i16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 816
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d693332"></a>
 
 ## `saturating-usize-to-i32`
 
-```cinch
-saturating-usize-to-i32 :: (Usize -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-i32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 819
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d693634"></a>
 
 ## `saturating-usize-to-i64`
 
-```cinch
-saturating-usize-to-i64 :: (Usize -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-i64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 822
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d6938"></a>
 
 ## `saturating-usize-to-i8`
 
-```cinch
-saturating-usize-to-i8 :: (Usize -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-i8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 813
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d6973697a65"></a>
 
 ## `saturating-usize-to-isize`
 
-```cinch
-saturating-usize-to-isize :: (Usize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-isize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 840
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d753136"></a>
 
 ## `saturating-usize-to-u16`
 
-```cinch
-saturating-usize-to-u16 :: (Usize -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 828
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d753332"></a>
 
 ## `saturating-usize-to-u32`
 
-```cinch
-saturating-usize-to-u32 :: (Usize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 831
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d753634"></a>
 
 ## `saturating-usize-to-u64`
 
-```cinch
-saturating-usize-to-u64 :: (Usize -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 834
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d7538"></a>
 
 ## `saturating-usize-to-u8`
 
-```cinch
-saturating-usize-to-u8 :: (Usize -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 825
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-73617475726174696e672d7573697a652d746f2d7573697a65"></a>
 
 ## `saturating-usize-to-usize`
 
-```cinch
-saturating-usize-to-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 837
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7369676e2d6269742d663332"></a>
 
 ## `sign-bit-f32`
 
-```cinch
-sign-bit-f32 :: (F32 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sign-bit-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 464
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7369676e2d6269742d663634"></a>
 
 ## `sign-bit-f64`
 
-```cinch
-sign-bit-f64 :: (F64 -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sign-bit-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 487
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737172742d663332"></a>
 
 ## `sqrt-f32`
 
-```cinch
-sqrt-f32 :: (F32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sqrt-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 451
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737172742d663634"></a>
 
 ## `sqrt-f64`
 
-```cinch
-sqrt-f64 :: (F64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sqrt-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 474
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7375622d663332"></a>
 
 ## `sub-f32`
 
-```cinch
-sub-f32 :: (F32 -> (F32 -> F32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 446
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7375622d663634"></a>
 
 ## `sub-f64`
 
-```cinch
-sub-f64 :: (F64 -> (F64 -> F64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 469
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d693136"></a>
 
 ## `swap-bytes-i16`
 
-```cinch
-swap-bytes-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 119
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d693332"></a>
 
 ## `swap-bytes-i32`
 
-```cinch
-swap-bytes-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 158
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d693634"></a>
 
 ## `swap-bytes-i64`
 
-```cinch
-swap-bytes-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 197
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d6938"></a>
 
 ## `swap-bytes-i8`
 
-```cinch
-swap-bytes-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 80
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d6973697a65"></a>
 
 ## `swap-bytes-isize`
 
-```cinch
-swap-bytes-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 431
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d753136"></a>
 
 ## `swap-bytes-u16`
 
-```cinch
-swap-bytes-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 275
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d753332"></a>
 
 ## `swap-bytes-u32`
 
-```cinch
-swap-bytes-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 314
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d753634"></a>
 
 ## `swap-bytes-u64`
 
-```cinch
-swap-bytes-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 353
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d7538"></a>
 
 ## `swap-bytes-u8`
 
-```cinch
-swap-bytes-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 236
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-737761702d62797465732d7573697a65"></a>
 
 ## `swap-bytes-usize`
 
-```cinch
-swap-bytes-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 392
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-746f74616c2d6f726465722d663332"></a>
 
 ## `total-order-f32`
 
-```cinch
-total-order-f32 :: (F32 -> (F32 -> Ordering))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 465
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-746f74616c2d6f726465722d663634"></a>
 
 ## `total-order-f64`
 
-```cinch
-total-order-f64 :: (F64 -> (F64 -> Ordering))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 488
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d693136"></a>
 
 ## `trailing-zeros-i16`
 
-```cinch
-trailing-zeros-i16 :: (I16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 117
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d693332"></a>
 
 ## `trailing-zeros-i32`
 
-```cinch
-trailing-zeros-i32 :: (I32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 156
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d693634"></a>
 
 ## `trailing-zeros-i64`
 
-```cinch
-trailing-zeros-i64 :: (I64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 195
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d6938"></a>
 
 ## `trailing-zeros-i8`
 
-```cinch
-trailing-zeros-i8 :: (I8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 78
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d6973697a65"></a>
 
 ## `trailing-zeros-isize`
 
-```cinch
-trailing-zeros-isize :: (Isize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 429
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d753136"></a>
 
 ## `trailing-zeros-u16`
 
-```cinch
-trailing-zeros-u16 :: (U16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 273
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d753332"></a>
 
 ## `trailing-zeros-u32`
 
-```cinch
-trailing-zeros-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 312
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d753634"></a>
 
 ## `trailing-zeros-u64`
 
-```cinch
-trailing-zeros-u64 :: (U64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 351
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d7538"></a>
 
 ## `trailing-zeros-u8`
 
-```cinch
-trailing-zeros-u8 :: (U8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 234
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-747261696c696e672d7a65726f732d7573697a65"></a>
 
 ## `trailing-zeros-usize`
 
-```cinch
-trailing-zeros-usize :: (Usize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 390
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d663332"></a>
 
 ## `u16-to-f32`
 
-```cinch
-u16-to-f32 :: (U16 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-f32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 555
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d663634"></a>
 
 ## `u16-to-f64`
 
-```cinch
-u16-to-f64 :: (U16 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-f64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 556
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d693332"></a>
 
 ## `u16-to-i32`
 
-```cinch
-u16-to-i32 :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 527
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d693634"></a>
 
 ## `u16-to-i64`
 
-```cinch
-u16-to-i64 :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 528
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d6973697a65"></a>
 
 ## `u16-to-isize`
 
-```cinch
-u16-to-isize :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 533
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d6e6174"></a>
 
 ## `u16-to-nat`
 
-```cinch
-u16-to-nat :: (U16 -> InRange 0 65535 Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-nat</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">65535</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1202
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d753136"></a>
 
 ## `u16-to-u16`
 
-```cinch
-u16-to-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 529
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d753332"></a>
 
 ## `u16-to-u32`
 
-```cinch
-u16-to-u32 :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 530
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d753634"></a>
 
 ## `u16-to-u64`
 
-```cinch
-u16-to-u64 :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 531
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7531362d746f2d7573697a65"></a>
 
 ## `u16-to-usize`
 
-```cinch
-u16-to-usize :: ((a0 :: U16) -> refined (((0 <= r && r <= 65535) && r == a0)) Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-usize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 532
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d663332"></a>
 
 ## `u32-to-f32`
 
-```cinch
-u32-to-f32 :: (U32 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-f32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 557
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d663634"></a>
 
 ## `u32-to-f64`
 
-```cinch
-u32-to-f64 :: (U32 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-f64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 558
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d693634"></a>
 
 ## `u32-to-i64`
 
-```cinch
-u32-to-i64 :: ((a0 :: U32) -> refined (((0 <= r && r <= 4294967295) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 534
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d6973697a65"></a>
 
 ## `u32-to-isize`
 
-```cinch
-u32-to-isize :: ((a0 :: U32) -> refined (((0 <= r && r <= 4294967295) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 538
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d6e6174"></a>
 
 ## `u32-to-nat`
 
-```cinch
-u32-to-nat :: (U32 -> InRange 0 4294967295 Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-nat</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">4294967295</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1205
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d753332"></a>
 
 ## `u32-to-u32`
 
-```cinch
-u32-to-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 535
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d753634"></a>
 
 ## `u32-to-u64`
 
-```cinch
-u32-to-u64 :: ((a0 :: U32) -> refined (((0 <= r && r <= 4294967295) && r == a0)) U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 536
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7533322d746f2d7573697a65"></a>
 
 ## `u32-to-usize`
 
-```cinch
-u32-to-usize :: ((a0 :: U32) -> refined (((0 <= r && r <= 4294967295) && r == a0)) Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-usize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 537
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7536342d746f2d663332"></a>
 
 ## `u64-to-f32`
 
-```cinch
-u64-to-f32 :: (U64 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-f32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 559
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7536342d746f2d663634"></a>
 
 ## `u64-to-f64`
 
-```cinch
-u64-to-f64 :: (U64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-f64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 560
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7536342d746f2d753634"></a>
 
 ## `u64-to-u64`
 
-```cinch
-u64-to-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 539
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7536342d746f2d7573697a65"></a>
 
 ## `u64-to-usize`
 
-```cinch
-u64-to-usize :: ((a0 :: U64) -> refined (r == a0) Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-usize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 540
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d663332"></a>
 
 ## `u8-to-f32`
 
-```cinch
-u8-to-f32 :: (U8 -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-f32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 553
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d663634"></a>
 
 ## `u8-to-f64`
 
-```cinch
-u8-to-f64 :: (U8 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-f64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 554
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d693136"></a>
 
 ## `u8-to-i16`
 
-```cinch
-u8-to-i16 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 518
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d693332"></a>
 
 ## `u8-to-i32`
 
-```cinch
-u8-to-i32 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 519
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d693634"></a>
 
 ## `u8-to-i64`
 
-```cinch
-u8-to-i64 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 520
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d6973697a65"></a>
 
 ## `u8-to-isize`
 
-```cinch
-u8-to-isize :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-isize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 526
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d6e6174"></a>
 
 ## `u8-to-nat`
 
-```cinch
-u8-to-nat :: (U8 -> InRange 0 255 Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-nat</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 The unsigned machine integers as the `Nat` of the same value: the
 widening conversion's range is the evidence `nat-from-i64` needs,
@@ -6678,1699 +5356,1359 @@ and the result keeps it.
 
 ## `u8-to-u16`
 
-```cinch
-u8-to-u16 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 522
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d753332"></a>
 
 ## `u8-to-u32`
 
-```cinch
-u8-to-u32 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 523
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d753634"></a>
 
 ## `u8-to-u64`
 
-```cinch
-u8-to-u64 :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 524
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d7538"></a>
 
 ## `u8-to-u8`
 
-```cinch
-u8-to-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 521
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-75382d746f2d7573697a65"></a>
 
 ## `u8-to-usize`
 
-```cinch
-u8-to-usize :: ((a0 :: U8) -> refined (((0 <= r && r <= 255) && r == a0)) Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-usize</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 525
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7573697a652d746f2d663332"></a>
 
 ## `usize-to-f32`
 
-```cinch
-usize-to-f32 :: (Usize -> F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-f32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 561
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7573697a652d746f2d663634"></a>
 
 ## `usize-to-f64`
 
-```cinch
-usize-to-f64 :: (Usize -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-f64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 562
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7573697a652d746f2d753634"></a>
 
 ## `usize-to-u64`
 
-```cinch
-usize-to-u64 :: ((a0 :: Usize) -> refined (r == a0) U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Usize</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 541
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7573697a652d746f2d7573697a65"></a>
 
 ## `usize-to-usize`
 
-```cinch
-usize-to-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 542
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d693136"></a>
 
 ## `wrapping-add-i16`
 
-```cinch
-wrapping-add-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 94
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d693332"></a>
 
 ## `wrapping-add-i32`
 
-```cinch
-wrapping-add-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 133
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d693634"></a>
 
 ## `wrapping-add-i64`
 
-```cinch
-wrapping-add-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 172
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d6938"></a>
 
 ## `wrapping-add-i8`
 
-```cinch
-wrapping-add-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 55
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d6973697a65"></a>
 
 ## `wrapping-add-isize`
 
-```cinch
-wrapping-add-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 406
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d753136"></a>
 
 ## `wrapping-add-u16`
 
-```cinch
-wrapping-add-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 250
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d753332"></a>
 
 ## `wrapping-add-u32`
 
-```cinch
-wrapping-add-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 289
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d753634"></a>
 
 ## `wrapping-add-u64`
 
-```cinch
-wrapping-add-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 328
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d7538"></a>
 
 ## `wrapping-add-u8`
 
-```cinch
-wrapping-add-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 211
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6164642d7573697a65"></a>
 
 ## `wrapping-add-usize`
 
-```cinch
-wrapping-add-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 367
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d693136"></a>
 
 ## `wrapping-i16-to-i16`
 
-```cinch
-wrapping-i16-to-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 607
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d693332"></a>
 
 ## `wrapping-i16-to-i32`
 
-```cinch
-wrapping-i16-to-i32 :: (I16 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-i32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 610
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d693634"></a>
 
 ## `wrapping-i16-to-i64`
 
-```cinch
-wrapping-i16-to-i64 :: (I16 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-i64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 613
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d6938"></a>
 
 ## `wrapping-i16-to-i8`
 
-```cinch
-wrapping-i16-to-i8 :: (I16 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-i8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 604
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d6973697a65"></a>
 
 ## `wrapping-i16-to-isize`
 
-```cinch
-wrapping-i16-to-isize :: (I16 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-isize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 631
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d753136"></a>
 
 ## `wrapping-i16-to-u16`
 
-```cinch
-wrapping-i16-to-u16 :: (I16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-u16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 619
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d753332"></a>
 
 ## `wrapping-i16-to-u32`
 
-```cinch
-wrapping-i16-to-u32 :: (I16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-u32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 622
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d753634"></a>
 
 ## `wrapping-i16-to-u64`
 
-```cinch
-wrapping-i16-to-u64 :: (I16 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-u64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 625
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d7538"></a>
 
 ## `wrapping-i16-to-u8`
 
-```cinch
-wrapping-i16-to-u8 :: (I16 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-u8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 616
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6931362d746f2d7573697a65"></a>
 
 ## `wrapping-i16-to-usize`
 
-```cinch
-wrapping-i16-to-usize :: (I16 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-usize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 628
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d693136"></a>
 
 ## `wrapping-i32-to-i16`
 
-```cinch
-wrapping-i32-to-i16 :: (I32 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-i16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 637
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d693332"></a>
 
 ## `wrapping-i32-to-i32`
 
-```cinch
-wrapping-i32-to-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 640
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d693634"></a>
 
 ## `wrapping-i32-to-i64`
 
-```cinch
-wrapping-i32-to-i64 :: (I32 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-i64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 643
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d6938"></a>
 
 ## `wrapping-i32-to-i8`
 
-```cinch
-wrapping-i32-to-i8 :: (I32 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-i8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 634
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d6973697a65"></a>
 
 ## `wrapping-i32-to-isize`
 
-```cinch
-wrapping-i32-to-isize :: (I32 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-isize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 661
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d753136"></a>
 
 ## `wrapping-i32-to-u16`
 
-```cinch
-wrapping-i32-to-u16 :: (I32 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-u16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 649
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d753332"></a>
 
 ## `wrapping-i32-to-u32`
 
-```cinch
-wrapping-i32-to-u32 :: (I32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-u32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 652
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d753634"></a>
 
 ## `wrapping-i32-to-u64`
 
-```cinch
-wrapping-i32-to-u64 :: (I32 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-u64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 655
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d7538"></a>
 
 ## `wrapping-i32-to-u8`
 
-```cinch
-wrapping-i32-to-u8 :: (I32 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-u8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 646
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6933322d746f2d7573697a65"></a>
 
 ## `wrapping-i32-to-usize`
 
-```cinch
-wrapping-i32-to-usize :: (I32 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-usize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 658
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d693136"></a>
 
 ## `wrapping-i64-to-i16`
 
-```cinch
-wrapping-i64-to-i16 :: (I64 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-i16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 667
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d693332"></a>
 
 ## `wrapping-i64-to-i32`
 
-```cinch
-wrapping-i64-to-i32 :: (I64 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-i32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 670
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d693634"></a>
 
 ## `wrapping-i64-to-i64`
 
-```cinch
-wrapping-i64-to-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 673
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d6938"></a>
 
 ## `wrapping-i64-to-i8`
 
-```cinch
-wrapping-i64-to-i8 :: (I64 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-i8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 664
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d6973697a65"></a>
 
 ## `wrapping-i64-to-isize`
 
-```cinch
-wrapping-i64-to-isize :: (I64 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-isize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 691
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d753136"></a>
 
 ## `wrapping-i64-to-u16`
 
-```cinch
-wrapping-i64-to-u16 :: (I64 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-u16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 679
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d753332"></a>
 
 ## `wrapping-i64-to-u32`
 
-```cinch
-wrapping-i64-to-u32 :: (I64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-u32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 682
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d753634"></a>
 
 ## `wrapping-i64-to-u64`
 
-```cinch
-wrapping-i64-to-u64 :: (I64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-u64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 685
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d7538"></a>
 
 ## `wrapping-i64-to-u8`
 
-```cinch
-wrapping-i64-to-u8 :: (I64 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-u8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 676
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6936342d746f2d7573697a65"></a>
 
 ## `wrapping-i64-to-usize`
 
-```cinch
-wrapping-i64-to-usize :: (I64 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-usize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 688
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d693136"></a>
 
 ## `wrapping-i8-to-i16`
 
-```cinch
-wrapping-i8-to-i16 :: (I8 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-i16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 577
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d693332"></a>
 
 ## `wrapping-i8-to-i32`
 
-```cinch
-wrapping-i8-to-i32 :: (I8 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-i32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 580
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d693634"></a>
 
 ## `wrapping-i8-to-i64`
 
-```cinch
-wrapping-i8-to-i64 :: (I8 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-i64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 583
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d6938"></a>
 
 ## `wrapping-i8-to-i8`
 
-```cinch
-wrapping-i8-to-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 574
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d6973697a65"></a>
 
 ## `wrapping-i8-to-isize`
 
-```cinch
-wrapping-i8-to-isize :: (I8 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-isize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 601
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d753136"></a>
 
 ## `wrapping-i8-to-u16`
 
-```cinch
-wrapping-i8-to-u16 :: (I8 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-u16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 589
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d753332"></a>
 
 ## `wrapping-i8-to-u32`
 
-```cinch
-wrapping-i8-to-u32 :: (I8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-u32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 592
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d753634"></a>
 
 ## `wrapping-i8-to-u64`
 
-```cinch
-wrapping-i8-to-u64 :: (I8 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-u64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 595
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d7538"></a>
 
 ## `wrapping-i8-to-u8`
 
-```cinch
-wrapping-i8-to-u8 :: (I8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-u8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 586
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d69382d746f2d7573697a65"></a>
 
 ## `wrapping-i8-to-usize`
 
-```cinch
-wrapping-i8-to-usize :: (I8 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-usize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 598
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d693136"></a>
 
 ## `wrapping-isize-to-i16`
 
-```cinch
-wrapping-isize-to-i16 :: (Isize -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-i16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 847
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d693332"></a>
 
 ## `wrapping-isize-to-i32`
 
-```cinch
-wrapping-isize-to-i32 :: (Isize -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-i32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 850
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d693634"></a>
 
 ## `wrapping-isize-to-i64`
 
-```cinch
-wrapping-isize-to-i64 :: (Isize -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-i64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 853
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d6938"></a>
 
 ## `wrapping-isize-to-i8`
 
-```cinch
-wrapping-isize-to-i8 :: (Isize -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-i8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 844
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d6973697a65"></a>
 
 ## `wrapping-isize-to-isize`
 
-```cinch
-wrapping-isize-to-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 871
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d753136"></a>
 
 ## `wrapping-isize-to-u16`
 
-```cinch
-wrapping-isize-to-u16 :: (Isize -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-u16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 859
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d753332"></a>
 
 ## `wrapping-isize-to-u32`
 
-```cinch
-wrapping-isize-to-u32 :: (Isize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-u32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 862
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d753634"></a>
 
 ## `wrapping-isize-to-u64`
 
-```cinch
-wrapping-isize-to-u64 :: (Isize -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-u64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 865
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d7538"></a>
 
 ## `wrapping-isize-to-u8`
 
-```cinch
-wrapping-isize-to-u8 :: (Isize -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-u8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 856
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6973697a652d746f2d7573697a65"></a>
 
 ## `wrapping-isize-to-usize`
 
-```cinch
-wrapping-isize-to-usize :: (Isize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-usize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 868
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d693136"></a>
 
 ## `wrapping-mul-i16`
 
-```cinch
-wrapping-mul-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 96
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d693332"></a>
 
 ## `wrapping-mul-i32`
 
-```cinch
-wrapping-mul-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 135
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d693634"></a>
 
 ## `wrapping-mul-i64`
 
-```cinch
-wrapping-mul-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 174
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d6938"></a>
 
 ## `wrapping-mul-i8`
 
-```cinch
-wrapping-mul-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 57
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d6973697a65"></a>
 
 ## `wrapping-mul-isize`
 
-```cinch
-wrapping-mul-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 408
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d753136"></a>
 
 ## `wrapping-mul-u16`
 
-```cinch
-wrapping-mul-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 252
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d753332"></a>
 
 ## `wrapping-mul-u32`
 
-```cinch
-wrapping-mul-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 291
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d753634"></a>
 
 ## `wrapping-mul-u64`
 
-```cinch
-wrapping-mul-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 330
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d7538"></a>
 
 ## `wrapping-mul-u8`
 
-```cinch
-wrapping-mul-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 213
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6d756c2d7573697a65"></a>
 
 ## `wrapping-mul-usize`
 
-```cinch
-wrapping-mul-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 369
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d693136"></a>
 
 ## `wrapping-neg-i16`
 
-```cinch
-wrapping-neg-i16 :: (I16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 101
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d693332"></a>
 
 ## `wrapping-neg-i32`
 
-```cinch
-wrapping-neg-i32 :: (I32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 140
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d693634"></a>
 
 ## `wrapping-neg-i64`
 
-```cinch
-wrapping-neg-i64 :: (I64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 179
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d6938"></a>
 
 ## `wrapping-neg-i8`
 
-```cinch
-wrapping-neg-i8 :: (I8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 62
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d6973697a65"></a>
 
 ## `wrapping-neg-isize`
 
-```cinch
-wrapping-neg-isize :: (Isize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 413
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d753136"></a>
 
 ## `wrapping-neg-u16`
 
-```cinch
-wrapping-neg-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 257
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d753332"></a>
 
 ## `wrapping-neg-u32`
 
-```cinch
-wrapping-neg-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 296
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d753634"></a>
 
 ## `wrapping-neg-u64`
 
-```cinch
-wrapping-neg-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 335
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d7538"></a>
 
 ## `wrapping-neg-u8`
 
-```cinch
-wrapping-neg-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 218
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d6e65672d7573697a65"></a>
 
 ## `wrapping-neg-usize`
 
-```cinch
-wrapping-neg-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 374
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d693136"></a>
 
 ## `wrapping-shl-i16`
 
-```cinch
-wrapping-shl-i16 :: (I16 -> (U32 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 106
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d693332"></a>
 
 ## `wrapping-shl-i32`
 
-```cinch
-wrapping-shl-i32 :: (I32 -> (U32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 145
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d693634"></a>
 
 ## `wrapping-shl-i64`
 
-```cinch
-wrapping-shl-i64 :: (I64 -> (U32 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 184
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d6938"></a>
 
 ## `wrapping-shl-i8`
 
-```cinch
-wrapping-shl-i8 :: (I8 -> (U32 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 67
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d6973697a65"></a>
 
 ## `wrapping-shl-isize`
 
-```cinch
-wrapping-shl-isize :: (Isize -> (U32 -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 418
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d753136"></a>
 
 ## `wrapping-shl-u16`
 
-```cinch
-wrapping-shl-u16 :: (U16 -> (U32 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 262
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d753332"></a>
 
 ## `wrapping-shl-u32`
 
-```cinch
-wrapping-shl-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 301
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d753634"></a>
 
 ## `wrapping-shl-u64`
 
-```cinch
-wrapping-shl-u64 :: (U64 -> (U32 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 340
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d7538"></a>
 
 ## `wrapping-shl-u8`
 
-```cinch
-wrapping-shl-u8 :: (U8 -> (U32 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 223
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d73686c2d7573697a65"></a>
 
 ## `wrapping-shl-usize`
 
-```cinch
-wrapping-shl-usize :: (Usize -> (U32 -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 379
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d693136"></a>
 
 ## `wrapping-shr-i16`
 
-```cinch
-wrapping-shr-i16 :: (I16 -> (U32 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 108
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d693332"></a>
 
 ## `wrapping-shr-i32`
 
-```cinch
-wrapping-shr-i32 :: (I32 -> (U32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 147
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d693634"></a>
 
 ## `wrapping-shr-i64`
 
-```cinch
-wrapping-shr-i64 :: (I64 -> (U32 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 186
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d6938"></a>
 
 ## `wrapping-shr-i8`
 
-```cinch
-wrapping-shr-i8 :: (I8 -> (U32 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 69
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d6973697a65"></a>
 
 ## `wrapping-shr-isize`
 
-```cinch
-wrapping-shr-isize :: (Isize -> (U32 -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 420
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d753136"></a>
 
 ## `wrapping-shr-u16`
 
-```cinch
-wrapping-shr-u16 :: (U16 -> (U32 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 264
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d753332"></a>
 
 ## `wrapping-shr-u32`
 
-```cinch
-wrapping-shr-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 303
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d753634"></a>
 
 ## `wrapping-shr-u64`
 
-```cinch
-wrapping-shr-u64 :: (U64 -> (U32 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 342
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d7538"></a>
 
 ## `wrapping-shr-u8`
 
-```cinch
-wrapping-shr-u8 :: (U8 -> (U32 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 225
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7368722d7573697a65"></a>
 
 ## `wrapping-shr-usize`
 
-```cinch
-wrapping-shr-usize :: (Usize -> (U32 -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 381
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d693136"></a>
 
 ## `wrapping-sub-i16`
 
-```cinch
-wrapping-sub-i16 :: (I16 -> (I16 -> I16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 95
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d693332"></a>
 
 ## `wrapping-sub-i32`
 
-```cinch
-wrapping-sub-i32 :: (I32 -> (I32 -> I32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 134
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d693634"></a>
 
 ## `wrapping-sub-i64`
 
-```cinch
-wrapping-sub-i64 :: (I64 -> (I64 -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 173
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d6938"></a>
 
 ## `wrapping-sub-i8`
 
-```cinch
-wrapping-sub-i8 :: (I8 -> (I8 -> I8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 56
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d6973697a65"></a>
 
 ## `wrapping-sub-isize`
 
-```cinch
-wrapping-sub-isize :: (Isize -> (Isize -> Isize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Isize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 407
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d753136"></a>
 
 ## `wrapping-sub-u16`
 
-```cinch
-wrapping-sub-u16 :: (U16 -> (U16 -> U16))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 251
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d753332"></a>
 
 ## `wrapping-sub-u32`
 
-```cinch
-wrapping-sub-u32 :: (U32 -> (U32 -> U32))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 290
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d753634"></a>
 
 ## `wrapping-sub-u64`
 
-```cinch
-wrapping-sub-u64 :: (U64 -> (U64 -> U64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 329
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d7538"></a>
 
 ## `wrapping-sub-u8`
 
-```cinch
-wrapping-sub-u8 :: (U8 -> (U8 -> U8))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 212
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7375622d7573697a65"></a>
 
 ## `wrapping-sub-usize`
 
-```cinch
-wrapping-sub-usize :: (Usize -> (Usize -> Usize))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 368
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d693136"></a>
 
 ## `wrapping-u16-to-i16`
 
-```cinch
-wrapping-u16-to-i16 :: (U16 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-i16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 727
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d693332"></a>
 
 ## `wrapping-u16-to-i32`
 
-```cinch
-wrapping-u16-to-i32 :: (U16 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-i32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 730
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d693634"></a>
 
 ## `wrapping-u16-to-i64`
 
-```cinch
-wrapping-u16-to-i64 :: (U16 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-i64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 733
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d6938"></a>
 
 ## `wrapping-u16-to-i8`
 
-```cinch
-wrapping-u16-to-i8 :: (U16 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-i8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 724
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d6973697a65"></a>
 
 ## `wrapping-u16-to-isize`
 
-```cinch
-wrapping-u16-to-isize :: (U16 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-isize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 751
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d753136"></a>
 
 ## `wrapping-u16-to-u16`
 
-```cinch
-wrapping-u16-to-u16 :: (U16 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 739
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d753332"></a>
 
 ## `wrapping-u16-to-u32`
 
-```cinch
-wrapping-u16-to-u32 :: (U16 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-u32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 742
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d753634"></a>
 
 ## `wrapping-u16-to-u64`
 
-```cinch
-wrapping-u16-to-u64 :: (U16 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-u64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 745
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d7538"></a>
 
 ## `wrapping-u16-to-u8`
 
-```cinch
-wrapping-u16-to-u8 :: (U16 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-u8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 736
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7531362d746f2d7573697a65"></a>
 
 ## `wrapping-u16-to-usize`
 
-```cinch
-wrapping-u16-to-usize :: (U16 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-usize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 748
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d693136"></a>
 
 ## `wrapping-u32-to-i16`
 
-```cinch
-wrapping-u32-to-i16 :: (U32 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-i16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 757
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d693332"></a>
 
 ## `wrapping-u32-to-i32`
 
-```cinch
-wrapping-u32-to-i32 :: (U32 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-i32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 760
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d693634"></a>
 
 ## `wrapping-u32-to-i64`
 
-```cinch
-wrapping-u32-to-i64 :: (U32 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-i64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 763
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d6938"></a>
 
 ## `wrapping-u32-to-i8`
 
-```cinch
-wrapping-u32-to-i8 :: (U32 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-i8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 754
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d6973697a65"></a>
 
 ## `wrapping-u32-to-isize`
 
-```cinch
-wrapping-u32-to-isize :: (U32 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-isize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 781
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d753136"></a>
 
 ## `wrapping-u32-to-u16`
 
-```cinch
-wrapping-u32-to-u16 :: (U32 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-u16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 769
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d753332"></a>
 
 ## `wrapping-u32-to-u32`
 
-```cinch
-wrapping-u32-to-u32 :: (U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 772
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d753634"></a>
 
 ## `wrapping-u32-to-u64`
 
-```cinch
-wrapping-u32-to-u64 :: (U32 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-u64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 775
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d7538"></a>
 
 ## `wrapping-u32-to-u8`
 
-```cinch
-wrapping-u32-to-u8 :: (U32 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-u8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 766
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7533322d746f2d7573697a65"></a>
 
 ## `wrapping-u32-to-usize`
 
-```cinch
-wrapping-u32-to-usize :: (U32 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-usize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 778
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d693136"></a>
 
 ## `wrapping-u64-to-i16`
 
-```cinch
-wrapping-u64-to-i16 :: (U64 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-i16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 787
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d693332"></a>
 
 ## `wrapping-u64-to-i32`
 
-```cinch
-wrapping-u64-to-i32 :: (U64 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-i32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 790
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d693634"></a>
 
 ## `wrapping-u64-to-i64`
 
-```cinch
-wrapping-u64-to-i64 :: (U64 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-i64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 793
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d6938"></a>
 
 ## `wrapping-u64-to-i8`
 
-```cinch
-wrapping-u64-to-i8 :: (U64 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-i8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 784
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d6973697a65"></a>
 
 ## `wrapping-u64-to-isize`
 
-```cinch
-wrapping-u64-to-isize :: (U64 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-isize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 811
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d753136"></a>
 
 ## `wrapping-u64-to-u16`
 
-```cinch
-wrapping-u64-to-u16 :: (U64 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-u16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 799
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d753332"></a>
 
 ## `wrapping-u64-to-u32`
 
-```cinch
-wrapping-u64-to-u32 :: (U64 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-u32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 802
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d753634"></a>
 
 ## `wrapping-u64-to-u64`
 
-```cinch
-wrapping-u64-to-u64 :: (U64 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 805
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d7538"></a>
 
 ## `wrapping-u64-to-u8`
 
-```cinch
-wrapping-u64-to-u8 :: (U64 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-u8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 796
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7536342d746f2d7573697a65"></a>
 
 ## `wrapping-u64-to-usize`
 
-```cinch
-wrapping-u64-to-usize :: (U64 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-usize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 808
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d693136"></a>
 
 ## `wrapping-u8-to-i16`
 
-```cinch
-wrapping-u8-to-i16 :: (U8 -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-i16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 697
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d693332"></a>
 
 ## `wrapping-u8-to-i32`
 
-```cinch
-wrapping-u8-to-i32 :: (U8 -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-i32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 700
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d693634"></a>
 
 ## `wrapping-u8-to-i64`
 
-```cinch
-wrapping-u8-to-i64 :: (U8 -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-i64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 703
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d6938"></a>
 
 ## `wrapping-u8-to-i8`
 
-```cinch
-wrapping-u8-to-i8 :: (U8 -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-i8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 694
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d6973697a65"></a>
 
 ## `wrapping-u8-to-isize`
 
-```cinch
-wrapping-u8-to-isize :: (U8 -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-isize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 721
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d753136"></a>
 
 ## `wrapping-u8-to-u16`
 
-```cinch
-wrapping-u8-to-u16 :: (U8 -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-u16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 709
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d753332"></a>
 
 ## `wrapping-u8-to-u32`
 
-```cinch
-wrapping-u8-to-u32 :: (U8 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-u32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 712
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d753634"></a>
 
 ## `wrapping-u8-to-u64`
 
-```cinch
-wrapping-u8-to-u64 :: (U8 -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-u64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 715
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d7538"></a>
 
 ## `wrapping-u8-to-u8`
 
-```cinch
-wrapping-u8-to-u8 :: (U8 -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 706
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d75382d746f2d7573697a65"></a>
 
 ## `wrapping-u8-to-usize`
 
-```cinch
-wrapping-u8-to-usize :: (U8 -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-usize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 718
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d693136"></a>
 
 ## `wrapping-usize-to-i16`
 
-```cinch
-wrapping-usize-to-i16 :: (Usize -> I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-i16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 817
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d693332"></a>
 
 ## `wrapping-usize-to-i32`
 
-```cinch
-wrapping-usize-to-i32 :: (Usize -> I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-i32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 820
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d693634"></a>
 
 ## `wrapping-usize-to-i64`
 
-```cinch
-wrapping-usize-to-i64 :: (Usize -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-i64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 823
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d6938"></a>
 
 ## `wrapping-usize-to-i8`
 
-```cinch
-wrapping-usize-to-i8 :: (Usize -> I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-i8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 814
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d6973697a65"></a>
 
 ## `wrapping-usize-to-isize`
 
-```cinch
-wrapping-usize-to-isize :: (Usize -> Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-isize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 841
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d753136"></a>
 
 ## `wrapping-usize-to-u16`
 
-```cinch
-wrapping-usize-to-u16 :: (Usize -> U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-u16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 829
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d753332"></a>
 
 ## `wrapping-usize-to-u32`
 
-```cinch
-wrapping-usize-to-u32 :: (Usize -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-u32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 832
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d753634"></a>
 
 ## `wrapping-usize-to-u64`
 
-```cinch
-wrapping-usize-to-u64 :: (Usize -> U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-u64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 835
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d7538"></a>
 
 ## `wrapping-usize-to-u8`
 
-```cinch
-wrapping-usize-to-u8 :: (Usize -> U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-u8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 826
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7772617070696e672d7573697a652d746f2d7573697a65"></a>
 
 ## `wrapping-usize-to-usize`
 
-```cinch
-wrapping-usize-to-usize :: (Usize -> Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch) · line 838
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-7a65726f2d753332"></a>
 
 ## `zero-u32`
 
-```cinch
-zero-u32 :: U32
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zero-u32</span> :: <span class="tok-constructor">U32</span></code></pre>
 
 The scalar model (platform section 5): the sum modulo 2^32 over the
 borrowed vector.
@@ -8415,6 +6753,12 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Machine.Ord_U64` | `Ord U64` | Implicit |
 | `Data.Machine.Ord_U8` | `Ord U8` | Implicit |
 | `Data.Machine.Ord_Usize` | `Ord Usize` | Implicit |
+
+**`Data.Machine.Codec_I64`**: The A6 column codec for integers (decision D65's covered set):
+8 bytes little-endian.
+**`Data.Machine.JsonCodec_I64`**: The A6 JSON column codec for integers (decision D65's covered
+set): `JsonCodec`'s round-trip law (`decode-json (encode-json x)`
+is `Ok x`), with the named range error.
 
 # Reference provenance
 

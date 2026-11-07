@@ -92,42 +92,26 @@ implement; each is a named boundary, never a silent gap):
 
 ## `Converter`
 
-```cinch
-data Converter
-```
-
-The specification.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Converter</span></code></pre>
 
 The value converter family. `ConvFlag` takes no value: its presence
 binds `VBool True`, which is the whole of a flag's information.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 98
 
-```cinch
-ConvString :: Converter
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConvString</span> :: <span class="tok-constructor">Converter</span></code></pre>
 
-```cinch
-ConvInt :: Converter
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConvInt</span> :: <span class="tok-constructor">Converter</span></code></pre>
 
-```cinch
-ConvFloat :: Converter
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConvFloat</span> :: <span class="tok-constructor">Converter</span></code></pre>
 
-```cinch
-ConvFlag :: Converter
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConvFlag</span> :: <span class="tok-constructor">Converter</span></code></pre>
 
 <a id="type-4f7074696f6e50617273654572726f72"></a>
 
 ## `OptionParseError`
 
-```cinch
-data OptionParseError
-```
-
-The named errors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OptionParseError</span></code></pre>
 
 One error constructor per refusal: an unknown option (the spelling is
 carried verbatim), a value option whose value is missing, a value that
@@ -137,33 +121,21 @@ order), and a value on a flag.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 226
 
-```cinch
-UnknownOption :: (String -> OptionParseError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionParseError</span>)</code></pre>
 
-```cinch
-MissingArgument :: (String -> OptionParseError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingArgument</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionParseError</span>)</code></pre>
 
-```cinch
-InvalidValue :: (String -> (String -> OptionParseError))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidValue</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionParseError</span>))</code></pre>
 
-```cinch
-AmbiguousOption :: (String -> (List String -> OptionParseError))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AmbiguousOption</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionParseError</span>))</code></pre>
 
-```cinch
-UnexpectedValue :: (String -> OptionParseError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionParseError</span>)</code></pre>
 
 <a id="type-4f7074696f6e53706563"></a>
 
 ## `OptionSpec`
 
-```cinch
-data OptionSpec
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OptionSpec</span></code></pre>
 
 One option's spec: an optional single-character short name, the
 required long name (the binding key), the converter, and the help line
@@ -172,50 +144,32 @@ for `option-help`. `spec-takes-value` is derived from the converter
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 108
 
-```cinch
-OptSpec :: (Option String -> (String -> (Converter -> (String -> OptionSpec))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptSpec</span> :: (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Converter</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionSpec</span>))))</code></pre>
 
 <a id="type-4f7074696f6e56616c7565"></a>
 
 ## `OptionValue`
 
-```cinch
-data OptionValue
-```
-
-The bound values.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OptionValue</span></code></pre>
 
 A bound value is one of the four converter images. `VBool` carries a
 flag's presence.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 141
 
-```cinch
-VString :: (String -> OptionValue)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VString</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptionValue</span>)</code></pre>
 
-```cinch
-VInt :: (Int -> OptionValue)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VInt</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">OptionValue</span>)</code></pre>
 
-```cinch
-VFloat :: (F64 -> OptionValue)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">OptionValue</span>)</code></pre>
 
-```cinch
-VBool :: (Bool -> OptionValue)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">OptionValue</span>)</code></pre>
 
 <a id="type-5061727365644f7074696f6e73"></a>
 
 ## `ParsedOptions`
 
-```cinch
-data ParsedOptions
-```
-
-The result and its accessors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ParsedOptions</span></code></pre>
 
 The parse result: the bindings keyed by long name (each name once,
 holding its LAST occurrence) and the positional values in argv order.
@@ -224,16 +178,7 @@ list.
 
 [Source](/reference-sources/Text.OptionParser.cinch) · line 189
 
-```cinch
-ParsedOptions :: (List (String, OptionValue) -> (List String -> ParsedOptions))
-```
-
-The result and its accessors.
-
-The parse result: the bindings keyed by long name (each name once,
-holding its LAST occurrence) and the positional values in argv order.
-Flags bind `VBool True`; `option-flags` is the flag subset of that
-list.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ParsedOptions</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">OptionValue</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ParsedOptions</span>))</code></pre>
 
 # Values
 
@@ -241,41 +186,31 @@ list.
 
 ## `option-flag-present`
 
-```cinch
-option-flag-present :: (ParsedOptions -> (String -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-flag-present</span> :: (<span class="tok-constructor">ParsedOptions</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 201
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-6f7074696f6e2d666c616773"></a>
 
 ## `option-flags`
 
-```cinch
-option-flags :: (ParsedOptions -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-flags</span> :: (<span class="tok-constructor">ParsedOptions</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 208
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-6f7074696f6e2d686173"></a>
 
 ## `option-has`
 
-```cinch
-option-has :: (ParsedOptions -> (String -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-has</span> :: (<span class="tok-constructor">ParsedOptions</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 196
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-6f7074696f6e2d68656c70"></a>
 
 ## `option-help`
 
-```cinch
-option-help :: (List OptionSpec -> String)
-```
-
-The usage table.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-help</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 `option-help` renders one row per spec: the short/long spellings and
 the value placeholder in a padded left column, then the help text, so
@@ -287,29 +222,23 @@ the rendered table names every declared option.
 
 ## `option-positionals`
 
-```cinch
-option-positionals :: (ParsedOptions -> List String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-positionals</span> :: (<span class="tok-constructor">ParsedOptions</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 212
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-6f7074696f6e2d76616c7565"></a>
 
 ## `option-value`
 
-```cinch
-option-value :: (ParsedOptions -> (String -> Option OptionValue))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-value</span> :: (<span class="tok-constructor">ParsedOptions</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">OptionValue</span>))</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 192
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-70617273652d6f7074696f6e73"></a>
 
 ## `parse-options`
 
-```cinch
-parse-options :: (List OptionSpec -> (List String -> Result OptionParseError ParsedOptions))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-options</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">OptionSpec</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">OptionParseError</span> <span class="tok-constructor">ParsedOptions</span>))</code></pre>
 
 The parse.
 
@@ -319,109 +248,87 @@ The parse.
 
 ## `render-option-parse-error`
 
-```cinch
-render-option-parse-error :: (OptionParseError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-option-parse-error</span> :: (<span class="tok-constructor">OptionParseError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 233
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-737065632d636f6e766572746572"></a>
 
 ## `spec-converter`
 
-```cinch
-spec-converter :: (OptionSpec -> Converter)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spec-converter</span> :: (<span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">Converter</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 119
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-737065632d68656c70"></a>
 
 ## `spec-help`
 
-```cinch
-spec-help :: (OptionSpec -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spec-help</span> :: (<span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 123
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-737065632d6c6f6e67"></a>
 
 ## `spec-long`
 
-```cinch
-spec-long :: (OptionSpec -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spec-long</span> :: (<span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 115
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-737065632d73686f7274"></a>
 
 ## `spec-short`
 
-```cinch
-spec-short :: (OptionSpec -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spec-short</span> :: (<span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 111
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-737065632d74616b65732d76616c7565"></a>
 
 ## `spec-takes-value`
 
-```cinch
-spec-takes-value :: (OptionSpec -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spec-takes-value</span> :: (<span class="tok-constructor">OptionSpec</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 127
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-76616c75652d626f6f6c"></a>
 
 ## `value-bool`
 
-```cinch
-value-bool :: (OptionValue -> Option Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">value-bool</span> :: (<span class="tok-constructor">OptionValue</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 162
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-76616c75652d666c6f6174"></a>
 
 ## `value-float`
 
-```cinch
-value-float :: (OptionValue -> Option F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">value-float</span> :: (<span class="tok-constructor">OptionValue</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 157
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-76616c75652d696e74"></a>
 
 ## `value-int`
 
-```cinch
-value-int :: (OptionValue -> Option Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">value-int</span> :: (<span class="tok-constructor">OptionValue</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 152
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-76616c75652d737472696e67"></a>
 
 ## `value-string`
 
-```cinch
-value-string :: (OptionValue -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">value-string</span> :: (<span class="tok-constructor">OptionValue</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.OptionParser.cinch) · line 147
+[Source](/reference-sources/Text.OptionParser.cinch)
 
 <a id="value-76616c75652d746f2d737472696e67"></a>
 
 ## `value-to-string`
 
-```cinch
-value-to-string :: (OptionValue -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">value-to-string</span> :: (<span class="tok-constructor">OptionValue</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The rendering (the `Text.*` conversion direction): a value's text for
 diagnostics. The float uses the runtime's shortest round-trip decimal

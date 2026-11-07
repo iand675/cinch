@@ -38,45 +38,31 @@ the names reach the implicit surface through `Data.List` and
 
 ## `List`
 
-```cinch
-data List (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">List</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Core.cinch) · line 26
+[Source](/reference-sources/Data.Core.cinch)
 
-```cinch
-Nil :: forall a . List a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Cons :: forall a . (a -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-4f7074696f6e"></a>
 
 ## `Option`
 
-```cinch
-data Option (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Option</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Core.cinch) · line 30
+[Source](/reference-sources/Data.Core.cinch)
 
-```cinch
-None :: forall a . Option a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Some :: forall a . (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-526573756c74"></a>
 
 ## `Result`
 
-```cinch
-data Result (e :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Result</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 `Result` is here for the same reason: `Data.Result`'s
 `partition-results` and `results` consume a `List`, and it too is
@@ -84,13 +70,9 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Core.cinch) · line 37
 
-```cinch
-Err :: forall e a . (e -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-```cinch
-Ok :: forall e a . (a -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
 # Reference provenance
 

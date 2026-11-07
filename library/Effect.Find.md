@@ -78,25 +78,17 @@ system's vocabulary, and `Effect.Fs` is the capability walked here.
 
 ## `Step`
 
-```cinch
-data Step
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span></code></pre>
 
 What the visitor decides about the entry it is shown.
 
 [Source](/reference-sources/Effect.Find.cinch) · line 66
 
-```cinch
-Continue :: Step
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Continue</span> :: <span class="tok-constructor">Step</span></code></pre>
 
-```cinch
-Prune :: Step
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Prune</span> :: <span class="tok-constructor">Step</span></code></pre>
 
-```cinch
-Stop :: Step
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stop</span> :: <span class="tok-constructor">Step</span></code></pre>
 
 # Values
 
@@ -104,9 +96,7 @@ Stop :: Step
 
 ## `find`
 
-```cinch
-find :: forall r . using (io :: Io r) => (Path -> ((Path -> Step) ->{IO r} Result FsError (List Path)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Step</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">Path</span>)))</code></pre>
 
 The subtree beneath `root`, pre-order, reporting the paths the
 visitor's decisions leave in the walk (see the header for the
@@ -118,9 +108,7 @@ order guarantee and the decisions).
 
 ## `find-dirs`
 
-```cinch
-find-dirs :: forall r . using (io :: Io r) => (Path ->{IO r} Result FsError (List Path))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-dirs</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">Path</span>))</code></pre>
 
 Every directory beneath `root` (the root included when it is one),
 pre-order.
@@ -131,9 +119,7 @@ pre-order.
 
 ## `find-files`
 
-```cinch
-find-files :: forall r . using (io :: Io r) => (Path ->{IO r} Result FsError (List Path))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-files</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">Path</span>))</code></pre>
 
 Every file beneath `root` (the root itself only when it is one),
 pre-order, descending through every directory.

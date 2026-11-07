@@ -107,62 +107,36 @@ an explicit decision rather than a silent gap):
 
 ## `HttpError`
 
-```cinch
-data HttpError
-```
-
-Errors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpError</span></code></pre>
 
 What went wrong: a malformed or refused reply, a bad URL, or the
 socket layer's own named failure (wrapped, not flattened).
 
 [Source](/reference-sources/Effect.Http.cinch) · line 112
 
-```cinch
-HttpBadStatusLine :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadStatusLine</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpBadHeaderLine :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadHeaderLine</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpUnsupportedTransferEncoding :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedTransferEncoding</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpBodyTooLarge :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBodyTooLarge</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpTruncatedBody :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpTruncatedBody</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpBadUrl :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadUrl</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpNoTls :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNoTls</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpUnsupportedScheme :: HttpError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedScheme</span> :: <span class="tok-constructor">HttpError</span></code></pre>
 
-```cinch
-HttpNetworkError :: (NetError -> HttpError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNetworkError</span> :: (<span class="tok-constructor">NetError</span> -&gt; <span class="tok-constructor">HttpError</span>)</code></pre>
 
 <a id="type-4874747052657175657374"></a>
 
 ## `HttpRequest`
 
-```cinch
-data HttpRequest
-```
-
-The request and response values.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpRequest</span></code></pre>
 
 A request: method, host, port, request-target path, headers, and an
 optional body. The path is sent as given, with a leading `/` supplied
@@ -170,26 +144,20 @@ when it is empty or does not start with one.
 
 [Source](/reference-sources/Effect.Http.cinch) · line 149
 
-```cinch
-MkHttpRequest :: (String -> (String -> (Nat -> (String -> (List (String, String) -> (Option Bytes -> HttpRequest))))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpRequest</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">HttpRequest</span>))))))</code></pre>
 
 <a id="type-48747470526573706f6e7365"></a>
 
 ## `HttpResponse`
 
-```cinch
-data HttpResponse
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpResponse</span></code></pre>
 
 A response: status code, reason phrase, the header list (duplicates
 kept, in arrival order) and the decoded body bytes.
 
 [Source](/reference-sources/Effect.Http.cinch) · line 178
 
-```cinch
-MkHttpResponse :: (Nat -> (String -> (List (String, String) -> (Bytes -> HttpResponse))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">HttpResponse</span>))))</code></pre>
 
 # Values
 
@@ -197,19 +165,15 @@ MkHttpResponse :: (Nat -> (String -> (List (String, String) -> (Bytes -> HttpRes
 
 ## `http-body`
 
-```cinch
-http-body :: (HttpResponse -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-body</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 193
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d676574"></a>
 
 ## `http-get`
 
-```cinch
-http-get :: forall r . using (io :: Io r) => (String ->{IO r} Result HttpError HttpResponse)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>)</code></pre>
 
 GET `url` on a fresh connection. The URL is parsed with Text.Uri. An
 `https` URL is refused (HttpNoTls); any non-`http` scheme (or none) is
@@ -222,9 +186,7 @@ missing port is 80.
 
 ## `http-header`
 
-```cinch
-http-header :: (HttpResponse -> (String -> Option String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>))</code></pre>
 
 The FIRST value of `name`, matched case-insensitively (ASCII folding:
 a header name is ASCII, so `Content-Length` and `content-length` are
@@ -236,9 +198,7 @@ the same name, and no locale folding is done), or `None`.
 
 ## `http-header-all`
 
-```cinch
-http-header-all :: (HttpResponse -> (String -> List String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-all</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
 
 Every value of `name`, matched case-insensitively, in arrival order
 (a repeated header keeps every value).
@@ -249,31 +209,23 @@ Every value of `name`, matched case-insensitively, in arrival order
 
 ## `http-headers`
 
-```cinch
-http-headers :: (HttpResponse -> List (String, String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-headers</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 189
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726561736f6e"></a>
 
 ## `http-reason`
 
-```cinch
-http-reason :: (HttpResponse -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-reason</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 185
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d72657175657374"></a>
 
 ## `http-request`
 
-```cinch
-http-request :: forall r . using (io :: Io r) => (HttpRequest ->{IO r} Result HttpError HttpResponse)
-```
-
-Sending and reading.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>)</code></pre>
 
 Send `q` on a fresh connection and read the whole reply. The default
 bound (max-response-bytes) applies; use http-request-max for an
@@ -285,39 +237,31 @@ explicit one.
 
 ## `http-request-body`
 
-```cinch
-http-request-body :: (HttpRequest -> Option Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-body</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 172
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726571756573742d68656164657273"></a>
 
 ## `http-request-headers`
 
-```cinch
-http-request-headers :: (HttpRequest -> List (String, String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-headers</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 168
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726571756573742d686f7374"></a>
 
 ## `http-request-host`
 
-```cinch
-http-request-host :: (HttpRequest -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-host</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 156
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726571756573742d6d6178"></a>
 
 ## `http-request-max`
 
-```cinch
-http-request-max :: forall r . using (io :: Io r) => (Nat -> (HttpRequest ->{IO r} Result HttpError HttpResponse))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-max</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>))</code></pre>
 
 Send `q` with an explicit bound on the received bytes (headers plus
 body). Refuses past it with HttpBodyTooLarge.
@@ -328,49 +272,39 @@ body). Refuses past it with HttpBodyTooLarge.
 
 ## `http-request-method`
 
-```cinch
-http-request-method :: (HttpRequest -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-method</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 152
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726571756573742d70617468"></a>
 
 ## `http-request-path`
 
-```cinch
-http-request-path :: (HttpRequest -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-path</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 164
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d726571756573742d706f7274"></a>
 
 ## `http-request-port`
 
-```cinch
-http-request-port :: (HttpRequest -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-port</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 160
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-687474702d737461747573"></a>
 
 ## `http-status`
 
-```cinch
-http-status :: (HttpResponse -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-status</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Http.cinch) · line 181
+[Source](/reference-sources/Effect.Http.cinch)
 
 <a id="value-6d61782d726573706f6e73652d6279746573"></a>
 
 ## `max-response-bytes`
 
-```cinch
-max-response-bytes :: Nat
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-response-bytes</span> :: <span class="tok-constructor">Nat</span></code></pre>
 
 The default bound on a whole received response, in bytes (the
 no-framing case and the header section share it).
@@ -381,9 +315,7 @@ no-framing case and the header section share it).
 
 ## `render-http-error`
 
-```cinch
-render-http-error :: (HttpError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-http-error</span> :: (<span class="tok-constructor">HttpError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The diagnostic line for a named error.
 

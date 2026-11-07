@@ -28,38 +28,30 @@ constraints it uses. Instances live with their type.
 
 ## `Eq`
 
-```cinch
-signature Eq a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 15
+[Source](/reference-sources/Relation.Eq.cinch)
 
 <a id="method-45712e3d3d"></a>
 
 ## `Eq.==`
 
-```cinch
-== :: forall a . using (dict :: Eq a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">==</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 16
+
 
 <a id="method-45712e2f3d"></a>
 
 ## `Eq./=`
 
-```cinch
-/= :: forall a . using (dict :: Eq a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 17
+
 
 # Operator fixities
 
-```cinch
-infix 3 /=
-infix 3 ==
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">/=</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">==</span></code></pre>
 
 # Reference provenance
 

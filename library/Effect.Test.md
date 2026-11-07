@@ -96,9 +96,7 @@ NAMED REFUSALS (what this runner will not do):
 
 ## `CaseFailure`
 
-```cinch
-data CaseFailure
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CaseFailure</span></code></pre>
 
 A failing case's detail: the case's name, the failing assertion's
 label, and the assertion's rendered message. `render-report`
@@ -107,45 +105,28 @@ failure list carries (test name, failing assertion, message).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 156
 
-```cinch
-CaseFailure :: (String -> (String -> (String -> CaseFailure)))
-```
-
-A failing case's detail: the case's name, the failing assertion's
-label, and the assertion's rendered message. `render-report`
-prints exactly these three, and they are the three Minitest's own
-failure list carries (test name, failing assertion, message).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailure</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">CaseFailure</span>)))</code></pre>
 
 <a id="type-436173654f7574636f6d65"></a>
 
 ## `CaseOutcome`
 
-```cinch
-data CaseOutcome
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CaseOutcome</span></code></pre>
 
 One case's outcome: its name and the number of assertions
 observed (law 3), plus the failure detail when it failed.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 173
 
-```cinch
-CasePassed :: (String -> (Int -> CaseOutcome))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CasePassed</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
-```cinch
-CaseFailed :: (Int -> (CaseFailure -> CaseOutcome))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailed</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
 <a id="type-436865636b"></a>
 
 ## `Check`
 
-```cinch
-data Check
-```
-
-The assertion vocabulary: assertions are values.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Check</span></code></pre>
 
 One assertion's outcome. The first field is the assertion's NAME
 (the label the author gave it, so a failure reads as the
@@ -155,43 +136,28 @@ a failing case is reportable rather than fatal.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 99
 
-```cinch
-Pass :: (String -> Check)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pass</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Check</span>)</code></pre>
 
-```cinch
-Fail :: (String -> (String -> Check))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fail</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
 
 <a id="type-5265706f7274"></a>
 
 ## `Report`
 
-```cinch
-data Report
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Report</span></code></pre>
 
 A run of a suite: what Minitest's `Minitest::Result` list is, one
 outcome per case in run order.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 194
 
-```cinch
-Report :: (List CaseOutcome -> Report)
-```
-
-A run of a suite: what Minitest's `Minitest::Result` list is, one
-outcome per case in run order.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Report</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Report</span>)</code></pre>
 
 <a id="type-5465737443617365"></a>
 
 ## `TestCase`
 
-```cinch
-data TestCase
-```
-
-Cases, outcomes and the report.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TestCase</span></code></pre>
 
 A named case and its body. The body is a function of `Unit` so a
 suite re-evaluates it per run instead of sharing one evaluation
@@ -200,16 +166,7 @@ reporting (see the refusals).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 141
 
-```cinch
-TestCase :: (String -> ((Unit -> List Check) -> TestCase))
-```
-
-Cases, outcomes and the report.
-
-A named case and its body. The body is a function of `Unit` so a
-suite re-evaluates it per run instead of sharing one evaluation
-between runs, and it is pure: the runner's only effect is the
-reporting (see the refusals).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TestCase</span> :: (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Check</span>) -&gt; <span class="tok-constructor">TestCase</span>))</code></pre>
 
 # Values
 
@@ -217,9 +174,7 @@ reporting (see the refusals).
 
 ## `assert`
 
-```cinch
-assert :: (String -> (Bool -> Check))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
 
 The condition holds. `assert "one-plus-one" (1 + 1 == 2)`.
 
@@ -229,9 +184,7 @@ The condition holds. `assert "one-plus-one" (1 + 1 == 2)`.
 
 ## `assert-eq`
 
-```cinch
-assert-eq :: forall a . using (ea :: Eq a, sa :: Show a) => (String -> (a -> (a -> Check)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert-eq</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Check</span>)))</code></pre>
 
 The two values are equal, rendered through `Show` so the message
 names both. `assert-eq "sum" (1 + 1) 2`.
@@ -242,89 +195,71 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `case-body`
 
-```cinch
-case-body :: (TestCase -> (Unit -> List Check))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-body</span> :: (<span class="tok-constructor">TestCase</span> -&gt; (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Check</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 148
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-636173652d6e616d65"></a>
 
 ## `case-name`
 
-```cinch
-case-name :: (TestCase -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-name</span> :: (<span class="tok-constructor">TestCase</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 144
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6661696c7572652d617373657274696f6e"></a>
 
 ## `failure-assertion`
 
-```cinch
-failure-assertion :: (CaseFailure -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-assertion</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 163
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6661696c7572652d63617365"></a>
 
 ## `failure-case`
 
-```cinch
-failure-case :: (CaseFailure -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-case</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 159
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6661696c7572652d6d657373616765"></a>
 
 ## `failure-message`
 
-```cinch
-failure-message :: (CaseFailure -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-message</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 167
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6f7574636f6d652d617373657274696f6e73"></a>
 
 ## `outcome-assertions`
 
-```cinch
-outcome-assertions :: (CaseOutcome -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-assertions</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 187
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6f7574636f6d652d6e616d65"></a>
 
 ## `outcome-name`
 
-```cinch
-outcome-name :: (CaseOutcome -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-name</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 177
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-6f7574636f6d652d6f6b"></a>
 
 ## `outcome-ok`
 
-```cinch
-outcome-ok :: (CaseOutcome -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-ok</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 182
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-726566757465"></a>
 
 ## `refute`
 
-```cinch
-refute :: (String -> (Bool -> Check))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
 
 The condition fails. `refute "not-two" (1 == 2)`.
 
@@ -334,9 +269,7 @@ The condition fails. `refute "not-two" (1 == 2)`.
 
 ## `refute-eq`
 
-```cinch
-refute-eq :: forall a . using (ea :: Eq a, sa :: Show a) => (String -> (a -> (a -> Check)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute-eq</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Check</span>)))</code></pre>
 
 The two values differ (Minitest's `refute_equal`), rendered
 through `Show`.
@@ -347,11 +280,7 @@ through `Show`.
 
 ## `render-report`
 
-```cinch
-render-report :: (Report -> String)
-```
-
-Rendering the report.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-report</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The summary Minitest prints: one block per failure (its number,
 the case, the failing assertion and the message), a blank line,
@@ -366,19 +295,15 @@ the rest of the report at every failure.
 
 ## `report-assertions`
 
-```cinch
-report-assertions :: (Report -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-assertions</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 204
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-7265706f72742d6661696c75726573"></a>
 
 ## `report-failures`
 
-```cinch
-report-failures :: (Report -> List CaseFailure)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-failures</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">CaseFailure</span>)</code></pre>
 
 The failing cases, in run order.
 
@@ -388,9 +313,7 @@ The failing cases, in run order.
 
 ## `report-ok`
 
-```cinch
-report-ok :: (Report -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-ok</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 True when no case failed (an empty report is ok: nothing ran,
 nothing failed).
@@ -401,31 +324,23 @@ nothing failed).
 
 ## `report-outcomes`
 
-```cinch
-report-outcomes :: (Report -> List CaseOutcome)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-outcomes</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">CaseOutcome</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 197
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-7265706f72742d72756e73"></a>
 
 ## `report-runs`
 
-```cinch
-report-runs :: (Report -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-runs</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Test.cinch) · line 201
+[Source](/reference-sources/Effect.Test.cinch)
 
 <a id="value-72756e2d7375697465"></a>
 
 ## `run-suite`
 
-```cinch
-run-suite :: forall r . using (io :: Io r) => (List TestCase ->{IO r} Report)
-```
-
-Running a suite.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-suite</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">TestCase</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Report</span>)</code></pre>
 
 Run every case, reporting each one through the `Io r` capability
 as it finishes (one line: `<name>` prefixed by its verdict), and

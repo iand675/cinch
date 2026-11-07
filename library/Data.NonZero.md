@@ -53,9 +53,7 @@ This module exports no type declarations.
 
 ## `non-zero`
 
-```cinch
-non-zero :: (Int -> Option (NonZero Int))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>))</code></pre>
 
 The total constructors (refinement types design: the total API).
 
@@ -65,11 +63,9 @@ The total constructors (refinement types design: the total API).
 
 ## `non-zero-nat`
 
-```cinch
-non-zero-nat :: (Nat -> Option (NonZero Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
-[Source](/reference-sources/Data.NonZero.cinch) · line 41
+[Source](/reference-sources/Data.NonZero.cinch)
 
 # Instances
 
@@ -79,6 +75,17 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.NonZero.Monoid_NonZero` | `Monoid (NonZero Int)` | Implicit |
 | `Data.NonZero.Semigroup_NonZero` | `Semigroup (NonZero Int)` | Implicit |
+
+**`Data.NonZero.Monoid_NonZero`**: The multiplicative identity is 1: non-zero, so the transfer
+preserves the refinement (the contrast with `Monoid (NonEmpty a)`,
+whose identity violates non-emptiness). `mconcat` is the class
+default, checked at `NonZero` itself: it composes this instance's
+own methods, so it preserves the refinement by construction.
+**`Data.NonZero.Semigroup_NonZero`**: The multiplicative semigroup on non-zero integers: preserved
+(a non-zero product of non-zeros), associative (both checked
+sample-wise by the law layer). Integer addition does NOT preserve
+non-zerohood and its transfer is rejected by the preservation law
+(asserted in compiler/tests/refinements.rs).
 
 # Reference provenance
 

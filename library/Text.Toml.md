@@ -91,11 +91,7 @@ family over the same `Json` shape, and it follows D88's runtime
 
 ## `TomlError`
 
-```cinch
-data TomlError
-```
-
-The named errors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TomlError</span></code></pre>
 
 A lexical or grammatical failure: the source line it stands at plus
 a human message.
@@ -106,21 +102,13 @@ with the reason.
 
 [Source](/reference-sources/Text.Toml.cinch) · line 100
 
-```cinch
-TomlSyntax :: (Nat -> (String -> TomlError))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>))</code></pre>
 
-```cinch
-TomlDuplicateKey :: (String -> TomlError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDuplicateKey</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
 
-```cinch
-TomlDateTime :: (Nat -> TomlError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDateTime</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
 
-```cinch
-TomlNotRepresentable :: (String -> TomlError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlNotRepresentable</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
 
 # Values
 
@@ -128,19 +116,15 @@ TomlNotRepresentable :: (String -> TomlError)
 
 ## `toml-parse`
 
-```cinch
-toml-parse :: (String -> Result TomlError Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TomlError</span> <span class="tok-constructor">Json</span>)</code></pre>
 
-[Source](/reference-sources/Text.Toml.cinch) · line 1128
+[Source](/reference-sources/Text.Toml.cinch)
 
 <a id="value-746f6d6c2d7072696e74"></a>
 
 ## `toml-print`
 
-```cinch
-toml-print :: (Json -> Result TomlError String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-print</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TomlError</span> <span class="tok-constructor">String</span>)</code></pre>
 
 Printing (total, deterministic; emission order stated in the
 header).

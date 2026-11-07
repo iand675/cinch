@@ -30,91 +30,73 @@ This module exports no type declarations.
 
 ## `array-append`
 
-```cinch
-array-append :: forall a . (Array a -> (Array a -> Array a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-append</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 19
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d66726f6d2d6c697374"></a>
 
 ## `array-from-list`
 
-```cinch
-array-from-list :: forall a . (List a -> Array a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 13
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d676574"></a>
 
 ## `array-get`
 
-```cinch
-array-get :: forall a . (Array a -> (Nat -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 16
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d6c656e677468"></a>
 
 ## `array-length`
 
-```cinch
-array-length :: forall a . (Array a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-length</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 15
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d7265706c6963617465"></a>
 
 ## `array-replicate`
 
-```cinch
-array-replicate :: forall a . (Nat -> (a -> Array a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-replicate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 14
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d736574"></a>
 
 ## `array-set`
 
-```cinch
-array-set :: forall a . (Array a -> (Nat -> (a -> Option (Array a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 17
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d736c696365"></a>
 
 ## `array-slice`
 
-```cinch
-array-slice :: forall a . (Array a -> (Nat -> (Nat -> Option (Array a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-slice</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 18
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d746162756c617465"></a>
 
 ## `array-tabulate`
 
-```cinch
-array-tabulate :: forall a . (Nat -> ((Nat -> a) -> Array a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-tabulate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 21
+[Source](/reference-sources/Data.Array.cinch)
 
 <a id="value-61727261792d746f2d6c697374"></a>
 
 ## `array-to-list`
 
-```cinch
-array-to-list :: forall a . (Array a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.cinch) · line 27
+[Source](/reference-sources/Data.Array.cinch)
 
 # Instances
 

@@ -58,15 +58,7 @@ redeclaring them (user direction, 2026-10-30).
 
 ## `AVX2_256`
 
-```cinch
-data AVX2_256
-```
-
-Target profiles and the scalar/SIMD pair (P10): target capability
-evidence, the scalar/SIMD pair of the platform chapter's section 5
-example, capability dispatch, and the step-form producer library
-that fusion composes (modules and compilation specification
-section 6).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AVX2_256</span></code></pre>
 
 Target profiles and vector shapes as marker types: the platform
 chapter's `Target` kind and the compile-time lane width are
@@ -74,17 +66,13 @@ represented as types in the bootstrap (decision D58).
 
 [Source](/reference-sources/Data.Target.cinch) · line 47
 
-```cinch
-AVX2_256Tag :: AVX2_256
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">AVX2_256</span></code></pre>
 
 <a id="type-436170417661696c61626c65"></a>
 
 ## `CapAvailable`
 
-```cinch
-data CapAvailable (t :: Type) (w :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CapAvailable</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 Operational evidence that a capability is valid in the current
 validity scope (platform section 2): the lexical region and thread
@@ -92,31 +80,23 @@ supplying it. A rewrite's `require` clause names it.
 
 [Source](/reference-sources/Data.Target.cinch) · line 69
 
-```cinch
-Available :: forall t w . (VecU32Target t w -> CapAvailable t w)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
 
 <a id="type-436f6e666967"></a>
 
 ## `Config`
 
-```cinch
-data Config
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Config</span></code></pre>
 
-[Source](/reference-sources/Effect.Io.cinch) · line 33
+[Source](/reference-sources/Effect.Io.cinch)
 
-```cinch
-Config :: (Bytes -> Config)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Config</span>)</code></pre>
 
 <a id="type-436f6e6669674572726f72"></a>
 
 ## `ConfigError`
 
-```cinch
-data ConfigError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ConfigError</span></code></pre>
 
 The worked vocabulary of the sequencing chapter's `loadConfig`
 sketch (runtime capabilities, effects and sequencing
@@ -130,17 +110,13 @@ document is not a config.
 
 [Source](/reference-sources/Effect.Io.cinch) · line 30
 
-```cinch
-BadConfig :: ConfigError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">ConfigError</span></code></pre>
 
 <a id="type-446f776e"></a>
 
 ## `Down`
 
-```cinch
-data Down (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Down</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The order-reversing newtype: `Down x` is `x` with the order
 swapped, so `comparing (\p -> Down (key p))` sorts by `key`
@@ -149,36 +125,23 @@ ordering methods reverse).
 
 [Source](/reference-sources/Relation.Ord.cinch) · line 46
 
-```cinch
-Down :: forall a . (a -> Down a)
-```
-
-The order-reversing newtype: `Down x` is `x` with the order
-swapped, so `comparing (\p -> Down (key p))` sorts by `key`
-descending. Equality is unaffected by the flip (only the four
-ordering methods reverse).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-45696768744c616e6573"></a>
 
 ## `EightLanes`
 
-```cinch
-data EightLanes
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">EightLanes</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 56
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-EightLanesTag :: EightLanes
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">EightLanes</span></code></pre>
 
 <a id="type-496e52616e6765"></a>
 
 ## `InRange`
 
-```cinch
-type InRange (lo :: Int) (hi :: Int) (a :: Type) = refine (x :: a) with (lo <= x && x <= hi)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">InRange</span> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (<span class="tok-variable">lo</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">x</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">x</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">hi</span>)</code></pre>
 
 A range of a number, the result type of every operation whose
 result lies in known bounds by construction (`u32-to-i64 :: U32 ->
@@ -196,9 +159,7 @@ the value is its number (`c - 48`, `nat-add c 1`).
 
 ## `Json`
 
-```cinch
-data Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Json</span></code></pre>
 
 The `Json`-shaped value a file converter binds for a JSON file with
 no declared type (surface grammar local amendments section 11); with
@@ -210,81 +171,51 @@ the payloads stay inside the family.
 
 [Source](/reference-sources/Data.Json.cinch) · line 23
 
-```cinch
-JNull :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNull</span> :: <span class="tok-constructor">Json</span></code></pre>
 
-```cinch
-JBool :: (Bool -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JNum :: (Int -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNum</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JFloat :: (F64 -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JStr :: (String -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JStr</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JArr :: (Json -> (Json -> Json))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArr</span> :: (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>))</code></pre>
 
-```cinch
-JObj :: (String -> (Json -> (Json -> Json)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObj</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
 
-```cinch
-JArrEnd :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArrEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
 
-```cinch
-JObjEnd :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObjEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
 
 <a id="type-4c697374"></a>
 
 ## `List`
 
-```cinch
-data List (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">List</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Core.cinch) · line 26
+[Source](/reference-sources/Data.Core.cinch)
 
-```cinch
-Nil :: forall a . List a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Cons :: forall a . (a -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-4c6f61644572726f72"></a>
 
 ## `LoadError`
 
-```cinch
-data LoadError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LoadError</span></code></pre>
 
-[Source](/reference-sources/Effect.Concurrent.cinch) · line 27
+[Source](/reference-sources/Effect.Concurrent.cinch)
 
-```cinch
-LoadError :: (Nat -> LoadError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">LoadError</span>)</code></pre>
 
 <a id="type-4d6170"></a>
 
 ## `Map`
 
-```cinch
-data Map (k :: Type) (v :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Map</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The ordered map: an unbalanced binary search tree over `Ord k`
 (decision D105). `map-insert` keeps the left subtree strictly
@@ -293,35 +224,25 @@ the stored value in place.
 
 [Source](/reference-sources/Data.Map.cinch) · line 24
 
-```cinch
-Tip :: forall k v . Map k v
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
-```cinch
-Bin :: forall k v . (k -> (v -> (Map k v -> (Map k v -> Map k v))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
 
 <a id="type-4e454f4e3634"></a>
 
 ## `NEON64`
 
-```cinch
-data NEON64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">NEON64</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 50
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-NEON64Tag :: NEON64
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">NEON64</span></code></pre>
 
 <a id="type-4e6f6e5a65726f"></a>
 
 ## `NonZero`
 
-```cinch
-type NonZero (a :: Type) = refine (n :: a) with NonZero n
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonZero</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NonZero</span> <span class="tok-variable">n</span></code></pre>
 
 The divisor type, declared here because the `Div`/`Rem` classes
 and the `Nat`/`Int` homes (checked right after this module) name
@@ -338,85 +259,57 @@ predicate at compile time.
 
 ## `Option`
 
-```cinch
-data Option (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Option</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Core.cinch) · line 30
+[Source](/reference-sources/Data.Core.cinch)
 
-```cinch
-None :: forall a . Option a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Some :: forall a . (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-4f72646572696e67"></a>
 
 ## `Ordering`
 
-```cinch
-data Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ordering</span></code></pre>
 
-[Source](/reference-sources/Data.Ordering.cinch) · line 13
+[Source](/reference-sources/Data.Ordering.cinch)
 
-```cinch
-LT :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
-```cinch
-EQ :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
-```cinch
-GT :: Ordering
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Ordering</span></code></pre>
 
 <a id="type-50617468"></a>
 
 ## `Path`
 
-```cinch
-data Path
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Path</span></code></pre>
 
 The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-```cinch
-Path :: (String -> Path)
-```
-
-The path text (POSIX; UTF-8 at the boundary).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
 
 <a id="type-50726f6475636572"></a>
 
 ## `Producer`
 
-```cinch
-data Producer (s :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Producer</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 A producer: a state with its step function.
 
 [Source](/reference-sources/Data.Producer.cinch) · line 23
 
-```cinch
-Producer :: forall s a . ((s -> Step s a) -> (s -> Producer s a))
-```
-
-A producer: a state with its step function.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-52657175657374"></a>
 
 ## `Request`
 
-```cinch
-data Request
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Request</span></code></pre>
 
 Structured concurrency (concurrency specification, section 2): the
 worked vocabulary of the spec's `loadPair` sketch. A `Request` names
@@ -429,26 +322,13 @@ imports.
 
 [Source](/reference-sources/Effect.Concurrent.cinch) · line 24
 
-```cinch
-Request :: (Nat -> Request)
-```
-
-Structured concurrency (concurrency specification, section 2): the
-worked vocabulary of the spec's `loadPair` sketch. A `Request` names
-bytes to read from the runtime's input source; `fetch` performs the
-read under the `Io r` capability and reports a short read as a
-`LoadError`. `withScope`, `spawn`, `joinAllOrCancel` and the `Io r`
-operations (`ioWrite`, `ioRead`, `ioSleep`, `pollCancel`) are builtin
-values with compiler-known schemes (like `newIO`), never foreign
-imports.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Request</span>)</code></pre>
 
 <a id="type-526573756c74"></a>
 
 ## `Result`
 
-```cinch
-data Result (e :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Result</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 `Result` is here for the same reason: `Data.Result`'s
 `partition-results` and `results` consume a `List`, and it too is
@@ -456,81 +336,42 @@ checked before `Data.List`.
 
 [Source](/reference-sources/Data.Core.cinch) · line 37
 
-```cinch
-Err :: forall e a . (e -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-```cinch
-Ok :: forall e a . (a -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-5363616c61626c655368617065"></a>
 
 ## `ScalableShape`
 
-```cinch
-data ScalableShape
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScalableShape</span></code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 53
+[Source](/reference-sources/Data.Target.cinch)
 
-```cinch
-ScalableShapeTag :: ScalableShape
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">ScalableShape</span></code></pre>
 
 <a id="type-53746570"></a>
 
 ## `Step`
 
-```cinch
-data Step (s :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The vector step form (modules section 6): `Done`, `Skip(state)` and
 `Yield(value, state)`. Producer pipelines lower to state machines.
 
 [Source](/reference-sources/Data.Producer.cinch) · line 17
 
-```cinch
-Done :: forall s a . Step s a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Skip :: forall s a . (s -> Step s a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
 
-```cinch
-Yield :: forall s a . (a -> (s -> Step s a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-537472696e67"></a>
 
 ## `String`
 
-```cinch
-data String
-```
-
-Runtime strings: UTF-8 over Bytes.
-
-`String` is the runtime text type (decision D88). It is distinct
-from the staging interpreter's compile-time string values, which are
-the same type observed at compile time (D43's deferral resolved).
-A `"..."` literal in a term is a runtime `String`: the lexer's
-decoded bytes in one shared read-only data-section constant (the
-sharing is semantics-transparent: every evaluation references the
-same object and nothing allocates).
-
-THE IMMUTABILITY CONTRACT (the rules below implement it): a
-`String` never changes and no API ever exposes its backing mutably.
-Conversions copy on the way in (`string-from-bytes`) and on the way
-out (`string-to-bytes`); mutation exists only on plain `Bytes`.
-
-The functions here are the REFERENCE SEMANTICS for UTF-8. The
-runtime provides SIMD-accelerated implementations of the same rules
-(`cinch_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
-with this code; the acceleration is a representation detail behind
-the primitive operations chapter's justified bodies (D89).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">String</span></code></pre>
 
 The representation constructor: module-private (the immutability
 contract: no API hands out a string's backing). A `StrBuf` wraps a
@@ -543,15 +384,11 @@ never one a caller retains.
 
 ## `TakeSt`
 
-```cinch
-data TakeSt (s :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TakeSt</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 34
+[Source](/reference-sources/Data.Producer.cinch)
 
-```cinch
-TakeSt :: forall s . (Nat -> (s -> TakeSt s))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
 
 # Signatures and methods
 
@@ -559,29 +396,23 @@ TakeSt :: forall s . (Nat -> (s -> TakeSt s))
 
 ## `Add`
 
-```cinch
-signature Add a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Add</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 44
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4164642e2b"></a>
 
 ## `Add.+`
 
-```cinch
-+ :: forall a . using (dict :: Add a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">+</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 45
+
 
 <a id="class-42697473"></a>
 
 ## `Bits`
 
-```cinch
-signature Bits a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span></code></pre>
 
 Bit manipulation (primitive types specification section 4).
 
@@ -601,159 +432,127 @@ shift rule.
 
 ## `Bits.bit-and`
 
-```cinch
-bit-and :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 42
+
 
 <a id="method-426974732e6269742d6f72"></a>
 
 ## `Bits.bit-or`
 
-```cinch
-bit-or :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 43
+
 
 <a id="method-426974732e6269742d786f72"></a>
 
 ## `Bits.bit-xor`
 
-```cinch
-bit-xor :: forall a . using (dict :: Bits a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 44
+
 
 <a id="method-426974732e6269742d6e6f74"></a>
 
 ## `Bits.bit-not`
 
-```cinch
-bit-not :: forall a . using (dict :: Bits a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 45
+
 
 <a id="method-426974732e73686966742d6c656674"></a>
 
 ## `Bits.shift-left`
 
-```cinch
-shift-left :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 46
+
 
 <a id="method-426974732e73686966742d7269676874"></a>
 
 ## `Bits.shift-right`
 
-```cinch
-shift-right :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 47
+
 
 <a id="method-426974732e726f746174652d6c656674"></a>
 
 ## `Bits.rotate-left`
 
-```cinch
-rotate-left :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 48
+
 
 <a id="method-426974732e726f746174652d7269676874"></a>
 
 ## `Bits.rotate-right`
 
-```cinch
-rotate-right :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 49
+
 
 <a id="method-426974732e746573742d626974"></a>
 
 ## `Bits.test-bit`
 
-```cinch
-test-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">test-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 50
+
 
 <a id="method-426974732e7365742d626974"></a>
 
 ## `Bits.set-bit`
 
-```cinch
-set-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 51
+
 
 <a id="method-426974732e636c6561722d626974"></a>
 
 ## `Bits.clear-bit`
 
-```cinch
-clear-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clear-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 52
+
 
 <a id="method-426974732e636f6d706c656d656e742d626974"></a>
 
 ## `Bits.complement-bit`
 
-```cinch
-complement-bit :: forall a . using (dict :: Bits a) => (a -> (U32 -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complement-bit</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 53
+
 
 <a id="method-426974732e636f756e742d6f6e6573"></a>
 
 ## `Bits.count-ones`
 
-```cinch
-count-ones :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 54
+
 
 <a id="method-426974732e6c656164696e672d7a65726f73"></a>
 
 ## `Bits.leading-zeros`
 
-```cinch
-leading-zeros :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 55
+
 
 <a id="method-426974732e747261696c696e672d7a65726f73"></a>
 
 ## `Bits.trailing-zeros`
 
-```cinch
-trailing-zeros :: forall a . using (dict :: Bits a) => (a -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 56
+
 
 <a id="class-44697265637453657175656e63696e67"></a>
 
 ## `DirectSequencing`
 
-```cinch
-signature DirectSequencing 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">DirectSequencing</span> </code></pre>
 
 Sequencing providers for `do` notation (runtime capabilities,
 effects and sequencing specification, "Unqualified do through
@@ -768,129 +567,103 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `DirectSequencing.pure`
 
-```cinch
-pure :: forall a . using (dict :: DirectSequencing) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-44697265637453657175656e63696e672e62696e64"></a>
 
 ## `DirectSequencing.bind`
 
-```cinch
-bind :: forall a b ef . using (dict :: DirectSequencing) => (a -> ((a ->{ef} b) ->{ef} b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 <a id="class-446976"></a>
 
 ## `Div`
 
-```cinch
-signature Div a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Div</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 68
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4469762e2f"></a>
 
 ## `Div./`
 
-```cinch
-/ :: forall a . using (dict :: Div a) => (a -> (NonZero a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Div</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 69
+
 
 <a id="class-456e756d"></a>
 
 ## `Enum`
 
-```cinch
-signature Enum a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 30
+[Source](/reference-sources/Data.Enum.cinch)
 
 <a id="method-456e756d2e73756363"></a>
 
 ## `Enum.succ`
 
-```cinch
-succ :: forall a . using (dict :: Enum a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">succ</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 31
+
 
 <a id="method-456e756d2e70726564"></a>
 
 ## `Enum.pred`
 
-```cinch
-pred :: forall a . using (dict :: Enum a) => (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pred</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 32
+
 
 <a id="method-456e756d2e746f2d656e756d"></a>
 
 ## `Enum.to-enum`
 
-```cinch
-to-enum :: forall a . using (dict :: Enum a) => (Int -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-enum</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 33
+
 
 <a id="method-456e756d2e66726f6d2d656e756d"></a>
 
 ## `Enum.from-enum`
 
-```cinch
-from-enum :: forall a . using (dict :: Enum a) => (a -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-enum</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 34
+
 
 <a id="class-4571"></a>
 
 ## `Eq`
 
-```cinch
-signature Eq a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 15
+[Source](/reference-sources/Relation.Eq.cinch)
 
 <a id="method-45712e3d3d"></a>
 
 ## `Eq.==`
 
-```cinch
-== :: forall a . using (dict :: Eq a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">==</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 16
+
 
 <a id="method-45712e2f3d"></a>
 
 ## `Eq./=`
 
-```cinch
-/= :: forall a . using (dict :: Eq a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Eq.cinch) · line 17
+
 
 <a id="class-46726f6d4c697374"></a>
 
 ## `FromList`
 
-```cinch
-signature FromList c e
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></pre>
 
 Collection literals (surface grammar local amendments, section 10):
 `[a, b, c]` desugars to `from-list` at the expected type's `FromList
@@ -904,159 +677,127 @@ they default to `List` and `Map`. Instances opt in per container.
 
 ## `FromList.from-list`
 
-```cinch
-from-list :: forall c e . using (dict :: FromList c e) => (List e -> c)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">e</span> -&gt; <span class="tok-variable">c</span>)</code></pre>
 
-[Source](/reference-sources/Data.FromList.cinch) · line 20
+
 
 <a id="class-46726f6d4d6170"></a>
 
 ## `FromMap`
 
-```cinch
-signature FromMap m k v
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
-[Source](/reference-sources/Data.FromMap.cinch) · line 13
+[Source](/reference-sources/Data.FromMap.cinch)
 
 <a id="method-46726f6d4d61702e66726f6d2d6d6170"></a>
 
 ## `FromMap.from-map`
 
-```cinch
-from-map :: forall m k v . using (dict :: FromMap m k v) => (List (k, v) -> m)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) =&gt; (<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) -&gt; <span class="tok-variable">m</span>)</code></pre>
 
-[Source](/reference-sources/Data.FromMap.cinch) · line 14
+
 
 <a id="class-4d756c"></a>
 
 ## `Mul`
 
-```cinch
-signature Mul a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 50
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4d756c2e2a"></a>
 
 ## `Mul.*`
 
-```cinch
-* :: forall a . using (dict :: Mul a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">*</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 51
+
 
 <a id="class-4e6567"></a>
 
 ## `Neg`
 
-```cinch
-signature Neg a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 53
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-4e65672e6e6567617465"></a>
 
 ## `Neg.negate`
 
-```cinch
-negate :: forall a . using (dict :: Neg a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">negate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 54
+
 
 <a id="class-4f7074696f6e53657175656e63696e67"></a>
 
 ## `OptionSequencing`
 
-```cinch
-signature OptionSequencing 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">OptionSequencing</span> </code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 41
+[Source](/reference-sources/Effect.Sequencing.cinch)
 
 <a id="method-4f7074696f6e53657175656e63696e672e70757265"></a>
 
 ## `OptionSequencing.pure`
 
-```cinch
-pure :: forall a . using (dict :: OptionSequencing) => (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-4f7074696f6e53657175656e63696e672e62696e64"></a>
 
 ## `OptionSequencing.bind`
 
-```cinch
-bind :: forall a b ef . using (dict :: OptionSequencing) => (Option a -> ((a ->{ef} Option b) ->{ef} Option b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 <a id="class-4f7264"></a>
 
 ## `Ord`
 
-```cinch
-signature Ord a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 25
+[Source](/reference-sources/Relation.Ord.cinch)
 
 <a id="method-4f72642e3c"></a>
 
 ## `Ord.<`
 
-```cinch
-< :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 26
+
 
 <a id="method-4f72642e3c3d"></a>
 
 ## `Ord.<=`
 
-```cinch
-<= :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 27
+
 
 <a id="method-4f72642e3e"></a>
 
 ## `Ord.>`
 
-```cinch
-> :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 28
+
 
 <a id="method-4f72642e3e3d"></a>
 
 ## `Ord.>=`
 
-```cinch
->= :: forall a . using (dict :: Ord a) => (a -> (a -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 29
+
 
 <a id="class-52656d"></a>
 
 ## `Rem`
 
-```cinch
-signature Rem a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span></code></pre>
 
 Modulo and division for the mathematical types (decision D91).
 The divisor carries its evidence: a `NonZero a`, so no instance
@@ -1074,69 +815,55 @@ checked family only, per the primitive types specification.
 
 ## `Rem.%`
 
-```cinch
-% :: forall a . using (dict :: Rem a) => (a -> (NonZero a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">%</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 66
+
 
 <a id="class-526573756c7453657175656e63696e67"></a>
 
 ## `ResultSequencing`
 
-```cinch
-signature ResultSequencing e
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span></code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 37
+[Source](/reference-sources/Effect.Sequencing.cinch)
 
 <a id="method-526573756c7453657175656e63696e672e70757265"></a>
 
 ## `ResultSequencing.pure`
 
-```cinch
-pure :: forall e a . using (dict :: ResultSequencing e) => (a -> Result e a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 30
+
 
 <a id="method-526573756c7453657175656e63696e672e62696e64"></a>
 
 ## `ResultSequencing.bind`
 
-```cinch
-bind :: forall e a b ef . using (dict :: ResultSequencing e) => (Result e a -> ((a ->{ef} Result e b) ->{ef} Result e b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 31
+
 
 <a id="class-537562"></a>
 
 ## `Sub`
 
-```cinch
-signature Sub a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 47
+[Source](/reference-sources/Algebra.Arithmetic.cinch)
 
 <a id="method-5375622e2d"></a>
 
 ## `Sub.-`
 
-```cinch
-- :: forall a . using (dict :: Sub a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">-</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 48
+
 
 <a id="class-53756d50726f6f6673"></a>
 
 ## `SumProofs`
 
-```cinch
-signature SumProofs 
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">SumProofs</span> </code></pre>
 
 The instruction law (platform section 5): the scalar model and the
 SIMD intrinsic compute the same sum. Discharging it is a proof
@@ -1149,19 +876,15 @@ assumption in the artifact manifest (decision D55).
 
 ## `SumProofs.scalar-to-simd`
 
-```cinch
-scalar-to-simd :: forall t w n region . using (dict :: SumProofs) => ((vectors :: VecU32Target t w) -> ((xs :: Ref region Vec n U32) -> Eq (Data.Producer.scalar-sum-wrap32 xs) (Data.Target.simd-sum-wrap32 vectors xs)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> <span class="tok-variable">n</span> <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 90
+
 
 <a id="class-566563553332546172676574"></a>
 
 ## `VecU32Target`
 
-```cinch
-signature VecU32Target t w
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></pre>
 
 The u32-sum capability: its construction establishes that the sum
 intrinsics may execute in the current environment (platform proofs
@@ -1174,11 +897,9 @@ a generic proof consumes (section 6).
 
 ## `VecU32Target.positive-width`
 
-```cinch
-positive-width :: forall t w . using (dict :: VecU32Target t w) => (Unit -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">positive-width</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Target.cinch) · line 64
+
 
 # Values
 
@@ -2227,26 +1948,24 @@ This facade re-exports the following checked values. Follow a defining module fo
 
 # Operator fixities
 
-```cinch
-infixl 9 %
-infixl 6 &
-infixr 2 &&
-infixl 9 *
-infixl 8 +
-infixl 8 -
-infixl 9 /
-infix 3 /=
-infix 3 <
-infixl 7 <<
-infix 3 <=
-infix 3 ==
-infix 3 >
-infix 3 >=
-infixl 7 >>
-infixl 5 ^
-infixl 4 |
-infixr 1 ||
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">%</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">6</span> <span class="tok-operator">&amp;</span>
+<span class="tok-keyword">infixr</span> <span class="tok-number">2</span> <span class="tok-operator">&amp;&amp;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">*</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">+</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">-</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">/</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">/=</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&lt;&lt;</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;=</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">==</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;</span>
+<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;=</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&gt;&gt;</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">5</span> <span class="tok-operator">^</span>
+<span class="tok-keyword">infixl</span> <span class="tok-number">4</span> |
+<span class="tok-keyword">infixr</span> <span class="tok-number">1</span> <span class="tok-operator">||</span></code></pre>
 
 # Reference provenance
 

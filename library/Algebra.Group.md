@@ -43,21 +43,17 @@ here. `Nat` gets no `Group` instance: its subtraction truncates
 
 ## `Group`
 
-```cinch
-signature Group a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Group</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Group.cinch) · line 27
+[Source](/reference-sources/Algebra.Group.cinch)
 
 <a id="method-47726f75702e696e76657274"></a>
 
 ## `Group.invert`
 
-```cinch
-invert :: forall a . using (dict :: Group a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">invert</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Group</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Algebra.Group.cinch) · line 28
+
 
 # Instances
 
@@ -67,6 +63,13 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Algebra.Group.Group_Function` | `Group (t -> u)` | Implicit |
 | `Algebra.Group.Group_Pair` | `Group (t, u)` | Implicit |
+
+**`Algebra.Group.Group_Function`**: Structural: pointwise inversion of functions into a group. The
+method is eta-expanded (`invert f` at x is `invert (f x)`)
+because the bootstrap checks equations against every arrow of the
+substituted method type.
+**`Algebra.Group.Group_Pair`**: Structural: a pair inverts componentwise, each side under its own
+constraint.
 
 # Reference provenance
 

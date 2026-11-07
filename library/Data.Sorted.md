@@ -42,11 +42,9 @@ together with the deliberately non-preserving reverse-append).
 
 ## `Sorted`
 
-```cinch
-type Sorted  = refine (xs :: List Nat) with Ordered xs
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Sorted</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ordered</span> <span class="tok-variable">xs</span></code></pre>
 
-[Source](/reference-sources/Data.Sorted.cinch) · line 25
+[Source](/reference-sources/Data.Sorted.cinch)
 
 # Values
 
@@ -54,9 +52,7 @@ type Sorted  = refine (xs :: List Nat) with Ordered xs
 
 ## `merge`
 
-```cinch
-merge :: (List Nat -> (List Nat -> List Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">merge</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The sorted merge: the output of merging sorted lists is sorted
 (preservation), and merge is associative (`Semigroup.assoc`);
@@ -68,9 +64,7 @@ both checked sample-wise by the law layer.
 
 ## `to-sorted`
 
-```cinch
-to-sorted :: (List Nat -> Option Sorted)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-sorted</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Sorted</span>)</code></pre>
 
 The total constructor (refinement types design: the total API).
 

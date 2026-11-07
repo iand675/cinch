@@ -45,21 +45,17 @@ module order.
 
 ## `Hash`
 
-```cinch
-signature Hash a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Hash</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Data.Hash.cinch) · line 29
+[Source](/reference-sources/Data.Hash.cinch)
 
 <a id="method-486173682e68617368"></a>
 
 ## `Hash.hash`
 
-```cinch
-hash :: forall a . using (dict :: Hash a) => (a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Hash.cinch) · line 30
+
 
 # Reference provenance
 

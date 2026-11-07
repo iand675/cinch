@@ -35,23 +35,17 @@ document is the payload, and an empty document is not a config.
 
 ## `Config`
 
-```cinch
-data Config
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Config</span></code></pre>
 
-[Source](/reference-sources/Effect.Io.cinch) · line 33
+[Source](/reference-sources/Effect.Io.cinch)
 
-```cinch
-Config :: (Bytes -> Config)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Config</span>)</code></pre>
 
 <a id="type-436f6e6669674572726f72"></a>
 
 ## `ConfigError`
 
-```cinch
-data ConfigError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ConfigError</span></code></pre>
 
 The worked vocabulary of the sequencing chapter's `loadConfig`
 sketch (runtime capabilities, effects and sequencing
@@ -65,27 +59,19 @@ document is not a config.
 
 [Source](/reference-sources/Effect.Io.cinch) · line 30
 
-```cinch
-BadConfig :: ConfigError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">ConfigError</span></code></pre>
 
 <a id="type-50617468"></a>
 
 ## `Path`
 
-```cinch
-data Path
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Path</span></code></pre>
 
 The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-```cinch
-Path :: (String -> Path)
-```
-
-The path text (POSIX; UTF-8 at the boundary).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
 
 # Values
 
@@ -93,21 +79,17 @@ The path text (POSIX; UTF-8 at the boundary).
 
 ## `parse-config`
 
-```cinch
-parse-config :: (Bytes -> Result ConfigError Config)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Config</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Io.cinch) · line 41
+[Source](/reference-sources/Effect.Io.cinch)
 
 <a id="value-726561642d636f6e6669672d6279746573"></a>
 
 ## `read-config-bytes`
 
-```cinch
-read-config-bytes :: forall r . using (io :: Io r) => (Path ->{IO r} Result ConfigError Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">read-config-bytes</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Io.cinch) · line 36
+[Source](/reference-sources/Effect.Io.cinch)
 
 # Reference provenance
 

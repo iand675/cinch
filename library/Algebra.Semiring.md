@@ -51,51 +51,41 @@ Data.Int, beside their other instances.
 
 ## `Semiring`
 
-```cinch
-signature Semiring a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Semiring.cinch) · line 35
+[Source](/reference-sources/Algebra.Semiring.cinch)
 
 <a id="method-53656d6972696e672e7a65726f"></a>
 
 ## `Semiring.zero`
 
-```cinch
-zero :: forall a . using (dict :: Semiring a) => a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zero</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Semiring.cinch) · line 36
+
 
 <a id="method-53656d6972696e672e6f6e65"></a>
 
 ## `Semiring.one`
 
-```cinch
-one :: forall a . using (dict :: Semiring a) => a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">one</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Algebra.Semiring.cinch) · line 37
+
 
 <a id="method-53656d6972696e672e616464"></a>
 
 ## `Semiring.add`
 
-```cinch
-add :: forall a . using (dict :: Semiring a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Semiring.cinch) · line 38
+
 
 <a id="method-53656d6972696e672e6d756c"></a>
 
 ## `Semiring.mul`
 
-```cinch
-mul :: forall a . using (dict :: Semiring a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Algebra.Semiring.cinch) · line 39
+
 
 # Reference provenance
 

@@ -54,15 +54,11 @@ defined here.
 
 ## `Const`
 
-```cinch
-data Const (a :: Type) (b :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Const</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Const.cinch) · line 39
+[Source](/reference-sources/Data.Const.cinch)
 
-```cinch
-Const :: forall a b . (a -> Const a b)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>)</code></pre>
 
 # Values
 
@@ -70,9 +66,7 @@ Const :: forall a b . (a -> Const a b)
 
 ## `get-const`
 
-```cinch
-get-const :: forall a b . (Const a b -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 Elimination: the carried value.
 
@@ -82,9 +76,7 @@ Elimination: the carried value.
 
 ## `map-const`
 
-```cinch
-map-const :: forall m a b . ((a -> b) -> (Const m a -> Const m b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">b</span>))</code></pre>
 
 Functor body: the carried value is unchanged and the function is
 ignored (the constant functor).
@@ -99,6 +91,16 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.Const.Applicative_Const` | `Applicative (Const m)` | Implicit |
 | `Data.Const.Functor_Const` | `Functor (Const m)` | Implicit |
+
+**`Data.Const.Applicative_Const`**: The applicative (D157's waiter is discharged at the prelude
+split): `pure` fabricates the `Monoid` payload and `<*>` combines
+payloads under `Semigroup`. The instance states both constraints
+because a class constraint entails nothing (the standing
+no-superbundle rule). The combination is written in prefix form
+like the other instance bodies (decision D2's per-module fixity
+style keeps `<>` out of this module's parse).
+**`Data.Const.Functor_Const`**: The class instance (instances live with their type), defined
+through the body above.
 
 # Reference provenance
 

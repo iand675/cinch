@@ -43,51 +43,41 @@ range stops where its codes leave the type.
 
 ## `Enum`
 
-```cinch
-signature Enum a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 30
+[Source](/reference-sources/Data.Enum.cinch)
 
 <a id="method-456e756d2e73756363"></a>
 
 ## `Enum.succ`
 
-```cinch
-succ :: forall a . using (dict :: Enum a) => (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">succ</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 31
+
 
 <a id="method-456e756d2e70726564"></a>
 
 ## `Enum.pred`
 
-```cinch
-pred :: forall a . using (dict :: Enum a) => (a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pred</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 32
+
 
 <a id="method-456e756d2e746f2d656e756d"></a>
 
 ## `Enum.to-enum`
 
-```cinch
-to-enum :: forall a . using (dict :: Enum a) => (Int -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-enum</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 33
+
 
 <a id="method-456e756d2e66726f6d2d656e756d"></a>
 
 ## `Enum.from-enum`
 
-```cinch
-from-enum :: forall a . using (dict :: Enum a) => (a -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-enum</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.Enum.cinch) · line 34
+
 
 # Values
 
@@ -95,9 +85,7 @@ from-enum :: forall a . using (dict :: Enum a) => (a -> Int)
 
 ## `enum-from-then-to`
 
-```cinch
-enum-from-then-to :: forall a . using (e :: Enum a) => (a -> (a -> (a -> List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">enum-from-then-to</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 `[lo, next .. hi]`'s builder: the codes from `lo` toward `hi`
 inclusive, step `next - lo`.
@@ -108,9 +96,7 @@ inclusive, step `next - lo`.
 
 ## `enum-from-to`
 
-```cinch
-enum-from-to :: forall a . using (e :: Enum a) => (a -> (a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">enum-from-to</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 `[lo..hi]`'s builder: the codes from `lo` to `hi` inclusive, step
 one.

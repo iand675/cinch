@@ -132,9 +132,11 @@ collecting in the middle. Those arrays become one declarative file.
   (design/stdlib-and-bootstrap.md fixes canonical JSON as the manifest
   format, and `.cinchif` is the precedent), `schema: 1`.
 - Fields: `name`, `version`, `modules[]` (each `name`, `path`,
-  `embedded`, `imports`, and `facade` on the re-export facade), and
-  `order` (the total check order). The facade's INDEX in `order` is what
-  splits the early phase from the late one; there is no second list.
+  `embedded`, and `facade` on the re-export facade), and `order` (the
+  total check order). Imports are NOT a manifest field: the compiler
+  reads them from source, so a manifest copy cannot drift. The facade's
+  INDEX in `order` is what splits the early phase from the late one;
+  there is no second list.
 - The Rust side keeps the sources (`include_str!`, so the family stays
   embedded and hash-stable per D161-D174) in an UNORDERED path-to-source
   table, and parses the manifest for everything else. A test asserts the

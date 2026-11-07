@@ -50,11 +50,9 @@ data type it replaces (decision D151).
 
 ## `NonEmpty`
 
-```cinch
-type NonEmpty (a :: Type) = refine (xs :: List a) with NotNull xs
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonEmpty</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">List</span> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NotNull</span> <span class="tok-variable">xs</span></code></pre>
 
-[Source](/reference-sources/Data.NonEmpty.cinch) · line 36
+[Source](/reference-sources/Data.NonEmpty.cinch)
 
 # Values
 
@@ -62,9 +60,7 @@ type NonEmpty (a :: Type) = refine (xs :: List a) with NotNull xs
 
 ## `non-empty`
 
-```cinch
-non-empty :: forall a . (List a -> Option (NonEmpty a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonEmpty</span> <span class="tok-variable">a</span>))</code></pre>
 
 The total constructor (refinement types design: the total API):
 the runtime decision lives in the `Dec`/`decide` world and its
@@ -81,6 +77,14 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.NonEmpty.Foldable_NonEmpty` | `Foldable NonEmpty` | Implicit |
 | `Data.NonEmpty.Semigroup_NonEmpty` | `Semigroup (NonEmpty x)` | Implicit |
 | `Data.NonEmpty.Traversable_NonEmpty` | `Traversable NonEmpty` | Implicit |
+
+**`Data.NonEmpty.Foldable_NonEmpty`**: The container's own folds (the transfer rule): they read the
+refined value as the list it is.
+**`Data.NonEmpty.Semigroup_NonEmpty`**: The free semigroup: the container's own `<>` (list append),
+preserved (append of non-empties is non-empty), associative by
+`Semigroup.assoc`; both checked sample-wise in the law layer.
+**`Data.NonEmpty.Traversable_NonEmpty`**: The container's own traversal: `traverse` on the list it is,
+yielding the refined shape (the representation is the list).
 
 # Reference provenance
 

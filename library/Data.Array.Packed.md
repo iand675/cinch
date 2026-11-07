@@ -31,131 +31,105 @@ This module exports no type declarations.
 
 ## `array-from-chars`
 
-```cinch
-array-from-chars :: (List Char -> Array Char)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-chars</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Char</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 18
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d66333273"></a>
 
 ## `array-from-f32s`
 
-```cinch
-array-from-f32s :: (List F32 -> Array F32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">F32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 16
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d66363473"></a>
 
 ## `array-from-f64s`
 
-```cinch
-array-from-f64s :: (List F64 -> Array F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 17
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d69313673"></a>
 
 ## `array-from-i16s`
 
-```cinch
-array-from-i16s :: (List I16 -> Array I16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i16s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 9
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d69333273"></a>
 
 ## `array-from-i32s`
 
-```cinch
-array-from-i32s :: (List I32 -> Array I32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 10
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d69363473"></a>
 
 ## `array-from-i64s`
 
-```cinch
-array-from-i64s :: (List I64 -> Array I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 11
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d693873"></a>
 
 ## `array-from-i8s`
 
-```cinch
-array-from-i8s :: (List I8 -> Array I8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 8
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d6973697a6573"></a>
 
 ## `array-from-isizes`
 
-```cinch
-array-from-isizes :: (List Isize -> Array Isize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-isizes</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Isize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 20
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d75313673"></a>
 
 ## `array-from-u16s`
 
-```cinch
-array-from-u16s :: (List U16 -> Array U16)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u16s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U16</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 13
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d75333273"></a>
 
 ## `array-from-u32s`
 
-```cinch
-array-from-u32s :: (List U32 -> Array U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 14
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d75363473"></a>
 
 ## `array-from-u64s`
 
-```cinch
-array-from-u64s :: (List U64 -> Array U64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 15
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d753873"></a>
 
 ## `array-from-u8s`
 
-```cinch
-array-from-u8s :: (List U8 -> Array U8)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U8</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 12
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 <a id="value-61727261792d66726f6d2d7573697a6573"></a>
 
 ## `array-from-usizes`
 
-```cinch
-array-from-usizes :: (List Usize -> Array Usize)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-usizes</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Usize</span>)</code></pre>
 
-[Source](/reference-sources/Data.Array.Packed.cinch) · line 19
+[Source](/reference-sources/Data.Array.Packed.cinch)
 
 # Reference provenance
 

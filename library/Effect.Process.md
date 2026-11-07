@@ -99,91 +99,58 @@ system's vocabulary.
 
 ## `Child`
 
-```cinch
-data Child
-```
-
-The live child (the piped ABI)
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Child</span></code></pre>
 
 A live child with three stdio pipes of its own.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 310
 
-```cinch
-Child :: (I64 -> Child)
-```
-
-The live child (the piped ABI)
-
-A live child with three stdio pipes of its own.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Child</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Child</span>)</code></pre>
 
 <a id="type-436f6d6d616e64"></a>
 
 ## `Command`
 
-```cinch
-data Command
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Command</span></code></pre>
 
 A program with its arguments and its environment additions
 (`KEY=VALUE` pairs, added to this process's own environment).
 
 [Source](/reference-sources/Effect.Process.cinch) · line 107
 
-```cinch
-Command :: (Path -> (List String -> (List (String, String) -> Command)))
-```
-
-A program with its arguments and its environment additions
-(`KEY=VALUE` pairs, added to this process's own environment).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Command</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Command</span>)))</code></pre>
 
 <a id="type-50726f636573734572726f72"></a>
 
 ## `ProcessError`
 
-```cinch
-data ProcessError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ProcessError</span></code></pre>
 
 What went wrong before the child's own exit code could exist.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 99
 
-```cinch
-ProcessNotFound :: ProcessError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessNotFound</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
 
-```cinch
-ProcessPermissionDenied :: ProcessError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessPermissionDenied</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
 
-```cinch
-ProcessInvalidArgument :: ProcessError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessInvalidArgument</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
 
-```cinch
-ProcessIoError :: ProcessError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessIoError</span> :: <span class="tok-constructor">ProcessError</span></code></pre>
 
 <a id="type-53747265616d"></a>
 
 ## `Stream`
 
-```cinch
-data Stream
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Stream</span></code></pre>
 
 Which of the child's two output pipes a read takes.
 
 [Source](/reference-sources/Effect.Process.cinch) · line 314
 
-```cinch
-Stdout :: Stream
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stdout</span> :: <span class="tok-constructor">Stream</span></code></pre>
 
-```cinch
-Stderr :: Stream
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stderr</span> :: <span class="tok-constructor">Stream</span></code></pre>
 
 # Values
 
@@ -191,9 +158,7 @@ Stderr :: Stream
 
 ## `child-close`
 
-```cinch
-child-close :: forall r . using (io :: Io r) => (Child ->{IO r} Result ProcessError Unit)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-close</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Close the child: a child no wait reaped is killed and reaped
 first, and the handle is gone afterwards (a second close is the
@@ -205,9 +170,7 @@ named error).
 
 ## `child-close-stdin`
 
-```cinch
-child-close-stdin :: forall r . using (io :: Io r) => (Child ->{IO r} Result ProcessError Unit)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-close-stdin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Close the child's stdin, which is how it sees the end of its
 input: the unit, or the named error.
@@ -218,9 +181,7 @@ input: the unit, or the named error.
 
 ## `child-handle`
 
-```cinch
-child-handle :: (Child -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-handle</span> :: (<span class="tok-constructor">Child</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The child's handle word, for the layers above this one.
 
@@ -230,9 +191,7 @@ The child's handle word, for the layers above this one.
 
 ## `child-read`
 
-```cinch
-child-read :: forall r . using (io :: Io r) => (Child -> (Stream -> (Nat ->{IO r} Result ProcessError Bytes)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Child</span> -&gt; (<span class="tok-constructor">Stream</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
 
 Read up to `max` bytes of one of the child's output pipes: `Ok` of
 what one platform call produced (empty at that pipe's end), or the
@@ -244,9 +203,7 @@ named error.
 
 ## `child-wait`
 
-```cinch
-child-wait :: forall r . using (io :: Io r) => (Child ->{IO r} Result ProcessError Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-wait</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 Wait for the child: its exit code (128 + the signal number for a
 signal death, the shell convention), or the named error.
@@ -257,9 +214,7 @@ signal death, the shell convention), or the named error.
 
 ## `child-write-stdin`
 
-```cinch
-child-write-stdin :: forall r . using (io :: Io r) => (Child -> (Bytes ->{IO r} Result ProcessError Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-write-stdin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Child</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Write `bs` to the child's stdin: the byte count, or the named
 error.
@@ -270,9 +225,7 @@ error.
 
 ## `command`
 
-```cinch
-command :: (Path -> (List String -> Command))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">command</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Command</span>))</code></pre>
 
 A command without environment additions.
 
@@ -282,9 +235,7 @@ A command without environment additions.
 
 ## `command-with-env`
 
-```cinch
-command-with-env :: (Path -> (List String -> (List (String, String) -> Command)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">command-with-env</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Command</span>)))</code></pre>
 
 A command with environment additions.
 
@@ -294,9 +245,7 @@ A command with environment additions.
 
 ## `process-args`
 
-```cinch
-process-args :: forall r . using (io :: Io r) => (Unit ->{IO r} Result ProcessError (List String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-args</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
 
 The arguments this process was invoked with, the program name
 (word 0) excluded, decoded as text. An empty command line is
@@ -316,9 +265,7 @@ r} Int`'s shape): `process-args ()`.
 
 ## `process-run`
 
-```cinch
-process-run :: forall r . using (io :: Io r) => (Command -> (String ->{IO r, Diverge} Result ProcessError (Nat, Bytes)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-run</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Command</span> -&gt; (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bytes</span>)))</code></pre>
 
 Run `cmd` with `input` on its stdin: the child's exit code and
 its captured stdout (raw bytes), or the named error.
@@ -329,9 +276,7 @@ its captured stdout (raw bytes), or the named error.
 
 ## `process-spawn`
 
-```cinch
-process-spawn :: forall r . using (io :: Io r) => (Option Path -> (Command ->{IO r} Result ProcessError Child))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-spawn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Command</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Child</span>))</code></pre>
 
 Start `cmd` with its three stdio pipes, running in `dir` (`None`
 inherits this process's own directory): the live child, or the

@@ -82,9 +82,7 @@ words back is that conversion family, so the home is Text.
 
 ## `ShellwordsError`
 
-```cinch
-data ShellwordsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ShellwordsError</span></code></pre>
 
 Named errors: the two unterminated-quote shapes Ruby reports as one
 `Unmatched quote`; split here so a caller can tell which quote was
@@ -92,13 +90,9 @@ left open.
 
 [Source](/reference-sources/Text.Shellwords.cinch) · line 80
 
-```cinch
-UnterminatedSingleQuote :: ShellwordsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedSingleQuote</span> :: <span class="tok-constructor">ShellwordsError</span></code></pre>
 
-```cinch
-UnterminatedDoubleQuote :: ShellwordsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedDoubleQuote</span> :: <span class="tok-constructor">ShellwordsError</span></code></pre>
 
 # Values
 
@@ -106,29 +100,23 @@ UnterminatedDoubleQuote :: ShellwordsError
 
 ## `render-shellwords-error`
 
-```cinch
-render-shellwords-error :: (ShellwordsError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-shellwords-error</span> :: (<span class="tok-constructor">ShellwordsError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Shellwords.cinch) · line 84
+[Source](/reference-sources/Text.Shellwords.cinch)
 
 <a id="value-7368656c6c776f7264732d657363617065"></a>
 
 ## `shellwords-escape`
 
-```cinch
-shellwords-escape :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-escape</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Shellwords.cinch) · line 193
+[Source](/reference-sources/Text.Shellwords.cinch)
 
 <a id="value-7368656c6c776f7264732d6a6f696e"></a>
 
 ## `shellwords-join`
 
-```cinch
-shellwords-join :: (List String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-join</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Escape every element and separate with one space (Ruby's
 `shelljoin`).
@@ -139,11 +127,7 @@ Escape every element and separate with one space (Ruby's
 
 ## `shellwords-split`
 
-```cinch
-shellwords-split :: (String -> Result ShellwordsError (List String))
-```
-
-Splitting (Ruby Shellwords.split).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-split</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ShellwordsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
 
 `acc` holds the words emitted so far in reverse; `word` holds the
 current word's scalars in reverse; `started` records whether a word

@@ -83,9 +83,7 @@ Named refusals (boundaries this module deliberately does not cross):
 
 ## `StringIo`
 
-```cinch
-data StringIo
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">StringIo</span></code></pre>
 
 The buffer and the cursor. The representation is module-private: the
 constructor is deliberately NOT the type's name (`IoBuf`, not
@@ -102,18 +100,14 @@ a caller cannot put the cursor outside it.
 
 ## `StringIoError`
 
-```cinch
-data StringIoError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">StringIoError</span></code></pre>
 
 The named seek refusal: the requested target and the length it
 exceeds.
 
 [Source](/reference-sources/Data.StringIo.cinch) · line 84
 
-```cinch
-SeekOutOfRange :: (Nat -> (Nat -> StringIoError))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SeekOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">StringIoError</span>))</code></pre>
 
 # Values
 
@@ -121,9 +115,7 @@ SeekOutOfRange :: (Nat -> (Nat -> StringIoError))
 
 ## `string-io-eof`
 
-```cinch
-string-io-eof :: (StringIo -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-eof</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 At or past the last byte: a read returns nothing and the cursor
 does not move.
@@ -134,9 +126,7 @@ does not move.
 
 ## `string-io-from-bytes`
 
-```cinch
-string-io-from-bytes :: (Bytes -> StringIo)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">StringIo</span>)</code></pre>
 
 The conversion in copies (the wrap/copy discipline Data.String
 states for its backing): the caller keeps its mutable buffer and a
@@ -149,39 +139,31 @@ starts at the beginning.
 
 ## `string-io-len`
 
-```cinch
-string-io-len :: (StringIo -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-len</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 124
+[Source](/reference-sources/Data.StringIo.cinch)
 
 <a id="value-737472696e672d696f2d6e6577"></a>
 
 ## `string-io-new`
 
-```cinch
-string-io-new :: StringIo
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-new</span> :: <span class="tok-constructor">StringIo</span></code></pre>
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 103
+[Source](/reference-sources/Data.StringIo.cinch)
 
 <a id="value-737472696e672d696f2d706f73"></a>
 
 ## `string-io-pos`
 
-```cinch
-string-io-pos :: (StringIo -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-pos</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 127
+[Source](/reference-sources/Data.StringIo.cinch)
 
 <a id="value-737472696e672d696f2d72656164"></a>
 
 ## `string-io-read`
 
-```cinch
-string-io-read :: (StringIo -> (Nat -> (Bytes, StringIo)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">StringIo</span>)))</code></pre>
 
 Read up to n bytes from the cursor, advancing by the number
 consumed. At or past the end the result is the empty buffer and the
@@ -194,9 +176,7 @@ Ruby's nil is not spelled here).
 
 ## `string-io-read-line`
 
-```cinch
-string-io-read-line :: (StringIo -> (Bytes, StringIo))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read-line</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">StringIo</span>))</code></pre>
 
 Read through the next LF (0x0A), inclusive; the last line without a
 terminator yields the rest of the buffer.
@@ -207,9 +187,7 @@ terminator yields the rest of the buffer.
 
 ## `string-io-rewind`
 
-```cinch
-string-io-rewind :: (StringIo -> StringIo)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-rewind</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">StringIo</span>)</code></pre>
 
 The cursor to the start: what was read is read again.
 
@@ -219,9 +197,7 @@ The cursor to the start: what was read is read again.
 
 ## `string-io-seek`
 
-```cinch
-string-io-seek :: (StringIo -> (Nat -> Result StringIoError StringIo))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-seek</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">StringIoError</span> <span class="tok-constructor">StringIo</span>))</code></pre>
 
 The cursor to an absolute byte offset. A target past the buffer
 length is the named refusal: this module never pads, so the cursor
@@ -235,9 +211,7 @@ cursor is a `Nat`).
 
 ## `string-io-to-bytes`
 
-```cinch
-string-io-to-bytes :: (StringIo -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-to-bytes</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The conversion out copies too, for the same reason.
 
@@ -247,9 +221,7 @@ The conversion out copies too, for the same reason.
 
 ## `string-io-truncate`
 
-```cinch
-string-io-truncate :: (StringIo -> (Nat -> StringIo))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-truncate</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">StringIo</span>))</code></pre>
 
 Shrink the buffer to at most n bytes (a larger n is a no-op: this
 never extends, matching Ruby's `truncate`). The cursor is clamped
@@ -261,9 +233,7 @@ into the new length, which keeps 0 <= pos <= length.
 
 ## `string-io-write`
 
-```cinch
-string-io-write :: (StringIo -> (Bytes -> StringIo))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-write</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">StringIo</span>))</code></pre>
 
 Write at the cursor: `bs` overwrites the bytes already there and
 extends the buffer when it runs past the end; the bytes after the

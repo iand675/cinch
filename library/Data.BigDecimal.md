@@ -90,9 +90,7 @@ numeric towers beyond `Semiring` as deliberately out).
 
 ## `BigDecimal`
 
-```cinch
-data BigDecimal
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BigDecimal</span></code></pre>
 
 The representation: unscaled times ten to the exponent. Not
 exported (the canonical-form invariant above is the reason; D143
@@ -100,21 +98,13 @@ is the surface rule that makes the omission bind).
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 90
 
-```cinch
-BigDecimal :: (Int -> (Int -> BigDecimal))
-```
-
-The representation: unscaled times ten to the exponent. Not
-exported (the canonical-form invariant above is the reason; D143
-is the surface rule that makes the omission bind).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BigDecimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 <a id="type-426967446563696d616c4572726f72"></a>
 
 ## `BigDecimalError`
 
-```cinch
-data BigDecimalError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BigDecimalError</span></code></pre>
 
 The literal reader's only error. It carries the offending text so
 the caller's diagnostic can name it; there is no representation
@@ -122,17 +112,13 @@ for "unparsed" that a value could be confused with.
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 109
 
-```cinch
-MalformedLiteral :: (String -> BigDecimalError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">BigDecimalError</span>)</code></pre>
 
 <a id="type-526f756e64696e67"></a>
 
 ## `Rounding`
 
-```cinch
-data Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rounding</span></code></pre>
 
 The rounding modes (Ruby's `ROUND_*` constants, spelled as
 constructors per the house naming): away from zero, toward zero,
@@ -141,33 +127,19 @@ infinity, toward negative infinity.
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 97
 
-```cinch
-RoundUp :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundUp</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundDown :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundDown</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundHalfUp :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfUp</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundHalfDown :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfDown</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundHalfEven :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfEven</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundCeiling :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundCeiling</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
-```cinch
-RoundFloor :: Rounding
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundFloor</span> :: <span class="tok-constructor">Rounding</span></code></pre>
 
 # Values
 
@@ -175,19 +147,15 @@ RoundFloor :: Rounding
 
 ## `abs`
 
-```cinch
-abs :: (BigDecimal -> BigDecimal)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 183
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 <a id="value-616464"></a>
 
 ## `add`
 
-```cinch
-add :: (BigDecimal -> (BigDecimal -> BigDecimal))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Exact addition: both operands are read at the smaller exponent
 (the scaling is exact, a power of ten times a bignum), so every
@@ -199,11 +167,7 @@ digit of either operand survives.
 
 ## `big-decimal`
 
-```cinch
-big-decimal :: (Int -> (Int -> BigDecimal))
-```
-
-Construction and observation.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">big-decimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 The normalising smart constructor: the trailing zeros of the
 unscaled part move into the exponent, so `big-decimal 10 (-2)`,
@@ -216,9 +180,7 @@ is `BigDecimal 0 0` whatever exponent it arrived with.
 
 ## `cmp`
 
-```cinch
-cmp :: (BigDecimal -> (BigDecimal -> Ordering))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
 
 Comparison (the order `sub` induces).
 
@@ -228,11 +190,7 @@ Comparison (the order `sub` induces).
 
 ## `div`
 
-```cinch
-div :: (Nat -> (Rounding -> (BigDecimal -> (BigDecimal -> Option BigDecimal))))
-```
-
-Division and rounding (the rounding operations).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">BigDecimal</span>))))</code></pre>
 
 `p` fractional digits, rounded by `mode`, then normalised.
 
@@ -252,29 +210,23 @@ to spell.
 
 ## `exponent`
 
-```cinch
-exponent :: (BigDecimal -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exponent</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 138
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 <a id="value-66726f6d2d696e74"></a>
 
 ## `from-int`
 
-```cinch
-from-int :: (Int -> BigDecimal)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 131
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 <a id="value-66726f6d2d737472696e67"></a>
 
 ## `from-string`
 
-```cinch
-from-string :: (String -> Result BigDecimalError BigDecimal)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">BigDecimalError</span> <span class="tok-constructor">BigDecimal</span>)</code></pre>
 
 The literal reader: `[+-]? ( digits ( "." digits )? | "." digits )`.
 Every other shape (empty, a lone sign, a lone point, a trailing
@@ -287,9 +239,7 @@ carrying the text.
 
 ## `mul`
 
-```cinch
-mul :: (BigDecimal -> (BigDecimal -> BigDecimal))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Exact multiplication: the unscaled parts multiply and the
 exponents add, which is the representation's own product rule.
@@ -300,29 +250,23 @@ exponents add, which is the representation's own product rule.
 
 ## `neg`
 
-```cinch
-neg :: (BigDecimal -> BigDecimal)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 179
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 <a id="value-72656e6465722d6269672d646563696d616c2d6572726f72"></a>
 
 ## `render-big-decimal-error`
 
-```cinch
-render-big-decimal-error :: (BigDecimalError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-big-decimal-error</span> :: (<span class="tok-constructor">BigDecimalError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 112
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 <a id="value-726f756e64"></a>
 
 ## `round`
 
-```cinch
-round :: (Nat -> (Rounding -> (BigDecimal -> BigDecimal)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)))</code></pre>
 
 Rounding a value to `p` fractional digits: the division by one at
 the same precision, written without a divisor test. With `k`
@@ -337,9 +281,7 @@ stands between `round` and its result.
 
 ## `sub`
 
-```cinch
-sub :: (BigDecimal -> (BigDecimal -> BigDecimal))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Subtraction is addition of the negation: the alignment above is
 the only place exponents are reconciled, and a negated value is
@@ -351,9 +293,7 @@ still canonical, so the exactness argument is the same one.
 
 ## `to-f64`
 
-```cinch
-to-f64 :: (BigDecimal -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The one conversion to a binary float: the exact decimal text,
 read by the runtime's correctly-rounded decimal parser. Nothing
@@ -365,11 +305,7 @@ else in this module sees an `F64`.
 
 ## `to-string`
 
-```cinch
-to-string :: (BigDecimal -> String)
-```
-
-Text.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The plain decimal: no exponent notation, sign first, a leading
 `0.` when the fraction is wider than the digit run.
@@ -380,11 +316,9 @@ The plain decimal: no exponent notation, sign first, a leading
 
 ## `unscaled`
 
-```cinch
-unscaled :: (BigDecimal -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unscaled</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 134
+[Source](/reference-sources/Data.BigDecimal.cinch)
 
 # Instances
 
@@ -394,6 +328,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.BigDecimal.Eq_BigDecimal` | `Eq BigDecimal` | Implicit |
 | `Data.BigDecimal.Ord_BigDecimal` | `Ord BigDecimal` | Implicit |
+
+**`Data.BigDecimal.Eq_BigDecimal`**: The class spellings of `cmp`: canonical form makes the recursive
+field comparison agree, and routing both through `cmp` is what
+keeps `Eq`/`Ord` and the function surface one relation rather than
+two that could drift.
 
 # Reference provenance
 

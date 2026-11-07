@@ -70,9 +70,7 @@ system's vocabulary, and timing is a runtime capability in the
 
 ## `BenchmarkReport`
 
-```cinch
-data BenchmarkReport
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BenchmarkReport</span></code></pre>
 
 One measurement: the label the caller supplied and the elapsed
 monotonic nanoseconds around the action. The constructor is the
@@ -81,14 +79,7 @@ always one this module read.
 
 [Source](/reference-sources/Effect.Benchmark.cinch) · line 62
 
-```cinch
-BenchmarkReport :: (String -> (Nat -> BenchmarkReport))
-```
-
-One measurement: the label the caller supplied and the elapsed
-monotonic nanoseconds around the action. The constructor is the
-smart surface's only source of reports, so a report's interval is
-always one this module read.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">BenchmarkReport</span>))</code></pre>
 
 # Values
 
@@ -96,29 +87,23 @@ always one this module read.
 
 ## `benchmark-elapsed-ns`
 
-```cinch
-benchmark-elapsed-ns :: (BenchmarkReport -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-elapsed-ns</span> :: (<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 69
+[Source](/reference-sources/Effect.Benchmark.cinch)
 
 <a id="value-62656e63686d61726b2d6c6162656c"></a>
 
 ## `benchmark-label`
 
-```cinch
-benchmark-label :: (BenchmarkReport -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-label</span> :: (<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 65
+[Source](/reference-sources/Effect.Benchmark.cinch)
 
 <a id="value-62656e63686d61726b2d6d656173757265"></a>
 
 ## `benchmark-measure`
 
-```cinch
-benchmark-measure :: forall a r . using (io :: Io r) => (String -> ((Unit ->{IO r} a) ->{IO r} (BenchmarkReport, a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-measure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">BenchmarkReport</span>, <span class="tok-variable">a</span>)))</code></pre>
 
 Run `work` and report the monotonic span around it, together with
 `work`'s own value so a measurement never discards the result. The
@@ -132,9 +117,7 @@ span clamps at zero (a duration is never negative).
 
 ## `benchmark-realtime`
 
-```cinch
-benchmark-realtime :: forall a r . using (io :: Io r) => ((Unit ->{IO r} a) ->{IO r} Duration)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-realtime</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Duration</span>)</code></pre>
 
 The same interval as `benchmark-measure`, truncated to whole
 milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's
@@ -147,9 +130,7 @@ value is deliberately dropped, so callers wanting it use
 
 ## `benchmark-table`
 
-```cinch
-benchmark-table :: (List BenchmarkReport -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-table</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The table: a header, one row per report in input order, and the
 total row. Labels are the caller's, printed verbatim. The rows are

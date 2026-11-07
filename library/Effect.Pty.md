@@ -133,9 +133,7 @@ system's vocabulary.
 
 ## `Pty`
 
-```cinch
-data Pty
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Pty</span></code></pre>
 
 A live pseudo-terminal, as the runtime's handle word. The handle
 owns the master end and the child; the slave end belongs to the
@@ -146,44 +144,26 @@ it only ever goes back to the runtime.
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 143
 
-```cinch
-Pty :: (I64 -> Pty)
-```
-
-A live pseudo-terminal, as the runtime's handle word. The handle
-owns the master end and the child; the slave end belongs to the
-child once a spawn consumed it. The operations below take it at
-`%1`, so a live terminal is a value threaded by hand rather than a
-reference copied around. The handle stays the runtime's `I64` word:
-it only ever goes back to the runtime.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pty</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Pty</span>)</code></pre>
 
 <a id="type-507479436f6d6d616e64"></a>
 
 ## `PtyCommand`
 
-```cinch
-data PtyCommand
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PtyCommand</span></code></pre>
 
 A program with its arguments and its environment additions
 (`KEY=VALUE` pairs, added to this process's own environment).
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 159
 
-```cinch
-PtyCommand :: (Path -> (List String -> (List (String, String) -> PtyCommand)))
-```
-
-A program with its arguments and its environment additions
-(`KEY=VALUE` pairs, added to this process's own environment).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyCommand</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">PtyCommand</span>)))</code></pre>
 
 <a id="type-5074794572726f72"></a>
 
 ## `PtyError`
 
-```cinch
-data PtyError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PtyError</span></code></pre>
 
 What went wrong before the child's own exit code could exist. The
 constructors correspond one for one to the platform layer's shared
@@ -191,21 +171,13 @@ codes.
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 131
 
-```cinch
-PtyNotFound :: PtyError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyNotFound</span> :: <span class="tok-constructor">PtyError</span></code></pre>
 
-```cinch
-PtyPermissionDenied :: PtyError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyPermissionDenied</span> :: <span class="tok-constructor">PtyError</span></code></pre>
 
-```cinch
-PtyInvalidArgument :: PtyError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyInvalidArgument</span> :: <span class="tok-constructor">PtyError</span></code></pre>
 
-```cinch
-PtyIoError :: PtyError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyIoError</span> :: <span class="tok-constructor">PtyError</span></code></pre>
 
 # Values
 
@@ -213,9 +185,7 @@ PtyIoError :: PtyError
 
 ## `pty-close`
 
-```cinch
-pty-close :: forall r . using (io :: Io r) => (Pty %1 ->{IO r} Result PtyError Unit)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-close</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Close the terminal: a child no wait reaped is killed and reaped
 first, and the handle is consumed. This is the one operation that
@@ -230,9 +200,7 @@ answer for a handle word that was never live.
 
 ## `pty-command`
 
-```cinch
-pty-command :: (Path -> (List String -> PtyCommand))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">PtyCommand</span>))</code></pre>
 
 A command without environment additions.
 
@@ -242,9 +210,7 @@ A command without environment additions.
 
 ## `pty-command-with-env`
 
-```cinch
-pty-command-with-env :: (Path -> (List String -> (List (String, String) -> PtyCommand)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command-with-env</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">PtyCommand</span>)))</code></pre>
 
 A command with environment additions.
 
@@ -254,9 +220,7 @@ A command with environment additions.
 
 ## `pty-handle`
 
-```cinch
-pty-handle :: (Pty -> I64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-handle</span> :: (<span class="tok-constructor">Pty</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The handle word of a terminal, for the layers above this one. The
 word is not a handle, and the projection is the one hole in the
@@ -272,9 +236,7 @@ operations hand out, not the bare word.
 
 ## `pty-open`
 
-```cinch
-pty-open :: forall r . using (io :: Io r) => (Unit ->{IO r} Result PtyError Pty)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-open</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Pty</span>)</code></pre>
 
 Open a pseudo-terminal pair: the master and slave ends in a handle,
 or the named error. The slave belongs to the handle until a spawn
@@ -286,9 +248,7 @@ hands it to the child.
 
 ## `pty-read`
 
-```cinch
-pty-read :: forall r . using (io :: Io r) => (Pty %1 -> (Nat ->{IO r} (Pty, Result PtyError Bytes)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
 
 Read up to `max` bytes of the terminal's master (what the child
 wrote to its stdout or stderr, plus the terminal's echo of the
@@ -302,9 +262,7 @@ live, so the handle is handed back rather than dropped.
 
 ## `pty-resize`
 
-```cinch
-pty-resize :: forall r . using (io :: Io r) => (Pty %1 -> (Nat -> (Nat ->{IO r} (Pty, Result PtyError Unit))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-resize</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
 
 Set the terminal's window size to `cols` columns by `rows` rows:
 the handle and the unit, or the handle and the named error (the
@@ -316,9 +274,7 @@ handle comes back for the same reason as `pty-write`'s).
 
 ## `pty-spawn`
 
-```cinch
-pty-spawn :: forall r . using (io :: Io r) => (Pty %1 -> (Option Path -> (PtyCommand ->{IO r} Result PtyError Pty)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-spawn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">PtyCommand</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Pty</span>)))</code></pre>
 
 Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
 this process's own directory): the same handle with the child beside
@@ -338,9 +294,7 @@ a closed one would be a trap for the caller.
 
 ## `pty-wait`
 
-```cinch
-pty-wait :: forall r . using (io :: Io r) => (Pty %1 ->{IO r} (Pty, Result PtyError Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-wait</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Wait for the child: the handle and its exit code (128 + the signal
 number for a signal death, the shell convention), or the handle and
@@ -353,9 +307,7 @@ not what ends the handle's life; `pty-close` is.
 
 ## `pty-write`
 
-```cinch
-pty-write :: forall r . using (io :: Io r) => (Pty %1 -> (Bytes ->{IO r} (Pty, Result PtyError Nat)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-write</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 Write `bs` to the terminal's master (the child reads it on its
 stdin): the handle and the byte count (the whole buffer goes), or

@@ -1,0 +1,81 @@
+---
+// Mermaid diagrams in Markdown code fences. The script runs only when a page
+// actually contains a `mermaid` fence, and imports Mermaid lazily so ordinary
+// documentation pages do not pay for the diagram bundle.
+---
+<script>
+  (async () => {
+    const blocks = [
+      ...document.querySelectorAll(
+        'pre[data-language="mermaid"] code, pre code.language-mermaid',
+      ),
+    ];
+    if (blocks.length === 0) return;
+
+    let mermaid;
+    try {
+      ({ default: mermaid } = await import('mermaid'));
+    } catch (error) {
+      console.error('Mermaid failed to load', error);
+      return;
+    }
+
+    const dark =
+      document.documentElement.dataset.theme === 'dark' ||
+      (!document.documentElement.dataset.theme &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: dark ? 'dark' : 'default',
+    });
+
+    const nodes = [];
+    for (const code of blocks) {
+      const pre = code.closest('pre');
+      if (!pre) continue;
+      const lines = [...code.querySelectorAll('.ec-line')].map((line) => line.textContent ?? '');
+      const source = lines.length > 0 ? lines.join('\n') : code.textContent ?? '';
+      const diagram = document.createElement('div');
+      diagram.className = 'mermaid';
+      diagram.textContent = source;
+      diagram.dataset.source = source;
+      const container = pre.closest('.expressive-code') ?? pre;
+      container.replaceWith(diagram);
+      nodes.push(diagram);
+    }
+
+    for (const node of nodes) {
+      try {
+        await mermaid.run({ nodes: [node] });
+      } catch (error) {
+        node.classList.add('mermaid-error');
+        node.textContent = node.dataset.source ?? '';
+        console.error('Mermaid diagram failed', error);
+      }
+    }
+  })();
+</script>
+
+<style>
+  .mermaid {
+    display: flex;
+    justify-content: center;
+    margin: 1.25rem 0;
+    overflow-x: auto;
+  }
+
+  .mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .mermaid-error {
+    display: block;
+    white-space: pre;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+    color: var(--sl-color-text-accent, #b91c1c);
+  }
+</style>

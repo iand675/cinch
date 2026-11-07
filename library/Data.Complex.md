@@ -95,9 +95,7 @@ class methods with the base fixity table (D2).
 
 ## `Complex`
 
-```cinch
-data Complex
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Complex</span></code></pre>
 
 The pair of binary64 parts. The constructor is module-private (the
 observations below are the only way out); `complex` is the surface.
@@ -110,9 +108,7 @@ observations below are the only way out); `complex` is the surface.
 
 ## `abs`
 
-```cinch
-abs :: (Complex -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The magnitude |a + bi| = sqrt(a^2 + b^2). Naive formula (no scaling):
 a part large enough to overflow the squares yields an infinite
@@ -124,9 +120,7 @@ magnitude, which is the honest IEEE result for this spelling.
 
 ## `add`
 
-```cinch
-add :: (Complex -> (Complex -> Complex))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi) + (c + di): componentwise (the field's addition).
 
@@ -136,9 +130,7 @@ add :: (Complex -> (Complex -> Complex))
 
 ## `arg`
 
-```cinch
-arg :: (Complex -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arg</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The four-quadrant argument: the angle of `a + bi` in (-pi, pi], zero
 for the origin. The axis cases are exact; the other quadrants defer to
@@ -150,9 +142,7 @@ for the origin. The axis cases are exact; the other quadrants defer to
 
 ## `atan-approx`
 
-```cinch
-atan-approx :: (F64 -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atan-approx</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The named arctangent approximation (the header's refusal entry):
 `atan-approx x` is the principal value in (-pi/2, pi/2).
@@ -163,9 +153,7 @@ The named arctangent approximation (the header's refusal entry):
 
 ## `complex`
 
-```cinch
-complex :: (F64 -> (F64 -> Complex))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
 
 The smart constructor (Ruby's `Complex(a, b)`).
 
@@ -175,9 +163,7 @@ The smart constructor (Ruby's `Complex(a, b)`).
 
 ## `conjugate`
 
-```cinch
-conjugate :: (Complex -> Complex)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conjugate</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
 
 The conjugate: the reflection across the real axis. An involution
 (`conjugate (conjugate z) == z`).
@@ -188,9 +174,7 @@ The conjugate: the reflection across the real axis. An involution
 
 ## `div`
 
-```cinch
-div :: (Complex -> (Complex -> Complex))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi)/(c + di) = ((ac + bd) + (bc - ad)i) / (c^2 + d^2). A zero
 divisor yields IEEE NaN parts through `div-f64`, never a fault.
@@ -201,9 +185,7 @@ divisor yields IEEE NaN parts through `div-f64`, never a fault.
 
 ## `eq`
 
-```cinch
-eq :: (Complex -> (Complex -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 Structural equality: IEEE on each part.
 
@@ -213,9 +195,7 @@ Structural equality: IEEE on each part.
 
 ## `from-real`
 
-```cinch
-from-real :: (F64 -> Complex)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-real</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
 
 A complex number with zero imaginary part.
 
@@ -225,19 +205,15 @@ A complex number with zero imaginary part.
 
 ## `imag-part`
 
-```cinch
-imag-part :: (Complex -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">imag-part</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Complex.cinch) · line 94
+[Source](/reference-sources/Data.Complex.cinch)
 
 <a id="value-6d756c"></a>
 
 ## `mul`
 
-```cinch
-mul :: (Complex -> (Complex -> Complex))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi)(c + di) = (ac - bd) + (ad + bc)i (the imaginary unit squares
 to -1, which is the `mul (complex 0 1) (complex 0 1) == complex -1 0`
@@ -249,9 +225,7 @@ identity above).
 
 ## `neg`
 
-```cinch
-neg :: (Complex -> Complex)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
 
 The additive inverse, componentwise.
 
@@ -261,19 +235,15 @@ The additive inverse, componentwise.
 
 ## `real-part`
 
-```cinch
-real-part :: (Complex -> F64)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">real-part</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Complex.cinch) · line 90
+[Source](/reference-sources/Data.Complex.cinch)
 
 <a id="value-737562"></a>
 
 ## `sub`
 
-```cinch
-sub :: (Complex -> (Complex -> Complex))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi) - (c + di): componentwise.
 
@@ -283,9 +253,7 @@ sub :: (Complex -> (Complex -> Complex))
 
 ## `to-string`
 
-```cinch
-to-string :: (Complex -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The `a+bi` form: a negative imaginary part renders with `-` and its
 magnitude (so `complex 1 -1` is `1-1i`), a non-negative one with `+`.

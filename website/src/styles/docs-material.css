@@ -4,6 +4,14 @@
   --cinch-doc-panel: #2c3125;
   --cinch-doc-rule: #5c614b;
   --cinch-doc-muted: #b1b29b;
+  --cinch-tok-comment: #a3ad92;
+  --cinch-tok-keyword: #f0ac78;
+  --cinch-tok-type: #e4c58f;
+  --cinch-tok-callable: #cedba3;
+  --cinch-tok-string: #bacb9b;
+  --cinch-tok-literal: #f1ce94;
+  --cinch-tok-operator: #c4c4a7;
+  --cinch-tok-punctuation: #b1b69b;
   --sl-color-black: #20251c;
   --sl-color-bg-sidebar: #191e17;
   --sl-color-bg-nav: #191c17;
@@ -14,6 +22,14 @@
   --cinch-doc-panel: #e7deca;
   --cinch-doc-rule: #c4baa1;
   --cinch-doc-muted: #776e5b;
+  --cinch-tok-comment: #626750;
+  --cinch-tok-keyword: #924218;
+  --cinch-tok-type: #79551e;
+  --cinch-tok-callable: #435c28;
+  --cinch-tok-string: #4b5f2a;
+  --cinch-tok-literal: #83471c;
+  --cinch-tok-operator: #665a43;
+  --cinch-tok-punctuation: #62654e;
   --sl-color-black: #f2ecde;
   --sl-color-gray-6: #e7dfcd;
   --sl-color-gray-7: #eee7d7;
@@ -84,6 +100,32 @@
 [data-has-sidebar] .sl-markdown-content p, [data-has-sidebar] .sl-markdown-content li { font-size: .97rem; }
 [data-has-sidebar] .sl-markdown-content p { line-height: 1.9; }
 [data-has-sidebar] .sl-markdown-content > p:first-child a[href='/overview/'] { font: .61rem 'IBM Plex Mono',monospace; color: var(--cinch-doc-muted); }
+[data-has-sidebar] .sl-markdown-content .cinch-highlight {
+  margin-block: 1.5rem;
+  padding: 1.4rem;
+  border: 1px solid var(--cinch-doc-rule);
+  border-radius: 16px 16px 4px 4px;
+  background: var(--cinch-doc-panel);
+  overflow-x: auto;
+  font-size: .78rem;
+  line-height: 1.6;
+}
+[data-has-sidebar] .sl-markdown-content .cinch-highlight code {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sl-color-text);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.tok-comment { color: var(--cinch-tok-comment); }
+.tok-keyword { color: var(--cinch-tok-keyword); }
+.tok-type, .tok-constructor { color: var(--cinch-tok-type); }
+.tok-callable { color: var(--cinch-tok-callable); }
+.tok-string, .tok-char, .tok-symbol { color: var(--cinch-tok-string); }
+.tok-number { color: var(--cinch-tok-literal); }
+.tok-operator { color: var(--cinch-tok-operator); }
+.tok-variable, .tok-label { color: var(--sl-color-text); }
+.tok-attribute { color: var(--cinch-tok-type); }
 [data-has-sidebar] .expressive-code { --ec-brdRad: 16px; --ec-brdCol: var(--cinch-doc-rule); --ec-frm-frameBoxShdCssVal: none; margin-block: 1.5rem; }
 [data-has-sidebar] .expressive-code .frame { border: 1px solid var(--cinch-doc-rule); border-radius: 16px 16px 4px 4px; overflow: hidden; padding-top: 10px; background: var(--cinch-doc-panel); }
 [data-has-sidebar] .sl-markdown-content .expressive-code pre { border: 0; border-radius: 0; padding: 1.4rem; font-size: .78rem; }

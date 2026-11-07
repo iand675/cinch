@@ -56,61 +56,49 @@ to the lead with this slice).
 
 ## `Foldable`
 
-```cinch
-signature Foldable t
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span></code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 40
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="method-466f6c6461626c652e666f6c6472"></a>
 
 ## `Foldable.foldr`
 
-```cinch
-foldr :: forall (t :: Type -> Type) a b . using (dict :: Foldable t) => ((a -> (b -> b)) -> (b -> ((t a) -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">foldr</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 41
+
 
 <a id="method-466f6c6461626c652e666f6c646c"></a>
 
 ## `Foldable.foldl`
 
-```cinch
-foldl :: forall (t :: Type -> Type) a b . using (dict :: Foldable t) => ((b -> (a -> b)) -> (b -> ((t a) -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">foldl</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 42
+
 
 <a id="method-466f6c6461626c652e746f2d6c697374"></a>
 
 ## `Foldable.to-list`
 
-```cinch
-to-list :: forall (t :: Type -> Type) a . using (dict :: Foldable t) => ((t a) -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 43
+
 
 <a id="method-466f6c6461626c652e6e756c6c"></a>
 
 ## `Foldable.null`
 
-```cinch
-null :: forall (t :: Type -> Type) a . using (dict :: Foldable t) => ((t a) -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">null</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 44
+
 
 <a id="method-466f6c6461626c652e6c656e677468"></a>
 
 ## `Foldable.length`
 
-```cinch
-length :: forall (t :: Type -> Type) a . using (dict :: Foldable t) => ((t a) -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 45
+
 
 # Values
 
@@ -118,19 +106,15 @@ length :: forall (t :: Type -> Type) a . using (dict :: Foldable t) => ((t a) ->
 
 ## `all`
 
-```cinch
-all :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> Bool) -> ((t a) -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 98
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-616e79"></a>
 
 ## `any`
 
-```cinch
-any :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> Bool) -> ((t a) -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">any</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 `any`/`all`: a predicate decided over the whole container. The
 names collide with nothing: `Data.Bool`'s `and`/`or` are the binary
@@ -145,19 +129,15 @@ visited; the answer is the same, the short-circuit is not there.
 
 ## `better`
 
-```cinch
-better :: forall a . ((a -> (a -> Ordering)) -> (a -> (a -> a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">better</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 169
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-636f6e636174"></a>
 
 ## `concat`
 
-```cinch
-concat :: forall (t :: Type -> Type) a . using (fold :: Foldable t, mon :: Monoid a, sg :: Semigroup a) => ((t a) -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">concat</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">mon</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>, <span class="tok-variable">sg</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 `concat`: the monoid fold over the container's elements, so
 `List String` gives a `String` and `List (List a)` a `List a`. The
@@ -171,9 +151,7 @@ identity keeps the empty container meaningful; the combination is
 
 ## `elem`
 
-```cinch
-elem :: forall (t :: Type -> Type) a . using (fold :: Foldable t, ea :: Eq a) => (a -> ((t a) -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">elem</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 `elem`: membership under `Eq`, in `base`'s argument order (the
 element, then the container).
@@ -184,9 +162,7 @@ element, then the container).
 
 ## `find`
 
-```cinch
-find :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> Bool) -> ((t a) -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 `find`: the first element the predicate accepts, or `None`. The
 predicate does the deciding, so no `Eq` constraint is stated (the
@@ -198,9 +174,7 @@ same reason `base`'s `find` takes a predicate).
 
 ## `find-list`
 
-```cinch
-find-list :: forall a . ((a -> Bool) -> (List a -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 Private: the list-level search the container search materializes
 into.
@@ -211,23 +185,15 @@ into.
 
 ## `fold-left1`
 
-```cinch
-fold-left1 :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> (a -> a)) -> ((t a) -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-left1</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 77
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-666f6c642d6d6170"></a>
 
 ## `fold-map`
 
-```cinch
-fold-map :: forall (t :: Type -> Type) a m . using (fold :: Foldable t, mon :: Monoid m, sg :: Semigroup m) => ((a -> m) -> ((t a) -> m))
-```
-
-The free combinators. Each states its constraints and walks the
-container through the class methods, so a new instance inherits all
-of them with no further code.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">m</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">mon</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">m</span>, <span class="tok-variable">sg</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">m</span>) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">m</span>))</code></pre>
 
 `fold-map`: map every element into a monoid and combine with `<>`,
 starting from `mempty`. The empty container therefore gives the
@@ -247,9 +213,7 @@ accumulated suffix at every element for a `<>` that copies.
 
 ## `fold-right1`
 
-```cinch
-fold-right1 :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> (a -> a)) -> ((t a) -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-right1</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 `fold-right1`/`fold-left1`: the fold with an element of the
 container as its seed, so an empty container has nothing to return.
@@ -264,9 +228,7 @@ a name may be spelled here (a digit cannot follow the dash).
 
 ## `fold-right1-into`
 
-```cinch
-fold-right1-into :: forall a . ((a -> (a -> a)) -> (a -> (List a -> a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-right1-into</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
 Private: the `foldr1` walk over the tail, seeded with the first
 element.
@@ -277,9 +239,7 @@ element.
 
 ## `larger`
 
-```cinch
-larger :: forall a . using (oa :: Ord a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">larger</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">oa</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 Private: the four comparisons the `Ord` walks and the comparator
 walks share. Each keeps the element the comparison favours and, on
@@ -291,9 +251,7 @@ a tie, the one `base`'s `min`/`max`/`minBy`/`maxBy` keep.
 
 ## `maximum`
 
-```cinch
-maximum :: forall (t :: Type -> Type) a . using (fold :: Foldable t, oa :: Ord a) => ((t a) -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maximum</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">oa</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 `maximum`/`minimum`: partial over an empty container (an `Option`
 value), and decided by comparison rather than position, so an
@@ -308,69 +266,55 @@ the comparator, so non-`Ord` shapes and keys compare too.
 
 ## `maximum-by`
 
-```cinch
-maximum-by :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> (a -> Ordering)) -> ((t a) -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maximum-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 154
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-6d696e696d756d"></a>
 
 ## `minimum`
 
-```cinch
-minimum :: forall (t :: Type -> Type) a . using (fold :: Foldable t, oa :: Ord a) => ((t a) -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minimum</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">oa</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 151
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-6d696e696d756d2d6279"></a>
 
 ## `minimum-by`
 
-```cinch
-minimum-by :: forall (t :: Type -> Type) a . using (fold :: Foldable t) => ((a -> (a -> Ordering)) -> ((t a) -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minimum-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)) -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 157
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-6e6f742d656c656d"></a>
 
 ## `not-elem`
 
-```cinch
-not-elem :: forall (t :: Type -> Type) a . using (fold :: Foldable t, ea :: Eq a) => (a -> ((t a) -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">not-elem</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 106
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-70726f64756374"></a>
 
 ## `product`
 
-```cinch
-product :: forall (t :: Type -> Type) a . using (fold :: Foldable t, sr :: Semiring a) => ((t a) -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">product</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">sr</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 131
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-736d616c6c6572"></a>
 
 ## `smaller`
 
-```cinch
-smaller :: forall a . using (oa :: Ord a) => (a -> (a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">smaller</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">oa</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 166
+[Source](/reference-sources/Category.Foldable.cinch)
 
 <a id="value-73756d"></a>
 
 ## `sum`
 
-```cinch
-sum :: forall (t :: Type -> Type) a . using (fold :: Foldable t, sr :: Semiring a) => ((t a) -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sum</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fold</span> :: <span class="tok-constructor">Foldable</span> <span class="tok-variable">t</span>, <span class="tok-variable">sr</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">t</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 `sum`/`product`: the container's additive or multiplicative
 combination. The constraint is `Semiring`, not `Add`: an empty
@@ -385,11 +329,9 @@ of `sum`: the same walk with an explicit starting value.
 
 ## `worse`
 
-```cinch
-worse :: forall a . ((a -> (a -> Ordering)) -> (a -> (a -> a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">worse</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 174
+[Source](/reference-sources/Category.Foldable.cinch)
 
 # Reference provenance
 

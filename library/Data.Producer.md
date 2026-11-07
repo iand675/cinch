@@ -28,58 +28,40 @@ the sum modulo 2^32 over the borrowed vector.
 
 ## `Producer`
 
-```cinch
-data Producer (s :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Producer</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 A producer: a state with its step function.
 
 [Source](/reference-sources/Data.Producer.cinch) · line 23
 
-```cinch
-Producer :: forall s a . ((s -> Step s a) -> (s -> Producer s a))
-```
-
-A producer: a state with its step function.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-53746570"></a>
 
 ## `Step`
 
-```cinch
-data Step (s :: Type) (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 The vector step form (modules section 6): `Done`, `Skip(state)` and
 `Yield(value, state)`. Producer pipelines lower to state machines.
 
 [Source](/reference-sources/Data.Producer.cinch) · line 17
 
-```cinch
-Done :: forall s a . Step s a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Skip :: forall s a . (s -> Step s a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
 
-```cinch
-Yield :: forall s a . (a -> (s -> Step s a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-54616b655374"></a>
 
 ## `TakeSt`
 
-```cinch
-data TakeSt (s :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TakeSt</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 34
+[Source](/reference-sources/Data.Producer.cinch)
 
-```cinch
-TakeSt :: forall s . (Nat -> (s -> TakeSt s))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
 
 # Values
 
@@ -87,69 +69,55 @@ TakeSt :: forall s . (Nat -> (s -> TakeSt s))
 
 ## `prod-fold`
 
-```cinch
-prod-fold :: forall s a b . (b -> ((b -> (a -> b)) -> (Producer s a -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 56
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-70726f642d666f6c642d676f"></a>
 
 ## `prod-fold-go`
 
-```cinch
-prod-fold-go :: forall s a b . ((s -> Step s a) -> ((b -> (a -> b)) -> (b -> (s -> b))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold-go</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-variable">b</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 50
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-70726f642d6d6170"></a>
 
 ## `prod-map`
 
-```cinch
-prod-map :: forall s a b . ((a -> b) -> (Producer s a -> Producer s b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 26
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-70726f642d74616b65"></a>
 
 ## `prod-take`
 
-```cinch
-prod-take :: forall s a . (Nat -> (Producer s a -> Producer (TakeSt s) a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Producer</span> (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 46
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-70726f642d74616b652d73746570"></a>
 
 ## `prod-take-step`
 
-```cinch
-prod-take-step :: forall s a . ((s -> Step s a) -> (TakeSt s -> Step (TakeSt s) a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take-step</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 37
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-7363616c61722d73756d2d777261703332"></a>
 
 ## `scalar-sum-wrap32`
 
-```cinch
-scalar-sum-wrap32 :: forall (n :: Nat) region . (Ref region Vec n U32 -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-sum-wrap32</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-[Source](/reference-sources/Data.Producer.cinch) · line 65
+[Source](/reference-sources/Data.Producer.cinch)
 
 <a id="value-7665632d73747265616d"></a>
 
 ## `vec-stream`
 
-```cinch
-vec-stream :: forall a (n :: Nat) region . (Ref region Vec n a -> Producer (Ref region Vec n a) a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-stream</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Producer</span> (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-variable">a</span>) <span class="tok-variable">a</span>)</code></pre>
 
 A producer over a borrowed vector: the block walk of the step form
 is the `vecStreamStep` intrinsic.

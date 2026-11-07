@@ -94,9 +94,7 @@ implement; each is a named boundary, never a silent gap):
 
 ## `JParser`
 
-```cinch
-data JParser (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JParser</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 A parser: a function from cursor to reply (the P30 `Parser`
 shape). Recursive parsers wrap in `MkJParser` so their references
@@ -104,17 +102,13 @@ sit under a lambda (the D302 top-level value discipline).
 
 [Source](/reference-sources/Text.Json.cinch) · line 194
 
-```cinch
-MkJParser :: forall a . ((JState -> JReply a) -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkJParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-4a5265706c79"></a>
 
 ## `JReply`
 
-```cinch
-data JReply (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JReply</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
 A reply: the consumed/empty success and failure distinction of
 `Text.Parse`'s `Reply` (the expected-set hint merges exactly as
@@ -122,25 +116,15 @@ there).
 
 [Source](/reference-sources/Text.Json.cinch) · line 187
 
-```cinch
-JOk :: forall a . (Bool -> (a -> (JState -> (List ErrorItem -> JReply a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JOk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))))</code></pre>
 
-```cinch
-JErr :: forall a . (Bool -> (ParseError -> JReply a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-4a5374617465"></a>
 
 ## `JState`
 
-```cinch
-data JState
-```
-
-Parser state, replies, the parser type (the P30 shape over the
-character stream: `Text.Parse`'s `PState`/`Reply`/`Parser` carry
-tokens, these carry the source cursor).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JState</span></code></pre>
 
 The cursor into the source: the buffer, the byte offset, and the
 position as line and character column (a UTF-8 continuation byte
@@ -149,18 +133,7 @@ compiler's spans).
 
 [Source](/reference-sources/Text.Json.cinch) · line 165
 
-```cinch
-JState :: (Bytes -> (Nat -> (Nat -> (Nat -> JState))))
-```
-
-Parser state, replies, the parser type (the P30 shape over the
-character stream: `Text.Parse`'s `PState`/`Reply`/`Parser` carry
-tokens, these carry the source cursor).
-
-The cursor into the source: the buffer, the byte offset, and the
-position as line and character column (a UTF-8 continuation byte
-does not advance the column, so columns count scalars like the
-compiler's spans).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JState</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">JState</span>))))</code></pre>
 
 # Values
 
@@ -168,301 +141,201 @@ compiler's spans).
 
 ## `attempt-p`
 
-```cinch
-attempt-p :: forall a . (JParser a -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
-Backtracking (megaparsec's `try`).
-
-[Source](/reference-sources/Text.Json.cinch) · line 222
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6265747765656e2d70"></a>
 
 ## `between-p`
 
-```cinch
-between-p :: forall a open close . (JParser open -> (JParser close -> (JParser a -> JParser a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">open</span> <span class="tok-variable">close</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">open</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">close</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 296
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-63616e6f6e6963616c2d6279746573"></a>
 
 ## `canonical-bytes`
 
-```cinch
-canonical-bytes :: (Json -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-bytes</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 834
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-63616e6f6e6963616c2d68617368"></a>
 
 ## `canonical-hash`
 
-```cinch
-canonical-hash :: (Json -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-hash</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-The content identity of a value: SHA-256 over its canonical bytes
-(the hex digest).
-
-[Source](/reference-sources/Text.Json.cinch) · line 839
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-63616e6f6e6963616c2d6a736f6e"></a>
 
 ## `canonical-json`
 
-```cinch
-canonical-json :: (Json -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-json</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-The canonical form (the header's rules): object keys sorted.
-
-[Source](/reference-sources/Text.Json.cinch) · line 831
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-63686f6963652d70"></a>
 
 ## `choice-p`
 
-```cinch
-choice-p :: forall a . (List (JParser a) -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 239
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6469676573742d686578"></a>
 
 ## `digest-hex`
 
-```cinch
-digest-hex :: (Bytes -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-The lowercase hex rendering of a digest: one buffer of two ASCII
-digits per byte, filled in place.
-
-[Source](/reference-sources/Text.Json.cinch) · line 121
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6578706563742d656f66"></a>
 
 ## `expect-eof`
 
-```cinch
-expect-eof :: JParser Unit
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: <span class="tok-constructor">JParser</span> <span class="tok-constructor">Unit</span></code></pre>
 
-The end of input (the runner appends it: whole-input enforcement
-is the default, as in `Text.Parse`'s runner).
-
-[Source](/reference-sources/Text.Json.cinch) · line 302
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6661696c2d70"></a>
 
 ## `fail-p`
 
-```cinch
-fail-p :: forall a . (String -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
-The explicit failure (megaparsec's `fail`): a fancy error at the
-current position.
-
-[Source](/reference-sources/Text.Json.cinch) · line 261
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6a736f6e2d6571"></a>
 
 ## `json-eq`
 
-```cinch
-json-eq :: (Json -> (Json -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-eq</span> :: (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-Value equality (structural; object entry order is significant
-here, the canonical form is the order-free identity).
-
-[Source](/reference-sources/Text.Json.cinch) · line 950
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6a736f6e2d76616c7565"></a>
 
 ## `json-value`
 
-```cinch
-json-value :: JParser Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-value</span> :: <span class="tok-constructor">JParser</span> <span class="tok-constructor">Json</span></code></pre>
 
-`json-value` dispatches on the first byte (an empty failure at
-anything unexpected, so `or-else` over fragments composes); each
-arm consumes its own syntax with consumed-failure errors.
-
-[Source](/reference-sources/Text.Json.cinch) · line 422
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6c6162656c2d70"></a>
 
 ## `label-p`
 
-```cinch
-label-p :: forall a . (String -> (JParser a -> JParser a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
-Naming a parser's expectation (megaparsec's `label`).
-
-[Source](/reference-sources/Text.Json.cinch) · line 247
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6c6f6f6b2d61686561642d70"></a>
 
 ## `look-ahead-p`
 
-```cinch
-look-ahead-p :: forall a . (JParser a -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
-Look-ahead: parse without consuming.
-
-[Source](/reference-sources/Text.Json.cinch) · line 265
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6d616e792d70"></a>
 
 ## `many-p`
 
-```cinch
-many-p :: forall a . (JParser a -> JParser (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
-Repetition and separators (`many-p` never fails; both stop at the
-first empty failure and propagate consumed failures).
-
-[Source](/reference-sources/Text.Json.cinch) · line 272
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6f7074696f6e616c2d70"></a>
 
 ## `optional-p`
 
-```cinch
-optional-p :: forall a . (JParser a -> JParser (Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 293
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-6f722d656c7365"></a>
 
 ## `or-else`
 
-```cinch
-or-else :: forall a . (JParser a -> (JParser a -> JParser a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
-Choice (megaparsec's `<|>`): the right parser runs only when the
-left failed without consuming; two empty failures merge.
-
-[Source](/reference-sources/Text.Json.cinch) · line 230
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-70617273652d62696e64"></a>
 
 ## `parse-bind`
 
-```cinch
-parse-bind :: forall a b . (JParser a -> ((a -> JParser b) -> JParser b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 209
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-70617273652d666d6170"></a>
 
 ## `parse-fmap`
 
-```cinch
-parse-fmap :: forall a b . ((a -> b) -> (JParser a -> JParser b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 218
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-70617273652d6a736f6e"></a>
 
 ## `parse-json`
 
-```cinch
-parse-json :: (String -> (Bytes -> ParseOutcome Json))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-json</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-constructor">Json</span>))</code></pre>
 
-The document runner: the toolkit's `ParseOutcome`, so
-`Text.Parse.render-bundle` renders the failure megaparsec-style.
-
-[Source](/reference-sources/Text.Json.cinch) · line 805
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-70617273652d70757265"></a>
 
 ## `parse-pure`
 
-```cinch
-parse-pure :: forall a . (a -> JParser a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
-The combinator core (the P30 vocabulary; semantics follow
-`Text.Parse` exactly).
-
-[Source](/reference-sources/Text.Json.cinch) · line 206
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-7072696e742d6a736f6e"></a>
 
 ## `print-json`
 
-```cinch
-print-json :: (Json -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">print-json</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-Printing (total), canonicalization, content identity.
-
-The printers emit into a `Builder` and flatten once: concatenating
-each rendered piece onto the rendering of the rest re-copies that
-whole suffix at every step, quadratic in the document's length.
-
-The total printer: object entries in spine order, no whitespace.
-
-[Source](/reference-sources/Text.Json.cinch) · line 827
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-72756e2d6a7061727365722d666e"></a>
 
 ## `run-jparser-fn`
 
-```cinch
-run-jparser-fn :: forall a . (JParser a -> (JState -> JReply a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-jparser-fn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 197
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-736174697366792d62797465"></a>
 
 ## `satisfy-byte`
 
-```cinch
-satisfy-byte :: forall a . ((Nat -> Option a) -> (List ErrorItem -> JParser a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-byte</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
-The cursor primitive (the character stream's `token-p`): consume
-one byte when the predicate decodes it.
-
-[Source](/reference-sources/Text.Json.cinch) · line 309
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-7365702d62792d70"></a>
 
 ## `sep-by-p`
 
-```cinch
-sep-by-p :: forall a s . (JParser a -> (JParser s -> JParser (List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">s</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 286
+[Source](/reference-sources/Text.Json.cinch)
 
 <a id="value-736f6d652d70"></a>
 
 ## `some-p`
 
-```cinch
-some-p :: forall a . (JParser a -> JParser (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Text.Json.cinch) · line 283
+[Source](/reference-sources/Text.Json.cinch)
 
 # Instances
 
@@ -471,6 +344,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 | Instance | Target | Resolution |
 | --- | --- | --- |
 | `Text.Json.JsonCodec_Json` | `JsonCodec Json` | Implicit |
+
+**`Text.Json.JsonCodec_Json`**: JsonCodec's identity column (the class and its decode-error
+vocabulary live in `Text.Codec`; the `I64`/`Bool` instances live
+with their types in `Data.Machine`/`Data.Bool`). A `Json` round
+trips as itself.
 
 # Reference provenance
 

@@ -32,23 +32,17 @@ compiler-known schemes (like `newIO`), never foreign imports.
 
 ## `LoadError`
 
-```cinch
-data LoadError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LoadError</span></code></pre>
 
-[Source](/reference-sources/Effect.Concurrent.cinch) · line 27
+[Source](/reference-sources/Effect.Concurrent.cinch)
 
-```cinch
-LoadError :: (Nat -> LoadError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">LoadError</span>)</code></pre>
 
 <a id="type-52657175657374"></a>
 
 ## `Request`
 
-```cinch
-data Request
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Request</span></code></pre>
 
 Structured concurrency (concurrency specification, section 2): the
 worked vocabulary of the spec's `loadPair` sketch. A `Request` names
@@ -61,18 +55,7 @@ imports.
 
 [Source](/reference-sources/Effect.Concurrent.cinch) · line 24
 
-```cinch
-Request :: (Nat -> Request)
-```
-
-Structured concurrency (concurrency specification, section 2): the
-worked vocabulary of the spec's `loadPair` sketch. A `Request` names
-bytes to read from the runtime's input source; `fetch` performs the
-read under the `Io r` capability and reports a short read as a
-`LoadError`. `withScope`, `spawn`, `joinAllOrCancel` and the `Io r`
-operations (`ioWrite`, `ioRead`, `ioSleep`, `pollCancel`) are builtin
-values with compiler-known schemes (like `newIO`), never foreign
-imports.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Request</span>)</code></pre>
 
 # Values
 
@@ -80,11 +63,9 @@ imports.
 
 ## `fetch`
 
-```cinch
-fetch :: forall r . using (io :: Io r) => (Request ->{IO r, Diverge} Result LoadError Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fetch</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Request</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">LoadError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Concurrent.cinch) · line 30
+[Source](/reference-sources/Effect.Concurrent.cinch)
 
 # Reference provenance
 

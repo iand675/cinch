@@ -30,51 +30,41 @@ This module exports no type declarations.
 
 ## `tensor-data`
 
-```cinch
-tensor-data :: forall a . (Tensor a -> Array a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-data</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.Tensor.cinch) · line 9
+[Source](/reference-sources/Data.Tensor.cinch)
 
 <a id="value-74656e736f722d676574"></a>
 
 ## `tensor-get`
 
-```cinch
-tensor-get :: forall a . (Tensor a -> (Array Nat -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.Tensor.cinch) · line 10
+[Source](/reference-sources/Data.Tensor.cinch)
 
 <a id="value-74656e736f722d72657368617065"></a>
 
 ## `tensor-reshape`
 
-```cinch
-tensor-reshape :: forall a . (Array Nat -> (Array a -> Option (Tensor a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-reshape</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Tensor.cinch) · line 7
+[Source](/reference-sources/Data.Tensor.cinch)
 
 <a id="value-74656e736f722d736574"></a>
 
 ## `tensor-set`
 
-```cinch
-tensor-set :: forall a . (Tensor a -> (Array Nat -> (a -> Option (Tensor a))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>))))</code></pre>
 
-[Source](/reference-sources/Data.Tensor.cinch) · line 11
+[Source](/reference-sources/Data.Tensor.cinch)
 
 <a id="value-74656e736f722d7368617065"></a>
 
 ## `tensor-shape`
 
-```cinch
-tensor-shape :: forall a . (Tensor a -> Array Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-shape</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Tensor.cinch) · line 8
+[Source](/reference-sources/Data.Tensor.cinch)
 
 # Reference provenance
 

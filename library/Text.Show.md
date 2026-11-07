@@ -48,21 +48,17 @@ text through string literals, which ordinary terms now carry.
 
 ## `Show`
 
-```cinch
-signature Show a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Show</span> <span class="tok-variable">a</span></code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 35
+[Source](/reference-sources/Text.Show.cinch)
 
 <a id="method-53686f772e73686f77"></a>
 
 ## `Show.show`
 
-```cinch
-show :: forall a . using (dict :: Show a) => (a -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">show</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 36
+
 
 # Values
 
@@ -70,19 +66,15 @@ show :: forall a . using (dict :: Show a) => (a -> String)
 
 ## `char-string`
 
-```cinch
-char-string :: (Char -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-string</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 76
+[Source](/reference-sources/Text.Show.cinch)
 
 <a id="value-696e742d746f2d737472696e67"></a>
 
 ## `int-to-string`
 
-```cinch
-int-to-string :: (Int -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-to-string</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Signed decimal for `Int`, built from bignum division so values
 beyond i64 format correctly: the magnitude is a `Nat` (`0 - x` for
@@ -95,19 +87,15 @@ the sign.
 
 ## `nat-digit-count`
 
-```cinch
-nat-digit-count :: (Nat -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-digit-count</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 99
+[Source](/reference-sources/Text.Show.cinch)
 
 <a id="value-6e61742d6469676974732d696e746f"></a>
 
 ## `nat-digits-into`
 
-```cinch
-nat-digits-into :: using ((arg1 + arg3) <= (Data.Bytes.bytes-len arg0)) => ((arg0 :: Bytes) -> ((arg1 :: Nat) -> ((arg2 :: Nat) -> ((arg3 :: Nat) -> Unit))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-digits-into</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-variable">arg3</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>))))</code></pre>
 
 Decimal formatting: digits are raw ASCII bytes (48..=57), so no
 character literals are needed. The low `k` digits of `n` fill
@@ -122,21 +110,17 @@ lies inside the buffer, and each digit is `48 + n % 10 <= 57`.
 
 ## `nat-to-string`
 
-```cinch
-nat-to-string :: (Nat -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-string</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 102
+[Source](/reference-sources/Text.Show.cinch)
 
 <a id="value-706f773130"></a>
 
 ## `pow10`
 
-```cinch
-pow10 :: (Nat -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pow10</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Show.cinch) · line 96
+[Source](/reference-sources/Text.Show.cinch)
 
 # Instances
 
@@ -150,6 +134,14 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Text.Show.Show_Nat` | `Show Nat` | Implicit |
 | `Text.Show.Show_Ordering` | `Show Ordering` | Implicit |
 | `Text.Show.Show_String` | `Show String` | Implicit |
+
+**`Text.Show.Show_Bool`**: The fixed text: each renders as its literal constructor spelling
+(probed in compiler/tests/string_literals.rs).
+**`Text.Show.Show_Nat`**: The decimal rendering agrees with the concrete conversions below
+(the class's law shape: `show` is the rendering; asserted over
+sample values in compiler/tests/prelude_split.rs).
+**`Text.Show.Show_String`**: The raw text: `String` renders as itself (no quoting in the
+bootstrap).
 
 # Reference provenance
 

@@ -54,19 +54,13 @@ sweep; these are the operations that cost no I/O.
 
 ## `Path`
 
-```cinch
-data Path
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Path</span></code></pre>
 
 The path text (POSIX; UTF-8 at the boundary).
 
 [Source](/reference-sources/Data.Path.cinch) · line 48
 
-```cinch
-Path :: (String -> Path)
-```
-
-The path text (POSIX; UTF-8 at the boundary).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
 
 # Values
 
@@ -74,39 +68,31 @@ The path text (POSIX; UTF-8 at the boundary).
 
 ## `path-basename`
 
-```cinch
-path-basename :: (Path -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-basename</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Path.cinch) · line 161
+[Source](/reference-sources/Data.Path.cinch)
 
 <a id="value-706174682d6469726e616d65"></a>
 
 ## `path-dirname`
 
-```cinch
-path-dirname :: (Path -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-dirname</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Path.cinch) · line 164
+[Source](/reference-sources/Data.Path.cinch)
 
 <a id="value-706174682d6578746e616d65"></a>
 
 ## `path-extname`
 
-```cinch
-path-extname :: (Path -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-extname</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Path.cinch) · line 185
+[Source](/reference-sources/Data.Path.cinch)
 
 <a id="value-706174682d66726f6d2d737472696e67"></a>
 
 ## `path-from-string`
 
-```cinch
-path-from-string :: (String -> Path)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
 
 A path from its text.
 
@@ -116,9 +102,7 @@ A path from its text.
 
 ## `path-is-absolute`
 
-```cinch
-path-is-absolute :: (Path -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-is-absolute</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 `path-is-absolute`: the path begins with `/` (the empty path is
 not absolute).
@@ -129,9 +113,7 @@ not absolute).
 
 ## `path-join`
 
-```cinch
-path-join :: (Path -> (Path -> Path))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-join</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Path</span>))</code></pre>
 
 The path `a/b`: exactly one `/` between the two texts (no
 separator collapsing; see the refusals above).
@@ -142,9 +124,7 @@ separator collapsing; see the refusals above).
 
 ## `path-normalize`
 
-```cinch
-path-normalize :: (Path -> Path)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-normalize</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Path</span>)</code></pre>
 
 `path-normalize`: LEXICAL cleanup (text in, text out; no disk call
 and no symlink resolution). Split on `/`, drop empty and `.`
@@ -157,9 +137,7 @@ segments, resolve each `..` as above; join with `/` and prefix
 
 ## `path-relative-to`
 
-```cinch
-path-relative-to :: (Path -> (Path -> Path))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-relative-to</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Path</span>))</code></pre>
 
 `path-relative-to target base`: the relative path from `base` to
 `target` under the same lexical form. Both are normalized first.
@@ -175,19 +153,15 @@ remaining is `.`).
 
 ## `path-stem`
 
-```cinch
-path-stem :: (Path -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-stem</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Data.Path.cinch) · line 198
+[Source](/reference-sources/Data.Path.cinch)
 
 <a id="value-706174682d746f2d737472696e67"></a>
 
 ## `path-to-string`
 
-```cinch
-path-to-string :: (Path -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-to-string</span> :: (<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 The path's text.
 

@@ -41,11 +41,9 @@ both checked sample-wise by the law layer.
 
 ## `Ascii`
 
-```cinch
-type Ascii  = refine (s :: String) with Ascii s
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Ascii</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">String</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ascii</span> <span class="tok-variable">s</span></code></pre>
 
-[Source](/reference-sources/Data.Ascii.cinch) · line 25
+[Source](/reference-sources/Data.Ascii.cinch)
 
 # Values
 
@@ -53,9 +51,7 @@ type Ascii  = refine (s :: String) with Ascii s
 
 ## `to-ascii`
 
-```cinch
-to-ascii :: (String -> Option Ascii)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ascii</span>)</code></pre>
 
 The total constructor (refinement types design: the total API).
 

@@ -38,9 +38,7 @@ This module exports no type declarations.
 
 ## `&&`
 
-```cinch
-&& :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&amp;&amp;</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 These are strict functions in the bootstrap slice; the surface `&&`
 and `||` short-circuit once that deviation is corrected (primitive
@@ -52,9 +50,7 @@ types specification, section 6).
 
 ## `and`
 
-```cinch
-and :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">and</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 The strict boolean algebra (primitive types specification, section 6).
 
@@ -64,9 +60,7 @@ The strict boolean algebra (primitive types specification, section 6).
 
 ## `bool`
 
-```cinch
-bool :: forall a . (a -> (a -> (Bool -> a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bool</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
 The boolean fold: `bool f t b` is `t` when `b` is `True` and `f`
 otherwise (`Data.Bool.bool`), the elimination form matching the
@@ -78,98 +72,78 @@ constructors' order.
 
 ## `not`
 
-```cinch
-not :: (Bool -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">not</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 38
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-6f72"></a>
 
 ## `or`
 
-```cinch
-or :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 45
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7072696d2d616e642d626f6f6c"></a>
 
 ## `prim-and-bool`
 
-```cinch
-prim-and-bool :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prim-and-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 26
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7072696d2d65712d626f6f6c"></a>
 
 ## `prim-eq-bool`
 
-```cinch
-prim-eq-bool :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prim-eq-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 23
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7072696d2d6e652d626f6f6c"></a>
 
 ## `prim-ne-bool`
 
-```cinch
-prim-ne-bool :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prim-ne-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 24
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7072696d2d6e6f742d626f6f6c"></a>
 
 ## `prim-not-bool`
 
-```cinch
-prim-not-bool :: (Bool -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prim-not-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 25
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7072696d2d6f722d626f6f6c"></a>
 
 ## `prim-or-bool`
 
-```cinch
-prim-or-bool :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prim-or-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 27
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-786f72"></a>
 
 ## `xor`
 
-```cinch
-xor :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xor</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 48
+[Source](/reference-sources/Data.Bool.cinch)
 
 <a id="value-7c7c"></a>
 
 ## `||`
 
-```cinch
-|| :: (Bool -> (Bool -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">||</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bool.cinch) · line 35
+[Source](/reference-sources/Data.Bool.cinch)
 
 # Operator fixities
 
-```cinch
-infixr 2 &&
-infixr 1 ||
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixr</span> <span class="tok-number">2</span> <span class="tok-operator">&amp;&amp;</span>
+<span class="tok-keyword">infixr</span> <span class="tok-number">1</span> <span class="tok-operator">||</span></code></pre>
 
 # Instances
 
@@ -182,6 +156,14 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Bool.Hash_Bool` | `Hash Bool` | Implicit |
 | `Data.Bool.JsonCodec_Bool` | `JsonCodec Bool` | Implicit |
 | `Data.Bool.Ord_Bool` | `Ord Bool` | Implicit |
+
+**`Data.Bool.Codec_Bool`**: The A6 column codec for booleans (modules specification section
+11's `CodecGenerator.derive` vocabulary, decision D65's covered
+set): one byte, 0 for False and 1 for True.
+**`Data.Bool.Hash_Bool`**: Two buckets (instances live with their type).
+**`Data.Bool.JsonCodec_Bool`**: The A6 JSON column codec for booleans (decision D65's covered
+set): `JsonCodec`'s round-trip law (`decode-json (encode-json x)`
+is `Ok x`).
 
 # Reference provenance
 

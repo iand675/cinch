@@ -3,7 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
+import { unified } from '@astrojs/markdown-remark';
 import starlight from '@astrojs/starlight';
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
 import { syntaxThemes } from './src/themes/syntax.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -34,6 +37,12 @@ function pagesIn(dir) {
 export default defineConfig({
   site: 'https://cinch.systems',
   trailingSlash: 'always',
+  markdown: {
+    processor: unified({
+      remarkPlugins: [remarkMath],
+      rehypePlugins: [rehypeKatex],
+    }),
+  },
   integrations: [
     starlight({
       title: 'Cinch',

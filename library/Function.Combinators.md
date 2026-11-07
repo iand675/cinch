@@ -35,9 +35,7 @@ This module exports no type declarations.
 
 ## `apply-n-times`
 
-```cinch
-apply-n-times :: forall a . (Nat -> ((a -> a) -> (a -> a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">apply-n-times</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
 `apply-n-times n f x` applies `f` to `x` `n` times: `f (f x)` at
 `n` = 2 and `x` at `n` = 0. The count is a `Nat`, so the base case
@@ -50,9 +48,7 @@ is the zero test and the step decrements (the same `Nat` walk as
 
 ## `apply-to`
 
-```cinch
-apply-to :: forall a b . (a -> ((a -> b) -> b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">apply-to</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">b</span>))</code></pre>
 
 Reverse application: `apply-to x f` is `f x` (the `Data.Function.(&)`
 pipe). The name is `apply-to`, not an operator: `&` is bitwise AND
@@ -65,9 +61,7 @@ operator spelling would either collide or need a new table entry.
 
 ## `both`
 
-```cinch
-both :: forall a b c . ((a -> b) -> ((a -> c) -> (a -> (b, c))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">both</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span>, <span class="tok-variable">c</span>))))</code></pre>
 
 `both f g x` is the pair of both projections of `x` (the fan-out
 combinator, the `(&&&)` shape without the arrow machinery).
@@ -78,9 +72,7 @@ combinator, the `(&&&)` shape without the arrow machinery).
 
 ## `compose`
 
-```cinch
-compose :: forall a b c . ((b -> c) -> ((a -> b) -> (a -> c)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compose</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
 
 `compose h g` applies `g` then `h` (the functor composition law's
 named composition: a law equation states total function
@@ -93,29 +85,23 @@ target IR specification section 5).
 
 ## `const`
 
-```cinch
-const :: forall a b . (a -> (b -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 21
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-6375727279"></a>
 
 ## `curry`
 
-```cinch
-curry :: forall a b c . (((a, b) -> c) -> (a -> (b -> c)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">curry</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . (((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">c</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 76
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-666c6970"></a>
 
 ## `flip`
 
-```cinch
-flip :: forall a b c . ((a -> (b -> c)) -> (b -> (a -> c)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
 
 `flip f` swaps `f`'s two arguments, so `flip (-) x y` is `y - x`
 and `flip const x y` is `y` (`Data.Function.flip`).
@@ -126,29 +112,23 @@ and `flip const x y` is `y` (`Data.Function.flip`).
 
 ## `fst`
 
-```cinch
-fst :: forall a b . ((a, b) -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fst</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 64
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-6964656e74697479"></a>
 
 ## `identity`
 
-```cinch
-identity :: forall a . (a -> a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 18
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-6f6e"></a>
 
 ## `on`
 
-```cinch
-on :: forall a b c . ((b -> (b -> c)) -> ((a -> b) -> (a -> (a -> c))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">on</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>))))</code></pre>
 
 `on g k` compares two values through `k`'s projections: `on (<)
 fst` is the comparator on first components (the `Data.Function.on`
@@ -161,31 +141,25 @@ fixity).
 
 ## `snd`
 
-```cinch
-snd :: forall a b . ((a, b) -> b)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">snd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">b</span>)</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 68
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-73776170"></a>
 
 ## `swap`
 
-```cinch
-swap :: forall a b . ((a, b) -> (b, a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 72
+[Source](/reference-sources/Function.Combinators.cinch)
 
 <a id="value-756e6375727279"></a>
 
 ## `uncurry`
 
-```cinch
-uncurry :: forall a b c . ((a -> (b -> c)) -> ((a, b) -> c))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uncurry</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">c</span>))</code></pre>
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 79
+[Source](/reference-sources/Function.Combinators.cinch)
 
 # Reference provenance
 

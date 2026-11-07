@@ -80,9 +80,7 @@ Named refusals (boundaries this module deliberately does not cross):
 
 ## `ResolvError`
 
-```cinch
-data ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ResolvError</span></code></pre>
 
 What went wrong, named. The four shared platform names are the
 boundary's own vocabulary (`Effect.Net`'s `NetError`, the codes
@@ -94,25 +92,15 @@ to turn into an invented address.
 
 [Source](/reference-sources/Effect.Resolv.cinch) · line 82
 
-```cinch
-ResolvNotFound :: ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvNotFound</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
 
-```cinch
-ResolvPermissionDenied :: ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvPermissionDenied</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
 
-```cinch
-ResolvInvalidArgument :: ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvInvalidArgument</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
 
-```cinch
-ResolvIoError :: ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvIoError</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
 
-```cinch
-ResolvMalformedAnswer :: ResolvError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvMalformedAnswer</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
 
 # Values
 
@@ -120,13 +108,7 @@ ResolvMalformedAnswer :: ResolvError
 
 ## `answer-addresses`
 
-```cinch
-answer-addresses :: (List (IpAddr, Nat) -> List IpAddr)
-```
-
-Classification over an answer list (Ruby's `IPAddr#ipv4?`/
-`#ipv6?` shape, one total `IpFamily` witness through
-`Data.IpAddr`'s `ip-family`).
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-addresses</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">IpAddr</span>)</code></pre>
 
 The addresses alone, in the resolver's order.
 
@@ -136,9 +118,7 @@ The addresses alone, in the resolver's order.
 
 ## `answer-family-count`
 
-```cinch
-answer-family-count :: (IpFamily -> (List (IpAddr, Nat) -> Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-family-count</span> :: (<span class="tok-constructor">IpFamily</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 How many answers belong to `fam`.
 
@@ -148,9 +128,7 @@ How many answers belong to `fam`.
 
 ## `answer-has-family`
 
-```cinch
-answer-has-family :: (IpFamily -> (List (IpAddr, Nat) -> Bool))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-has-family</span> :: (<span class="tok-constructor">IpFamily</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 Whether any answer belongs to `fam`.
 
@@ -160,9 +138,7 @@ Whether any answer belongs to `fam`.
 
 ## `resolve`
 
-```cinch
-resolve :: forall r . using (io :: Io r) => (String -> (Nat ->{IO r} Result ResolvError (List (IpAddr, Nat))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
 
 Resolve `host` (UTF-8 host text) at `port` (0..=65535) into the
 typed answer list, or the named error. Each `<ip>:<port>` line the
@@ -177,9 +153,7 @@ property and never a silent filter.
 
 ## `resolve-addresses`
 
-```cinch
-resolve-addresses :: forall r . using (io :: Io r) => (String ->{IO r} Result ResolvError (List IpAddr))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve-addresses</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">IpAddr</span>))</code></pre>
 
 The name-only convenience: `resolve host` at port 0 and the port
 discarded, so a caller that wants just the addresses (Ruby's

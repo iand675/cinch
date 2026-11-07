@@ -76,9 +76,7 @@ implement; each is a named boundary, never a silent gap):
 
 ## `Uri`
 
-```cinch
-data Uri
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Uri</span></code></pre>
 
 The reference and its components.
 
@@ -92,41 +90,27 @@ brackets; a present-but-empty `host` is the empty authority of
 
 [Source](/reference-sources/Text.Uri.cinch) · line 88
 
-```cinch
-MkUri :: (Option String -> (Option String -> (Option String -> (Option Nat -> (String -> (Option String -> (Option String -> Uri)))))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUri</span> :: (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Uri</span>)))))))</code></pre>
 
 <a id="type-5572694572726f72"></a>
 
 ## `UriError`
 
-```cinch
-data UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UriError</span></code></pre>
 
 Errors: every malformed reference names the rule it broke.
 
 [Source](/reference-sources/Text.Uri.cinch) · line 124
 
-```cinch
-BadPercentEscape :: UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPercentEscape</span> :: <span class="tok-constructor">UriError</span></code></pre>
 
-```cinch
-BadScheme :: UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadScheme</span> :: <span class="tok-constructor">UriError</span></code></pre>
 
-```cinch
-BadPort :: UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPort</span> :: <span class="tok-constructor">UriError</span></code></pre>
 
-```cinch
-BadIpv6Host :: UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadIpv6Host</span> :: <span class="tok-constructor">UriError</span></code></pre>
 
-```cinch
-BadUtf8 :: UriError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadUtf8</span> :: <span class="tok-constructor">UriError</span></code></pre>
 
 # Values
 
@@ -134,59 +118,47 @@ BadUtf8 :: UriError
 
 ## `render-uri-error`
 
-```cinch
-render-uri-error :: (UriError -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-uri-error</span> :: (<span class="tok-constructor">UriError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 131
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d6465636f6465"></a>
 
 ## `uri-decode`
 
-```cinch
-uri-decode :: (String -> Result UriError String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">UriError</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 255
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d656e636f6465"></a>
 
 ## `uri-encode`
 
-```cinch
-uri-encode :: (String -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-encode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 239
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d667261676d656e74"></a>
 
 ## `uri-fragment`
 
-```cinch
-uri-fragment :: (Uri -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-fragment</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 115
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d686f7374"></a>
 
 ## `uri-host`
 
-```cinch
-uri-host :: (Uri -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 99
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d686f73742d6970"></a>
 
 ## `uri-host-ip`
 
-```cinch
-uri-host-ip :: (Uri -> Option IpAddr)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host-ip</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">IpAddr</span>)</code></pre>
 
 The address a host names, when it names one: a bracketed literal is
 an IPv6 address, a bare host that parses as IPv4 is one, and any
@@ -198,19 +170,15 @@ other host (a registered name, or an unbracketed IPv6) is `None`.
 
 ## `uri-normalize`
 
-```cinch
-uri-normalize :: (Uri -> Uri)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-normalize</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Uri</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 542
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d7061727365"></a>
 
 ## `uri-parse`
 
-```cinch
-uri-parse :: (String -> Result UriError Uri)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">UriError</span> <span class="tok-constructor">Uri</span>)</code></pre>
 
 Parsing (RFC 3986 appendix B's grammar, with the checks the
 grammar needs and the appendix's regex cannot carry).
@@ -221,59 +189,47 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-path`
 
-```cinch
-uri-path :: (Uri -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-path</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 107
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d706f7274"></a>
 
 ## `uri-port`
 
-```cinch
-uri-port :: (Uri -> Option Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-port</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 103
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d7175657279"></a>
 
 ## `uri-query`
 
-```cinch
-uri-query :: (Uri -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-query</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 111
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d7265736f6c7665"></a>
 
 ## `uri-resolve`
 
-```cinch
-uri-resolve :: (Uri -> (Uri -> Uri))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-resolve</span> :: (<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Uri</span>))</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 652
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d736368656d65"></a>
 
 ## `uri-scheme`
 
-```cinch
-uri-scheme :: (Uri -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-scheme</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 91
+[Source](/reference-sources/Text.Uri.cinch)
 
 <a id="value-7572692d746f2d737472696e67"></a>
 
 ## `uri-to-string`
 
-```cinch
-uri-to-string :: (Uri -> String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-to-string</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 Printing: the exact inverse of parsing (the round-trip law).
 
@@ -283,11 +239,9 @@ Printing: the exact inverse of parsing (the round-trip law).
 
 ## `uri-userinfo`
 
-```cinch
-uri-userinfo :: (Uri -> Option String)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-userinfo</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
 
-[Source](/reference-sources/Text.Uri.cinch) · line 95
+[Source](/reference-sources/Text.Uri.cinch)
 
 # Reference provenance
 

@@ -31,21 +31,17 @@ Instances live with their type (Data.Map, Data.HashMap).
 
 ## `FromMap`
 
-```cinch
-signature FromMap m k v
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
-[Source](/reference-sources/Data.FromMap.cinch) · line 13
+[Source](/reference-sources/Data.FromMap.cinch)
 
 <a id="method-46726f6d4d61702e66726f6d2d6d6170"></a>
 
 ## `FromMap.from-map`
 
-```cinch
-from-map :: forall m k v . using (dict :: FromMap m k v) => (List (k, v) -> m)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) =&gt; (<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) -&gt; <span class="tok-variable">m</span>)</code></pre>
 
-[Source](/reference-sources/Data.FromMap.cinch) · line 14
+
 
 # Reference provenance
 

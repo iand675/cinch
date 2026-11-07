@@ -32,9 +32,7 @@ family.
 
 ## `Json`
 
-```cinch
-data Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Json</span></code></pre>
 
 The `Json`-shaped value a file converter binds for a JSON file with
 no declared type (surface grammar local amendments section 11); with
@@ -46,41 +44,23 @@ the payloads stay inside the family.
 
 [Source](/reference-sources/Data.Json.cinch) · line 23
 
-```cinch
-JNull :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNull</span> :: <span class="tok-constructor">Json</span></code></pre>
 
-```cinch
-JBool :: (Bool -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JNum :: (Int -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNum</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JFloat :: (F64 -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JStr :: (String -> Json)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JStr</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
 
-```cinch
-JArr :: (Json -> (Json -> Json))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArr</span> :: (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>))</code></pre>
 
-```cinch
-JObj :: (String -> (Json -> (Json -> Json)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObj</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
 
-```cinch
-JArrEnd :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArrEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
 
-```cinch
-JObjEnd :: Json
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObjEnd</span> :: <span class="tok-constructor">Json</span></code></pre>
 
 # Reference provenance
 

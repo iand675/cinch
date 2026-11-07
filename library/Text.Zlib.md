@@ -100,11 +100,7 @@ and the codes accumulate high-bit-first (`huff-walk`).
 
 ## `ZlibError`
 
-```cinch
-data ZlibError
-```
-
-Errors.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZlibError</span></code></pre>
 
 The named failure vocabulary (the header's four refusals). Every
 one is a value, never a fault: a malformed stream is an outcome
@@ -113,21 +109,13 @@ bytes cross the boundary).
 
 [Source](/reference-sources/Text.Zlib.cinch) · line 100
 
-```cinch
-BadHeader :: ZlibError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
 
-```cinch
-BadChecksum :: ZlibError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadChecksum</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
 
-```cinch
-InvalidCode :: ZlibError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCode</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
 
-```cinch
-TruncatedStream :: ZlibError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedStream</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
 
 # Values
 
@@ -135,9 +123,7 @@ TruncatedStream :: ZlibError
 
 ## `adler32`
 
-```cinch
-adler32 :: (Bytes -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
 The checksum's low 32 bits (both halves are below 65521, so the
 residue is the value itself; it is the conversion's evidence).
@@ -148,9 +134,7 @@ residue is the value itself; it is the conversion's evidence).
 
 ## `crc32`
 
-```cinch
-crc32 :: (Bytes -> U32)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
 CRC-32: the IEEE 802.3 polynomial reflected (0xEDB88320), seeded
 all ones and finished inverted (the checksum gzip and PNG carry).
@@ -161,14 +145,7 @@ all ones and finished inverted (the checksum gzip and PNG carry).
 
 ## `deflate`
 
-```cinch
-deflate :: (Bytes -> Bytes)
-```
-
-Encoding. Stored blocks only (see the header): the encoder's
-obligation is a legal stream that round-trips, and its output is
-exactly the stream a decoder would have produced had the input
-arrived as a stored block already.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
 FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
@@ -183,9 +160,7 @@ nothing is copied twice.
 
 ## `inflate`
 
-```cinch
-inflate :: (Bytes -> Result ZlibError Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ZlibError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The whole stream: header, blocks, trailing Adler-32.
 

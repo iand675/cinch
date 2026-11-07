@@ -91,9 +91,7 @@ atop the P34 `Clock` capability").
 
 ## `Time`
 
-```cinch
-data Time
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Time</span></code></pre>
 
 The civil date-time: the date and the nanoseconds since its
 midnight, below one day. Not exported (the invariant above);
@@ -101,21 +99,13 @@ midnight, below one day. Not exported (the invariant above);
 
 [Source](/reference-sources/Data.Time.cinch) · line 95
 
-```cinch
-Time :: (Date -> (Nat -> Time))
-```
-
-The civil date-time: the date and the nanoseconds since its
-midnight, below one day. Not exported (the invariant above);
-`time` is the only constructor.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Time</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
 
 <a id="type-54696d6550617273654572726f72"></a>
 
 ## `TimeParseError`
 
-```cinch
-data TimeParseError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TimeParseError</span></code></pre>
 
 The literal reader's errors, one per refusal: the text is not a
 date-time, its time fields are out of range, or its date half
@@ -124,17 +114,11 @@ diagnostics survive the composition).
 
 [Source](/reference-sources/Data.Time.cinch) · line 102
 
-```cinch
-NotATime :: TimeParseError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotATime</span> :: <span class="tok-constructor">TimeParseError</span></code></pre>
 
-```cinch
-TimeFieldsOutOfRange :: TimeParseError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimeFieldsOutOfRange</span> :: <span class="tok-constructor">TimeParseError</span></code></pre>
 
-```cinch
-BadDatePart :: (DateParseError -> TimeParseError)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadDatePart</span> :: (<span class="tok-constructor">DateParseError</span> -&gt; <span class="tok-constructor">TimeParseError</span>)</code></pre>
 
 # Values
 
@@ -142,9 +126,7 @@ BadDatePart :: (DateParseError -> TimeParseError)
 
 ## `add-duration`
 
-```cinch
-add-duration :: (Duration -> (Time -> Time))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-duration</span> :: (<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
 
 Move forward by `d` (a whole number of milliseconds; the day
 carries).
@@ -155,29 +137,23 @@ carries).
 
 ## `cmp`
 
-```cinch
-cmp :: (Time -> (Time -> Ordering))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 190
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-646174652d70617274"></a>
 
 ## `date-part`
 
-```cinch
-date-part :: (Time -> Date)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-part</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Date</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 126
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-64696666"></a>
 
 ## `diff`
 
-```cinch
-diff :: (Time -> (Time -> Duration))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff</span> :: (<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Duration</span>))</code></pre>
 
 The distance between two instants in whole milliseconds (truncated
 toward zero): unsigned, because `Duration` is, so the caller reads
@@ -189,9 +165,7 @@ direction from `cmp` (the refusal above).
 
 ## `from-epoch-nanos`
 
-```cinch
-from-epoch-nanos :: (Int -> Time)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-nanos</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Time</span>)</code></pre>
 
 The inverse: every `Int` is an instant, so the result is total and
 the floored split keeps the day's remainder non-negative for the
@@ -203,9 +177,7 @@ pre-epoch instants too.
 
 ## `from-string`
 
-```cinch
-from-string :: (String -> Result TimeParseError Time)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TimeParseError</span> <span class="tok-constructor">Time</span>)</code></pre>
 
 Strict ISO 8601 date-time: the date half (Data.Date's reader, so
 its `NotADate`/`InvalidDate` survive as `BadDatePart`), `T`, then
@@ -221,59 +193,47 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `hour`
 
-```cinch
-hour :: (Time -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hour</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 134
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-6d696e757465"></a>
 
 ## `minute`
 
-```cinch
-minute :: (Time -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minute</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 137
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-6e616e6f7365636f6e64"></a>
 
 ## `nanosecond`
 
-```cinch
-nanosecond :: (Time -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanosecond</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 143
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-6e616e6f7365636f6e64732d6f662d646179"></a>
 
 ## `nanoseconds-of-day`
 
-```cinch
-nanoseconds-of-day :: (Time -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanoseconds-of-day</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 130
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-7365636f6e64"></a>
 
 ## `second`
 
-```cinch
-second :: (Time -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">second</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Data.Time.cinch) · line 140
+[Source](/reference-sources/Data.Time.cinch)
 
 <a id="value-7375622d6475726174696f6e"></a>
 
 ## `sub-duration`
 
-```cinch
-sub-duration :: (Duration -> (Time -> Time))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-duration</span> :: (<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
 
 Move backward by `d`.
 
@@ -283,9 +243,7 @@ Move backward by `d`.
 
 ## `time`
 
-```cinch
-time :: (Date -> (Nat -> Option Time))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Time</span>))</code></pre>
 
 The only constructor: a nanosecond count inside the day. At or past
 the day's end is `None`, so an out-of-range `Time` has no
@@ -297,12 +255,7 @@ representation.
 
 ## `to-epoch-nanos`
 
-```cinch
-to-epoch-nanos :: (Time -> Int)
-```
-
-The wall-nanosecond line (the Unix epoch; `clock-wall-ns` reads
-this quantity) and the duration arithmetic on it.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-nanos</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
 
@@ -312,11 +265,7 @@ Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
 
 ## `to-string`
 
-```cinch
-to-string :: (Time -> String)
-```
-
-ISO 8601 rendering and reading.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
 
 `YYYY-MM-DDTHH:MM:SS` (the date half is Data.Date's rendering), with
 `.fffffffff` appended when the sub-second field is non-zero. No
@@ -334,6 +283,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 | --- | --- | --- |
 | `Data.Time.Eq_Time` | `Eq Time` | Implicit |
 | `Data.Time.Ord_Time` | `Ord Time` | Implicit |
+
+**`Data.Time.Eq_Time`**: Instances (the class spellings of `cmp`; instances live with their
+type per design/base-library.md).
 
 # Reference provenance
 

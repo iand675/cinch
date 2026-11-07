@@ -58,84 +58,54 @@ system's vocabulary.
 
 ## `FileKind`
 
-```cinch
-data FileKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FileKind</span></code></pre>
 
 What a path names.
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 68
 
-```cinch
-FileIsFile :: FileKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">FileKind</span></code></pre>
 
-```cinch
-FileIsDirectory :: FileKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsDirectory</span> :: <span class="tok-constructor">FileKind</span></code></pre>
 
-```cinch
-FileIsOther :: FileKind
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsOther</span> :: <span class="tok-constructor">FileKind</span></code></pre>
 
 <a id="type-46696c654d657461"></a>
 
 ## `FileMeta`
 
-```cinch
-data FileMeta
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FileMeta</span></code></pre>
 
 A file's metadata: its kind and its size in bytes.
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 74
 
-```cinch
-FileMeta :: (FileKind -> (Nat -> FileMeta))
-```
-
-A file's metadata: its kind and its size in bytes.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FileMeta</span>))</code></pre>
 
 <a id="type-46734572726f72"></a>
 
 ## `FsError`
 
-```cinch
-data FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FsError</span></code></pre>
 
 What went wrong, named (the `std::io::ErrorKind` vocabulary the
 runtime maps its codes from).
 
 [Source](/reference-sources/Effect.Fs.cinch) · line 58
 
-```cinch
-NotFound :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-PermissionDenied :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PermissionDenied</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-AlreadyExists :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AlreadyExists</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-NotADirectory :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADirectory</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-IsADirectory :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsADirectory</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-InvalidName :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidName</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
-```cinch
-IoError :: FsError
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoError</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
 # Values
 
@@ -143,29 +113,23 @@ IoError :: FsError
 
 ## `file-meta-kind`
 
-```cinch
-file-meta-kind :: (FileMeta -> FileKind)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">file-meta-kind</span> :: (<span class="tok-constructor">FileMeta</span> -&gt; <span class="tok-constructor">FileKind</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 77
+[Source](/reference-sources/Effect.Fs.cinch)
 
 <a id="value-66696c652d6d6574612d73697a65"></a>
 
 ## `file-meta-size`
 
-```cinch
-file-meta-size :: (FileMeta -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">file-meta-size</span> :: (<span class="tok-constructor">FileMeta</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 81
+[Source](/reference-sources/Effect.Fs.cinch)
 
 <a id="value-66732d6c697374"></a>
 
 ## `fs-list`
 
-```cinch
-fs-list :: forall r . using (io :: Io r) => (Path ->{IO r} Result FsError (List String))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
 
 The names in the directory `p`, sorted ascending (the OS listing
 order is not specified; the sorted listing is this home's
@@ -177,9 +141,7 @@ observable order).
 
 ## `fs-metadata`
 
-```cinch
-fs-metadata :: forall r . using (io :: Io r) => (Path ->{IO r} Result FsError FileMeta)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-metadata</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> <span class="tok-constructor">FileMeta</span>)</code></pre>
 
 The kind and size of what `p` names.
 
@@ -189,9 +151,7 @@ The kind and size of what `p` names.
 
 ## `fs-read`
 
-```cinch
-fs-read :: forall r . using (io :: Io r) => (Path ->{IO r} Result FsError Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The whole file at `p`, or the named error (missing paths report
 `NotFound`).
@@ -202,9 +162,7 @@ The whole file at `p`, or the named error (missing paths report
 
 ## `fs-rename`
 
-```cinch
-fs-rename :: forall r . using (io :: Io r) => (Path -> (Path ->{IO r} Result FsError Unit))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-rename</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 Atomically rename `from` to `to` (POSIX `rename`: the target sees
 the whole old or the whole new content, never a partial).
@@ -215,9 +173,7 @@ the whole old or the whole new content, never a partial).
 
 ## `fs-write`
 
-```cinch
-fs-write :: forall r . using (io :: Io r) => (Path -> (Bytes ->{IO r} Result FsError Unit))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-write</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 Write `content` to `p`, creating or truncating it (NOT atomic;
 atomic replacement is `fs-rename`).

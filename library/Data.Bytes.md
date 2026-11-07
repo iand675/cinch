@@ -44,9 +44,7 @@ This module exports no type declarations.
 
 ## `bytes-compare`
 
-```cinch
-bytes-compare :: (Bytes -> (Bytes -> I64))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-compare</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
 The lexicographic order of two buffers' contents as the raw -1/0/1
 immediate (the `nat-cmp` convention), read in place: no copy and
@@ -58,9 +56,7 @@ no allocation.
 
 ## `bytes-copy-range`
 
-```cinch
-bytes-copy-range :: using ((arg2 + arg4) <= (Data.Bytes.bytes-len arg0), (arg3 + arg4) <= (Data.Bytes.bytes-len arg1)) => ((arg0 :: Bytes) -> ((arg1 :: Bytes) -> ((arg2 :: Nat) -> ((arg3 :: Nat) -> ((arg4 :: Nat) -> Unit)))))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-copy-range</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg2</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>), (<span class="tok-variable">arg3</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg1</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg4</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))))</code></pre>
 
 `bytes-copy-range dst src di si n`: the `n` bytes of `src` from `si`
 into `dst` at `di`, as one runtime `memmove` (the two may be the
@@ -73,9 +69,7 @@ for every index step, so every bulk copy goes through this.
 
 ## `bytes-from-list`
 
-```cinch
-bytes-from-list :: (List (InRange 0 255 Nat) -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-list</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
 list of numerals decides each element at compile time and a
@@ -87,9 +81,7 @@ computed list carries its elements' ranges.
 
 ## `bytes-from-u8s`
 
-```cinch
-bytes-from-u8s :: (List U8 -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-u8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
@@ -99,22 +91,15 @@ The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
 ## `bytes-get`
 
-```cinch
-bytes-get :: using (arg1 < (Data.Bytes.bytes-len arg0)) => ((arg0 :: Bytes) -> ((arg1 :: Nat) -> InRange 0 255 Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 41
+[Source](/reference-sources/Data.Bytes.cinch)
 
 <a id="value-62797465732d6c656e"></a>
 
 ## `bytes-len`
 
-```cinch
-bytes-len :: (Bytes -> InRange 0 9223372036854775807 Nat)
-```
-
-`nat-cmp`/`int-cmp` return the raw -1/0/1 immediate at `I64`, so
-equality is `eq-i64 (int-cmp a b) 0`.
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-len</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 `Bytes`: boxed byte buffers. `bytes-len` comes first: the other
 signatures name it. A length is an `i64` in the runtime, so it is at
@@ -131,29 +116,23 @@ conversion out of a `String` copies.
 
 ## `bytes-new`
 
-```cinch
-bytes-new :: ((a0 :: Nat) -> refined ((Data.Bytes.bytes-len r) == a0) Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-new</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">r</span>) <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Bytes</span>)</code></pre>
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 40
+[Source](/reference-sources/Data.Bytes.cinch)
 
 <a id="value-62797465732d736574"></a>
 
 ## `bytes-set`
 
-```cinch
-bytes-set :: using (arg1 < (Data.Bytes.bytes-len arg0)) => ((arg0 :: Bytes) -> ((arg1 :: Nat) -> ((arg2 :: InRange 0 255 Nat) -> Unit)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 42
+[Source](/reference-sources/Data.Bytes.cinch)
 
 <a id="value-7368613235362d6279746573"></a>
 
 ## `sha256-bytes`
 
-```cinch
-sha256-bytes :: (Bytes -> Bytes)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 SHA-256 (FIPS 180-4) at content-addressing strength over a
 buffer (the P31 content identity; `compiler/runtime/src/text.rs`,
@@ -171,6 +150,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Bytes.Eq_Bytes` | `Eq Bytes` | Implicit |
 | `Data.Bytes.FromList_Bytes` | `FromList Bytes U8` | Implicit |
 | `Data.Bytes.Hash_Bytes` | `Hash Bytes` | Implicit |
+
+**`Data.Bytes.Hash_Bytes`**: The buffer's digest (instances live with their type). `Data.String`
+hashes its UTF-8 backing through THIS instance, so a string and the
+bytes it converts to agree by construction rather than by two
+copies of one algorithm.
 
 # Reference provenance
 

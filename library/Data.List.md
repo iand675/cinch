@@ -49,19 +49,13 @@ the name here, which is the `map` situation over again.
 
 ## `List`
 
-```cinch
-data List (a :: Type)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">List</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
 
-[Source](/reference-sources/Data.Core.cinch) · line 26
+[Source](/reference-sources/Data.Core.cinch)
 
-```cinch
-Nil :: forall a . List a
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
 
-```cinch
-Cons :: forall a . (a -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 # Values
 
@@ -69,9 +63,7 @@ Cons :: forall a . (a -> (List a -> List a))
 
 ## `break`
 
-```cinch
-break :: forall a . ((a -> Bool) -> (List a -> (List a, List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">break</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>, <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The longest prefix whose elements do NOT satisfy `p`, and the rest.
 Written out rather than spelled `span` of a negated predicate:
@@ -83,9 +75,7 @@ Written out rather than spelled `span` of a negated predicate:
 
 ## `cycle`
 
-```cinch
-cycle :: forall a . (Nat -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cycle</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The list repeated `n` times. `base`'s `cycle` on an empty list
 never returns; here the empty list stays empty, because every
@@ -97,9 +87,7 @@ list-producing walk in this language must end.
 
 ## `drop`
 
-```cinch
-drop :: forall a . (Nat -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">drop</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 Everything but the first `n` elements.
 
@@ -109,9 +97,7 @@ Everything but the first `n` elements.
 
 ## `elem-index`
 
-```cinch
-elem-index :: forall a . using (eq :: Eq a) => (a -> (List a -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">elem-index</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The position of the first element equal to `x` (`None` when
 absent).
@@ -122,9 +108,7 @@ absent).
 
 ## `find`
 
-```cinch
-find :: forall a . ((a -> Bool) -> (List a -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 The first element `p` accepts (`None` when none does).
 
@@ -134,9 +118,7 @@ The first element `p` accepts (`None` when none does).
 
 ## `find-index`
 
-```cinch
-find-index :: forall a . ((a -> Bool) -> (List a -> Option Nat))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-index</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The position of the first element `p` accepts (`None` when none
 does). The position is a `Nat`: it counts from zero, so it cannot
@@ -148,9 +130,7 @@ be negative.
 
 ## `fold-left1`
 
-```cinch
-fold-left1 :: forall a . ((a -> (a -> a)) -> (List a -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-left1</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 The left fold seeded with the first element, so an empty list has
 nothing to return (`None`; `base`'s `foldl1` faults).
@@ -161,9 +141,7 @@ nothing to return (`None`; `base`'s `foldl1` faults).
 
 ## `fold-right1`
 
-```cinch
-fold-right1 :: forall a . ((a -> (a -> a)) -> (List a -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-right1</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 The right fold seeded with the first element (`None` on an empty
 list).
@@ -174,19 +152,15 @@ list).
 
 ## `foldr`
 
-```cinch
-foldr :: forall a b . ((a -> (b -> b)) -> (b -> (List a -> b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">foldr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 68
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-67726f75702d6279"></a>
 
 ## `group-by`
 
-```cinch
-group-by :: forall a . ((a -> (a -> Bool)) -> (List a -> List (List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">group-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The runs of adjacent elements the `same` test groups together: a
 run starts at an element and grows while `same` holds of that
@@ -199,9 +173,7 @@ rather than an equality (`base`'s `groupBy`).
 
 ## `head`
 
-```cinch
-head :: forall a . (List a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">head</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
 The partial projections of a list: the first element, everything
 but the first, the last element, and everything but the last. Each
@@ -215,19 +187,15 @@ convention: a partial accessor returns `Option`, never a fault).
 
 ## `init`
 
-```cinch
-init :: forall a . (List a -> Option (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">init</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 157
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-696e74657263616c617465"></a>
 
 ## `intercalate`
 
-```cinch
-intercalate :: forall a . (List a -> (List (List a) -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intercalate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The lists joined with `sep` between them (`base`'s `intercalate`,
 which is `concat` of `intersperse sep`); `Nil` and a singleton come
@@ -242,9 +210,7 @@ constraint to concatenate its own type.
 
 ## `intersperse`
 
-```cinch
-intersperse :: forall a . (a -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intersperse</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 `sep` between the elements, one separator fewer than the list has
 elements, so `Nil` and a singleton come back unchanged (`base`'s
@@ -256,19 +222,15 @@ elements, so `Nil` and a singleton come back unchanged (`base`'s
 
 ## `is-empty`
 
-```cinch
-is-empty :: forall a . (List a -> Bool)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 130
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-69746572617465"></a>
 
 ## `iterate`
 
-```cinch
-iterate :: forall a . (Nat -> ((a -> a) -> (a -> List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iterate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The enumeration `x, f x, f (f x), ...` cut to `n` elements. The
 bound is what keeps the walk total (`base`'s `iterate` is
@@ -280,29 +242,23 @@ infinite).
 
 ## `last`
 
-```cinch
-last :: forall a . (List a -> Option a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">last</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 150
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-6c656e677468"></a>
 
 ## `length`
 
-```cinch
-length :: forall a . (List a -> Int)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">length</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 73
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-6c6973742d6c656e677468"></a>
 
 ## `list-length`
 
-```cinch
-list-length :: forall a . (List a -> Nat)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">list-length</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The same count as a `Nat`, for the indexing and sizing arithmetic
 that works in `Nat` (`take`/`drop`/`nth` below, offsets, widths).
@@ -315,9 +271,7 @@ returned `Int` there.
 
 ## `lookup`
 
-```cinch
-lookup :: forall k v . using (eq :: Eq k) => (k -> (List (k, v) -> Option v))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lookup</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">v</span>))</code></pre>
 
 The value paired with `key`: the first pair whose key matches wins,
 so a repeated key keeps the earliest value (`None` when absent).
@@ -330,9 +284,7 @@ build their trees over.
 
 ## `map`
 
-```cinch
-map :: forall a b . ((a -> b) -> (List a -> List b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">b</span>))</code></pre>
 
 `List`, `Nil` and `Cons` are declared in `Data.Core` and re-exported
 here (that module's header says why: `Data.List` and `Data.Option`
@@ -345,9 +297,7 @@ This home carries the type's instance family and its operations.
 
 ## `nth`
 
-```cinch
-nth :: forall a . (Nat -> (List a -> Option a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nth</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 The element at index `n` (`None` past the end).
 
@@ -357,9 +307,7 @@ The element at index `n` (`None` past the end).
 
 ## `nub`
 
-```cinch
-nub :: forall a . using (eq :: Eq a) => (List a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nub</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
 The list with later duplicates removed, keeping the first
 occurrence of each element (`base`'s `nub`; the `Eq` constraint is
@@ -371,9 +319,7 @@ what decides sameness).
 
 ## `partition`
 
-```cinch
-partition :: forall a . ((a -> Bool) -> (List a -> (List a, List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">partition</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>, <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The elements that satisfy `p` and the ones that do not, each in
 input order (so the two results interleave back into the input).
@@ -384,9 +330,7 @@ input order (so the two results interleave back into the input).
 
 ## `replicate`
 
-```cinch
-replicate :: forall a . (Nat -> (a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 `x` repeated `n` times.
 
@@ -396,9 +340,7 @@ replicate :: forall a . (Nat -> (a -> List a))
 
 ## `reverse`
 
-```cinch
-reverse :: forall a . (List a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
 Reversal (the accumulator is the reverse built so far, so the walk
 is linear; `reverse-into` is the private twin every accumulator
@@ -410,9 +352,7 @@ walk here shares).
 
 ## `scanl`
 
-```cinch
-scanl :: forall a b . ((b -> (a -> b)) -> (b -> (List a -> List b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scanl</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">b</span>)))</code></pre>
 
 The successive reductions from the left, the seed first: `scanl f z
 xs` has one element more than `xs` (`base`'s `scanl`).
@@ -423,9 +363,7 @@ xs` has one element more than `xs` (`base`'s `scanl`).
 
 ## `scanr`
 
-```cinch
-scanr :: forall a b . ((a -> (b -> b)) -> (b -> (List a -> List b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scanr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">b</span>)))</code></pre>
 
 The successive reductions from the right: the first element is the
 whole fold and the seed is last (`base`'s `scanr`).
@@ -436,9 +374,7 @@ whole fold and the seed is last (`base`'s `scanr`).
 
 ## `sort`
 
-```cinch
-sort :: forall a . using (ord :: Ord a) => (List a -> List a)
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sort</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
 
 The list in ascending order under `Ord` (a stable merge sort).
 
@@ -448,9 +384,7 @@ The list in ascending order under `Ord` (a stable merge sort).
 
 ## `sort-by`
 
-```cinch
-sort-by :: forall a . ((a -> (a -> Ordering)) -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sort-by</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Ordering</span>)) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 Merge sort under a three-way comparator. Stable: the left element
 is kept unless the right one compares strictly before it, so equal
@@ -462,9 +396,7 @@ elements stay in their input order (`base`'s `sortBy`).
 
 ## `span`
 
-```cinch
-span :: forall a . ((a -> Bool) -> (List a -> (List a, List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>, <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The longest prefix whose elements satisfy `p`, and the rest.
 
@@ -474,9 +406,7 @@ The longest prefix whose elements satisfy `p`, and the rest.
 
 ## `split-at`
 
-```cinch
-split-at :: forall a . (Nat -> (List a -> (List a, List a)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">split-at</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>, <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The first `n` elements and the rest; the split clamps at the end,
 so `split-at n` of a shorter list is the whole list and `Nil`.
@@ -487,9 +417,7 @@ so `split-at n` of a shorter list is the whole list and `Nil`.
 
 ## `subsequences`
 
-```cinch
-subsequences :: forall a . (List a -> List (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">subsequences</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 Every subsequence, the empty one first, in `base`'s order:
 `subsequences [a, b]` is `[[], [a], [b], [a, b]]`. The count is
@@ -503,29 +431,23 @@ input does.
 
 ## `sum-list`
 
-```cinch
-sum-list :: forall a . using (add :: Add a) => (a -> (List a -> a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sum-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">add</span> :: <span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 501
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-7461696c"></a>
 
 ## `tail`
 
-```cinch
-tail :: forall a . (List a -> Option (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tail</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
-[Source](/reference-sources/Data.List.cinch) · line 145
+[Source](/reference-sources/Data.List.cinch)
 
 <a id="value-74616b65"></a>
 
 ## `take`
 
-```cinch
-take :: forall a . (Nat -> (List a -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">take</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The first `n` elements (fewer when the list is shorter).
 
@@ -535,9 +457,7 @@ The first `n` elements (fewer when the list is shorter).
 
 ## `transpose`
 
-```cinch
-transpose :: forall a . (List (List a) -> List (List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The transpose of a ragged list of lists: round k is the k-th
 element of every row that still has one, so a short row contributes
@@ -552,9 +472,7 @@ operation.
 
 ## `unfold`
 
-```cinch
-unfold :: forall a b . ((b -> Option (a, b)) -> (b -> List a))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unfold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">b</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The unfolding: `f` either yields the next element together with the
 next seed, or stops. `base` spells this `unfoldr`; the `r` suffix
@@ -567,9 +485,7 @@ the plain one.
 
 ## `unzip`
 
-```cinch
-unzip :: forall a b . (List (a, b) -> (List a, List b))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unzip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">List</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>, <span class="tok-constructor">List</span> <span class="tok-variable">b</span>))</code></pre>
 
 The inverse of `zip`: the first components and the second
 components, each in order.
@@ -580,9 +496,7 @@ components, each in order.
 
 ## `zip`
 
-```cinch
-zip :: forall a b . (List a -> (List b -> List (a, b)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)))</code></pre>
 
 Pairing, truncated at the shorter side (so a length mismatch
 shortens the result, never faults).
@@ -593,9 +507,7 @@ shortens the result, never faults).
 
 ## `zip-with`
 
-```cinch
-zip-with :: forall a b c . ((a -> (b -> c)) -> (List a -> (List b -> List c)))
-```
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">c</span>)))</code></pre>
 
 `zip` with the pair built by `f`, truncated the same way.
 
@@ -616,6 +528,21 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.List.Monoid_List` | `Monoid (List t)` | Implicit |
 | `Data.List.Semigroup_List` | `Semigroup (List t)` | Implicit |
 | `Data.List.Traversable_List` | `Traversable List` | Implicit |
+
+**`Data.List.Alternative_List`**: Choice is concatenation (moved from Category.Alternative).
+**`Data.List.Applicative_List`**: `pure` is the singleton list; `<*>` applies every function to
+every value in order (the list of all results; moved from
+Category.Applicative).
+**`Data.List.Foldable_List`**: The list fold (moved from Category.Foldable).
+**`Data.List.Functor_List`**: Functor: map over every element (moved from Category.Functor).
+**`Data.List.Monad_List`**: Bind is flatMap: every element's continuation result, in order
+(moved from Category.Monad).
+**`Data.List.Monoid_List`**: Monoid under append; the empty list is the identity (moved from
+Algebra.Monoid).
+**`Data.List.Semigroup_List`**: Semigroup under append: associative because list concatenation is
+(moved from Algebra.Semigroup at the prelude split).
+**`Data.List.Traversable_List`**: Left-to-right; the whole list rebuilds under one `f` (moved from
+Category.Traversable).
 
 # Reference provenance
 
