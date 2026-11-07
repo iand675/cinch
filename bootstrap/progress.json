@@ -19306,10 +19306,10 @@
       },
       {
         "title": "Check finite-index tactics on the original programs",
-        "status": "running",
-        "phase": "Tactics",
-        "passed": 0,
-        "failed": 0,
+        "status": "completed-tactics-with-failures",
+        "phase": "TacticsStale",
+        "passed": 2,
+        "failed": 2,
         "total": 4,
         "source": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab"
       },
@@ -19652,5 +19652,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:54:00.255884+00:00"
+  "updatedAt": "2026-11-07T17:55:02.298603+00:00"
 }
