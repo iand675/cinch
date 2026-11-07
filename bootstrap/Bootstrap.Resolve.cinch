@@ -9,7 +9,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
-  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references)
+  import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Data.Json
@@ -231,6 +231,12 @@ module Bootstrap.Resolve where
       DExport s text items -> items <> export-items rest
       other -> export-items rest
 
+  has-export-declaration :: List Decl -> Bool
+  has-export-declaration declarations = case declarations of
+    Nil -> False
+    Cons (DExport site text items) rest -> True
+    Cons other rest -> has-export-declaration rest
+
   lookup-view :: String -> List View -> Option View
   lookup-view name views = case views of
     Nil -> None
@@ -289,7 +295,7 @@ module Bootstrap.Resolve where
     let home = module-name m in
     let (declared, visible, views, visibility-errors) = module-visibility m done base in
     let (surface, export-errors) = case export-items (module-decls m) of
-          Nil -> (declared, Nil)
+          Nil -> (if has-export-declaration (module-decls m) then Nil else declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
     let (body, body-errors) = rename-decls home visible (module-decls m) in
     (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
@@ -583,6 +589,7 @@ module Bootstrap.Resolve where
       (a, errors) -> case rename-expr visible locals rest of
         (b, more) -> (EArg s a b, errors <> more)
     EArgsEnd s -> (e, Nil)
+    ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
 
@@ -666,6 +673,8 @@ module Bootstrap.Resolve where
     DImport s path mods alias members args -> (Nil, Nil)
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
+    DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
+    DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
   rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
@@ -786,7 +795,8 @@ module Bootstrap.Resolve where
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
-          case materialize-externals (declaration-references declarations <> export-references source-surfaces) declarations Nil of
+          let references = declaration-references declarations <> export-references source-surfaces in
+          case materialize-externals (references <> imported-class-references declarations declarations) declarations Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) base <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)

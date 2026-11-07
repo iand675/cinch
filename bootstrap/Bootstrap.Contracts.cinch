@@ -14,7 +14,7 @@ module Bootstrap.Contracts where
   import Algebra.Semigroup
 
   export interface-headers, interface-declarations, public-global
-  export materialize-externals, declaration-references
+  export materialize-externals, declaration-references, imported-class-references
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -66,8 +66,11 @@ module Bootstrap.Contracts where
       Some metadata -> Cons (DExternal zero (interface-global identity) kind None metadata) (declarations i rest)
 
   interface-declarations :: LoadedInterface -> List Decl
+  -- Canonical private slots may be reached by checked defaults and laws.
+  -- Imported source names still come exclusively from loaded-exports.
   interface-declarations i = Cons (DInterface zero (loaded-module i) (loaded-hash i) (loaded-contract i))
-    (declarations i (loaded-exports i) <> overloads i (loaded-exports i) Nil)
+    (declarations i (loaded-exports i <> loaded-private-methods i)
+      <> overloads i (loaded-exports i) Nil)
 
   overloads :: LoadedInterface -> List (String, String, String) -> List String -> List Decl
   overloads i exports seen = case exports of
@@ -196,16 +199,69 @@ module Bootstrap.Contracts where
     Nil -> Nil
     Cons (ps, body) rest -> patterns-references ps <> expr-references body <> clause-references rest
 
-  default-method-references :: Json -> List String
-  default-method-references methods = case methods of
-    JArr method rest -> (case portable-default-clauses zero (\name -> Some name) (field "default" method) of
-      Some clauses -> clause-references clauses
-      None -> Nil) <> default-method-references rest
+  defined-instance-method :: String -> List Decl -> Bool
+  defined-instance-method name members = case members of
+    Nil -> False
+    Cons (DFun sp member clauses) rest -> same name member || defined-instance-method name rest
+    Cons other rest -> defined-instance-method name rest
+
+  default-method-references :: List Decl -> Json -> List String
+  default-method-references members methods = case methods of
+    JArr method rest ->
+      let more = default-method-references members rest in
+      (case field "name" method of
+        JStr name -> if defined-instance-method name members then more else
+          (case portable-default-clauses zero (\identity -> Some identity) (field "default" method) of
+            Some clauses -> clause-references clauses <> more
+            None -> more)
+        other -> more)
     other -> Nil
-  default-class-references :: Json -> List String
-  default-class-references classes = case classes of
-    JArr description rest -> default-method-references (field "methods" description) <> default-class-references rest
+
+  defining-class-contract :: String -> Json -> Option Json
+  defining-class-contract owner classes = case classes of
+    JArr description rest -> (case field "identity" description of
+      JStr identity -> if same owner (interface-global identity) then Some description
+        else defining-class-contract owner rest
+      other -> defining-class-contract owner rest)
+    other -> None
+
+  imported-class-contract :: String -> List Decl -> Option Json
+  imported-class-contract owner ds = case ds of
+    Nil -> None
+    Cons (DInterface s name hash metadata) rest ->
+      (case defining-class-contract owner (field "signatures" (field "exports" metadata)) of
+        Some methods -> Some methods
+        None -> imported-class-contract owner rest)
+    Cons other rest -> imported-class-contract owner rest
+
+  instance-class-name :: TypeExpr -> Option String
+  instance-class-name ty = case ty of
+    TName sp name -> Some name
+    TApp sp f args -> instance-class-name f
+    TForall sp params body -> instance-class-name body
+    TUsing sp requirements body -> instance-class-name body
+    other -> None
+
+  imported-law-references :: Json -> List String
+  imported-law-references laws = case laws of
+    JArr row rest -> (case portable-law-syntax zero (\identity -> Some identity) (field "syntax" row) of
+      Some syntax -> law-references syntax
+      None -> Nil) <> imported-law-references rest
     other -> Nil
+
+  -- The source instance needs bindings for its class laws and omitted
+  -- default methods. Loading an unrelated interface has no runtime demand.
+  imported-class-references :: List Decl -> List Decl -> List String
+  imported-class-references all ds = case ds of
+    Nil -> Nil
+    Cons (DInstance sp flag name params head members) rest ->
+      (case instance-class-name head of
+        Some owner -> (case imported-class-contract owner all of
+          Some row -> default-method-references (decls-of members) (field "methods" row)
+            <> imported-law-references (field "laws" row)
+          None -> Nil)
+        None -> Nil) <> imported-class-references all rest
+    Cons other rest -> imported-class-references all rest
 
   ctor-references :: List (String, TypeExpr) -> List String
   ctor-references ctors = case ctors of Nil -> Nil; Cons (name, ty) rest -> type-references ty <> ctor-references rest
@@ -237,7 +293,6 @@ module Bootstrap.Contracts where
     DRecord s name params fields -> param-references params <> ctor-references fields
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
-    DInterface s name hash metadata -> default-class-references (field "signatures" (field "exports" metadata))
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
     other -> Nil
 

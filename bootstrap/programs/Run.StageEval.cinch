@@ -1,0 +1,31 @@
+module Main where
+  import Bootstrap.Ast (program-span)
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Report (MkDiagnostic)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.StageEval
+  import Text.Parse (Parsed)
+
+  source :: String
+  source = "module StageInput where\n  foreign import ccall \"cinch.runtime.arrayReplicate\" copies :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" size :: forall a. Array a -> Nat\n  add-two :: Nat -> Nat\n  add-two n = n + 2\n  unavailable :: Nat\n  unavailable = size (copies 2 (1 :: Int))\n  selected :: Nat\n  selected = if True then add-two 40 else unavailable\n"
+
+  main :: Int
+  main = case parse-program "checked-stage-evaluation" (string-to-bytes source) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> 3
+        Ok checked -> let site = program-span program in
+          case evaluate-stage checked site "StageInput.selected" 512 of
+            Ok (StageInteger value, fuel) -> if value /= 42 || fuel >= 512 then 5 else
+              (case evaluate-stage checked site "StageInput.unavailable" 512 of
+                Err (Cons (MkDiagnostic rung at message) Nil) ->
+                  if string-compare message "primitive `cinch.runtime.arrayReplicate` is not available at compile time" /= 0 then 6 else
+                    (case evaluate-stage checked site "StageInput.selected" 1 of
+                      Err (Cons (MkDiagnostic name where-at limited) Nil) ->
+                        if string-compare limited "compile-time evaluation exhausted its work budget" == 0 then 0 else 7
+                      other -> 7)
+                other -> 6)
+            other -> 4
+      other -> 2
+    other -> 1

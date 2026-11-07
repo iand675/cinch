@@ -4,7 +4,7 @@ module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, source-clauses-document, qualify-default-clauses)
+  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -15,7 +15,7 @@ module Bootstrap.Export where
   import Bootstrap.ExportType
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
   import Bootstrap.ExportNominal
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
@@ -371,6 +371,22 @@ module Bootstrap.Export where
     (case public-names (class-name description) surface of JArr name more -> True; other -> False)
     || has-public-method typed description surface (class-methods description)
     || (case export-global (class-name description) of Ok identity -> nominal-mentioned identity values || nominal-mentioned identity types; Err error -> False)
+  source-class-laws :: (String -> Option String) -> String -> List Decl -> Json
+  source-class-laws globals owner declarations = case declarations of
+    Nil -> JArrEnd
+    Cons (DClass sp name parameters members) rest -> if same owner name then
+      source-law-rows globals (decls-of members) else source-class-laws globals owner rest
+    Cons other rest -> source-class-laws globals owner rest
+
+  source-law-rows :: (String -> Option String) -> List Decl -> Json
+  source-law-rows globals members = case members of
+    Nil -> JArrEnd
+    Cons (DLaw sp name syntax) rest ->
+      let wire = qualify-default-clauses globals (source-law-document syntax) in
+      let syntax = case portable-law-syntax sp (\name -> Some name) wire of Some checked -> wire; None -> JNull in
+      JArr (JObj "name" (JStr name) (JObj "syntax" syntax JObjEnd)) (source-law-rows globals rest)
+    Cons other rest -> source-law-rows globals rest
+
   admitted-signature-header :: String -> Json -> List LoadedInterface -> Json -> Json
   admitted-signature-header identity names interfaces row = case defining-signature identity interfaces of
     None -> row
@@ -411,9 +427,11 @@ module Bootstrap.Export where
           (Err error, other) -> Err error
           (other, Err error) -> Err error
           (Ok methods, Ok parameters) -> let names = public-names (class-name description) surface in
+            let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
+            let laws = source-class-laws globals (class-name description) (elaboration-declarations typed) in
             let row = admitted-signature-header identity names interfaces (JObj "name" (JStr (last-name (unpack identity) Nil))
               (JObj "identity" (JStr identity) (JObj "exports" names (JObj "params" (parameter-names parameters)
-                (JObj "parameters" (parameter-json parameters) (JObj "methods" methods JObjEnd)))))) in
+                (JObj "parameters" (parameter-json parameters) (JObj "methods" methods (JObj "laws" laws JObjEnd))))))) in
             case signature-pass typed interfaces surface values types rest (insert-signature row rows) of
               Err error -> Err error
               Ok (more, grew) -> Ok (more, True)
@@ -580,6 +598,34 @@ module Bootstrap.Export where
     other -> Err "module has no retained dependency list"
   has-symbol :: String -> Json -> Bool
   has-symbol name rows = case rows of JArr (JStr first) rest -> same name first || has-symbol name rest; other -> False
+  nominal-owners :: Json -> List String
+  nominal-owners rows = case rows of
+    JArr row rest -> Cons (nominal-owner (text (field "identity" row))) (nominal-owners rest)
+    other -> Nil
+  resolved-owners :: Json -> List String
+  resolved-owners rows = case rows of
+    JArr row rest -> nominal-owners (field "nominals" (field "resolved" row)) <> resolved-owners rest
+    other -> Nil
+  constructor-owners :: Json -> List String
+  constructor-owners types = case types of
+    JArr row rest -> resolved-owners (field "ctors" row) <> constructor-owners rest
+    other -> Nil
+  signature-owners :: Json -> List String
+  signature-owners signatures = case signatures of
+    JArr row rest -> Cons (nominal-owner (text (field "identity" row)))
+      (resolved-owners (field "methods" row) <> signature-owners rest)
+    other -> Nil
+  add-import-owners :: String -> List String -> Json -> Json
+  add-import-owners home owners names = case owners of
+    Nil -> names
+    Cons owner rest -> if same home owner || has-symbol owner names then add-import-owners home rest names
+      else add-import-owners home rest (JArr (JStr owner) names)
+  -- The interface itself may retain a defining nominal reached through an
+  -- imported signature. Record the direct checked dependency even when the
+  -- original source only imported that signature's home.
+  checked-imports :: String -> Json -> Json -> Json -> Json -> Json -> Json
+  checked-imports home names values types signatures instances = add-import-owners home
+    (resolved-owners values <> constructor-owners types <> signature-owners signatures <> resolved-owners instances) names
   source-primitives :: Json -> List Json -> Json
   source-primitives context rows = case rows of
     Nil -> JArrEnd
@@ -670,25 +716,25 @@ module Bootstrap.Export where
   export-loop typed interfaces source produced contexts = case contexts of
     Nil -> Ok Nil
     Cons context rest -> case field "module" context of
-      JStr name -> case (exports typed interfaces (field "exports" context) (field "exports" context),
-        imports (field "imports" context) produced interfaces, source-hash source context) of
-          (Ok (values, types), Ok dependencies, Ok hash) ->
+      JStr name -> case (exports typed interfaces (field "exports" context) (field "exports" context), source-hash source context) of
+          (Ok (values, types), Ok hash) ->
             (case instance-rows typed interfaces context (elaboration-instances typed) of
               Err error -> Err error
               Ok instances -> case signature-rows typed interfaces (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
                 Err error -> Err error
-                Ok signatures -> case (source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
+                Ok signatures -> case (imports (checked-imports name (field "imports" context) values types signatures instances) produced interfaces,
+                  source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
                   law-observations context (elaboration-law-observations typed)) of
-                  (Err error, other) -> Err error
-                  (other, Err error) -> Err error
-                  (Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows laws in
+                  (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
+                  (other, Err error, more) -> Err error
+                  (other, more, Err error) -> Err error
+                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows laws in
                     (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))
             )
-          (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
-          (other, Err error, more) -> Err (string-concat-all [name, ": ", error])
-          (other, more, Err error) -> Err (string-concat-all [name, ": ", error])
+          (Err error, other) -> Err (string-concat-all [name, ": ", error])
+          (other, Err error) -> Err (string-concat-all [name, ": ", error])
       other -> export-loop typed interfaces source produced rest
   export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-interfaces checked interfaces source = let typed = checked-elaboration checked in

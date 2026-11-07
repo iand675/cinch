@@ -1,144 +1,220 @@
 {
+  "dictionaries": [
+    {
+      "classes": "O",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Algebra.Monoid.Monoid_Function"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Algebra.Semigroup.Semigroup_Function"
+    }
+  ],
+  "methods": [],
   "schema": 1,
   "units": [
     {
-      "symbol": "Data.Bytes.bytes-compare",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-compare"
     },
     {
-      "symbol": "Data.Bytes.bytes-get",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-get"
     },
     {
-      "symbol": "Data.Bytes.bytes-new",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-new"
     },
     {
-      "symbol": "Data.Bytes.bytes-set",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Bytes.bytes-set"
     },
     {
-      "symbol": "Data.Bytes.sha256-bytes",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Bytes.sha256-bytes"
     },
     {
-      "symbol": "Data.Char.eq-char",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Char.eq-char"
     },
     {
-      "symbol": "Data.Int.int-add",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Int.int-add"
     },
     {
-      "symbol": "Data.Int.int-from-i64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Int.int-from-i64"
     },
     {
-      "symbol": "Data.Int.int-neg",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Int.int-neg"
     },
     {
-      "symbol": "Data.Int.int-sub",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Int.int-sub"
     },
     {
-      "symbol": "Data.List.list-length",
-      "classes": "T"
+      "classes": "T",
+      "symbol": "Data.List.list-length"
     },
     {
-      "symbol": "Data.List.list-length",
-      "classes": "R"
+      "classes": "R",
+      "symbol": "Data.List.list-length"
     },
     {
-      "symbol": "Data.List.map",
-      "classes": "OO"
+      "classes": "OO",
+      "symbol": "Data.List.map"
     },
     {
-      "symbol": "Data.List.sort-by",
-      "classes": "O"
+      "classes": "O",
+      "symbol": "Data.List.sort-by"
     },
     {
-      "symbol": "Data.Machine.checked-div-u64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.checked-div-u64"
     },
     {
-      "symbol": "Data.Machine.checked-rem-u64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.checked-rem-u64"
     },
     {
-      "symbol": "Data.Machine.eq-i64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.eq-i64"
     },
     {
-      "symbol": "Data.Machine.eq-u64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.eq-u64"
     },
     {
-      "symbol": "Data.Machine.is-infinite-f64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.is-infinite-f64"
     },
     {
-      "symbol": "Data.Machine.is-na-nf64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.is-na-nf64"
     },
     {
-      "symbol": "Data.Machine.le-i64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.le-i64"
     },
     {
-      "symbol": "Data.Machine.lt-i64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.lt-i64"
     },
     {
-      "symbol": "Data.Machine.wrapping-mul-u64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Machine.wrapping-mul-u64"
     },
     {
-      "symbol": "Data.Nat.Sub_Nat.-",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.Sub_Nat.-"
     },
     {
-      "symbol": "Data.Nat.nat-cmp",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-cmp"
     },
     {
-      "symbol": "Data.Nat.nat-div",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-div"
     },
     {
-      "symbol": "Data.Nat.nat-from-int",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-from-int"
     },
     {
-      "symbol": "Data.Nat.nat-rem",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-rem"
     },
     {
-      "symbol": "Data.Nat.nat-to-i64",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-to-i64"
     },
     {
-      "symbol": "Data.Nat.nat-to-int",
-      "classes": ""
+      "classes": "",
+      "symbol": "Data.Nat.nat-to-int"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.length"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-from-pairs"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.is-none"
     }
-  ],
-  "dictionaries": [
-    {
-      "symbol": "Data.List.FromList_List",
-      "classes": "O"
-    },
-    {
-      "symbol": "Data.List.FromList_List",
-      "classes": "T"
-    },
-    {
-      "symbol": "Data.List.Semigroup_List",
-      "classes": "O"
-    },
-    {
-      "symbol": "Data.List.Semigroup_List",
-      "classes": "T"
-    }
-  ],
-  "methods": []
+  ]
 }

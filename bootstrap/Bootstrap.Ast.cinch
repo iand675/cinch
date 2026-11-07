@@ -284,6 +284,7 @@ module Bootstrap.Ast where
     EBindingsEnd :: Span -> Expr
     EAlt :: Span -> Pat -> Expr -> Expr -> Expr
     EAltsEnd :: Span -> Expr
+    ESplice :: Span -> Expr -> Expr
     EUnmodeled :: Span -> String -> Expr
 
   expr-spine :: Span -> List Expr -> Expr
@@ -359,6 +360,7 @@ module Bootstrap.Ast where
     EBindingsEnd s -> s
     EAlt s p body rest -> s
     EAltsEnd s -> s
+    ESplice s expression -> s
     EUnmodeled s text -> s
 
   -- ------------------------------------------------------------ declarations
@@ -399,6 +401,10 @@ module Bootstrap.Ast where
     DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
+    DStage :: Span -> Decl -> Decl
+    DGenerate :: Span -> Decl -> Decl
+    DStageEmit :: Span -> Decl -> Decl
+    DStageBranch :: Span -> Expr -> Decl -> Decl -> Decl
     DDecl :: Span -> Decl -> Decl -> Decl
     DDeclsEnd :: Span -> Decl
     DUnmodeled :: Span -> String -> Decl
@@ -434,6 +440,10 @@ module Bootstrap.Ast where
     DRecord s n params fields -> s
     DEffect s n params ops -> s
     DForeign s direction conv symbol foreign-name t -> s
+    DStage s body -> s
+    DGenerate s actions -> s
+    DStageEmit s template -> s
+    DStageBranch s condition yes no -> s
     DDecl s x rest -> s
     DDeclsEnd s -> s
     DUnmodeled s text -> s
@@ -462,6 +472,10 @@ module Bootstrap.Ast where
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnmodeled s text -> None
+    DStage s body -> None
+    DGenerate s actions -> None
+    DStageEmit s template -> None
+    DStageBranch s condition yes no -> None
 
   -- -------------------------------------------------------- modules, programs
 
@@ -593,6 +607,7 @@ module Bootstrap.Ast where
     EAlt s p body rest -> pat-unmodeled-count p + expr-unmodeled-count body + expr-unmodeled-count rest
     EAltsEnd s -> 0
     EUnmodeled s text -> 1
+    ESplice s expression -> expr-unmodeled-count expression
 
   exprs-unmodeled :: List Expr -> Nat
   exprs-unmodeled es = case es of
@@ -658,6 +673,10 @@ module Bootstrap.Ast where
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1
+    DStage s body -> decl-unmodeled-count body
+    DGenerate s actions -> decl-unmodeled-count actions
+    DStageEmit s template -> decl-unmodeled-count template
+    DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
 
   law-unmodeled-count :: LawSyntax -> Nat
   law-unmodeled-count syntax = case syntax of
@@ -767,6 +786,7 @@ module Bootstrap.Ast where
     EAlt part0 part1 part2 part3 -> JArr (JStr "EAlt") (JArr (source-identity-pat part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
     EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
+    ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
 
   source-identity-pats :: List Pat -> Json
   source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
@@ -778,6 +798,28 @@ module Bootstrap.Ast where
   source-clauses-document clauses = case clauses of
     Nil -> JArrEnd
     Cons (patterns, body) rest -> JArr (JArr (source-identity-pats patterns) (JArr (source-identity-expr body) JArrEnd)) (source-clauses-document rest)
+
+  source-law-document :: LawSyntax -> Json
+  source-law-document declaration = case declaration of
+    LawForall parameters body ->
+      JArr (JStr "LawForall") (JArr (source-law-parameters parameters) (JArr (source-law-document body) JArrEnd))
+    LawArrow domain body -> (case domain of
+      TBound sp name ty tail -> source-law-arrow (JStr name) ty body
+      other -> source-law-arrow JNull domain body)
+    LawEquation left right ->
+      JArr (JStr "LawEquation") (JArr (source-identity-expr left) (JArr (source-identity-expr right) JArrEnd))
+    LawProposition ty -> JNull
+
+  source-law-arrow :: Json -> TypeExpr -> LawSyntax -> Json
+  source-law-arrow name domain body = JArr (JStr "LawArrow")
+    (JArr name (JArr (source-identity-type domain) (JArr (source-law-document body) JArrEnd)))
+
+  source-law-parameters :: List TypeParam -> Json
+  source-law-parameters parameters = case parameters of
+    Nil -> JArrEnd
+    Cons p rest -> JArr (JArr (JStr (param-name p)) (JArr (JBool (param-implicit p))
+      (JArr (case param-kind p of Some kind -> source-identity-type kind; None -> JNull) JArrEnd)))
+      (source-law-parameters rest)
 
   qualify-default-clauses :: (String -> Option String) -> Json -> Json
   qualify-default-clauses globals syntax = case syntax of
@@ -937,6 +979,54 @@ module Bootstrap.Ast where
           (Some rhs, Some (more, locals)) -> Some (EBinding sp name rhs more, locals)
           other -> None)
     other -> None
+
+  portable-law-syntax :: Span -> (String -> Option String) -> Json -> Option LawSyntax
+  portable-law-syntax sp globals syntax = decode-law-syntax sp globals Nil syntax
+
+  decode-law-syntax :: Span -> (String -> Option String) -> List String -> Json -> Option LawSyntax
+  decode-law-syntax sp globals locals syntax = case syntax of
+    JArr (JStr tag) (JArr first (JArr second JArrEnd)) ->
+      if default-tag tag "LawForall" then
+        (case decode-law-parameters sp globals first of
+          Some (Cons first-param more, names) -> (case decode-law-syntax sp globals (names <> locals) second of
+            Some body -> Some (LawForall (Cons first-param more) body)
+            None -> None)
+          other -> None)
+      else if default-tag tag "LawEquation" then
+        (case (default-expression sp globals locals first, default-expression sp globals locals second) of
+          (Some left, Some right) -> Some (LawEquation left right)
+          other -> None)
+      else None
+    JArr (JStr tag) (JArr name (JArr domain (JArr body JArrEnd))) ->
+      if not (default-tag tag "LawArrow") then None else
+        (case default-type sp globals domain of
+          None -> None
+          Some ty -> (case name of
+            JStr local -> if not (default-local local) then None else
+              (case decode-law-syntax sp globals (Cons local locals) body of
+                Some more -> Some (LawArrow (TBound sp local ty (TBoundsEnd sp)) more)
+                None -> None)
+            JNull -> (case decode-law-syntax sp globals locals body of
+              Some more -> Some (LawArrow ty more)
+              None -> None)
+            other -> None))
+    other -> None
+
+  decode-law-parameters :: Span -> (String -> Option String) -> Json -> Option (List TypeParam, List String)
+  decode-law-parameters sp globals syntax = case syntax of
+    JArr (JArr (JStr name) (JArr (JBool flag) (JArr kind JArrEnd))) rest ->
+      if not (default-local name) then None else
+        (case (decode-law-kind sp globals kind, decode-law-parameters sp globals rest) of
+          (Some ann, Some (params, names)) ->
+            if default-bound name names then None else Some (Cons (MkTypeParam sp name ann flag) params, Cons name names)
+          other -> None)
+    JArrEnd -> Some (Nil, Nil)
+    other -> None
+
+  decode-law-kind :: Span -> (String -> Option String) -> Json -> Option (Option TypeExpr)
+  decode-law-kind sp globals syntax = case syntax of
+    JNull -> Some None
+    other -> (case default-type sp globals syntax of Some kind -> Some (Some kind); None -> None)
 
   portable-default-clauses :: Span -> (String -> Option String) -> Json -> Option (List (List Pat, Expr))
   portable-default-clauses sp globals syntax = case syntax of

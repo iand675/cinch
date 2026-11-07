@@ -26,7 +26,7 @@ class CompilerInterfaceGate(unittest.TestCase):
         mutations = {
             "placeholder": lambda d: d.clear(),
             "abi": lambda d: d.update(runtime_abi=5),
-            "previous-schema": lambda d: d.update(schema=8),
+            "previous-schema": lambda d: d.update(schema=9),
             "schema-bool": lambda d: d.update(schema=True),
             "source": lambda d: d.update(source_hash="not-a-content-hash"),
             "missing-scheme": lambda d: d["exports"]["values"][0].pop("scheme"),

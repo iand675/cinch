@@ -28,6 +28,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Inputs (read-interfaces, embedded-library-home)
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
+  import Bootstrap.Stage (expand-stages)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces, interface-hash)
   import Bootstrap.Interface (fnv-source-hash)
@@ -153,21 +154,23 @@ module Bootstrap.Pipeline where
         Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
         Ok src -> case parse-program-with source src (interface-headers interfaces) of
           Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-          Parsed program Nil -> (case resolve-program-with program interfaces of
-            (resolved, Nil) -> case check-and-retain resolved of
-              Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
-              Ok checked -> if publish then
-                (case write-checked-interfaces ir checked interfaces src of
-                  0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-                  code -> code)
-                else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-            (resolved, errors) -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused)
+          Parsed program Nil -> (case checked-source program interfaces of
+            Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+            Ok checked -> if publish then
+              (case write-checked-interfaces ir checked interfaces src of
+                0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+                code -> code)
+              else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
           Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
   checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
-  checked-source program interfaces = retain-resolved-source (resolve-program-with program interfaces)
+  checked-source program interfaces = check-source-phase (\input -> resolve-program-with input interfaces) program
+  check-source-phase :: (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
+  check-source-phase resolve program = case expand-stages resolve program of
+    Err errors -> Err errors
+    Ok expanded -> retain-resolved-source (resolve expanded)
   retain-resolved-source :: (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
   retain-resolved-source result = case result of
     (resolved, Nil) -> check-and-retain resolved
@@ -196,7 +199,7 @@ module Bootstrap.Pipeline where
       else Cons previous (replace-overlay-interface fresh rest)
   checked-overlay-source :: Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-overlay-source program dependencies facade = case facade of
-    Some entry -> retain-resolved-source (resolve-overlay-with program dependencies entry)
+    Some entry -> check-source-phase (\input -> resolve-overlay-with input dependencies entry) program
     None -> checked-source program dependencies
   rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
   rebuild-source-interface source program name dependencies facade = case checked-overlay-source program dependencies facade of
@@ -286,9 +289,7 @@ module Bootstrap.Pipeline where
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-resolve mode src prog ir exe report = case resolve-program prog of
-    (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
-    (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
+  after-resolve mode src prog ir exe report = after-check mode src (check-source-phase resolve-program prog) ir exe report
 
   after-check :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-check mode src result ir exe report = case result of
@@ -437,11 +438,9 @@ module Bootstrap.Pipeline where
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
                   Ok bytes -> case parse-program-with source bytes (interface-headers interfaces) of
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-                    Parsed program Nil -> (case resolve-program-with program interfaces of
-                      (resolved, Nil) -> case check-and-retain resolved of
-                        Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
-                        Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix
-                      (resolved, errors) -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused)
+                    Parsed program Nil -> (case checked-source program interfaces of
+                      Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
+                      Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
   prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
   prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of

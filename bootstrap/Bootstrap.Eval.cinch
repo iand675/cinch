@@ -563,6 +563,7 @@ module Bootstrap.Eval where
     EBindingsEnd s -> fail s "unsupported expression: binding spine end"
     EAlt s p body rest -> fail s "unsupported expression: alternative spine cell"
     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
+    ESplice s expression -> fail s "a splice requires a compile-time quotation"
     EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
 
   -- ------------------------------------------------- the top-level environment
@@ -654,6 +655,8 @@ module Bootstrap.Eval where
     DOpaque s name params kind -> Cons (MkDiagnostic rung s "opaque declarations require checked nominal elaboration") Nil
     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
     DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
+    DStage s body -> Cons (MkDiagnostic rung s "a stage declaration requires compile-time checking") Nil
+    DGenerate s actions -> Cons (MkDiagnostic rung s "a generate block requires compile-time expansion") Nil
     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
     other -> Nil
 

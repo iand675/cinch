@@ -82,8 +82,8 @@ fn the_loader_checks_emitted_interfaces_and_dependency_identities() {
     let mut bad_name = original.clone();
     bad_name[0] = "Wrong".into();
     cases.push((bad_name, "interface module name mismatch".into()));
-    let old_schema = lib.to_json().replace(&format!("\"schema\":{}", lib.schema), "\"schema\":8");
-    assert!(Iface::from_json(&old_schema).unwrap_err().to_string().contains("interface schema 8 is not supported"));
+    let old_schema = lib.to_json().replace(&format!("\"schema\":{}", lib.schema), "\"schema\":9");
+    assert!(Iface::from_json(&old_schema).unwrap_err().to_string().contains("interface schema 9 is not supported"));
     for (name, error, changed) in [
         ("previous-schema", "unsupported interface schema", old_schema),
         ("schema", "unsupported interface schema", lib.to_json().replace(&format!("\"schema\":{}", lib.schema), "\"schema\":99")),
