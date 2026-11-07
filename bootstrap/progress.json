@@ -2026,7 +2026,12 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -18609,8 +18614,8 @@
       },
       {
         "title": "Core branch compiler: its own44 source modules",
-        "status": "waiting-worker",
-        "phase": null,
+        "status": "running",
+        "phase": "self-check44",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -18762,9 +18767,9 @@
       },
       {
         "title": "Cinch defaults: full replay with function factories",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "class_defaults",
-        "passed": 8,
+        "passed": 9,
         "failed": 1,
         "total": 10,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
@@ -18804,5 +18809,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:58:15.147810+00:00"
+  "updatedAt": "2026-11-07T02:59:17.028410+00:00"
 }
