@@ -19128,8 +19128,8 @@
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
-        "status": "waiting-disk-space",
-        "phase": "waiting disk space",
+        "status": "building-stage0",
+        "phase": "building stage0",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19288,5 +19288,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:31:15.658666+00:00"
+  "updatedAt": "2026-11-07T13:32:17.855511+00:00"
 }
