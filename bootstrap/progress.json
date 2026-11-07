@@ -13723,6 +13723,10 @@
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
                   "status": "running"
                 }
               ]
@@ -18710,8 +18714,8 @@
       {
         "title": "Cinch Core branch implications: full compiler/object gate",
         "status": "running",
-        "phase": "build-own-runtime",
-        "passed": 0,
+        "phase": "bootstrap_library_object",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18761,5 +18765,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:37:12.522025+00:00"
+  "updatedAt": "2026-11-07T02:38:14.504654+00:00"
 }
