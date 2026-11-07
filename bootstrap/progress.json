@@ -19266,12 +19266,12 @@
       },
       {
         "title": "Check closed named proofs and their original runtime example",
-        "status": "failed",
-        "phase": "bootstrap_pipeline",
-        "passed": 1,
-        "failed": 1,
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
         "total": 2,
-        "source": "7cc5f684cd40c0c19b301ae6e24c2fe1680a4b4deefbbf7fe27536422a26df98"
+        "source": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8"
       },
       {
         "title": "Probe the original Stage2 source with faster diagnostics",
@@ -19476,5 +19476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:26:08.070273+00:00"
+  "updatedAt": "2026-11-07T15:27:30.113049+00:00"
 }
