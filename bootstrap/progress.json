@@ -19230,9 +19230,9 @@
       },
       {
         "title": "Rust task capture, units and arrays on schema 10",
-        "status": "running",
-        "phase": "original arrays",
-        "passed": 2,
+        "status": "passed-schema10-main-task-runtime-and-arrays",
+        "phase": "five original task capture programs",
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
@@ -19332,6 +19332,26 @@
         "total": 2,
         "source": "290271332083a03c48c87d411e8f931108d7e1d12a0e5ebecb2e54de68259aea",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-replay-results.json"
+      },
+      {
+        "title": "Stage3 runs Html, Reactive and TensorAD with the expanded library",
+        "status": "passed",
+        "phase": "All three original programs passed at 32 MiB with poisoning and zero leaks.",
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-expanded-runtime-replays-results.json"
+      },
+      {
+        "title": "Verify the diagnostic renderer in the complete pipeline target",
+        "status": "passed",
+        "phase": "Both tests passed with the matching debug and release runtime archives.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-diagnostic-renderer-results.json"
       },
       {
         "title": "Run the original 14 external acceptance checks on schema 10 Stage3",
@@ -19486,5 +19506,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:38:13.961891+00:00"
+  "updatedAt": "2026-11-07T15:43:45.634600+00:00"
 }
