@@ -1,0 +1,86 @@
+{
+  "checked_at": "2026-11-07T17:59:41.098040+00:00",
+  "compiler_sha256": "f1143fe69fc8fd56bec077fed24679feea31b4bd49967106dea7cb80fe42ef26",
+  "compiler_source_sha256": "fec58fe2c6538e4014e648855ae0e69abc2eefed017b074fd134dda0ff66aeab",
+  "full_goal_complete": false,
+  "invocations_sha256": "4ecfbad94093da75ac78c35879b49177ff11d06a4014270893e63b0eecfb97c1",
+  "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
+  "rows": [
+    {
+      "exit_code": 4,
+      "first_diagnostic": "24:23: too many constructor pattern arguments",
+      "mode": "run",
+      "name": "Tactics",
+      "result_sha256": "014179b0d5ef6f7838eab4838a197cb064ba9942ec1ada23ed3a9a3b8ba9c3a3",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          35,
+          "74176fe07ac3f0a52bb17d7116ae50489acfd669f5fff3e41c6229849ec83df6"
+        ]
+      ],
+      "source_location": "examples/Tactics.cinch",
+      "source_sha256": "4ad5422c6002a0e372f03ba738092507b58f4aa8d75d66aa019d9fe482215fc4",
+      "status": "failed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "4:29: tactic plan `linear` could not prove `(i < n)`",
+      "mode": "check",
+      "name": "TacticsMissing",
+      "result_sha256": "1ed92cdd4f7c370430b1a25452571d371127d0a4221f2165dc7b0f92adb2068e",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          7,
+          "ce7ae3bf00e45ad1b026da217ac68e48f2a0fa12b2efe65a3b2c0b077206b9fd"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsMissing.cinch",
+      "source_sha256": "f62030137d6526ef418f2a7746656d387c9aeb51c3e8ecd2b7d797d6d5627608",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "5:44: tactic plan `assumption linear` could not prove `(n < n)`",
+      "mode": "check",
+      "name": "TacticsShadow",
+      "result_sha256": "568381c161cfa8cc36d7d72443d3d9f55b08e90b866589e9e59055da71be0fd6",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          9,
+          "d23ea74df5887b575a9923f2d051b6132ee558506741b4d32a5525c7bda30f73"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsShadow.cinch",
+      "source_sha256": "fa12e3ce42d3bfe66f260e6e8c25c81c713735e9f47794b8eef709bce353b053",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "first_diagnostic": "6:15: name is not in scope: refSet",
+      "mode": "check",
+      "name": "TacticsStale",
+      "result_sha256": "d301b9729f9f21be988cc9e67b797f104fbaacc10b448a6b3986a427b2659f9c",
+      "sections": [
+        [
+          "Main.cinch",
+          1,
+          10,
+          "ca75d6c1f1550014645ac0c17be01ef995d92efbba39f9508b22faf8c18e7dd2"
+        ]
+      ],
+      "source_location": "examples/negative/TacticsStale.cinch",
+      "source_sha256": "cec568c2ba862516c9564dd0660c24e11e6b14202d1904ef46923a2904040a7f",
+      "status": "failed"
+    }
+  ],
+  "scope": "Four unchanged original tactics fixtures checked by the exact development Stage1.",
+  "stage1_receipt_sha256": "31135f43097d6367afc02c6385deaef08137e4a2829ab58318dad2db35ada85f",
+  "status": "audited-original-tactics-with-two-failures",
+  "wrapper_sha256": "5776bdf3d82e212c7f83534dcaa7faca0aab72c86a047c439b514a35cf3bd8fb"
+}

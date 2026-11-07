@@ -897,13 +897,28 @@ def build_checklist(root, cfg, previous=None):
     tactic_validation = read(cfg.get('schema10ProofTactics'))
     if tactic_validation:
         rows = tactic_validation['rows']
+        tactic_path = 'bootstrap/current-schema10-original-tactics-results.json'
+        tactic_audit = read(root / tactic_path)
+        audited = (tactic_audit.get('status') == 'audited-original-tactics-with-two-failures'
+                   and tactic_audit['compiler_sha256'] == tactic_validation.get('compiler_sha256'))
+        phase = tactic_validation.get('phase', 'Waiting for a worker')
+        if audited:
+            phase = ('Missing and shadowed facts were rejected for the expected reasons. '
+                     'The valid example reached a dependent constructor pattern, and the stale-evidence example reached refSet.')
+        elif tactic_validation.get('compiler_sha256') and tactic_validation['status'].startswith('waiting') and not rows:
+            phase = 'Stage1 built all 46 compiler modules and passed its smoke checks. Waiting to replay the original examples.'
         active.append(dict(title='Check finite-index tactics on the original programs',
-            status=tactic_validation['status'],
-            phase=('Stage1 built all 46 compiler modules and passed its smoke checks. Waiting to replay the original examples.'
-                   if tactic_validation.get('compiler_sha256') and tactic_validation['status'].startswith('waiting') and not rows
-                   else tactic_validation.get('phase', 'Waiting for a worker')),
+            status='failed' if audited else tactic_validation['status'], phase=phase,
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
-            total=4, source=tactic_validation['compiler_source_sha256']))
+            total=4, source=tactic_validation['compiler_source_sha256'], evidence=link(tactic_path) if audited else None))
+    constructor_diagnostics = read(cfg.get('schema10DependentConstructorAndDiagnostics'))
+    if constructor_diagnostics:
+        rows = constructor_diagnostics['rows']
+        active.append(dict(title='Replay the dependent constructor and diagnostic repairs',
+            status=constructor_diagnostics['status'],
+            phase=constructor_diagnostics.get('phase', 'Waiting for a compiler rebuild and the original tactics, Html and Tensor cases'),
+            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
+            total=7, source=constructor_diagnostics['compiler_source_sha256']))
     overlay_validation = read(cfg.get('schema10ExecutableSourceOverlays'))
     if overlay_validation:
         rows = overlay_validation['rows']

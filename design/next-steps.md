@@ -53,8 +53,9 @@ location. Both original pipeline tests passed on that development snapshot.
 A separate four-stage ladder using the consolidated library and named proofs
 passed the independent fixed-point, consumer and changed-source audit.
 The named-proof implementation and consolidated producer are now integrated
-with the stricter interface reader. Stage1 has built from the combined source
-and is building Stage2. Separately, the audited named-proof Stage3 ran both
+with the stricter interface reader. Stage1 built Stage2 from the combined
+source and emitted all 46 compiler interfaces. Stage2 passed its smoke
+checks and is building Stage3. Separately, the audited named-proof Stage3 ran both
 unchanged original Proof examples. The valid program ran with zero leaks at
 32 MiB and the invalid proof reported the expected obligation at line 4,
 column 22.
@@ -70,6 +71,16 @@ reason and source-location assertions. Proof, Protocol, Tactics and
 Choreography remain open on that exact compiler. Named proof support and
 the finite-index tactic work are tracked on separate source snapshots.
 See [the repaired language-suite audit](../bootstrap/current-schema10-repaired-external-language-results.json).
+
+The finite-index tactic candidate now refuses the original missing-fact and
+shadowed-fact examples at the expected source locations. The valid case
+reached a dependent constructor pattern whose index binder was missing from
+pattern checking. The stale-evidence fixture still stops at the unresolved
+`refSet` operation. A candidate opens the constructor binder using the
+same checked index substitution as function arguments. Its replay also
+checks the original Html literal and private Tensor constructor diagnostics
+that passed on an earlier development compiler.
+See [the original tactic replay](../bootstrap/current-schema10-original-tactics-results.json).
 
 The separate library targets exposed missing runtime specializations and
 conflicts between copied Category and Foldable sources and loaded interfaces.
