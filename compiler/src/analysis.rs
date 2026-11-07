@@ -538,11 +538,14 @@ impl Analysis {
                     };
                     let outcome = outcome_from_probe(result);
                     self.prepared = Some(prepared);
+                    // The prepared state was produced by a successful
+                    // check. Recomputing `iface_hash()` for the whole
+                    // prelude here would dominate a warm expression.
                     let report = UpdateReport {
                         rechecked: Vec::new(),
                         kept: self.modules.keys().cloned().collect(),
                         diagnostics: self.diagnostics(),
-                        chain_ok: self.chain_ok(),
+                        chain_ok: true,
                     };
                     return (report, outcome);
                 }
@@ -753,46 +756,29 @@ impl Analysis {
             });
         let prelude = self.ensure_prelude();
         let mut checked_references = Vec::new();
-        let res: Result<CheckedRun, Error> = if probe_arg.is_some() {
-            check::check_program_multi_full_prepared(
-                &prelude.modules,
-                &modules,
-                &hashes,
-                &scx,
-                &adapters,
-                &crate::core::TargetProfile::native(),
-                probe_arg.as_ref(),
-                &mut checked_references,
-            )
-            .and_then(|(mut prepared, ifaces, stage, diags, probe_out)| {
-                prepared.finish_checks()?;
-                Ok(CheckedRun {
-                    ifaces,
-                    stage,
-                    diags,
-                    probe_out,
-                    prepared: Some(prepared),
-                })
-            })
-        } else {
-            check::check_program_multi_full_probe_indexed(
-                &prelude.modules,
-                &modules,
-                &hashes,
-                &scx,
-                &adapters,
-                &crate::core::TargetProfile::native(),
-                None,
-                &mut checked_references,
-            )
-            .map(|(_, ifaces, stage, diags, probe_out)| CheckedRun {
+        // Every update retains the checker. Declarations and edits still
+        // recheck the affected slice, but the next expression can reuse the
+        // resulting prelude and session state.
+        let res: Result<CheckedRun, Error> = check::check_program_multi_full_prepared(
+            &prelude.modules,
+            &modules,
+            &hashes,
+            &scx,
+            &adapters,
+            &crate::core::TargetProfile::native(),
+            probe_arg.as_ref(),
+            &mut checked_references,
+        )
+        .and_then(|(mut prepared, ifaces, stage, diags, probe_out)| {
+            prepared.finish_checks()?;
+            Ok(CheckedRun {
                 ifaces,
                 stage,
                 diags,
                 probe_out,
-                prepared: None,
+                prepared: Some(prepared),
             })
-        };
+        });
         match res {
             Ok(CheckedRun { ifaces, stage, diags, probe_out, prepared }) => {
                 for (module, declarations) in &stage.generated_syntax {

@@ -223,7 +223,7 @@ fn warm_expressions_reuse_the_checked_session() {
     }
     let elapsed = start.elapsed();
     assert!(
-        elapsed < std::time::Duration::from_secs(8),
+        elapsed < std::time::Duration::from_secs(2),
         "20 warm expressions took {elapsed:?}; the prepared checker cache regressed"
     );
     std::fs::remove_dir_all(&dir).ok();
