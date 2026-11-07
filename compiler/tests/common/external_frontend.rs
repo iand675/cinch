@@ -103,7 +103,8 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
     let files = reachable_sources(&files, &entry);
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    let work = dir.join(".cinch-self-tests").join(format!("{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::SeqCst)));
+    let invocation_id = format!("{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::SeqCst));
+    let work = dir.join(".cinch-self-tests").join(&invocation_id);
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
     let mut bundle = String::new();
     let mut inputs = Vec::new();
@@ -142,6 +143,18 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     std::fs::write(work.join("compiler.stdout"), &output.stdout).map_err(|e| e.to_string())?;
     std::fs::write(work.join("compiler.stderr"), &output.stderr).map_err(|e| e.to_string())?;
     std::fs::write(work.join("compiler-status.txt"), format!("{:?}\n", output.status.code())).map_err(|e| e.to_string())?;
+    // The suite auditor keeps this receipt when the fixture removes its project.
+    if let Some(directory) = std::env::var_os("CINCH_TEST_INVOCATIONS").filter(|value| !value.is_empty()) {
+        let directory = PathBuf::from(directory);
+        let record = Json::obj(vec![
+            ("invocation", receipt),
+            ("test", std::thread::current().name().map(|name| Json::Str(name.into())).unwrap_or(Json::Null)),
+            ("compiler_exit_code", output.status.code().map(|code| Json::Num(f64::from(code))).unwrap_or(Json::Null)),
+        ]);
+        std::fs::create_dir_all(&directory).map_err(|error| format!("create invocation receipt directory: {error}"))?;
+        std::fs::write(directory.join(format!("{invocation_id}.json")), record.to_text())
+            .map_err(|error| format!("write selected compiler receipt: {error}"))?;
+    }
     if !output.status.success() {
         let diagnostic = std::fs::read_to_string(ir.with_extension("ll.diagnostics")).unwrap_or_else(|_| String::from_utf8_lossy(&output.stderr).into_owned());
         return Err(format!("selected Cinch compiler exited {:?}: {diagnostic}\ninvocation: {}", output.status.code(), work.display()));

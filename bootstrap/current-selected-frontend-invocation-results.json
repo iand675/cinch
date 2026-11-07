@@ -1,0 +1,10 @@
+{
+  "cases": 8,
+  "cases_with_external_invocations": 6,
+  "compile_log_sha256": "c3ffdf4ce3106ec9033851c2d9781d19b6860ccccc50195224eeb16d93f316f3",
+  "full_goal_complete": false,
+  "harness_source_sha256": "026888378c17ee8c5df3d0a4217a74f68bcb048dc4f759f7832028d351edf1a9",
+  "receipts": 10,
+  "status": "passed-persistent-invocation-receipts",
+  "test_log_sha256": "23684ebbb161ef06d3ac3e5a974729ac546832383bc5aca433df52b4d6fbc388"
+}

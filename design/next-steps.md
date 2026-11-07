@@ -25,6 +25,12 @@ The package design calls for materializing missing variants from checked
 polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
 
+Set `CINCH_TEST_INVOCATIONS` to an evidence directory when running the
+selected frontend tests. Each record identifies the test case, selected
+compiler, input files and observed compiler exit code. It survives project
+cleanup. All eight harness tests passed, including ten actual invocations
+from the six tests that select a frontend. See [the harness audit](../bootstrap/current-selected-frontend-invocation-results.json).
+
 Native `run` now creates a fresh scratch directory and removes it after
 the executable exits. The CLI and both library run helpers passed the
 cleanup checks. The explicit build and linker failure checks preserved
