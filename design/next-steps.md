@@ -84,13 +84,16 @@ escape. The first fixtures used the reserved opaque parameter and failed
 parsing; these raw failures are retained and negative parser refusals grant no
 semantic credit. All9 corrected flag controls pass independent Native audit:
 5 valid programs and4 actual ordering/precondition refusals. The whole original Cinch precondition target now passes with all9 added controls
-and every original assertion retained; all44 exact compiler modules also pass
-Native admission. Eight more complete groups, actual compiler/object, matching
-own-source check and fresh Stage1/2/3 emission remain. See
+and every original assertion retained. All 44 exact compiler modules also pass
+Native admission. The pinned Native builder produced the candidate Cinch CLI,
+which passed all nine compiler and object tests. The independent artifact audit
+confirmed 17 foreign ABI clients and 50 zero-leak reports. The candidate's
+own-source check and remaining component tests precede the queued Stage1/2/3
+rebuild. See
 `bootstrap/current-partial-boolean-precondition-results.json` and
-`bootstrap/current-partial-boolean-input-results.json`. See
-`bootstrap/current-partial-boolean-native-controls.json`. Matching current
-self-source admission and fresh Stage1/2/3 emission remain required. See
+`bootstrap/current-partial-boolean-input-results.json`. See also
+`bootstrap/current-partial-boolean-native-controls.json`,
+`bootstrap/current-partial-boolean-compiler-results.json` and
 `bootstrap/current-partial-boolean-branch-development-2.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
