@@ -491,23 +491,36 @@ struct Project {
 /// `X.cinch` does not exist (decision D42).
 fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
     let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return Ok(index),
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("cinch") {
-            continue;
-        }
-        let Ok(src) = std::fs::read_to_string(&path) else {
-            continue;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        let entries = match std::fs::read_dir(&current) {
+            Ok(e) => e,
+            Err(_) => continue,
         };
-        let Ok(scanned) = scan_file(&src, &path.display().to_string()) else {
-            continue;
-        };
-        for (m, _) in &scanned.modules {
-            index.entry(m.clone()).or_default().push(path.clone());
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let skip = matches!(
+                    path.file_name().and_then(|n| n.to_str()),
+                    Some(".git" | "target" | "build" | "node_modules")
+                );
+                if !skip {
+                    stack.push(path);
+                }
+                continue;
+            }
+            if path.extension().and_then(|s| s.to_str()) != Some("cinch") {
+                continue;
+            }
+            let Ok(src) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(scanned) = scan_file(&src, &path.display().to_string()) else {
+                continue;
+            };
+            for (m, _) in &scanned.modules {
+                index.entry(m.clone()).or_default().push(path.clone());
+            }
         }
     }
     Ok(index)

@@ -20,6 +20,7 @@ usage:
   cinch doc highlight <file.cinch> [--out <html>]
   cinch repl                       interactive session in the current project
   cinch jit <file.cinch>           JIT-compile and run (requires the jit feature)
+  cinch pkg add NAME@VERSION       install a registry package into a project
 
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
@@ -50,6 +51,7 @@ fn main() {
             }
             exit(0);
         }
+        Some("pkg") => exit(cinch::pkg::cli(&args[1..])),
         Some("jit") => {
             #[cfg(feature = "jit")]
             {

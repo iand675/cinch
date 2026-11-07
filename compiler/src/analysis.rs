@@ -337,6 +337,7 @@ impl Analysis {
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| self.root.clone());
         self.root = dir.clone();
+        let tree_index = self.index_tree(&dir);
         let mut queue = vec![entry_path.clone()];
         let mut seen: BTreeSet<String> = BTreeSet::new();
         let mut loaded: Vec<String> = Vec::new();
@@ -365,22 +366,9 @@ impl Analysis {
                     if prelude_names.iter().any(|n| n == imp) {
                         continue;
                     }
-                    // A unique module declaration beside the entry.
-                    let mut candidates = Vec::new();
-                    if let Ok(entries) = std::fs::read_dir(&dir) {
-                        for e in entries.flatten() {
-                            let p = e.path();
-                            if p.extension().map(|x| x == "cinch").unwrap_or(false) {
-                                if let Ok(t) = std::fs::read_to_string(&p) {
-                                    if let Ok(ms) = self.scan(&self.rel_path(&p), &t) {
-                                        if ms.iter().any(|(m, _)| m == imp) {
-                                            candidates.push(p.clone());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    // A unique module declaration below the entry or in
+                    // the project's installed packages.
+                    let mut candidates = tree_index.get(imp).cloned().unwrap_or_default();
                     candidates.sort();
                     match candidates.len() {
                         1 => queue.push(candidates.into_iter().next().expect("one")),
@@ -400,6 +388,41 @@ impl Analysis {
         }
         self.pending.extend(self.files.keys().cloned());
         Ok(loaded)
+    }
+
+    /// Index every source module below `dir`, including installed package
+    /// trees. Symbol-level resolution still uses the checked import rules;
+    /// this only finds candidate files when the entry-relative path misses.
+    fn index_tree(&mut self, dir: &std::path::Path) -> BTreeMap<String, Vec<std::path::PathBuf>> {
+        let mut index: BTreeMap<String, Vec<std::path::PathBuf>> = BTreeMap::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&current) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let skip = matches!(
+                        path.file_name().and_then(|n| n.to_str()),
+                        Some(".git" | "target" | "build" | "node_modules")
+                    );
+                    if !skip {
+                        stack.push(path);
+                    }
+                    continue;
+                }
+                if path.extension().and_then(|s| s.to_str()) != Some("cinch") {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let rel = self.rel_path(&path);
+                if let Ok(modules) = self.scan(&rel, &text) {
+                    for (name, _) in modules {
+                        index.entry(name).or_default().push(path.clone());
+                    }
+                }
+            }
+        }
+        index
     }
 
     /// Re-read every document from disk (the REPL's `:reload`) and mark

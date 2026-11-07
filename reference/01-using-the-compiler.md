@@ -26,7 +26,10 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 | `cinch run file.cinch [args...]` | Compile and execute; return the program's exit status. |
 | `cinch repl` | Start the interactive [REPL](26-repl.md) in the current project. |
 | `cinch jit file.cinch` | JIT-compile and run through embedded LLVM ORC when the compiler is built with the `jit` feature. |
+| `cinch pkg add NAME@VERSION` | Install one public registry release into the project, emit its object/interfaces, and update `.cinchlock`. |
 | `cinch lsp` | Run the [language server](27-language-server.md) over standard input/output. |
+
+`cinch pkg add` uses `--registry URL` (or `CINCH_REGISTRY`) and `--project DIR`; it materializes sources under `vendor/`, runs the package check and object emission, and resolves installed modules through the vendor tree. It does not resolve ranges or install dependencies yet; see [packages, manifests, and the registry](29-package-management.md).
 
 `cinch jit` is not part of the default build. Build it with `cargo build --features jit`; the build needs LLVM with the C ORC headers and library, and `CINCH_LLVM_CONFIG` can select a versioned `llvm-config`. The command emits the checked program's LLVM IR, loads the runtime shared library, installs the layout table, and calls the generated `main` through LLJIT. A build without the feature reports that the command is unavailable. A native `cinch build`/`cinch run` remains the default path.
 

@@ -1,6 +1,6 @@
 # Packages, manifests, and the registry
 
-<span class="support-tag support-tag--planned">Coming soon</span> **The `cinch` command does not yet install, resolve, or publish packages.** The compiler has a manifest format, a verified local artifact store, and source-distributed modules. A separate registry prototype implements public and private publish, download, search, yanks, takedowns, and signed statements. The client-side package manager described in the design is still a proposal.
+<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg add` installs one public release from the registry prototype into a project.** It fetches the bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. Version ranges, dependency resolution, private-registry auth, publishing, and SLSA verification are still not implemented.
 
 This chapter separates three things that are easy to confuse:
 
@@ -12,13 +12,14 @@ The [package management design](../design/package-management.md) is the full des
 
 # Current compiler behavior
 
-Packages are currently a distribution arrangement for source modules, not an installable dependency graph.
+Packages are currently a source distribution plus a single-release install path. Dependency ranges and resolution are not implemented.
 
-- A project imports module names. The compiler resolves imports against already loaded modules, sibling source files, and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
-- To use a source-distributed library, place its `.cinch` files where the project's import resolution can find them. There is no remote fetch step.
-- `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a package manager and does not choose versions.
+- A project imports module names. The compiler resolves imports against already loaded modules, source files below the entry (including installed packages), and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
+- `cinch pkg add NAME@VERSION --registry URL` fetches one public release from the registry prototype. It writes the release under `vendor/<namespace>/<name>/<version>/`, verifies the package identity, checks the sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records the release in `.cinchlock`.
+- Installed packages are importable by ordinary project source once the vendor tree is present. The source loader indexes the vendor tree recursively.
+- `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
 - The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
-- The CLI has no `cinch pkg`, no dependency resolver, no `.cinchlock`, and no registry client. An unsupported command prints usage and exits 2.
+- There is still no range resolver, dependency graph closure, private-registry authentication, publishing command, or provenance verification. An unsupported command prints usage and exits 2.
 
 | Surface | Current status |
 | --- | --- |
@@ -27,9 +28,11 @@ Packages are currently a distribution arrangement for source modules, not an ins
 | Verified local interface/artifact store | Available |
 | `CINCH_STORE` and `--rebuild` | Available |
 | Project `.cinchpkg` loading through the CLI | Not implemented |
-| Remote dependency fetch | Not implemented |
-| Version resolution and lockfile | Not implemented |
-| `cinch pkg` commands | Not implemented |
+| Public registry install with `cinch pkg add` | Available for one release |
+| Vendored source install and package object/interface generation | Available |
+| Version ranges and dependency resolution | Not implemented |
+| Private package authentication | Not implemented |
+| Publishing, provenance, and SLSA verification | Not implemented |
 | Registry HTTP prototype | Runnable in `registry/` |
 
 # Manifest format
@@ -272,11 +275,10 @@ Read the [package management design](../design/package-management.md) for the ob
 
 # Proposed command surface
 
-The following commands appear in the design and are **not implemented** by the current CLI:
+`cinch pkg add NAME@VERSION [--registry URL] [--project DIR]` is implemented for one public release. The remaining commands appear in the design and are **not implemented** by the current CLI:
 
 ```text
 cinch pkg init
-cinch pkg add NAME
 cinch pkg remove NAME
 cinch pkg fetch
 cinch pkg update [NAME]
@@ -300,6 +302,7 @@ The current package surfaces are exercised by:
 - `compiler/tests/package_manifest.rs` for the embedded manifest and check order;
 - `compiler/tests/package_store.rs` for store keys, verification, and `--rebuild`;
 - `compiler/tests/canonical_artifacts.rs` for canonical artifact identity;
+- `compiler/src/pkg.rs` tests for bundle identity, vendoring, object emission, and lock updates;
 - `registry/test/` for the registry HTTP and signing behavior.
 
-Implementation: `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, and `registry/lib/`. The registry source and its full request examples are in [`registry/README.md`](https://github.com/iand675/cinch/blob/main/registry/README.md).
+Implementation: `compiler/src/pkg.rs`, `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, and `registry/lib/`. The registry source and its full request examples are in [`registry/README.md`](https://github.com/iand675/cinch/blob/main/registry/README.md).

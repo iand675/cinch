@@ -32,7 +32,14 @@ cinch-test       # cargo test
 cinch doc extract compiler/prelude/Data/Option.cinch --legacy -o /tmp/option.cinchdoc
 cinch doc render compiler/prelude/Data/Option.cinch --legacy
 cinch repl
+cinch pkg add alice/library@0.1.0 --registry http://127.0.0.1:8787
 ```
+
+`cinch pkg add` fetches one public registry release, writes it under the
+project's `vendor/` tree, checks it into interfaces, emits `package.o` and its
+ABI manifest, and updates `.cinchlock`. The source loader indexes the vendor
+tree recursively. It does not resolve version ranges, dependency closures,
+private-registry authentication, or publishing yet.
 
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
