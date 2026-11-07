@@ -17,14 +17,14 @@
     },
     {
       "name": "Stage 2",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Smoke tests passed",
       "description": "Build the same compiler sources with Stage1."
     },
     {
       "name": "Stage 3",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Rebuilding",
       "description": "Rebuild with Stage2 and check the fixed point."
     }
   ],
@@ -543,11 +543,11 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+  "candidateSource": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Schema 10 is the sole compiled-interface format on main. Rust, Cinch and the bootstrap verifier passed the cutover checks. The library producer rebuilt all 55 interfaces.",
-  "activity": "The repaired library and a separate Stage1 client passed. The matching bootstrap ladder is running.",
+  "activity": "The repaired Stage2 built all 46 compiler modules and passed its smoke tests. Stage3 is rebuilding the same sources.",
   "checklist": {
     "version": 1,
     "target": {
@@ -19304,6 +19304,16 @@
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
       {
+        "title": "Build and smoke-test Stage2 with the repaired library",
+        "status": "passed",
+        "phase": "Stage1 rebuilt all 46 compiler modules and Stage2 passed all three smoke cases.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-stage2-results.json"
+      },
+      {
         "title": "Core checks erased Eq witnesses",
         "status": "passed",
         "phase": "The full original Core target passed with six additional assertions across all five runtime nonces.",
@@ -19312,6 +19322,16 @@
         "total": 1,
         "source": "27b293abb19983b96b74a2fed57fcdc298e93989dd2fd7958a73f7f0cf4384aa",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-reflexivity-core-results.json"
+      },
+      {
+        "title": "Run both original Proof examples on the development compiler",
+        "status": "passed",
+        "phase": "The valid proof ran with zero leaks and the invalid proof reported the expected reason and source location.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-proof-replay-results.json"
       },
       {
         "title": "Stage3 TensorAD with the requested library variants",
@@ -19506,5 +19526,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:43:45.634600+00:00"
+  "updatedAt": "2026-11-07T15:50:43.589245+00:00"
 }
