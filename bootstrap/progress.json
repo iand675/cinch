@@ -18838,7 +18838,7 @@
         "total": 1,
         "source": "18b6c612b00f0cce16e50d645868efd31dcf627d13be8ae7ac7f18b5a947ddf7",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
       },
       {
         "title": "Cinch task refusals: runtime-IR suite",
@@ -18861,6 +18861,17 @@
         "source": "11076882ef69d26134bedbd894c3619d14e1ba6eb082c1d93c314c8e52589b86",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": true
+      },
+      {
+        "title": "Source-library replacement: complete pipeline and dependency checks",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "5d309ef740666a6d9ced99ecc6067416e165bb2544d1b2c471787b00c872a756",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -19048,5 +19059,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:54:26.447047+00:00"
+  "updatedAt": "2026-11-07T03:56:48.710778+00:00"
 }
