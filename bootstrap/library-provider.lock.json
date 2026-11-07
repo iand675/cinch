@@ -1,7 +1,7 @@
 {
   "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
-  "revision": "f997f90cf6424e94465ddf951211afd3482e758f",
+  "revision": "345e12ede560550077fd6bfd4bc0fc3dc2b0a858",
   "runtime_abi": 6,
   "schema": 1,
-  "source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57"
+  "source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
 }
