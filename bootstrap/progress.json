@@ -19343,8 +19343,8 @@
       },
       {
         "title": "Preserve numeric inference through local bindings",
-        "status": "waiting-worker",
-        "phase": "Waiting to rebuild and recheck the original map-key fixture",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -19662,5 +19662,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:03:20.529765+00:00"
+  "updatedAt": "2026-11-07T18:04:22.522734+00:00"
 }
