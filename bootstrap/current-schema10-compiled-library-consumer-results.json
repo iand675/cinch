@@ -1,0 +1,45 @@
+{
+  "checked_at": "2026-11-07T21:36:15.855565+00:00",
+  "compiler_sha256": "94048ff6b6367001d6b9140dd279312a3d84a155637685c5201698332a5ab0de",
+  "compiler_source_sha256": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
+  "foldable_fixture_sha256": "24ef5ab98ede18b2e11db1e0e2f58c3218fff382887bec5f2c64a1c67f53e2bd",
+  "full_goal_complete": false,
+  "function_fixture_sha256": "049a390f75eca3babd222b776861cac20bfdd16c3734b3bffaf29ae57f5c16c3",
+  "interfaces": 55,
+  "metadata_sha256": "0c42db25635c83f16644b490535efe94c3298f0c5b5d079087787d9f8cd262f3",
+  "native_foldable": {
+    "exit_code": 0,
+    "log_sha256": "5e37b8f903b396f8a9b0cace675794e0456931aeebbb113706d9a06d85e45d58",
+    "name": "native",
+    "native_source_sha256": "3f4110a6687a9b200d15b372602f7331f3f6594a984ed1d310c34f88fc566e2f",
+    "original_cases": 15,
+    "zero_leak_reports": 15
+  },
+  "object_sha256": "1332b0016cad0ca8ceb8aa2e98f29d85fad16088071b0aa4fa1b4b6896c2c327",
+  "producer": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "345e12ede560550077fd6bfd4bc0fc3dc2b0a858",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
+  },
+  "roots_sha256": "fcc3b4ce1059753039d0b6d72d2ee0e2c6da103871a928f34466a5b31eb416e0",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "5d3b78d126f9da96182c6dd5c7c4dca6d2e3710ada86244dcc33057208dbf67e",
+      "name": "lib_function_ord",
+      "original_cases": 9,
+      "zero_leak_reports": 9
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "65f7a196755c9f16e98ff502181b65452c0e1c85dd81a6bc770cb42b2c1c3d06",
+      "name": "lib_foldable",
+      "original_cases": 15,
+      "zero_leak_reports": 15
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "status": "audited-pinned-compiled-library-consumers"
+}

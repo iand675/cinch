@@ -1,24 +1,20 @@
 {
   "dictionaries": [
     {
-      "classes": "O",
-      "symbol": "Data.List.FromList_List"
+      "classes": "",
+      "symbol": "Data.List.Functor_List"
     },
     {
-      "classes": "T",
+      "classes": "",
+      "symbol": "Data.Option.Alternative_Option"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.FromList_List"
     },
     {
       "classes": "O",
       "symbol": "Data.List.Semigroup_List"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.Semigroup_List"
-    },
-    {
-      "classes": "R",
-      "symbol": "Data.List.FromList_List"
     },
     {
       "classes": "OO",
@@ -29,8 +25,24 @@
       "symbol": "Algebra.Semigroup.Semigroup_Function"
     },
     {
-      "classes": "",
-      "symbol": "Data.List.Functor_List"
+      "classes": "R",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Relation.Ord.Eq_Down"
+    },
+    {
+      "classes": "T",
+      "symbol": "Relation.Ord.Ord_Down"
     }
   ],
   "methods": [
@@ -86,22 +98,6 @@
     {
       "classes": "",
       "symbol": "Data.Int.int-sub"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.list-length"
-    },
-    {
-      "classes": "R",
-      "symbol": "Data.List.list-length"
-    },
-    {
-      "classes": "OO",
-      "symbol": "Data.List.map"
-    },
-    {
-      "classes": "O",
-      "symbol": "Data.List.sort-by"
     },
     {
       "classes": "",
@@ -168,68 +164,20 @@
       "symbol": "Data.Nat.nat-to-int"
     },
     {
-      "classes": "T",
-      "symbol": "Data.List.length"
+      "classes": "O",
+      "symbol": "Data.List.sort-by"
     },
     {
       "classes": "O",
       "symbol": "Data.Option.is-none"
     },
     {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-delete"
+      "classes": "OO",
+      "symbol": "Data.List.map"
     },
     {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-delete"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-from-pairs"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-is-empty"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-is-empty"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-lookup"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-lookup"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.HashMap.hash-map-size"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Data.HashMap.hash-map-size"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.Option.is-none"
+      "classes": "OO",
+      "symbol": "Relation.Ord.comparing"
     },
     {
       "classes": "OOO",
@@ -237,7 +185,251 @@
     },
     {
       "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-from-pairs"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "OT",
       "symbol": "Data.List.map"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Relation.Ord.comparing"
+    },
+    {
+      "classes": "OTR",
+      "symbol": "Function.Combinators.on"
+    },
+    {
+      "classes": "OTT",
+      "symbol": "Function.Combinators.on"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Bool.bool"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.list-length"
+    },
+    {
+      "classes": "RR",
+      "symbol": "Function.Combinators.apply-to"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Bool.bool"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.break"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.cycle"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.elem-index"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.find"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.find-index"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.fold-left1"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.fold-right1"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.group-by"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.head"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.init"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.intercalate"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.intersperse"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.iterate"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.last"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.length"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.list-length"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.nub"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.partition"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.sort"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.sort-by"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.span"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.split-at"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.subsequences"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.tail"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.transpose"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.cat-options"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.from-option"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.is-some"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.list-to-option"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.option-to-list"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.or-else"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-delete"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-difference"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-from-list"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-intersection"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-member"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-size"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-subset"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Set.set-to-list"
+    },
+    {
+      "classes": "T",
+      "symbol": "Function.Combinators.apply-n-times"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.Set.set-fold"
     },
     {
       "classes": "TOO",
@@ -245,11 +437,235 @@
     },
     {
       "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-delete"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-filter"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-from-pairs"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-is-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-keys"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-size"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-to-list"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-union"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-union-with"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.HashMap.hash-map-values"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.lookup"
+    },
+    {
+      "classes": "TT",
       "symbol": "Data.List.map"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.scanl"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.scanr"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.unfold"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.unzip"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.List.zip"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-delete"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-from-pairs"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-is-empty"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-keys"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-lookup"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-size"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-to-list"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-union"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-union-with"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Map.map-values"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Option.map-option"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Option.maybe"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.errors"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.from-result"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.is-err"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.is-ok"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.option-to-result"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.partition-results"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.result-to-option"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Result.results"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Data.Set.set-fold"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Function.Combinators.apply-to"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Function.Combinators.const"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Function.Combinators.fst"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Function.Combinators.snd"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Function.Combinators.swap"
+    },
+    {
+      "classes": "TTO",
+      "symbol": "Data.HashMap.hash-map-fold"
+    },
+    {
+      "classes": "TTO",
+      "symbol": "Data.Map.map-fold"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.HashMap.hash-map-fold"
     },
     {
       "classes": "TTT",
       "symbol": "Data.List.zip-with"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Map.map-fold"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Result.either"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Result.map-err"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Result.map-result"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Function.Combinators.both"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Function.Combinators.curry"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Function.Combinators.flip"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Function.Combinators.uncurry"
     }
   ]
 }

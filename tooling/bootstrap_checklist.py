@@ -920,7 +920,9 @@ def build_checklist(root, cfg, previous=None):
                    and repaired['compiler_sha256'] == constructor_diagnostics.get('compiler_sha256'))
         active.append(dict(title='Replay the dependent constructor and diagnostic repairs',
             status=constructor_diagnostics['status'],
-            phase=('Tactics and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.'
+            phase=('The original proof-term group, Tactics, and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.'
+                   if audited and repaired.get('original_proof_term_group', {}).get('status') == 'passed' else
+                   'Tactics and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.'
                    if audited else constructor_diagnostics.get('phase', 'Waiting for a compiler rebuild and the original tactics, Html and Tensor cases')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=7, source=constructor_diagnostics['compiler_source_sha256'], evidence=link(repaired_path) if audited else None))
@@ -951,11 +953,18 @@ def build_checklist(root, cfg, previous=None):
         completed = rows.get('stage3')
         active.append(dict(title='Run Foldable as a client of the compiled library',
             status=foldable_consumer['status'],
-            phase=('The fixture writes only Main.cinch and retains all 16 cases. '
+            phase=('The fixture writes only Main.cinch and retains all 15 cases. '
                    'The replay uses the audited Stage3 and pinned library interfaces and object.'),
             passed=int(completed == 0), failed=int(completed is not None and completed != 0), total=1))
+    compiled_consumers_path = 'bootstrap/current-schema10-compiled-library-consumer-results.json'
+    consumer_audit = read(root / compiled_consumers_path)
     compiled_consumers = read(cfg.get('schema10CompiledLibraryConsumers'))
-    if compiled_consumers:
+    if consumer_audit.get('status') == 'audited-pinned-compiled-library-consumers':
+        active.append(dict(title='Verify the rebuilt library with the original consumers', status='passed',
+            phase='All 55 interface identities match. Stage3 passed nine function cases and 15 Foldable cases. Native passed all 15 Foldable cases.',
+            passed=24, failed=0, total=24, unit='Stage3 cases',
+            source=consumer_audit['compiler_source_sha256'], evidence=link(compiled_consumers_path)))
+    elif compiled_consumers:
         rows = [row for row in compiled_consumers['rows'] if row['name'] in ('lib_function_ord', 'lib_foldable')]
         active.append(dict(title='Build and test the missing library specializations',
             status=compiled_consumers['status'],

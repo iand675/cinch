@@ -6,6 +6,17 @@
   "invocations_sha256": "b4269c344b52f9e055dd71ff1976fa1bb30e229412475181a7ea166b9cf10265",
   "native_source_sha256": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b",
   "object_configuration_sha256": "267422358f6a00af395058ec3640d33bb853be98c9db711f72ecb0d671a0bf39",
+  "original_proof_term_group": {
+    "compiler_sha256": "70d52d4b68804618f752ac745d52ab6fc98a02f40dcc45eecb39796a88327386",
+    "compiler_source_sha256": "ba8b2fa22307621579a2ac1e008fc23742cd75b2cb85ccdfbe320ae1aa68ee8a",
+    "exit_code": 0,
+    "log_sha256": "8d65602a0ddae55f9157444c4e9f3348be7dc4c618761967cfa65b8fdaddfa91",
+    "name": "bootstrap_proof_terms",
+    "original_group_tests": 1,
+    "provider_object_sha256": "06f991090818190871f00101f12c20cb4e7e5826cbc748aad7d7929727f98d60",
+    "runner_sha256": "b278098bcf7779fcf4ad4b6c1a7aedbb6d78ca19062a6556459514c5338807a9",
+    "status": "passed"
+  },
   "rows": [
     {
       "exit_code": 0,

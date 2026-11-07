@@ -14,12 +14,14 @@ and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-re
 The staged compiler links the pinned standard-library object and runtime
 archive. It reads the library's checked interfaces separately. The executable
 source-rebuild checks verify interface dependencies and refuse changed bodies
-when only the old object is available. Library behavior tests are consumers.
-The Foldable fixture is being replayed as a single client module against
-compiled artifacts, with all 16 cases preserved. The Function.Combinators
-replay identified two absent representation variants, `both [TTT]` and
-`swap [TT]`. The package design calls for materializing missing variants
-from checked polymorphic IR and caching them by representation vector.
+when only the old object is available. The Foldable test now writes a
+single client module. All 15 cases passed through Native and the audited
+Stage3 with zero leaks. The pinned library object preserves all 55 checked
+interfaces and includes `both [TTT]` and `swap [TT]`. All nine
+Function.Combinators cases passed against that object with zero leaks.
+See [the compiled consumer audit](../bootstrap/current-schema10-compiled-library-consumer-results.json).
+The package design calls for materializing missing variants from checked
+polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
 
 Native `run` now creates a fresh scratch directory and removes it after

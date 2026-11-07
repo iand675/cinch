@@ -4,18 +4,8 @@
 //! the showcase behavior of `traverse` into `Result` (short-circuiting
 //! on the FIRST error) and into `Option`.
 //!
-//! Each test compiles a real multi-file project: the prelude modules
-//! under test (Category/Foldable.cinch, Category/Traversable.cinch,
-//! Data/NonEmpty.cinch) plus Algebra/Semigroup.cinch and the
-//! Category.Functor/Category.Applicative/Category.Monad class modules
-//! the instances and the free combinators build on, the class homes
-//! those combinators constrain over (Algebra/Monoid.cinch, with the
-//! Algebra/Group.cinch it imports, and Algebra/Semiring.cinch), driven
-//! through the CLI pipeline like modules.rs. The
-//! classes are the constructor-ary ones (`Foldable (t :: Type ->
-//! Type)`, `Traversable (t :: Type -> Type)`); the sources exercise
-//! only consumer-visible semantics and the classes' laws over sample
-//! values:
+//! Each test compiles a consumer module through the CLI pipeline. The
+//! standard library supplies the classes, instances and free combinators.
 //!   Foldable:    foldr/to-list agreement (`foldr Cons Nil (to-list xs)
 //!                == to-list xs`), to-list idempotence, length/null
 //!                agreement with to-list, foldl/foldr agreement.
@@ -46,25 +36,6 @@ use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const FOLDABLE: &str = include_str!("../prelude/Category/Foldable.cinch");
-const TRAVERSABLE: &str = include_str!("../prelude/Category/Traversable.cinch");
-const FUNCTOR: &str = include_str!("../prelude/Category/Functor.cinch");
-const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.cinch");
-const MONAD: &str = include_str!("../prelude/Category/Monad.cinch");
-const NONEMPTY: &str = include_str!("../prelude/Data/NonEmpty.cinch");
-const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.cinch");
-/// The class homes the free combinators constrain over, written beside
-/// the entry like the modules under test: a project module that shadows
-/// a prelude home can reference a class only when that class's home is
-/// a module of the project too (or is in the facade's surface, as `Eq`
-/// and `Ord` are), so `fold-map`'s `Monoid`/`Semigroup`,
-/// `sum`/`product`'s `Semiring` and `map-m`'s `Monad` need their homes
-/// in the project. Observed in the shared tree; the copies are
-/// otherwise inert.
-const MONOID: &str = include_str!("../prelude/Algebra/Monoid.cinch");
-const GROUP: &str = include_str!("../prelude/Algebra/Group.cinch");
-const SEMIRING: &str = include_str!("../prelude/Algebra/Semiring.cinch");
-
 fn run_main(name: &str, main_src: &str) -> i32 {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir: PathBuf = std::env::temp_dir().join(format!(
@@ -75,21 +46,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    for (file, src) in [
-        ("Foldable.cinch", FOLDABLE),
-        ("Traversable.cinch", TRAVERSABLE),
-        ("Functor.cinch", FUNCTOR),
-        ("Applicative.cinch", APPLICATIVE),
-        ("Monad.cinch", MONAD),
-        ("NonEmpty.cinch", NONEMPTY),
-        ("Semigroup.cinch", SEMIGROUP),
-        ("Monoid.cinch", MONOID),
-        ("Group.cinch", GROUP),
-        ("Semiring.cinch", SEMIRING),
-        ("Main.cinch", main_src),
-    ] {
-        std::fs::write(dir.join(file), src).expect("write module");
-    }
+    std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main.cinch");
     match driver(Mode::Run, &dir.join("Main.cinch"), None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
