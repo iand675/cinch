@@ -18804,9 +18804,9 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "running",
+        "status": "passed-copy-out-pipeline-and-runtime",
         "phase": "bootstrap_runtime_ir",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 2,
         "source": "56f015c0195ec3ce4864634156c5884ea6a0f9599b0257cab77a77a96b9b1e26"
@@ -18840,9 +18840,9 @@
       },
       {
         "title": "Schema 9 library interfaces",
-        "status": "waiting-worker",
+        "status": "passed-library-only-schema9-development-provider",
         "phase": "Regenerate and verify the library-only object and its 55 interfaces",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "4dad2adc21c0104df7770f3856aca3171bebbc409967326186be475386bd692b"
@@ -18879,5 +18879,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:00:24.152892+00:00"
+  "updatedAt": "2026-11-07T09:03:47.058310+00:00"
 }
