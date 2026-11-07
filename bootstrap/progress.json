@@ -19336,8 +19336,8 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types",
-        "passed": 7,
+        "phase": "bootstrap_anonymous_contracts",
+        "passed": 8,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19345,8 +19345,8 @@
       {
         "title": "Bootstrap the consolidated compiler with named proofs",
         "status": "running",
-        "phase": "building stage2",
-        "passed": 2,
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
@@ -19565,5 +19565,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T16:18:29.806541+00:00"
+  "updatedAt": "2026-11-07T16:27:35.416136+00:00"
 }
