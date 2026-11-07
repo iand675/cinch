@@ -19110,14 +19110,14 @@
       },
       {
         "title": "Integrated compiler: Stage3 source admission",
-        "status": "running",
+        "status": "passed-integrated-source-admission",
         "phase": "checking all 44 integrated modules through exact Stage3",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
         "nativeSource": null,
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
@@ -19306,12 +19306,12 @@
       },
       {
         "title": "Integrated compiler: fresh bootstrap",
-        "status": "waiting-exact-integrated-source-admission",
-        "phase": "0/4 stages. waiting exact integrated source admission",
+        "status": "running",
+        "phase": "0/4 stages. building stage0",
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": null,
+        "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
         "auditPending": false
       },
       {
@@ -19373,5 +19373,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T06:33:39.234599+00:00"
+  "updatedAt": "2026-11-07T06:34:41.355707+00:00"
 }
