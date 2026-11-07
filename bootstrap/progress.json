@@ -19326,7 +19326,7 @@
       {
         "title": "Recheck late library copies with checked facade values",
         "status": "running",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "phase": "exact-copy",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -19684,5 +19684,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:42:03.994233+00:00"
+  "updatedAt": "2026-11-07T18:45:06.302060+00:00"
 }
