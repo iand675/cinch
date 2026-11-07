@@ -18429,14 +18429,14 @@
       },
       {
         "title": "Cinch constructor coverage: complete groups",
-        "status": "running",
+        "status": "passed-inferred-case-coverage-components",
         "phase": "bootstrap_function_preconditions",
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "total": 8,
         "source": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Cinch refined containers: complete groups",
@@ -18534,8 +18534,8 @@
       {
         "title": "Cinch structural refinements: original API/default groups",
         "status": "running",
-        "phase": "interface_refinement_closure",
-        "passed": 5,
+        "phase": "interface_refinements",
+        "passed": 6,
         "failed": 1,
         "total": 10,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:07:43.548278+00:00"
+  "updatedAt": "2026-11-07T01:08:45.830959+00:00"
 }
