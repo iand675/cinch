@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "173 of 235 complete groups passed; 1 running, 0 failed and 61 pending.Every group includes ignored tests. State: running.",
+      "detail": "173 of 235 complete groups passed; 2 running, 0 failed and 60 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "173 of 235 complete groups passed; 1 running, 0 failed and 61 pending."
+      "detail": "173 of 235 complete groups passed; 2 running, 0 failed and 60 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -805,8 +805,8 @@
         "counts": {
           "verified": 174,
           "blocked": 0,
-          "running": 1,
-          "pending": 60,
+          "running": 2,
+          "pending": 59,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1708,25 +1708,21 @@
           {
             "id": "native:bootstrap_globals",
             "title": "bootstrap_globals",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:24:37.526165+00:00",
-              "finishedAt": "2026-11-06T17:28:44.200969+00:00",
-              "exitCode": 0,
-              "logSha256": "9369bbccab1297da4999031812b13ea3db1655d2d879805cd64a7d24f22c16aa",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T02:20:33.181101+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
-                  "status": "passed"
-                },
-                {
-                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -1769,7 +1765,12 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -18495,14 +18496,14 @@
       },
       {
         "title": "Cinch source-file diagnostics: complete groups",
-        "status": "running",
+        "status": "passed-source-origin-and-default-diagnostic-components",
         "phase": "bootstrap_source_instances",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Cinch structural result inference: complete groups",
@@ -18694,7 +18695,7 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_guarded_association",
+        "phase": "bootstrap_globals",
         "passed": 173,
         "failed": 0,
         "total": 235,
@@ -18715,8 +18716,8 @@
     "counts": {
       "verified": 428,
       "blocked": 3,
-      "running": 8,
-      "pending": 89,
+      "running": 9,
+      "pending": 88,
       "recheck": 140
     },
     "total": 668,
@@ -18725,5 +18726,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:19:47.084283+00:00"
+  "updatedAt": "2026-11-07T02:20:49.362770+00:00"
 }
