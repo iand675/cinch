@@ -1,0 +1,39 @@
+{
+  "checked_at": "2026-11-07T18:41:03.259366+00:00",
+  "compiler_sha256": "91291a55dc3bb9e509396c303e1441e8c539af924dfdc5fb204bb7cf26c5c849",
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "53c6a5047d2cc2b3ae9eee1d741ac1532b7c8ade2a49c8af081cab7d112c6597",
+  "original_list_tests": 8,
+  "producer": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "345e12ede560550077fd6bfd4bc0fc3dc2b0a858",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
+  },
+  "requested_dictionaries": 11,
+  "requested_methods": 2,
+  "requested_units": 150,
+  "roots_sha256": "29392d5a4e54c2c61264db73111869f13cb064a67a085fa639981a86405239bc",
+  "rows": [
+    {
+      "interfaces": 55,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "metadata_sha256": "63f1b605e673168acaf43c7e9a3b915c4af212d82d92a1168626710ac0613463",
+      "name": "pinned-provider",
+      "object_sha256": "06f991090818190871f00101f12c20cb4e7e5826cbc748aad7d7929727f98d60",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "96756e47d116532001346a6e1d828dcc284961eebebdcc12824fc57dbd74baa1",
+      "name": "lib_list",
+      "original_binary_sha256": "0ceac4860271f141d0158d599d72ae9b5b16ba3eefc017be716c0cce0c32e3bf",
+      "status": "passed"
+    }
+  ],
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "status": "audited-pinned-expanded-library-and-original-List",
+  "zero_leak_runs": 8
+}

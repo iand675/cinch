@@ -100,8 +100,13 @@ to Foldable. A separate candidate projects the checked value into the
 copied implementation scope while retaining the interface checks.
 See [the copied-module replay](../bootstrap/current-schema10-executable-source-copy-results.json).
 
-The additional library sweep found 29 more missing List function variants
-and a local numeric inference failure in the original small Nat/Int tests.
+The additional library sweep found 29 more missing List function variants.
+The expanded candidate object built with the current pinned producer and
+preserved all 55 interface identities. All eight original List cases then
+ran on the earlier repaired Stage3 with zero leaks.
+See [the original List replay](../bootstrap/current-schema10-expanded-list-results.json).
+
+The original small Nat/Int tests exposed a local numeric inference failure.
 The map value defaulted to Int before the body of its let could constrain it
 to Nat. The candidate keeps unresolved literal carriers shared with their
 uses and validates them when the enclosing definition closes. The

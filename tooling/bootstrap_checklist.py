@@ -952,6 +952,13 @@ def build_checklist(root, cfg, previous=None):
             status=library_replay['status'], phase=library_replay.get('phase', 'Waiting for the complete library object'),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=5, source=library_replay.get('compiler_source_sha256')))
+    list_path = 'bootstrap/current-schema10-expanded-list-results.json'
+    list_replay = read(root / list_path)
+    if list_replay.get('status') == 'audited-pinned-expanded-library-and-original-List':
+        active.append(dict(title='Replay the eight original List tests with the expanded pinned library',
+            status='passed', phase='All 55 library interface identities were preserved. All eight original cases ran with zero leaks.',
+            passed=list_replay['original_list_tests'], failed=0, total=8,
+            source=list_replay['compiler_source_sha256'], evidence=link(list_path)))
     local_number_scope = read(cfg.get('schema10LocalNumberScope'))
     if local_number_scope:
         numeric_path = 'bootstrap/current-schema10-local-numeric-check-results.json'
