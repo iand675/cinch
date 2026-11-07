@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Staging syntax and splice parsing",
+  "verified_at": "2026-11-07T09:27:57.165299+00:00",
+  "compiler_source_sha256": "790919e4a23ae78e263027070c1f13cfca0b4de8ec357f7fbaeee69738cb6e17",
+  "source_snapshot_sha256": "fe846f7ec0f61b6faba82a312be7f38a18a65eec1a6c34321355c4e6da941bf4",
+  "native_rlib_sha256": "2366d4c0b580131ea5b04ff3a26780c6ffb7a4b01efffa17ae5aad86446765ad",
+  "stage_syntax": [
+    "stage signatures and equations",
+    "generate do",
+    "declaration quotation",
+    "expression splice with the lexer’s shared-span token pair"
+  ],
+  "test": {
+    "exit_code": 0,
+    "log_sha256": "cc26a57c7cd9f4fb6c83fda99abe036f9aea881bbecfd8b2602f50c755f40dc3",
+    "name": "bootstrap_type_syntax",
+    "status": "passed"
+  },
+  "earlier_parser_failure_log_sha256": "9d3fdcf5c59acd74812b86143080231683620060e6f294f76b52f4e440051d0d",
+  "patch": "staging-surface-development.patch",
+  "patch_sha256": "93a6f1d219b6e17d03927b3781a952225edd14c8a176be19cd880e378e2ea8df",
+  "changed_source_files": {
+    "bootstrap/Bootstrap.Ast.cinch": "ee4c4403af43fe8bdfeb3c6edbf00f0d4c15a5f92e7847adb6c7d3d04b1d76f4",
+    "bootstrap/Bootstrap.Check.cinch": "8b6b44bb7c53f100efcae2b7951e3df10b06e714d982d3bfcf6bbe1d8e095686",
+    "bootstrap/Bootstrap.Eval.cinch": "4631edcae1d3368fe2fe2f35c8727f2f330a811c94941902144debbdd77b5293",
+    "bootstrap/Bootstrap.Ir.cinch": "d929a32d825d8c635935de629f9f97e9243df14263067dbf81592784e271acc1",
+    "bootstrap/Bootstrap.Parse.cinch": "394ceb769e07ca2ee3b41effc4b1b04cfce5345f14343a05bff677b5b6443fb2",
+    "bootstrap/Bootstrap.Resolve.cinch": "34ef0cfecde256087692a383c7fa2ad0a57c675fb28e44376782381f4201de44",
+    "bootstrap/programs/Run.TypeSyntax.cinch": "41362fbae53378cce3a042bd213d3d44b3a172a35b2093a4bbfdc86bb4c2c121",
+    "compiler/tests/bootstrap_type_syntax.rs": "9c29a58df2a348bcbb1cd8ed36701a99acbd8ba68742fe608d14b1e1e5223cc1"
+  },
+  "compile_time_evaluator_verified": false,
+  "original_arrays_group_verified": false,
+  "full_goal_complete": false,
+  "base_snapshot_sha256": "648e762227cb717cf424adb732c33ae0b6c4b4266789e453fc6311f293bf0500",
+  "patch_replays_exactly": true
+}

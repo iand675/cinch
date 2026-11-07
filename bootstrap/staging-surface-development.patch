@@ -1,0 +1,322 @@
+--- a/bootstrap/Bootstrap.Ast.cinch
++++ b/bootstrap/Bootstrap.Ast.cinch
+@@ -284,6 +284,7 @@
+     EBindingsEnd :: Span -> Expr
+     EAlt :: Span -> Pat -> Expr -> Expr -> Expr
+     EAltsEnd :: Span -> Expr
++    ESplice :: Span -> Expr -> Expr
+     EUnmodeled :: Span -> String -> Expr
+ 
+   expr-spine :: Span -> List Expr -> Expr
+@@ -359,6 +360,7 @@
+     EBindingsEnd s -> s
+     EAlt s p body rest -> s
+     EAltsEnd s -> s
++    ESplice s expression -> s
+     EUnmodeled s text -> s
+ 
+   -- ------------------------------------------------------------ declarations
+@@ -399,6 +401,10 @@
+     DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
++    DStage :: Span -> Decl -> Decl
++    DGenerate :: Span -> Decl -> Decl
++    DStageEmit :: Span -> Decl -> Decl
++    DStageBranch :: Span -> Expr -> Decl -> Decl -> Decl
+     DDecl :: Span -> Decl -> Decl -> Decl
+     DDeclsEnd :: Span -> Decl
+     DUnmodeled :: Span -> String -> Decl
+@@ -434,6 +440,10 @@
+     DRecord s n params fields -> s
+     DEffect s n params ops -> s
+     DForeign s direction conv symbol foreign-name t -> s
++    DStage s body -> s
++    DGenerate s actions -> s
++    DStageEmit s template -> s
++    DStageBranch s condition yes no -> s
+     DDecl s x rest -> s
+     DDeclsEnd s -> s
+     DUnmodeled s text -> s
+@@ -462,6 +472,10 @@
+     DDecl s x rest -> None
+     DDeclsEnd s -> None
+     DUnmodeled s text -> None
++    DStage s body -> None
++    DGenerate s actions -> None
++    DStageEmit s template -> None
++    DStageBranch s condition yes no -> None
+ 
+   -- -------------------------------------------------------- modules, programs
+ 
+@@ -593,6 +607,7 @@
+     EAlt s p body rest -> pat-unmodeled-count p + expr-unmodeled-count body + expr-unmodeled-count rest
+     EAltsEnd s -> 0
+     EUnmodeled s text -> 1
++    ESplice s expression -> expr-unmodeled-count expression
+ 
+   exprs-unmodeled :: List Expr -> Nat
+   exprs-unmodeled es = case es of
+@@ -658,6 +673,10 @@
+     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
+     DDeclsEnd s -> 0
+     DUnmodeled s text -> 1
++    DStage s body -> decl-unmodeled-count body
++    DGenerate s actions -> decl-unmodeled-count actions
++    DStageEmit s template -> decl-unmodeled-count template
++    DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
+ 
+   law-unmodeled-count :: LawSyntax -> Nat
+   law-unmodeled-count syntax = case syntax of
+@@ -767,6 +786,7 @@
+     EAlt part0 part1 part2 part3 -> JArr (JStr "EAlt") (JArr (source-identity-pat part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
+     EAltsEnd part0 -> JArr (JStr "EAltsEnd") (JArrEnd)
+     EUnmodeled part0 part1 -> JArr (JStr "EUnmodeled") (JArr (JStr part1) (JArrEnd))
++    ESplice part0 part1 -> JArr (JStr "ESplice") (JArr (source-identity-expr part1) JArrEnd)
+ 
+   source-identity-pats :: List Pat -> Json
+   source-identity-pats values = case values of Nil -> JArrEnd; Cons first rest -> JArr (source-identity-pat first) (source-identity-pats rest)
+--- a/bootstrap/Bootstrap.Check.cinch
++++ b/bootstrap/Bootstrap.Check.cinch
+@@ -460,6 +460,7 @@
+     EBindingsEnd s -> (TyHole, fail s "unsupported expression: binding spine end")
+     EAlt s p body rest -> (TyHole, fail s "unsupported expression: alternative spine cell")
+     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
++    ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
+     EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
+ 
+   infer-tuple-fields :: List (String, Ty) -> List Expr -> (Ty, List Diagnostic)
+@@ -939,6 +940,10 @@
+     DRecord s n params fields -> fail s "record declarations are not supported in this rung"
+     DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
+     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
++    DStage s body -> fail s "a stage declaration requires compile-time checking"
++    DGenerate s actions -> fail s "a generate block requires compile-time expansion"
++    DStageEmit s template -> fail s "emit requires a generate block"
++    DStageBranch s condition yes no -> fail s "a staged branch requires a generate block"
+     DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
+     DDeclsEnd s -> Nil
+     DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
+--- a/bootstrap/Bootstrap.Eval.cinch
++++ b/bootstrap/Bootstrap.Eval.cinch
+@@ -563,6 +563,7 @@
+     EBindingsEnd s -> fail s "unsupported expression: binding spine end"
+     EAlt s p body rest -> fail s "unsupported expression: alternative spine cell"
+     EAltsEnd s -> fail s "unsupported expression: alternative spine end"
++    ESplice s expression -> fail s "a splice requires a compile-time quotation"
+     EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
+ 
+   -- ------------------------------------------------- the top-level environment
+@@ -654,6 +655,8 @@
+     DOpaque s name params kind -> Cons (MkDiagnostic rung s "opaque declarations require checked nominal elaboration") Nil
+     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
+     DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
++    DStage s body -> Cons (MkDiagnostic rung s "a stage declaration requires compile-time checking") Nil
++    DGenerate s actions -> Cons (MkDiagnostic rung s "a generate block requires compile-time expansion") Nil
+     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
+     other -> Nil
+ 
+--- a/bootstrap/Bootstrap.Ir.cinch
++++ b/bootstrap/Bootstrap.Ir.cinch
+@@ -552,6 +552,8 @@
+     DInstance s i name params t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
+     DEffect s name params ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
+     DForeign s direction conv symbol fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
++    DStage s body -> Cons (diag s "a stage declaration requires compile-time checking") Nil
++    DGenerate s actions -> Cons (diag s "a generate block requires compile-time expansion") Nil
+     DUnmodeled s text -> Cons (diag s "an unmodeled declaration is not in the fragment") Nil
+     other -> Nil
+ 
+@@ -743,4 +745,5 @@
+     EBindingsEnd s -> "binding spine end"
+     EAlt s p body rest -> "alternative spine"
+     EAltsEnd s -> "alternative spine end"
++    ESplice s expression -> "quotation splice"
+     EUnmodeled s text -> "unmodeled expression"
+--- a/bootstrap/Bootstrap.Parse.cinch
++++ b/bootstrap/Bootstrap.Parse.cinch
+@@ -755,10 +755,80 @@
+     else if string-compare w "foreign" == 0 then parse-foreign toks src
+     else if string-compare w "instance" == 0 then parse-instance toks src fix False
+     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
++    else if string-compare w "stage" == 0 then parse-stage-decl toks src fix
++    else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
+     else if string-compare w "infix" == 0 then parse-fixity toks
+     else if string-compare w "infixl" == 0 then parse-fixity toks
+     else if string-compare w "infixr" == 0 then parse-fixity toks
+     else PBad
++
++  parse-stage-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-stage-decl toks src fix = case toks of
++    Cons keyword rest -> case parse-sig-or-eq rest src fix of
++      POk body tail -> POk (DStage (span-join (sp-of keyword) (decl-span body)) body) tail
++      PBad -> PBad
++    Nil -> PBad
++
++  parse-generate-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-generate-decl toks src fix = case toks of
++    Cons keyword rest -> case expect-word-t rest "do" of
++      POk at body -> case expect-punct-t body "{" of
++        POk opened actions -> parse-stage-actions (sp-of keyword) actions src fix Nil
++        PBad -> PBad
++      PBad -> PBad
++    Nil -> PBad
++
++  parse-stage-actions :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps Decl
++  parse-stage-actions sp toks src fix previous = case toks of
++    Cons token rest ->
++      if is-punct-t (lt-token token) "}" then
++        POk (DGenerate (span-join sp (sp-of token)) (decl-spine sp (reverse previous))) rest
++      else if is-punct-t (lt-token token) ";" then parse-stage-actions sp rest src fix previous
++      else (case parse-stage-action toks src fix of
++        POk action remaining -> case remaining of
++          Cons separator tail -> if is-punct-t (lt-token separator) ";" || is-punct-t (lt-token separator) "}" then
++            parse-stage-actions sp remaining src fix (Cons action previous) else PBad
++          Nil -> PBad
++        PBad -> PBad)
++    Nil -> PBad
++
++  stage-word-t :: Token -> String -> Bool
++  stage-word-t token wanted = case token of
++    TWord name -> string-compare name wanted == 0
++    TVar name -> string-compare name wanted == 0
++    other -> False
++
++  parse-stage-action :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-stage-action toks src fix = case toks of
++    Cons keyword rest -> if stage-word-t (lt-token keyword) "emit" then parse-stage-emit (sp-of keyword) rest src fix
++      else if is-word-t (lt-token keyword) "if" then parse-stage-branch (sp-of keyword) rest src fix else PBad
++    Nil -> PBad
++
++  parse-stage-emit :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-stage-emit sp toks src fix = case expect-punct-t toks "(" of
++    POk opened (Cons quote rest) -> if stage-word-t (lt-token quote) "quoteDecls" then
++      (case expect-word-t rest "where" of
++        POk where-span body -> case parse-block body src fix of
++          POk declarations after-template -> case expect-punct-t after-template ")" of
++            POk close tail -> POk (DStageEmit (span-join sp close) (decl-spine where-span declarations)) tail
++            PBad -> PBad
++          PBad -> PBad
++        PBad -> PBad)
++      else PBad
++    other -> PBad
++
++  parse-stage-branch :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
++  parse-stage-branch sp toks src fix = case parse-expr toks src fix of
++    POk condition rest -> case expect-word-t rest "then" of
++      POk at first -> case parse-stage-action first src fix of
++        POk yes after-yes -> case expect-word-t after-yes "else" of
++          POk later second -> case parse-stage-action second src fix of
++            POk no tail -> POk (DStageBranch (span-join sp (decl-span no)) condition yes no) tail
++            PBad -> PBad
++          PBad -> PBad
++        PBad -> PBad
++      PBad -> PBad
++    PBad -> PBad
+ 
+   parse-implicit :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+   parse-implicit toks src fix = case toks of
+@@ -1537,6 +1607,7 @@
+       if string-compare p "(" == 0 then True
+       else if string-compare p "[" == 0 then True
+       else if string-compare p "[|" == 0 then True
++      else if string-compare p "$" == 0 then True
+       else if string-compare p "\\" == 0 then True
+       else False
+     TWord w ->
+@@ -1697,6 +1768,7 @@
+         if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
+         else if string-compare p "[" == 0 then parse-list-expr (sp-of t) rest src fix
+         else if string-compare p "[|" == 0 then parse-unmodeled-atom toks src "|]"
++        else if string-compare p "$" == 0 then parse-splice (sp-of t) rest src fix
+         else if string-compare p "\\" == 0 then parse-lam (sp-of t) rest src fix
+         else PBad
+       TWord w ->
+@@ -1709,6 +1781,20 @@
+         else if string-compare w "with" == 0 then parse-with (sp-of t) rest src fix
+         else PBad
+       _ -> PBad
++    Nil -> PBad
++
++  -- The lexer gives both tokens of `$(` the same span so layout can
++  -- see the parenthesis. A spaced `$ (` does not start a splice.
++  parse-splice :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
++  parse-splice start toks src fix = case toks of
++    Cons open rest -> let next = sp-of open in
++      if is-punct-t (lt-token open) "(" && span-start start == span-start next && span-end start == span-end next then
++        (case parse-expr rest src fix of
++          POk body after-body -> case expect-punct-t after-body ")" of
++            POk close tail -> POk (ESplice (span-join start close) body) tail
++            PBad -> PBad
++          PBad -> PBad)
++      else PBad
+     Nil -> PBad
+ 
+   parse-do :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+--- a/bootstrap/Bootstrap.Resolve.cinch
++++ b/bootstrap/Bootstrap.Resolve.cinch
+@@ -583,6 +583,7 @@
+       (a, errors) -> case rename-expr visible locals rest of
+         (b, more) -> (EArg s a b, errors <> more)
+     EArgsEnd s -> (e, Nil)
++    ESplice s expression -> (e, fail s "a splice is only meaningful inside a quotation")
+     EUnmodeled s text -> (e, fail s (cat ["unmodeled expression: ", text]))
+     other -> (e, fail (expr-span e) "this expression requires further namespace elaboration")
+ 
+@@ -663,6 +664,8 @@
+     DImport s path mods alias members args -> (Nil, Nil)
+     DExport s text items -> (Nil, Nil)
+     DFixity s assoc prec ops -> (Nil, Nil)
++    DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
++    DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
+     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+ 
+   rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+--- a/bootstrap/programs/Run.TypeSyntax.cinch
++++ b/bootstrap/programs/Run.TypeSyntax.cinch
+@@ -463,12 +463,35 @@
+         other -> False) else False
+     other -> False
+ 
++  staged-source :: String
++  staged-source = "module Main where\n  stage count :: Nat\n  stage count = 42\n  generate do\n    emit (quoteDecls where\n      result :: Nat\n      result = $(quoteNat count))\n  main :: Int\n  main = 0\n"
++
++  staged-template-ok :: Decl -> Bool
++  staged-template-ok template = case decls-of template of
++    Cons (DSig sp name (TName ty carrier)) (Cons (DFun at result (Cons (Nil, ESplice site expression) Nil)) Nil) ->
++      same name "result" && same carrier "Nat" && same result name &&
++        (case expression of
++          EApp call (EVar fn quote-name) (EVar arg value) -> same quote-name "quoteNat" && same value "count"
++          other -> False)
++    other -> False
++
++  stage-syntax-ok :: Bool
++  stage-syntax-ok = case parse-program "staging" (string-to-bytes staged-source) of
++    Parsed program Nil -> case program-modules program of
++      Cons owner Nil -> case module-decls owner of
++        Cons (DStage at (DSig sp name (TName ty carrier))) (Cons (DStage value-site (DFun def value clauses)) (Cons (DGenerate gen actions) rest)) ->
++          same name "count" && same carrier "Nat" && same value name && program-unmodeled-count program == 0 &&
++            (case decls-of actions of Cons (DStageEmit emit-site template) Nil -> staged-template-ok template; other -> False)
++        other -> False
++      other -> False
++    other -> False
++
+   main :: Int
+   main = case parse-program "types" (string-to-bytes source) of
+     Failed errors -> 1
+     Parsed program errors ->
+       if program-unmodeled-count program == 0 && list-length errors == 0 then
+         case program-modules program of
+-          Cons m Nil -> if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
++          Cons m Nil -> if not stage-syntax-ok then 22 else if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
+           other -> 2
+       else 8
+--- a/compiler/tests/bootstrap_type_syntax.rs
++++ b/compiler/tests/bootstrap_type_syntax.rs
+@@ -31,5 +31,5 @@
+     );
+     let code = common::run(&dir, "Main.cinch");
+     common::cleanup(&dir);
+-    assert_eq!(code, 0, "syntax tree check failed: 1 parse, 2 modules, 3 mixed bounds/refined result, 4 empty context refusal, 5 index arguments, 6 nested predicate, 7 single bound, 8 unmodeled syntax, 9 checker refusal, 10/11 malformed syntax, 12 tuple checking, 13 handler tree, 14 declaration/import metadata, 15 refinement/quantifier/export metadata, 16 malformed declaration refusal, 17 effect rows/capability supply trees, 18 malformed rows/supplies, 19 structured row type arguments, 20 malformed row argument refusal");
++    assert_eq!(code, 0, "syntax tree check failed: 1 parse, 2 modules, 3 mixed bounds/refined result, 4 empty context refusal, 5 index arguments, 6 nested predicate, 7 single bound, 8 unmodeled syntax, 9 checker refusal, 10/11 malformed syntax, 12 tuple checking, 13 handler tree, 14 declaration/import metadata, 15 refinement/quantifier/export metadata, 16 malformed declaration refusal, 17 effect rows/capability supply trees, 18 malformed rows/supplies, 19 structured row type arguments, 20 malformed row argument refusal, 21 class laws, 22 stage declarations and splices");
+ }

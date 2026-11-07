@@ -335,12 +335,17 @@ def build_checklist(root, cfg, previous=None):
     schema9_provider = read(cfg.get('unifiedDefaultProvider'))
     schema9_chain = read(cfg.get('unifiedDefaultChain'))
     schema9_cross = read(root/'bootstrap/current-schema9-default-replay-results.json')
+    stage_syntax = read(root/'bootstrap/current-staging-surface-results.json')
+    class_interface = read(cfg.get('classInterfaceParity'))
+    class_interface_proof = read(root/'bootstrap/current-class-interface-exports-results.json')
+    class_arrow_native = read(cfg.get('classArrowNative'))
     family_replay = read(cfg.get('arrowFamilyReplay'))
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked' if integrated_overlay or stage3_failures_current or 'interface_prelude_overrides' in failed_api else 'pending',
+             'The Core family passed. Schema 9 transports the inherited Ordering default. The Cinch writer now matches Rust on class type and layout rows and keeps instance factories in the instance table. The Category instance head and display scheme still need matching output.' if class_interface_proof else
              'The integrated Stage3 passed the original Core family and reached Ordering, where the inherited mconcat implementation is unavailable. Category and Algebra still need matching results.' if integrated_overlay else
              'The earlier Stage3 refuses the original Data.Core source as a conflicting loaded interface. Development Data.Core emits the matching contract. Ordering, Category and Algebra still need their original replacement checks.' if stage3_failures_current else 'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
-             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
+             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-class-interface-exports-results.json' if class_interface_proof else stage3_failure_path if stage3_failures_current else 'bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
@@ -389,8 +394,9 @@ def build_checklist(root, cfg, previous=None):
              'The development pipeline and runtime groups pass. A shared immutable array is accepted, affine Thunk elements refuse for Copy, and the tuple case returns 42 with zero leaks. The combined compiler still needs its own Stage3 replay.' if copyout_proof else
              'The earlier Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).',
              'The original ownership case reaches and passes its required semantic checks and runtime behavior.',link('bootstrap/current-copy-out-development-results.json' if copyout_proof else stage3_failure_path)),
-        item('gap:staging','Finish staging and namespace behavior','blocked' if stage3_failures_current else 'recheck','Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
-             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link(stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
+        item('gap:staging','Finish staging and namespace behavior','running' if stage_syntax else 'blocked' if stage3_failures_current else 'recheck',
+             'The development parser passes the complete syntax target with checked staging nodes and splices. The evaluator still needs to issue the named arrayReplicate refusal and expand valid generators.' if stage_syntax else 'Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
+             'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link('bootstrap/current-staging-surface-results.json' if stage_syntax else stage3_failure_path if stage3_failures_current else 'bootstrap/current-original-array-suite-results.json')),
         item('gap:hidden-types','Stop choosing a concrete hidden constructor type','pending','Native existential/hidden-type introduction remains a required investigation and repair.',
              'Hidden types remain existential, with correct construction, scoped elimination, kind checks and no guessed Nat carrier.',link('design/next-steps.md')),
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
@@ -602,12 +608,18 @@ def build_checklist(root, cfg, previous=None):
         ('Cinch class-law samples and counterexamples', laws, 2),
         ('Cinch imported defaults: source admission and two complete groups', default_transport, 3),
         ('Schema 9: source admission, imported defaults, runtime and pipeline', schema9_validation, 5),
+        ('Category: class type and dictionary export parity', class_interface, 1),
+        ('Rust: preserve the structural arrow in instance contracts', class_arrow_native, 2),
     ):
         if run:
             rows = [r for r in run.get('rows', []) if not r['name'].startswith(('compile-', 'build-'))]
             active.append(dict(title=title, status=run['status'], phase=run.get('phase') or run['status'].replace('-', ' '),
                 passed=sum(r['status'] == 'passed' for r in rows), failed=sum(r['status'] == 'failed' for r in rows),
-                total=total, source=run.get('compiler_source_sha256')))
+                total=total, source=run.get('native_source_sha256' if run is class_arrow_native else 'compiler_source_sha256')))
+    if stage_syntax:
+        active.append(dict(title='Cinch staging syntax', status=stage_syntax['status'],
+            phase='The complete syntax target checks staged declarations, generation and splices',
+            passed=1, failed=0, total=1, source=stage_syntax['compiler_source_sha256']))
     if schema9_cross:
         active.append(dict(title='Schema 9: Native owner to Cinch consumer', status=schema9_cross['status'],
             phase='Cinch inherits the checked default from the Native artifact and its authenticated dependencies',

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "scope": "Class type, layout and instance export parity",
+  "verified_at": "2026-11-07T09:29:30.809954+00:00",
+  "base_snapshot_sha256": "5c097694d322a729f2e8cdaa8c51e8f3b95c6f26df79dc497caea834b5e7b392",
+  "source_snapshot_sha256": "d82baa8d99a5841ab2f37f24a877d279e8777a5f8ff6bb9436fa8bf61e3437c7",
+  "compiler_source_sha256": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+  "test": {
+    "exit_code": 0,
+    "log_sha256": "a127012ace49f0da9e87b03f1ed7dca9ccd677ba91c3da6aa27746067aaaef2b",
+    "name": "bootstrap_export_interfaces",
+    "status": "passed"
+  },
+  "native_rlib_sha256": "2366d4c0b580131ea5b04ff3a26780c6ffb7a4b01efffa17ae5aad86446765ad",
+  "patch": "class-interface-exports-development.patch",
+  "patch_sha256": "a457594af5c602ff8949f29167e3f1acbbac939ef7eff9a802752a69296a1672",
+  "patch_replays_exactly": true,
+  "checks": [
+    "Defining and re-exported signature type and layout equal independent Native output",
+    "Explicitly named instance remains in the instance table and is omitted from public values",
+    "Existing independent artifact readback, private names and defining fixities pass"
+  ],
+  "original_category_chain_verified": false,
+  "full_goal_complete": false
+}

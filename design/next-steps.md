@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-07)
 
+The staging parser now retains stage signatures and equations, generator
+blocks, declaration quotations and expression splices. The complete
+syntax target passed with zero leaks. Checked compile-time execution and
+the original array primitive refusal remain open. See
+`bootstrap/current-staging-surface-results.json`.
+
+The Cinch interface writer emits the same public signature type and layout
+rows as Rust for the defining module and its re-export. The complete writer
+test also confirms that an instance uses the instance table. Category source
+replacement still needs matching instance heads and display schemes. See
+`bootstrap/current-class-interface-exports-results.json`.
+
 The checked `copyOut` development patch passes both complete pipeline
 tests and the full runtime IR group. It checks Copy evidence for elements
 of an immutable array and retains the original refusal for affine

@@ -1,0 +1,104 @@
+--- a/bootstrap/Bootstrap.Export.cinch
++++ b/bootstrap/Bootstrap.Export.cinch
+@@ -153,8 +153,8 @@
+     Cons first rest -> case loaded-entry first "type" identity of
+       Some row -> if same (text (field "kind" row)) "refinement" || same (text (field "kind" row)) "opaque" then Some row else defining-refinement-type rest identity
+       None -> defining-refinement-type rest identity
+-  refinement-type-row :: String -> Json -> Json
+-  refinement-type-row name nominal = JObj "name" (JStr name)
++  abstract-type-row :: String -> Json -> Json
++  abstract-type-row name nominal = JObj "name" (JStr name)
+     (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
+       (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
+         (JObj "ctors" JArrEnd (JObj "fields" JArrEnd (JObj "refinement" (field "refinement" nominal) JObjEnd)))))))
+@@ -275,8 +275,6 @@
+     Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
+   constructors-have :: String -> List CoreConstructor -> Bool
+   constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
+-  class-present :: String -> List CoreClass -> Bool
+-  class-present name classes = case classes of Nil -> False; Cons description rest -> same name (class-name description) || class-present name rest
+   public-names :: String -> Json -> Json
+   public-names symbol rows = case rows of
+     JArr row rest -> if same symbol (text (field "symbol" row)) then insert-string (text (field "name" row)) (public-names symbol rest) else public-names symbol rest
+@@ -522,18 +520,24 @@
+           Some declaration -> case type-row typed interfaces surface name declaration of
+             Err error -> Err error
+             Ok actual -> Ok (values, insert-row "name" actual types)
+-          None -> case source-abstract-type (elaboration-declarations typed) symbol of
+-            Some (Ok nominal) -> Ok (values, insert-row "name" (refinement-type-row name nominal) types)
+-            Some (Err error) -> Err error
+-            None -> case imported-refinement-type interfaces symbol of
+-              Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
+-              None -> if constructor-present symbol (elaboration-data typed) || class-present symbol (elaboration-classes typed) then Ok (values, types)
+-                else case find-binding symbol (elaboration-bindings typed) of
+-                  None -> Err (string-concat "export has no retained checked declaration: " name)
+-                  Some binding -> if same (checked-role binding) "method" then Ok (values, types)
+-                    else case value-row typed interfaces name symbol binding of
+-                      Err error -> Err error
+-                      Ok actual -> Ok (insert-row "name" actual values, types)
++          None -> case find-class symbol (elaboration-classes typed) of
++            Some description -> case class-nominal description of
++              Ok nominal -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
++              Err error -> Err error
++            None -> case source-abstract-type (elaboration-declarations typed) symbol of
++              Some (Ok nominal) -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
++              Some (Err error) -> Err error
++              None -> case imported-refinement-type interfaces symbol of
++                Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
++                None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
++                  else case find-binding symbol (elaboration-bindings typed) of
++                    None -> Err (string-concat "export has no retained checked declaration: " name)
++                    -- Methods and instance factories have their own contract tables.
++                    Some binding -> let role = checked-role binding in
++                      if same role "method" || same role "instance" || same role "implicit-instance" then Ok (values, types)
++                      else case value-row typed interfaces name symbol binding of
++                        Err error -> Err error
++                        Ok actual -> Ok (insert-row "name" actual values, types)
+     JArrEnd -> Ok (JArrEnd, JArrEnd)
+     other -> Err "module has no retained public export table"
+   symbols :: Json -> Json
+--- a/bootstrap/Bootstrap.ExportNominal.cinch
++++ b/bootstrap/Bootstrap.ExportNominal.cinch
+@@ -13,7 +13,7 @@
+   import Bootstrap.Contracts (declaration-references)
+   import Text.Json (json-eq)
+ 
+-  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, parameter-json, parameter-names
++  export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names
+ 
+   same :: String -> String -> Bool
+   same a b = string-compare a b == 0
+--- a/bootstrap/programs/Run.ExportInterfaces.cinch
++++ b/bootstrap/programs/Run.ExportInterfaces.cinch
+@@ -15,7 +15,7 @@
+   import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+ 
+   source :: String
+-  source = "module A where\n  export Phantom, Exists, PackAny, Vec, VNil, VCons, positioned, row-polymorphic, closed-callback, Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, give, wait, signal, ParcelWithPrivate, PublicParcel, make-parcel, inspect-scope, task-source, PublicPositive, bounded, widen, positive, PositiveParcel, PositivePacket, Refined, refine, HasWindow, capped, collide, Handle, handle-id, echo-secret, array-copy, array-size, global-source, fail-source, reentrant-source, thread-source, proof-wrap, proof-mixed, value-hidden, proof-generic, type-only, region-proof, mixed-hidden, row-hidden\n  positioned :: using (0 <= x, x < y) => (x :: I64) -> (y :: I64) -> I64\n  positioned x y = x\n  row-polymorphic :: forall e. (Unit ->{|e} Unit) ->{|e} Unit\n  row-polymorphic f = f ()\n  closed-callback :: forall r. using (io :: Io r) => (Unit ->{IO r} Unit) ->{IO r} Unit\n  closed-callback f = f ()\n  foreign import ccall \"cinch.runtime.arrayReplicate\" array-copy :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" array-size :: forall a. Array a -> Nat\n  global-source :: Unit ->{Global} Int\n  global-source unit = 42\n  fail-source :: Unit ->{Fail} Int\n  fail-source unit = 42\n  reentrant-source :: Unit ->{Reentrant} Int\n  reentrant-source unit = 42\n  thread-source :: Unit ->{ThreadAffine} Int\n  thread-source unit = 42\n  opaque type Handle a :: Type\n  opaque type PrivateHandle :: Type\n  handle-id :: forall a. Handle a -> Handle a\n  handle-id h = h\n  echo-secret :: PrivateHandle -> PrivateHandle\n  echo-secret x = x\n  capped :: (limit :: Nat) -> refined (out <= limit) Nat\n  capped limit = 0\n  collide :: (cinch-result :: Nat) -> refined (out == cinch-result) Nat\n  collide cinch-result = cinch-result\n  type PublicPositive = refine (x :: I64) with 0 < x\n  type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  type Positive = refine (n :: Nat) with n > 0\n  data PositiveParcel where\n    PositivePacket :: Positive -> PositiveParcel\n  signature Refined a where\n    refine :: Positive -> a -> Positive\n  implicit instance RefinedNat :: Refined Nat where\n    refine n tag = n\n  signature HasWindow a where\n    window-id :: a -> a\n  implicit instance HasWindowBounded :: HasWindow (Window 0 10 Nat) where\n    window-id value = value\n  bounded :: Window 0 10 Nat\n  bounded = 1\n  widen :: Window 2 8 Nat -> Window 0 10 Nat\n  widen n = n\n  positive :: Positive\n  positive = 1\n  inspect-scope :: forall r s. Scope r s -> Int\n  inspect-scope token = 7\n  task-source :: forall s e a. Unit -> Task s e a\n  task-source unit = task-source unit\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  data Values a where\n    Values :: a -> Values a\n  signature Deep a where\n    deep :: a -> a\n  signature Inner a where\n    inner :: forall b. using (deep :: Deep b) => (a -> b) -> a -> b\n  signature Evidence a where\n    evidence :: forall b. using (inner :: Inner b) => (a -> b) -> a -> b\n  signature ContextOnly a where\n    context-only :: a -> a\n  implicit instance ContextOnly_Values eq :: using (eq :: Evidence eq) => ContextOnly (Values eq) where\n    context-only values = values\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data PrivateField where\n    PrivateFieldValue :: Nat -> PrivateField\n  data ParcelWithPrivate where\n    PublicParcel :: PrivateField -> ParcelWithPrivate\n  make-parcel :: Nat -> ParcelWithPrivate\n  make-parcel n = PublicParcel (PrivateFieldValue n)\n  data Phantom {element :: Type} where {}\n  data Exists where\n    PackAny :: forall t. t -> Exists\n  data Vec (n :: Nat) a where\n    VNil :: Vec 0 a\n    VCons :: forall (k :: Nat). a -> Vec k a -> Vec (k + 1) a\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Bool -> Int -> Bool\n  (<+>) a b = a\n  proof-wrap :: (h :: True) -> Dec True\n  proof-wrap h = Yes h\n  proof-mixed :: (h :: True) -> Int -> Int\n  proof-mixed h value = value\n  value-hidden :: forall (n :: Nat). Unit -> Nat\n  value-hidden unit = n\n  proof-generic :: forall (p :: Prop). (h :: p) -> Dec p\n  proof-generic h = Yes h\n  type-only :: forall a. a -> a\n  type-only value = value\n  region-proof :: forall r. using (io :: Io r) => False ->{IO r} Int\n  region-proof h = 0\n  mixed-hidden :: forall (n :: Nat). True -> Unit -> Nat\n  mixed-hidden h unit = n\n  row-hidden :: forall (n :: Nat) e. (Unit ->{|e} Nat) ->{|e} Nat\n  row-hidden f = if n == 0 then f () else f ()\nmodule B where\n  import A\n  import A ((<+>) as (<#>))\n  import A (PublicPositive as Positive, bounded as one, widen as wide, positive as pos, Handle as PublicHandle, handle-id as keep-handle)\n  import A (array-copy as repeat-array, array-size as count-array)\n  export keep-alpha, positioned, row-polymorphic, closed-callback, global-source, fail-source, reentrant-source, thread-source, repeat-array, count-array, Token, wrap, (<+>), (<#>), inspect-scope, task-source, Positive, one, wide, pos, Refined, refine, capped, collide, PublicHandle, keep-handle, echo-secret, proof-wrap, proof-mixed, value-hidden, proof-generic, type-only, region-proof, mixed-hidden, row-hidden\n  signature Alpha a where\n    alpha-id :: a -> a\n  keep-alpha :: forall a. using (alpha :: Alpha a) => a -> a\n  keep-alpha value = value\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
++  source = "module A where\n  export Phantom, Exists, PackAny, Vec, VNil, VCons, positioned, row-polymorphic, closed-callback, Token, wrap, unwrap, (<+>), Parcel, Empty, Loaded, Give, GiveNat, give, wait, signal, ParcelWithPrivate, PublicParcel, make-parcel, inspect-scope, task-source, PublicPositive, bounded, widen, positive, PositiveParcel, PositivePacket, Refined, refine, HasWindow, capped, collide, Handle, handle-id, echo-secret, array-copy, array-size, global-source, fail-source, reentrant-source, thread-source, proof-wrap, proof-mixed, value-hidden, proof-generic, type-only, region-proof, mixed-hidden, row-hidden\n  positioned :: using (0 <= x, x < y) => (x :: I64) -> (y :: I64) -> I64\n  positioned x y = x\n  row-polymorphic :: forall e. (Unit ->{|e} Unit) ->{|e} Unit\n  row-polymorphic f = f ()\n  closed-callback :: forall r. using (io :: Io r) => (Unit ->{IO r} Unit) ->{IO r} Unit\n  closed-callback f = f ()\n  foreign import ccall \"cinch.runtime.arrayReplicate\" array-copy :: forall a. Nat -> a -> Array a\n  foreign import ccall \"cinch.runtime.arrayLen\" array-size :: forall a. Array a -> Nat\n  global-source :: Unit ->{Global} Int\n  global-source unit = 42\n  fail-source :: Unit ->{Fail} Int\n  fail-source unit = 42\n  reentrant-source :: Unit ->{Reentrant} Int\n  reentrant-source unit = 42\n  thread-source :: Unit ->{ThreadAffine} Int\n  thread-source unit = 42\n  opaque type Handle a :: Type\n  opaque type PrivateHandle :: Type\n  handle-id :: forall a. Handle a -> Handle a\n  handle-id h = h\n  echo-secret :: PrivateHandle -> PrivateHandle\n  echo-secret x = x\n  capped :: (limit :: Nat) -> refined (out <= limit) Nat\n  capped limit = 0\n  collide :: (cinch-result :: Nat) -> refined (out == cinch-result) Nat\n  collide cinch-result = cinch-result\n  type PublicPositive = refine (x :: I64) with 0 < x\n  type Window (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi\n  type Positive = refine (n :: Nat) with n > 0\n  data PositiveParcel where\n    PositivePacket :: Positive -> PositiveParcel\n  signature Refined a where\n    refine :: Positive -> a -> Positive\n  implicit instance RefinedNat :: Refined Nat where\n    refine n tag = n\n  signature HasWindow a where\n    window-id :: a -> a\n  implicit instance HasWindowBounded :: HasWindow (Window 0 10 Nat) where\n    window-id value = value\n  bounded :: Window 0 10 Nat\n  bounded = 1\n  widen :: Window 2 8 Nat -> Window 0 10 Nat\n  widen n = n\n  positive :: Positive\n  positive = 1\n  inspect-scope :: forall r s. Scope r s -> Int\n  inspect-scope token = 7\n  task-source :: forall s e a. Unit -> Task s e a\n  task-source unit = task-source unit\n  signature Give a where\n    give :: a -> a\n  implicit instance GiveNat :: Give Nat where\n    give n = n\n  data Values a where\n    Values :: a -> Values a\n  signature Deep a where\n    deep :: a -> a\n  signature Inner a where\n    inner :: forall b. using (deep :: Deep b) => (a -> b) -> a -> b\n  signature Evidence a where\n    evidence :: forall b. using (inner :: Inner b) => (a -> b) -> a -> b\n  signature ContextOnly a where\n    context-only :: a -> a\n  implicit instance ContextOnly_Values eq :: using (eq :: Evidence eq) => ContextOnly (Values eq) where\n    context-only values = values\n  effect Notice where\n    signal :: Nat ->{Notice} Nat\n  effect Local where\n    local-op :: Nat ->{Local} Nat\n  foreign import ccall \"cinch.runtime.textSha256\" private-digest :: Bytes -> Bytes\n  data PrivateField where\n    PrivateFieldValue :: Nat -> PrivateField\n  data ParcelWithPrivate where\n    PublicParcel :: PrivateField -> ParcelWithPrivate\n  make-parcel :: Nat -> ParcelWithPrivate\n  make-parcel n = PublicParcel (PrivateFieldValue n)\n  data Phantom {element :: Type} where {}\n  data Exists where\n    PackAny :: forall t. t -> Exists\n  data Vec (n :: Nat) a where\n    VNil :: Vec 0 a\n    VCons :: forall (k :: Nat). a -> Vec k a -> Vec (k + 1) a\n  data Token where\n    Hidden :: Nat -> Token\n  data Parcel a where\n    Empty :: Parcel a\n    Loaded :: a -> Parcel a\n  infixr 4 <^>\n  (<^>) :: Nat -> Nat -> Nat\n  (<^>) a b = a\n  wait :: Unit ->{Diverge, Blocking} Int\n  wait u = 0\n  wrap :: Nat -> Token\n  wrap n = Hidden n\n  unwrap :: Token -> Nat\n  unwrap token = case token of Hidden n -> n\n  infixl 6 <+>\n  (<+>) :: Bool -> Int -> Bool\n  (<+>) a b = a\n  proof-wrap :: (h :: True) -> Dec True\n  proof-wrap h = Yes h\n  proof-mixed :: (h :: True) -> Int -> Int\n  proof-mixed h value = value\n  value-hidden :: forall (n :: Nat). Unit -> Nat\n  value-hidden unit = n\n  proof-generic :: forall (p :: Prop). (h :: p) -> Dec p\n  proof-generic h = Yes h\n  type-only :: forall a. a -> a\n  type-only value = value\n  region-proof :: forall r. using (io :: Io r) => False ->{IO r} Int\n  region-proof h = 0\n  mixed-hidden :: forall (n :: Nat). True -> Unit -> Nat\n  mixed-hidden h unit = n\n  row-hidden :: forall (n :: Nat) e. (Unit ->{|e} Nat) ->{|e} Nat\n  row-hidden f = if n == 0 then f () else f ()\nmodule B where\n  import A\n  import A ((<+>) as (<#>))\n  import A (PublicPositive as Positive, bounded as one, widen as wide, positive as pos, Handle as PublicHandle, handle-id as keep-handle)\n  import A (array-copy as repeat-array, array-size as count-array)\n  export keep-alpha, positioned, row-polymorphic, closed-callback, global-source, fail-source, reentrant-source, thread-source, repeat-array, count-array, Token, wrap, (<+>), (<#>), inspect-scope, task-source, Positive, one, wide, pos, Refined, refine, capped, collide, PublicHandle, keep-handle, echo-secret, proof-wrap, proof-mixed, value-hidden, proof-generic, type-only, region-proof, mixed-hidden, row-hidden\n  signature Alpha a where\n    alpha-id :: a -> a\n  keep-alpha :: forall a. using (alpha :: Alpha a) => a -> a\n  keep-alpha value = value\nmodule Main where\n  import B\n  main :: Int\n  main = 0\n"
+   documents :: List (String, Json) -> String
+   documents rows = case rows of Nil -> ""; Cons (name, doc) rest -> string-concat-all [canonical-json doc, "\n", documents rest]
+   artifacts :: List (String, Json) -> Result String (List (String, String, Bytes))
+--- a/compiler/tests/bootstrap_export_interfaces.rs
++++ b/compiler/tests/bootstrap_export_interfaces.rs
+@@ -298,11 +298,20 @@
+     assert_eq!(signature.methods[0].name, "give");
+     assert_eq!(signature.methods[0].slot, 0);
+     assert_eq!(signature.methods[0].exports, ["give"]);
++    for (interface, name) in [(a, "Give"), (b, "Refined")] {
++        let native = native_interfaces.iter().find(|item| item.module == interface.module).unwrap();
++        let actual_type = interface.exports.types.iter().find(|item| item.name == name).unwrap();
++        assert_eq!(actual_type.kind, "signature");
++        assert_eq!(Some(actual_type), native.exports.types.iter().find(|item| item.name == name));
++        let layout = interface.layouts.iter().find(|item| item.name == name).unwrap();
++        assert_eq!(Some(layout), native.layouts.iter().find(|item| item.name == name));
++    }
+     let instance = a.exports.instances.iter().find(|i| i.id == "A.GiveNat").unwrap();
+     assert_eq!(instance.class, "A.Give");
+     assert!(instance.implicit);
+     assert_eq!(instance.methods, ["A.GiveNat.give"]);
+     assert!(instance.method_contracts.is_empty());
++    assert!(!a.exports.values.iter().any(|value| value.name == "GiveNat"));
+     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
+     assert_eq!(parcel.params, ["a"]);
+     assert_eq!(parcel.ctors.iter().map(|c| (c.name.as_str(), c.tag)).collect::<Vec<_>>(), [("Empty", 0), ("Loaded", 1)]);
