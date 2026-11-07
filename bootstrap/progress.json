@@ -18049,7 +18049,7 @@
       },
       {
         "title": "Earlier self-built Stage3: complete frontend sweep",
-        "status": "running",
+        "status": "stopped-after-host-reconnect",
         "phase": "bootstrap_checked_program",
         "passed": 22,
         "failed": 3,
@@ -18444,8 +18444,8 @@
       {
         "title": "Rust task-forwarding candidate: complete Rust sweep",
         "status": "running",
-        "phase": "syntax_structural_builders",
-        "passed": 143,
+        "phase": "total_bodies",
+        "passed": 146,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18692,7 +18692,7 @@
       },
       {
         "title": "Cinch imported defaults: source admission and two complete groups",
-        "status": "running",
+        "status": "failed-interrupted-with-test-failure",
         "phase": "bootstrap_source_instances",
         "passed": 1,
         "failed": 0,
@@ -18722,5 +18722,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:21:12.898193+00:00"
+  "updatedAt": "2026-11-07T08:22:15.248685+00:00"
 }
