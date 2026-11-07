@@ -2,6 +2,8 @@ module Main where
   import Bootstrap.Type
   import Bootstrap.Index
   import Bootstrap.Core
+  import Bootstrap.Nominal (interface-global)
+  import Algebra.Semigroup
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -22,6 +24,32 @@ module Main where
   positive id = UCompare ">" (bound id) (UIndex nat (IInteger 0))
   succeeds :: Store -> Bool
   succeeds st = case store-errors st of Nil -> True; other -> False
+  list-type :: UType -> UType
+  list-type element = UApp (UCon (interface-global "Data.Core.List") (KFun KType KType)) element
+  nonempty-type :: Nat -> Nat -> UType
+  nonempty-type parameter binder =
+    let carrier = list-type (UBound parameter "a" KType) in
+    URefine binder "xs" carrier (UPropNotNull (UIndex carrier (IBound binder "xs")))
+  former-checks :: Nat -> List Bool
+  former-checks nonce =
+    let identity = interface-global "Example.NonEmpty" in
+    let formal = nonce + 10 in
+    let binder = nonce + 11 in
+    let body = nonempty-type formal binder in
+    let former = URefineFormer identity [formal] body in
+    let renamed = URefineFormer identity [formal + 2] (nonempty-type (formal + 2) (binder + 2)) in
+    let forged = URefineFormer identity [formal] (URefine binder "xs" (list-type (UBound formal "a" KType)) (UPropLit True)) in
+    let actual = UApp former nat in
+    let (wanted, first) = fresh-meta (KFun KType KType) (empty-store "refinement former") in
+    let (element, opened) = fresh-meta KType first in
+    let unified = unify sp (UApp wanted element) actual opened in
+    let codec = case value-carrier (value-kind actual) of Some decoded -> good actual decoded; None -> False in
+    [ valid-type former, good former renamed, bad former forged
+    , succeeds unified && good (normalize unified wanted) former && good (normalize unified element) nat
+    , good actual (substitute-bound [(formal, nat)] body)
+    , not (valid-type (URefineFormer identity [formal + 1] body))
+    , codec
+    ]
   checks :: Nat -> List Bool
   checks nonce =
     let id = nonce + 1 in
@@ -81,7 +109,7 @@ module Main where
     , type-escape
     , core-data-closed leaked
     , not (core-definition-closed forged)
-    ]
+    ] <> former-checks nonce
   verdict :: List Bool -> Int -> Int
   verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
   main :: Unit ->{IO r} Int

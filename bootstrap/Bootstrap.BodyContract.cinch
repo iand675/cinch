@@ -172,7 +172,7 @@ module Bootstrap.BodyContract where
      else if same (total-result function) "I64" then [PCompare AtLeast result-variable (AInteger (-9223372036854775808)), PCompare AtMost result-variable (AInteger 9223372036854775807)] else Nil)
     <> (case total-bounds function of Some (low, high) -> [PCompare AtLeast result-variable (AInteger low), PCompare AtMost result-variable (AInteger high)]; None -> Nil)
   result-valid :: TotalFunction -> UType -> Bool
-  result-valid function result = if not (valid-type result) then False else case result of
+  result-valid function result = if not (valid-type result) then False else case refinement-view result of
     UCon name KType -> same name (total-result function)
     URefine id name carrier predicate -> sort-type (total-result function) carrier && numeric carrier
       && (case result-predicate id carrier predicate of Some goal -> (case prove (result-facts function) goal of Some evidence -> check-proof (result-facts function) goal evidence; None -> False); None -> False)
@@ -201,7 +201,7 @@ module Bootstrap.BodyContract where
         (Nil, Nil) -> if source-class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native "value" sc function) else None
         other -> None
   source-class-row-valid :: TotalFunction -> List String -> UType -> Bool
-  source-class-row-valid function parameters ty = case (parameters, ty) of
+  source-class-row-valid function parameters ty = case (parameters, refinement-view ty) of
     (Cons expected rest, UFun domain result) -> sort-type expected domain && source-class-row-valid function rest result
     (Cons expected rest, UFunEff domain (URow UEnd) result) -> sort-type expected domain && source-class-row-valid function rest result
     (Nil, URefine id name carrier predicate) -> result-valid function ty && (case total-bounds function of Some bounds -> True; None -> False)
@@ -260,9 +260,11 @@ module Bootstrap.BodyContract where
     UPropOr a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UPropNot input -> body-type-authorized bindings input
     UPropNonZero input -> body-type-authorized bindings input
+    UPropNotNull input -> body-type-authorized bindings input
     UPropNonZeroPending input -> body-type-authorized bindings input
     URequire predicates body -> body-type-authorized bindings predicates && body-type-authorized bindings body
     URefine id name carrier predicate -> body-type-authorized bindings carrier && body-type-authorized bindings predicate
+    URefineFormer name ids body -> body-type-authorized bindings body
     UPi id name domain row result -> body-type-authorized bindings domain && body-type-authorized bindings row && body-type-authorized bindings result
     UApp a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UFun a b -> body-type-authorized bindings a && body-type-authorized bindings b

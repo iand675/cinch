@@ -627,6 +627,7 @@ impl Checker {
     // A closed numeric template has only its actual declared parameters
     // and binder. Calls require a separate defining measure contract.
     fn resolved_refinement_template(&self, info: &TypeKind) -> Option<crate::interface::RefinementExport> {
+        if let Some(template) = self.resolved_list_refinement(info) { return Some(template) }
         let r = info.refine.as_ref()?;
         let carrier = match &r.base {
             Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => r.base.to_string(),
@@ -651,6 +652,28 @@ impl Checker {
         })
     }
 
+    fn resolved_list_refinement(&self, info: &TypeKind) -> Option<crate::interface::RefinementExport> {
+        let refinement = info.refine.as_ref()?;
+        let Ty::Adt(identity, arguments) = &refinement.base else { return None };
+        let list = self.known_type(identity)?;
+        if list.module != "Data.Core" || list.name != "List" || !self.list_shaped(identity) {
+            return None;
+        }
+        let [element] = arguments.as_slice() else { return None };
+        let element = match element {
+            Ty::Param(name) if refinement.params.contains(name) => name.clone(),
+            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => element.to_string(),
+            _ => return None,
+        };
+        let PTerm::Pred(PredFn::NotNull, value) = &refinement.pred else { return None };
+        if !matches!(&**value, ITerm::Var(name) if name == &refinement.binder) { return None }
+        Some(crate::interface::RefinementExport {
+            binder: refinement.binder.clone(),
+            carrier: format!("Data.Core.List {element}"),
+            predicate: refinement.pred.to_string(),
+        })
+    }
+
     fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
         let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
         // Identities were captured by checked definition-site conversion.
@@ -667,8 +690,15 @@ impl Checker {
             measures.push(crate::interface::MeasureContract { identity: identity.clone(), resolved: Box::new(resolved), total_body });
         }
 
+        let mut references = source.references.clone();
+        if source.references.iter().any(|(module, name)| {
+            self.qualified_types.get(&(module.clone(), name.clone()))
+                .is_some_and(|info| self.resolved_list_refinement(info).is_some())
+        }) {
+            references.insert(("Data.Core".to_string(), "List".to_string()));
+        }
         let mut nominals = Vec::new();
-        for (module, name) in &source.references {
+        for (module, name) in &references {
             let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
             if info.fields.is_some() { return None }
             let refined = info.refine.is_some();

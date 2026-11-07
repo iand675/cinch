@@ -16556,11 +16556,11 @@ impl Checker {
                     },
                     ctors,
                     fields: t.fields.clone().unwrap_or_default(),
-                    refinement: t.refine.as_ref().map(|r| RefinementExport {
+                    refinement: self.resolved_list_refinement(&t).or_else(|| t.refine.as_ref().map(|r| RefinementExport {
                         binder: r.binder.clone(),
                         carrier: r.base.to_string(),
                         predicate: r.pred.to_string(),
-                    }),
+                    })),
                 });
                 // Computed layout facts (attribute annotations
                 // specification section 4.3): part of the contract
