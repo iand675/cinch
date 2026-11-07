@@ -5,14 +5,14 @@
   "stages": [
     {
       "name": "Stage 0",
-      "state": "pending",
-      "label": "Pending",
+      "state": "passed",
+      "label": "Smoke tests passed",
       "description": "Verify the pinned Rust seed."
     },
     {
       "name": "Stage 1",
-      "state": "pending",
-      "label": "Pending",
+      "state": "running",
+      "label": "Building",
       "description": "Build all 46 compiler modules with the Rust seed."
     },
     {
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "Waiting for a worker. The full suite remains open.",
+  "activity": "Building stage1. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -18230,9 +18230,9 @@
     "active": [
       {
         "title": "Bootstrap the exact published compiler and corrected library",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
-        "passed": 0,
+        "status": "running",
+        "phase": "Building stage1",
+        "passed": 1,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19862,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:16:30.943653+00:00"
+  "updatedAt": "2026-11-07T23:17:33.162946+00:00"
 }
