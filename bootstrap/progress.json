@@ -19267,8 +19267,8 @@
       {
         "title": "Check closed named proofs and their original runtime example",
         "status": "running",
-        "phase": "bootstrap_proof_terms",
-        "passed": 0,
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "source": "7cc5f684cd40c0c19b301ae6e24c2fe1680a4b4deefbbf7fe27536422a26df98"
@@ -19465,5 +19465,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:17:04.992324+00:00"
+  "updatedAt": "2026-11-07T15:18:47.327696+00:00"
 }
