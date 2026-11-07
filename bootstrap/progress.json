@@ -703,9 +703,9 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "pending",
-        "detail": "The exact Category.Functor probe rejects map-identity and map-compose as well as the structural Functor_Function instance. Algebra.Semigroup rejects assoc.",
+        "detail": "The full type-syntax test passes and preserves the original law binders and equation structure. Checked carriers and instance evidence remain required. Category also needs the structural Functor_Function instance.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/next-steps.md"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-class-law-syntax-results.json"
       },
       {
         "id": "gap:base-names",
@@ -783,7 +783,7 @@
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
         "state": "pending",
-        "detail": "130 Rust targets are outside the preserved Stage3 matrix. Eleven reviews identify two Native harness roles and nine source or mixed targets. The original fixity replay passes on development Cinch. The complete original concurrency replay identifies eleven failures. Another 119 targets need review before matching final Stage3 coverage.",
+        "detail": "130 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
       },
@@ -18590,12 +18590,12 @@
         "id": "additional",
         "title": "Additional frontend coverage",
         "unit": "targets",
-        "total": 2,
+        "total": 4,
         "counts": {
           "verified": 0,
           "blocked": 1,
           "running": 0,
-          "pending": 0,
+          "pending": 2,
           "recheck": 1
         },
         "detail": "The coverage audit adds these targets alongside all original Stage3 targets. Direct Rust calls have their own test inventory.",
@@ -18723,6 +18723,22 @@
                 }
               ]
             }
+          },
+          {
+            "id": "additional:laws",
+            "title": "laws",
+            "state": "pending",
+            "detail": "The Rust target passed all 5 tests. Matching Stage3 source coverage is pending. All five Rust tests drive source checking directly. Required behavior includes shipped associativity, unit and functor equations, original intended-reason refusals, sampled passing and failing instances, manifest assumption identity, and typed rewriting with polymorphic functions, lambdas and annotations.",
+            "doneWhen": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
+          },
+          {
+            "id": "additional:prim",
+            "title": "prim",
+            "state": "pending",
+            "detail": "The Rust target passed all 17 tests. Matching Stage3 source coverage is pending. All seventeen Rust tests exercise source-facing prim declarations or their generated IR and manifests. The harness has direct Rust code generation, profile and IR inspection roles. Portable assertions include runtime execution, named containment and platform refusals, effect-row invalidation and lawful versus assumed identities.",
+            "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
           }
         ]
       }
@@ -18731,8 +18747,8 @@
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "Building Stage3 with a 512 MiB heap after the verified 256 MiB exhaustion",
-        "passed": 3,
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19245,14 +19261,14 @@
       "verified": 481,
       "blocked": 4,
       "running": 10,
-      "pending": 12,
+      "pending": 14,
       "recheck": 162
     },
-    "total": 669,
+    "total": 671,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:57:25.670741+00:00"
+  "updatedAt": "2026-11-07T05:03:06.091874+00:00"
 }
