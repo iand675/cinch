@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 17 of 105 targets passing, 3 failed and 85 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 18 of 105 targets passing, 3 failed and 84 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -627,9 +627,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The Core family passed. Schema 9 transports the inherited Ordering default. The Cinch writer now matches Rust on class type and layout rows and keeps instance factories in the instance table. The Category instance head and display scheme still need matching output.",
+        "detail": "The Core family passed. Schema 9 transports the inherited Ordering default. The rebuilt Rust provider verifies all 55 interfaces and preserves both Category arrow instances. The exact four-family test is queued with this provider. Display scheme parity remains open.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-interface-exports-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-arrow-contract-results.json"
       },
       {
         "id": "gap:source-defaults",
@@ -691,7 +691,7 @@
         "id": "gap:imported-defaults",
         "title": "Use one interface format for class defaults",
         "state": "running",
-        "detail": "The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers\u2019 defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.",
+        "detail": "The combined schema 9 candidate passed admission of all 44 compiler modules. Its full class-default test inherited checked Rust and Cinch defaults and rejected both tampered and digest-only artifacts. The staged bootstrap and remaining component groups are running.",
         "doneWhen": "Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-default-replay-results.json"
       },
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 84,
-          "recheck": 21
+          "pending": 83,
+          "recheck": 22
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12187,12 +12187,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T09:36:09.216049+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T09:46:12.452784+00:00",
+              "exitCode": 0,
+              "logSha256": "906dc637758a4a64f33a280f843aa710004d8222a9019dd7dcb875287b8814e5",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -12200,7 +12200,7 @@
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12209,12 +12209,12 @@
           {
             "id": "stage3:bootstrap_boolean_branches",
             "title": "bootstrap_boolean_branches",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": null,
               "finishedAt": null,
@@ -14025,9 +14025,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 17,
+          "passed": 18,
           "running": 1,
-          "pending": 84
+          "pending": 83
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18195,8 +18195,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 17,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 18,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18783,8 +18783,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 17,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 18,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18881,6 +18881,33 @@
         "source": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0"
       },
       {
+        "title": "Schema 9 Stage1: original four-family replacement test",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
+      },
+      {
+        "title": "Cinch: checked compile-time evaluation",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "998862955e75a9cc5efa95bf2149a83804f4b5a7b5a2ffed7188dc17aa589e79"
+      },
+      {
+        "title": "Cinch: staged generation through the full pipeline",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "f3c2b6cff30a10d4c7540729b62566417fd8bec5129ee49e0ae6a8ef3c9948e3"
+      },
+      {
         "title": "Cinch staging syntax",
         "status": "passed",
         "phase": "The complete syntax target checks staged declarations, generation and splices",
@@ -18930,8 +18957,8 @@
       "verified": 489,
       "blocked": 4,
       "running": 11,
-      "pending": 90,
-      "recheck": 80
+      "pending": 89,
+      "recheck": 81
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18939,5 +18966,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:41:34.612556+00:00"
+  "updatedAt": "2026-11-07T09:46:13.491888+00:00"
 }
