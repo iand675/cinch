@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "98 of 235 complete groups passed; 1 running, 0 failed and 136 pending.Every group includes ignored tests. State: running.",
+      "detail": "101 of 235 complete groups passed; 1 running, 0 failed and 133 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "98 of 235 complete groups passed; 1 running, 0 failed and 136 pending."
+      "detail": "101 of 235 complete groups passed; 1 running, 0 failed and 133 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 107,
+          "verified": 109,
           "blocked": 0,
           "running": 1,
-          "pending": 127,
+          "pending": 125,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8453,17 +8453,17 @@
           {
             "id": "native:parsers",
             "title": "parsers",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/parsers.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:26:54.432940+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:28:07.580289+00:00",
+              "exitCode": 0,
+              "logSha256": "4b6fe34f58fc1032062974ca0a885f4a76a165215fbbef8262e29c1bab6c5409",
               "cases": [
                 {
                   "name": "bootstrap_grammar_parses_the_examples",
@@ -8487,7 +8487,19 @@
                 },
                 {
                   "name": "parse_recovery_handlers",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "parse_refusals_named",
+                  "status": "passed"
+                },
+                {
+                  "name": "top_level_eager_value_cycle_is_a_named_diagnostic",
+                  "status": "passed"
+                },
+                {
+                  "name": "top_level_lazy_value_recursion_runs",
+                  "status": "passed"
                 }
               ]
             },
@@ -8502,11 +8514,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:21:08.383139+00:00",
-              "finishedAt": "2026-11-06T14:21:31.689415+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:28:07.582346+00:00",
+              "finishedAt": "2026-11-07T00:28:30.820580+00:00",
               "exitCode": 0,
-              "logSha256": "4d98fd575876c462ed5a5c6fed38f1f98259ed6122642222f9af7732611327da",
+              "logSha256": "c943109cddee0d99668da01fe30d96432f5978a036f3e1bb997e572a026b8661",
               "cases": [
                 {
                   "name": "concrete_lambda_patterns_infer_their_input_shape_and_keep_coverage",
@@ -8535,17 +8547,17 @@
           {
             "id": "native:platform",
             "title": "platform",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/platform.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:21:31.697958+00:00",
-              "finishedAt": "2026-11-06T14:21:47.144720+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:28:30.822539+00:00",
+              "finishedAt": "2026-11-07T00:28:47.186371+00:00",
               "exitCode": 0,
-              "logSha256": "2b55374a5f0c6148aec65ecd09ee7f36ebffd91f751f6c49a2b79a4277be6a15",
+              "logSha256": "09b6e392af4750378a62c73b9df5699176f2887a8c28dc9d82cb49d86d636563",
               "cases": [
                 {
                   "name": "clock_readings_never_go_backwards_and_the_wall_clock_answers",
@@ -8586,17 +8598,17 @@
           {
             "id": "native:prelude_lib",
             "title": "prelude_lib",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/prelude_lib.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:21:47.152886+00:00",
-              "finishedAt": "2026-11-06T14:22:12.172896+00:00",
-              "exitCode": 0,
-              "logSha256": "0569caba45c2997e998fe0fa2fc0265d3115d8b6469c5a519b85943c701b3d76",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:28:47.188331+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "bits_class_is_generic",
@@ -8620,35 +8632,7 @@
                 },
                 {
                   "name": "modulo_and_division_on_math_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_char_at_sees_code_points",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_concat_slice_and_order",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_equality_instance",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_from_bytes_validates_utf8",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_library_type_errors_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_nat_and_int_formatting",
-                  "status": "passed"
-                },
-                {
-                  "name": "string_rejects_malformed_utf8",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18441,8 +18425,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "parsers",
-        "passed": 98,
+        "phase": "prelude_lib",
+        "passed": 101,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18460,10 +18444,10 @@
       }
     ],
     "counts": {
-      "verified": 279,
+      "verified": 281,
       "blocked": 4,
       "running": 6,
-      "pending": 166,
+      "pending": 164,
       "recheck": 212
     },
     "total": 667,
@@ -18472,5 +18456,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:27:55.782762+00:00"
+  "updatedAt": "2026-11-07T00:28:58.124335+00:00"
 }
