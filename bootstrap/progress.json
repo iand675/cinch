@@ -11979,6 +11979,18 @@
                 },
                 {
                   "name": "column_projection_returns_the_original_typed_buffers",
+                  "status": "failed"
+                },
+                {
+                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+                  "status": "failed"
+                },
+                {
+                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
                   "status": "running"
                 }
               ]
@@ -18849,5 +18861,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:10:02.796659+00:00"
+  "updatedAt": "2026-11-07T11:11:04.996199+00:00"
 }
