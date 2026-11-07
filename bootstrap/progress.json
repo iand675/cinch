@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "209 of 235 complete groups passed; 2 running, 0 failed and 24 pending.Every group includes ignored tests. State: running.",
+      "detail": "210 of 235 complete groups passed; 2 running, 0 failed and 23 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "209 of 235 complete groups passed; 2 running, 0 failed and 24 pending."
+      "detail": "210 of 235 complete groups passed; 2 running, 0 failed and 23 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -631,9 +631,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.",
+        "detail": "The development replay passes the original Data.Core family and its exact consumer hashes. Data.Ordering now reaches an omitted imported mconcat default. Category and Algebra are still required.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-prelude-counterexample.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-interface-overlay-results.json"
       },
       {
         "id": "gap:source-defaults",
@@ -803,10 +803,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 209,
+          "verified": 210,
           "blocked": 0,
           "running": 2,
-          "pending": 24,
+          "pending": 23,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2591,21 +2591,21 @@
           {
             "id": "native:bootstrap_resolve",
             "title": "bootstrap_resolve",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T04:04:29.522305+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:09:14.807534+00:00",
+              "exitCode": 0,
+              "logSha256": "e2b64e6eaa18a737912dae300fff58909f82e4846a268019ef0940fe9fa40b59",
               "cases": [
                 {
                   "name": "source_module_imports_exports_and_lexical_scopes_resolve",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2637,21 +2637,21 @@
           {
             "id": "native:bootstrap_runtime_ir",
             "title": "bootstrap_runtime_ir",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_ir.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:40:46.558244+00:00",
-              "finishedAt": "2026-11-06T21:48:00.986896+00:00",
-              "exitCode": 0,
-              "logSha256": "abc6af26474b48cce7aa1fccd2dd0b79afcdae8f68dcc234756027aca4641b0b",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T04:09:14.809989+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18685,8 +18685,19 @@
     "active": [
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
+        "status": "running",
+        "phase": "building stage2",
+        "passed": 2,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "auditPending": false
+      },
+      {
+        "title": "Earlier Stage2 attempt before the library specialization",
         "status": "failed",
-        "phase": "failed",
+        "phase": "Stage2 requested the missing Data.List.list-length [R] library specialization",
         "passed": 2,
         "failed": 1,
         "total": 4,
@@ -18989,7 +19000,18 @@
         "total": 1,
         "source": "5d309ef740666a6d9ced99ecc6067416e165bb2544d1b2c471787b00c872a756",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": true
+        "auditPending": false
+      },
+      {
+        "title": "Original four-family source-library replacement test",
+        "status": "failed",
+        "phase": "interface_prelude_overrides",
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "source": "5d309ef740666a6d9ced99ecc6067416e165bb2544d1b2c471787b00c872a756",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+        "auditPending": false
       },
       {
         "title": "Function defaults: fresh pinned library object",
@@ -19146,8 +19168,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_runtime_emit",
-        "passed": 209,
+        "phase": "bootstrap_runtime_ir",
+        "passed": 210,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -19165,10 +19187,10 @@
       }
     ],
     "counts": {
-      "verified": 463,
+      "verified": 464,
       "blocked": 4,
       "running": 9,
-      "pending": 34,
+      "pending": 33,
       "recheck": 159
     },
     "total": 669,
@@ -19177,5 +19199,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:08:39.674391+00:00"
+  "updatedAt": "2026-11-07T04:10:35.765924+00:00"
 }
