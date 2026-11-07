@@ -689,9 +689,9 @@
       },
       {
         "id": "gap:imported-defaults",
-        "title": "Transport checked imported default implementations",
+        "title": "Use one interface format for class defaults",
         "state": "running",
-        "detail": "The original Ordering bundle cannot inherit mconcat from the pinned Monoid interface. Its default hash authenticates a body but carries no implementation. Owner-scoped body transport and fresh typechecking are in development.",
+        "detail": "The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.",
         "doneWhen": "Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/compiled-interface-metadata.md"
       },
@@ -18804,12 +18804,12 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "failed",
+        "status": "running",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 2,
-        "source": "a5c263abb412b0a509ed690506633f47d4a6da8e0716736030c6d6f7039e704c"
+        "source": "56f015c0195ec3ce4864634156c5884ea6a0f9599b0257cab77a77a96b9b1e26"
       },
       {
         "title": "Cinch class-law samples and counterexamples",
@@ -18828,6 +18828,33 @@
         "failed": 1,
         "total": 3,
         "source": "5e60a3bedeecacc8f80cf5defda3c6825e9f996df76a75c979406230425f5e5a"
+      },
+      {
+        "title": "Schema 9: source admission, imported defaults and pipeline",
+        "status": "running",
+        "phase": "checking all 44 schema 9 modules through exact Stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "ceb02b36b4954259d906d6fd29ae7c79a3e14805e3c21133ffc61d01b6b64311"
+      },
+      {
+        "title": "Schema 9 library interfaces",
+        "status": "waiting-worker",
+        "phase": "Regenerate and verify the library-only object and its 55 interfaces",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "4dad2adc21c0104df7770f3856aca3171bebbc409967326186be475386bd692b"
+      },
+      {
+        "title": "Schema 9 development bootstrap",
+        "status": "waiting-for-schema9-inheritance-and-provider",
+        "phase": "Fresh Stage1, Stage2 and Stage3 with the checked development provider",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "c7022419c62e87a276a2834fa605cc54bf41ab8b4928d02ac944d41482a6dd39"
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
@@ -18852,5 +18879,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:53:15.432518+00:00"
+  "updatedAt": "2026-11-07T08:55:19.705427+00:00"
 }
