@@ -10,10 +10,14 @@
   "patch_application_independently_verified": true,
   "patch_sha256": "2c6bd4445b72cbd9932d9721da5d54c83b44794a56a24d8d6d5b76b1938cebea",
   "private_cinch_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
-  "scope": "For true short-circuit conjunction and false disjunction, combine sound branch implications from the test and selected operand, even if one is opaque. Exact condition readings remain unchanged and partial implications are never negated to describe the opposite branch. Nine new controls cover both operand orders, nested guards, correct call arguments, wrong branches and facts escaping scope. Native preflight and nine complete Cinch component groups are queued, followed by Native44 input and complete actual compiler/object gates. Matching current compiler self-admission, original runtime/API and Stage1/2/3 emission remain required. This patch is unapplied; no validation success is claimed yet. All9 corrected Native controls now pass independent audit:5 valid sources check and4 invalid sources refuse for actual ordering/precondition obligations, with parser/unbound-name errors explicitly excluded. The complete Cinch function-precondition target is running; no Cinch component or bootstrap pass is claimed yet.",
+  "scope": "For true short-circuit conjunction and false disjunction, combine sound branch implications from the test and selected operand, even if one is opaque. Exact condition readings remain unchanged and partial implications are never negated to describe the opposite branch. Nine new controls cover both operand orders, nested guards, correct call arguments, wrong branches and facts escaping scope. Native preflight and nine complete Cinch component groups are queued, followed by Native44 input and complete actual compiler/object gates. Matching current compiler self-admission, original runtime/API and Stage1/2/3 emission remain required. This patch is unapplied; no validation success is claimed yet. All9 corrected Native controls now pass independent audit:5 valid sources check and4 invalid sources refuse for actual ordering/precondition obligations, with parser/unbound-name errors explicitly excluded. The complete Cinch function-precondition target is running; no Cinch component or bootstrap pass is claimed yet. The whole original Cinch function-precondition target now passes with all9 added Native-compared controls and every original assertion retained; all44 compiler modules pass independent Native admission. Eight more component groups, actual full compiler, own-source check and matching fresh bootstrap remain required.",
   "status": "reviewable-Core-branch-implication-repair-corrected-fixtures-under-validation",
   "native_controls_audited": true,
   "native_positive_controls_passed": 5,
   "native_semantic_refusal_controls_passed": 4,
-  "native_control_receipt": "bootstrap/current-partial-boolean-native-controls.json"
+  "native_control_receipt": "bootstrap/current-partial-boolean-native-controls.json",
+  "complete_original_precondition_target_passed": true,
+  "complete_native44_input_gate_passed": true,
+  "precondition_receipt": "bootstrap/current-partial-boolean-precondition-results.json",
+  "native44_receipt": "bootstrap/current-partial-boolean-input-results.json"
 }

@@ -1,0 +1,29 @@
+diff --git a/bootstrap/test-library-object-roots.json b/bootstrap/test-library-object-roots.json
+--- a/bootstrap/test-library-object-roots.json
++++ b/bootstrap/test-library-object-roots.json
+@@ -19,6 +19,14 @@
+     {
+       "classes": "R",
+       "symbol": "Data.List.FromList_List"
++    },
++    {
++      "classes": "OO",
++      "symbol": "Algebra.Monoid.Monoid_Function"
++    },
++    {
++      "classes": "OO",
++      "symbol": "Algebra.Semigroup.Semigroup_Function"
+     }
+   ],
+   "methods": [],
+@@ -201,8 +209,8 @@
+       "symbol": "Data.Option.is-none"
+     },
+     {
+-      "symbol": "Data.Option.is-none",
+-      "classes": "T"
++      "classes": "T",
++      "symbol": "Data.Option.is-none"
+     }
+   ]
+ }

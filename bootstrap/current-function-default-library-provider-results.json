@@ -1,0 +1,121 @@
+{
+  "actual_demand_sha256": "ee66838461328dca7b2fdeef00fc468f1ef6477e0427b98cba2c84bc6446eafd",
+  "added_actual_diagnostic_roots": {
+    "dictionaries": [
+      {
+        "classes": "OO",
+        "symbol": "Algebra.Monoid.Monoid_Function"
+      },
+      {
+        "classes": "OO",
+        "symbol": "Algebra.Semigroup.Semigroup_Function"
+      }
+    ],
+    "methods": [],
+    "schema": 1,
+    "units": []
+  },
+  "checked_physical_symbols": 10,
+  "compiler_implementation_units": false,
+  "configuration": {
+    "metadata": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/function-default-library-provider-1/library.abi.json",
+    "metadata_sha256": "4387a41cd89ecb26de7b7847cd6f3db821803403e0fb52441f6a4e6789d22c0f",
+    "object": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/function-default-library-provider-1/library.o",
+    "object_sha256": "7adc36dd53729405c187e9af1ca1788473f23d950fabd104aa644fa4384749d0",
+    "schema": 1,
+    "target": "aarch64-unknown-unknown"
+  },
+  "full_goal_complete": false,
+  "interfaces": 55,
+  "interfaces_byte_identical": true,
+  "new_factories": [
+    {
+      "class_owner": "Algebra.Monoid.Monoid",
+      "context_arity": 1,
+      "factory": {
+        "arity": 1,
+        "closure_entry": "Algebra.Monoid.Monoid_Function@OO.mk.object-closure",
+        "params": [
+          "O"
+        ],
+        "result": "O",
+        "symbol": "Algebra.Monoid.Monoid_Function@OO.mk"
+      },
+      "fields": [
+        "O",
+        "O"
+      ],
+      "methods": [
+        {
+          "arity": 2,
+          "closure_entry": "Algebra.Monoid.Monoid_Function.mempty@OO.object-closure",
+          "params": [
+            "O",
+            "O"
+          ],
+          "result": "O",
+          "symbol": "Algebra.Monoid.Monoid_Function.mempty@OO"
+        },
+        {
+          "arity": 4,
+          "closure_entry": "Algebra.Monoid.Monoid_Function.mconcat@OO.object-closure",
+          "params": [
+            "O",
+            "O",
+            "O",
+            "O"
+          ],
+          "result": "O",
+          "symbol": "Algebra.Monoid.Monoid_Function.mconcat@OO"
+        }
+      ],
+      "symbol": "Algebra.Monoid.Monoid_Function@OO"
+    },
+    {
+      "class_owner": "Algebra.Semigroup.Semigroup",
+      "context_arity": 1,
+      "factory": {
+        "arity": 1,
+        "closure_entry": "Algebra.Semigroup.Semigroup_Function@OO.mk.object-closure",
+        "params": [
+          "O"
+        ],
+        "result": "O",
+        "symbol": "Algebra.Semigroup.Semigroup_Function@OO.mk"
+      },
+      "fields": [
+        "O"
+      ],
+      "methods": [
+        {
+          "arity": 4,
+          "closure_entry": "Algebra.Semigroup.Semigroup_Function.<>@OO.object-closure",
+          "params": [
+            "O",
+            "O",
+            "O",
+            "O"
+          ],
+          "result": "O",
+          "symbol": "Algebra.Semigroup.Semigroup_Function.<>@OO"
+        }
+      ],
+      "symbol": "Algebra.Semigroup.Semigroup_Function@OO"
+    }
+  ],
+  "old_artifacts_unchanged": true,
+  "previous_roots_sha256": "167d2e309b4c7b59a497c87971e789dfe684211a77aaf11f02e9c8436e629a07",
+  "producer": {
+    "description": "Published85f00ca ABI6 library-only Native provider. Never compiles Bootstrap implementation modules; independent role and private cache from the seed.",
+    "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
+  },
+  "producer_binary_sha256": "ab1b15a0db2ccd25c228e5e96f89b78cc3db5dcaf78a6e034c43b2385bd7cd21",
+  "roots_sha256": "da2ca9afc45b08ebfac56db39a5591c066fd9afe265b093d955466d1cbff5816",
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "scope": "The exact pinnedNative22 library-only producer emits two genuine OO function factory variants with checked owner/context/field/method ABIs and real object symbols. IR/object FNV and SHA identities agree; all55 checked interface bytes/hashes and runtime bytes match the prior provider. Root additions are exactly the actual2866 backend demands and no Bootstrap implementation or client source is compiled by Native. The original client and complete matching bootstrap remain required.",
+  "status": "audited-fresh-library-only-function-factory-provider",
+  "verified_at": "2026-11-07T02:39:18.334528+00:00"
+}

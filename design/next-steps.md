@@ -65,6 +65,16 @@ check and matching Stage1/2/3 build remain required. See
 `bootstrap/current-source-default-diagnostic-component-results.json` and
 `bootstrap/current-source-default-origins-development-2.json`.
 
+The2866 original API/default replay stays19/21, with an important failure-stage
+change: mconcat now passes checking and reaches runtime-object lowering. Its
+checked Semigroup_Function and Monoid_Function OO factories are absent from the
+old test library object. A fresh object from the unchanged pinnedNative22
+library-only producer supplies both, with ten physical symbols checked and all55
+interface files plus runtime bytes unchanged. The unchanged full21 replay is
+queued against that object. The old failure remains recorded. See
+`bootstrap/current-refinement-expected-result-api-results.json` and
+`bootstrap/current-function-default-library-provider-results.json`.
+
 Candidate32ab repairs a Core branch-implication gap: a true conjunction and a
 false disjunction retain valid implications from the selected operand even if
 the test operand is opaque. Exact condition readings remain unchanged, and
@@ -73,9 +83,12 @@ cover operand order, nested guards, wrong identities, wrong branches and scope
 escape. The first fixtures used the reserved opaque parameter and failed
 parsing; these raw failures are retained and negative parser refusals grant no
 semantic credit. All9 corrected flag controls pass independent Native audit:
-5 valid programs and4 actual ordering/precondition refusals. The full Cinch
-precondition target is running; eight more whole groups, Native44 admission and
-the complete compiler/object gate remain. See
+5 valid programs and4 actual ordering/precondition refusals. The whole original Cinch precondition target now passes with all9 added controls
+and every original assertion retained; all44 exact compiler modules also pass
+Native admission. Eight more complete groups, actual compiler/object, matching
+own-source check and fresh Stage1/2/3 emission remain. See
+`bootstrap/current-partial-boolean-precondition-results.json` and
+`bootstrap/current-partial-boolean-input-results.json`. See
 `bootstrap/current-partial-boolean-native-controls.json`. Matching current
 self-source admission and fresh Stage1/2/3 emission remain required. See
 `bootstrap/current-partial-boolean-branch-development-2.json`.

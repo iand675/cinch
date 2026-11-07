@@ -1,0 +1,96 @@
+{
+  "compiler_sha256": "dbdda27035f507e18fe8310d6071a363fe9ddc75cff97a2324aec7b619d042b1",
+  "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 1,
+  "default_tests_passed": 6,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 2,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "5acea868a689b2ff4a80f21ec0f5be480dc9488f18a54933270fe5d9b637a544",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7d391b05b7fe44538bc0a4ac07ef5733559c2df295636d4f6e7633a8959b190b",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "af64ec4c98c1265ab3a379b8e1d4b10e50e96e9fccee077ad7311a8ba1bab545",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "c45980b38f7f3fbea2bcf881ad9bfb6f3166c4a59bafbeedf7a859f06c86eb83",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a0ce77e9ffd2db69be668b7d52753684f218ed65576612964b3da9c5f9a47060",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "8cdaa8960133c651b743980b6935f206e1dc302488ae1bd99a628eccd8e6d8b6",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "7c832baedd06dd64cb5981b2ec76f0bfbfec283105dbc9749264e5e09d980506",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "8dd557373da1a375c079b429386147802b3a9ecb552afae87d24d0e36bf20f85",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "5c3873382be17de23dea2d085bfd61854b0feffb32293d3e1d8e35355bda70a2",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "96d034ee8e2d8d6aec25d53f88f1c1723ff8455def379f797fb6de0c29e2bd12",
+      "name": "class_defaults",
+      "passed_tests": 6,
+      "status": "failed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 8,
+  "passed_tests": 19,
+  "scope": "All9 original interface/API groups plus all7 class_defaults Rust tests execute with every original source and assertion. Outcome dispatch explicitly requires the actual2866 Cinch frontend; no Native fallback. All three previously failing original class/instance-name and Shapes.cinch source-file assertions now pass. Defaults are6/7 (five of six original tests plus the seventh mixed Native annotation/Cinch runtime test). Its11 direct Native annotation checks remain separately classified; its actual inherited runtime42 uses Cinch. Original API is8/9 groups13/14 tests, and combined replay is19/21. The unchanged source-library override still fails. The original mconcat program now passes frontend checking and fails during runtime-object lowering because the checked Semigroup_Function and Monoid_Function OO factory variants are absent. Their actual two representation demands are parsed from the real diagnostics; a fresh object from the exact pinned library-only producer is queued, with all55 interface bytes and runtime pins unchanged. No original source or assertion is weakened. These are development checks, not matching finalStage3 acceptance.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/refinement-expected-result-interface-api-1/source",
+  "source_sha256": "3d16b0d6c5b14543c53b562fc4f9920c8a9796ebdb468d16b33a296faae06f6c",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-07T02:35:31.904489+00:00",
+  "whole_groups": 10
+}

@@ -1,0 +1,16 @@
+{
+  "additional_native_compared_source_controls": 9,
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "log_sha256": "39a1871a1a18c7eb9ecca9659cc03ecaa6b4e1e801706c878fec8866372971aa",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "new_diagnostic_branches_apply_only_to_new_case_names": true,
+  "original_sources_and_assertions_retained": true,
+  "rust_tests": 1,
+  "scope": "The complete original function-precondition target passes through actual compiled32ab Cinch, retaining every original case and exact expected refusal. Nine additional cases compare Native acceptance and require the actual Cinch ordering/precondition refusal, never a parser error. Original effect/erased-proof, recursive contract, scope and invalid-call assertions stay intact. Eight further complete component groups, exact44 admission, compiler/object, own-source and final bootstrap gates remain required.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/partial-boolean-branch-validation-2/source",
+  "source_sha256": "bcdef01e9e81352fa9c382da746c82acd0fd13b9ffbe1810bbfb9eecc0dbd27a",
+  "status": "audited-complete-original-precondition-target-with-nine-branch-controls",
+  "verified_at": "2026-11-07T02:36:57.436933+00:00",
+  "whole_groups": 1
+}
