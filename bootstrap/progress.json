@@ -19332,6 +19332,15 @@
         "source": null
       },
       {
+        "title": "Preserve numeric inference through local bindings",
+        "status": "waiting-worker",
+        "phase": "Waiting to rebuild and recheck the original map-key fixture",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0"
+      },
+      {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
         "status": "passed-ladder-awaiting-independent-audit",
         "phase": "fixed point and changed-source control passed",
@@ -19393,9 +19402,9 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "bootstrap_checked_program",
-        "passed": 16,
+        "passed": 17,
         "failed": 0,
         "total": 235,
         "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
@@ -19439,6 +19448,16 @@
         "total": 2,
         "source": "24260202be869c703e19c4a7e23a7a51f35709742b143f3e968b0badababb8d8",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-proof-replay-results.json"
+      },
+      {
+        "title": "Run both original Proof examples on the audited Stage3",
+        "status": "passed",
+        "phase": "The valid program ran with zero leaks at 32 MiB. The invalid proof reported obligation disproved at 4:22.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-consolidated-stage3-proof-results.json"
       },
       {
         "title": "Stage3 TensorAD with the requested library variants",
@@ -19633,5 +19652,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:33:17.090244+00:00"
+  "updatedAt": "2026-11-07T17:37:47.996980+00:00"
 }
