@@ -86,7 +86,7 @@
     },
     {
       "title": "External language examples through Stage3",
-      "detail": "8 of13 original positive examples pass; 21 of21 negatives refuse; 3 of21 pass the intended-reason assertions. All34 original cases execute through the actual audited Stage3, with unchanged assertions. The39-test Native editor integration is a separate frontend role.  Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "9 of13 original positive examples pass; 21 of21 negatives refuse; 8 of21 pass the intended-reason assertions. All34 original cases execute through the actual audited Stage3, with unchanged assertions. The39-test Native editor integration is a separate frontend role.  Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -506,7 +506,7 @@
     },
     {
       "title": "Pass all external language examples through Stage3",
-      "detail": "8 of13 original positive examples pass; 21 of21 negatives refuse; 3 of21 pass the intended-reason assertions. All34 original cases execute through the actual audited Stage3, with unchanged assertions. The39-test Native editor integration is a separate frontend role.  Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "9 of13 original positive examples pass; 21 of21 negatives refuse; 8 of21 pass the intended-reason assertions. All34 original cases execute through the actual audited Stage3, with unchanged assertions. The39-test Native editor integration is a separate frontend role.  Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish final external acceptance",
@@ -17622,10 +17622,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17635,10 +17635,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17648,10 +17648,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17661,10 +17661,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17674,10 +17674,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17687,10 +17687,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17700,10 +17700,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17713,10 +17713,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17726,10 +17726,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17739,10 +17739,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17752,10 +17752,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17765,10 +17765,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17778,10 +17778,10 @@
             "state": "recheck",
             "detail": "Valid programs must compile and run.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17791,10 +17791,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: index mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17804,10 +17804,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17817,10 +17817,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: unknown constructor Checkout.MkCheckoutBuyerP1. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17830,10 +17830,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: multiplicity %aff. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17843,10 +17843,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17856,10 +17856,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17869,10 +17869,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: index mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17882,10 +17882,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17895,10 +17895,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: predicate. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17908,10 +17908,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: integer literal cannot have type. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17921,10 +17921,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: multiplicity %1. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17934,10 +17934,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: obligation disproved. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17947,10 +17947,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17960,10 +17960,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: unknown record field salary. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17973,10 +17973,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: type mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "passed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17986,10 +17986,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: could not prove. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -17999,10 +17999,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: could not prove. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -18012,10 +18012,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: stale evidence. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -18025,10 +18025,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: must be joined exactly once. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -18038,10 +18038,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: index mismatch. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
-              "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "status": "passed",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           },
@@ -18051,10 +18051,10 @@
             "state": "recheck",
             "detail": "Required diagnostic: not exported. An unrelated refusal does not pass.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-partial-boolean-stage3-language-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
             "observed": {
               "status": "failed",
-              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
               "cases": []
             }
           }
@@ -18876,13 +18876,14 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
-        "title": "Current candidate: Stage3 language examples",
+        "title": "Stage3 language examples on the audited checkpoint",
         "status": "completed-with-failures",
-        "phase": "8/13 valid programs and 3/21 exact refusal checks",
-        "passed": 11,
-        "failed": 23,
+        "phase": "9/13 valid programs and 8/21 exact refusal checks",
+        "passed": 17,
+        "failed": 17,
         "total": 34,
-        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json"
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
@@ -19295,6 +19296,24 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage2-byte-observation-results.json"
       },
       {
+        "title": "Supply the library specializations requested by Stage3",
+        "status": "waiting-worker",
+        "phase": "66 function variants and 3 dictionary variants requested by the original tests.",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+      },
+      {
+        "title": "Check finite-index tactics on the original programs",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "fa2d85ff66f9860aa3fe9d664a2712595dcbb6d84a1b26ad618a04690549c309"
+      },
+      {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
         "status": "passed-ladder-awaiting-independent-audit",
         "phase": "fixed point and changed-source control passed",
@@ -19447,7 +19466,7 @@
         "title": "Run four more original library and numeric targets with Stage3",
         "status": "running",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
-        "passed": 0,
+        "passed": 1,
         "failed": 1,
         "total": 4,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
@@ -19586,5 +19605,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:00:26.655231+00:00"
+  "updatedAt": "2026-11-07T17:01:51.367004+00:00"
 }
