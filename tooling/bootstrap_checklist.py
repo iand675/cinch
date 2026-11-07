@@ -364,6 +364,15 @@ def build_checklist(root, cfg, previous=None):
         if not next_chain:
             continue
         status = next_chain.get('status', '')
+        proof = read(root/'bootstrap/current-partial-boolean-chain-results.json')
+        audited = (key == 'partialBooleanBootstrapChain' and status == 'passed-chain-awaiting-independent-audit'
+                   and proof.get('status') == 'passed-bootstrap-chain-only'
+                   and proof.get('compiler_source_sha256') == next_chain.get('compiler_source_sha256')
+                   and proof.get('source_sha256') == next_chain.get('source_sha256')
+                   and [r.get('compiler_sha256') for r in proof.get('stages', [])] ==
+                       [r.get('compiler_sha256') for r in next_chain.get('stages', [])])
+        if audited:
+            status = 'passed-bootstrap-chain-only'
         active.append(dict(
             title=title,
             status='running' if status.startswith(('building-', 'checking-')) else status,
@@ -375,7 +384,8 @@ def build_checklist(root, cfg, previous=None):
                    if key == 'partialBooleanBootstrapHeapPrior'
                    else 'Building Stage3 with a 512 MiB heap after the verified 256 MiB exhaustion'
                    if status == 'building-stage3' and next_chain.get('heap_limit') == '512M'
-                   else status.replace('-', ' ')),
+                   else 'Independent audit passed, including changed compiler source'
+                   if audited else status.replace('-', ' ')),
             passed=sum(stage['status'] == 'passed' for stage in next_chain.get('stages', [])),
             failed=int(status.startswith('failed')),
             total=4,

@@ -124,7 +124,11 @@ interfaces byte for byte with Stage2 and then exhausted its heap before
 writing LLVM. With a 512 MiB cap in one worker, the same inputs produced a
 runnable Stage3. Its executable, LLVM and 44 canonical interfaces match
 Stage2 byte for byte. All Stage3 smoke tests and the interface-only compiler
-entry check pass. The changed-source rebuild is running. See
+entry check pass. The changed-source rebuild also passed. The new compiler
+produced the intended changed diagnostic and the independent audit verified
+all four bootstrap requirements for the 32ab candidate. The full test and
+frontend parity requirement stays open. See
+`bootstrap/current-partial-boolean-chain-results.json`,
 `bootstrap/current-partial-boolean-stage3-output-results.json`,
 `bootstrap/current-partial-boolean-stage3-heap-results.json` and
 `bootstrap/current-partial-boolean-stage2-results.json`. See also
