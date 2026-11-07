@@ -433,6 +433,8 @@ def build_checklist(root, cfg, previous=None):
         ('taskForwarderValidation','Cinch task forwarding: complete pipeline tests',1,'compile-'),
         ('stage3PromotionPipeline512','Current Stage3 original pipeline at 512 MiB',1,'compile-'),
         ('integratedTaskLawAdmission','Integrated compiler: Stage3 source admission',1,'compile-'),
+        ('arrowFormerValidation','Structural function instances: pipeline, syntax and instance checks',3,'compile-'),
+        ('structuralProjectionReplay','Stage3 anonymous refinements: explicit structural projection',1,'compile-'),
         ('nativeTaskForwarderSweep','Rust task-forwarding candidate: complete Rust sweep',235,'compile-'),
         ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
         ('originalSourceOverlay','Original four-family source-library replacement test',1,'compile-'),
@@ -467,6 +469,7 @@ def build_checklist(root, cfg, previous=None):
                 'taskTraceRuntimeReplay': 'taskTraceRuntimeReplayReceipt',
                 'taskDropDiagnostics': 'taskDropDiagnosticsReceipt',
                 'stage3PromotionPipeline512': 'stage3PromotionPipeline512Receipt',
+                'integratedTaskLawAdmission': 'integratedTaskLawAdmissionReceipt',
                 'constructorBaseDisplay': 'constructorBaseDisplayReceipt',
                 'sourceInterfaceOverlay': 'sourceInterfaceOverlayReceipt',
             }

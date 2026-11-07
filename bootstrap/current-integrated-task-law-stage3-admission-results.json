@@ -1,0 +1,13 @@
+{
+  "checker_sha256": "09af398222f987deb9b35ea8b20fafca82617e7d51b8d381ee6604436811ee8a",
+  "compiler_modules": 44,
+  "compiler_source_sha256": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "70d58b972dca1976027d1622c558576bb42872f24b20fd950b5dc1d1d9074a61",
+  "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "scope": "The exact prior Stage3 compiler admitted all 44 combined source modules with empty diagnostics. A new matching bootstrap and all full suites remain separate.",
+  "source_bundle_sha256": "b2171bac1eebc0bb98676e5beb7fcccf281fe14c667b086abd5ddd72d5e6a216",
+  "source_snapshot_sha256": "308fb4fbd59a82d098fb2b0c76da4624937f9518a528927ecbf01560d588b6b9",
+  "status": "verified-exact-stage3-admission-of-integrated-compiler",
+  "verified_at": "2026-11-07T06:37:37.224756+00:00"
+}

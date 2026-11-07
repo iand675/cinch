@@ -194,6 +194,11 @@ the corrected test-library object and a 512 MiB heap. The otherwise matching
 See `bootstrap/current-task-law-bootstrap-integration-results.json` and
 `bootstrap/current-stage3-promotion-pipeline-512-results.json`.
 
+The exact verified 32ab Stage3 admitted all 44 combined modules in one
+check with empty diagnostics. The next pinned Stage0 through Stage3 run
+uses this frozen combined source. See
+`bootstrap/current-integrated-task-law-stage3-admission-results.json`.
+
 The base constructor formatter matches the complete `Data.Core` interface
 hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.
