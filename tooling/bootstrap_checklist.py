@@ -898,9 +898,27 @@ def build_checklist(root, cfg, previous=None):
     if tactic_validation:
         rows = tactic_validation['rows']
         active.append(dict(title='Check finite-index tactics on the original programs',
-            status=tactic_validation['status'], phase=tactic_validation.get('phase', 'Waiting for a worker'),
+            status=tactic_validation['status'],
+            phase=('Stage1 built all 46 compiler modules and passed its smoke checks. Waiting to replay the original examples.'
+                   if tactic_validation.get('compiler_sha256') and tactic_validation['status'].startswith('waiting') and not rows
+                   else tactic_validation.get('phase', 'Waiting for a worker')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=4, source=tactic_validation['compiler_source_sha256']))
+    overlay_validation = read(cfg.get('schema10ExecutableSourceOverlays'))
+    if overlay_validation:
+        rows = overlay_validation['rows']
+        active.append(dict(title='Recheck copied library source before executable linking',
+            status=overlay_validation['status'],
+            phase=overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures'),
+            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
+            total=4, source=overlay_validation['compiler_source_sha256']))
+    library_replay = read(cfg.get('schema10LibraryDispatchVariantReplay'))
+    if library_replay:
+        rows = library_replay['rows']
+        active.append(dict(title='Replay the five original library targets with the expanded object',
+            status=library_replay['status'], phase=library_replay.get('phase', 'Waiting for the complete library object'),
+            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
+            total=5, source=library_replay.get('compiler_source_sha256')))
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']

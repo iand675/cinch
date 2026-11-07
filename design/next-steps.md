@@ -70,7 +70,15 @@ See [the repaired language-suite audit](../bootstrap/current-schema10-repaired-e
 The separate library targets exposed missing runtime specializations and
 conflicts between copied Category and Foldable sources and loaded interfaces.
 The test library rebuild takes its specialization requests from the compiler's
-retained diagnostics. Source replacement in executable builds remains open.
+retained diagnostics. The first expanded object preserved all 55 interface
+identities. The completed sweep exposed four additional HashMap variants, so
+the replay waits for the object containing those requests too.
+
+The executable replacement candidate verifies source bytes against the
+pinned library object and rechecks each copied module's interface before
+reusing that object's code. All 203 copied files in the original Category
+and Foldable bundles match the pinned bytes. The real compiler replay and
+the edited-body refusal control are queued.
 
 The UTF-8 diagnostic renderer passed both original pipeline tests when
 replayed with the matching debug and release runtime archives. The stricter
