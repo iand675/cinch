@@ -19326,9 +19326,9 @@
       {
         "title": "Recheck late library copies with checked facade values",
         "status": "running",
-        "phase": "exact-copy",
-        "passed": 0,
-        "failed": 0,
+        "phase": "original-fold",
+        "passed": 3,
+        "failed": 1,
         "total": 6,
         "source": "4b9cc96eb7228d6d8fe8c18b4f4ca3b33519b6f7617763a3a54199fa30ff427f"
       },
@@ -19684,5 +19684,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:45:06.302060+00:00"
+  "updatedAt": "2026-11-07T18:46:08.558302+00:00"
 }
