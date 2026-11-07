@@ -1,0 +1,40 @@
+{
+  "actual_stage2_demand": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": [
+      {
+        "classes": "R",
+        "symbol": "Data.List.list-length"
+      }
+    ]
+  },
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "full_goal_complete": false,
+  "library_interfaces_byte_identical": 55,
+  "metadata_sha256": "b3e4819c03ea425584d4975d6731eaaa8c1e5d1bc75fcefd188d3e5783e186d4",
+  "object_sha256": "c00554f3d47aac3088b3f70a1ccd7ad3cc01637af5c568f3d5c17f1c65e155d8",
+  "original_stage2_diagnostics_sha256": "a476a72c7a5b47e0cea0efedebde085ca44cd9e4dfbab4d1d5b36591da18c8ec",
+  "root_manifest_sha256": "88683e23a7b4400fd46d44724949b4f0f2dc083673404dbd72fef06236caafe0",
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "seed": {
+    "description": "Published85f00ca ABI6 library-only Native provider. Never compiles Bootstrap implementation modules; independent role and private cache from the seed.",
+    "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
+  },
+  "source_sha256": "f48f72e61717e5de35d3b75cb5fd1f61017bbb68a43636419389a3f7305ffda4",
+  "status": "verified-stage2-demand-library-object",
+  "variant": {
+    "arity": 1,
+    "closure_entry": "Data.List.list-length@R.object-closure",
+    "params": [
+      "O"
+    ],
+    "result": "T",
+    "symbol": "Data.List.list-length@R"
+  },
+  "verified_at": "2026-11-07T04:08:35.549389+00:00"
+}

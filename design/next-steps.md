@@ -112,7 +112,11 @@ search path, the 55 verified library interfaces, and zero leaks. All nine
 complete component groups pass, with 11 Rust tests exercising the Cinch
 components. The fresh rebuild passed Stage0 and Stage1 smoke checks. The Stage1
 audit matches all 44 source and interface identities, the pinned builder,
-and the exact executable. Stage1 is now building Stage2. See
+and the exact executable. Stage1 emitted all 44 checked Stage2 interfaces,
+then stopped in code generation because the library object lacked the
+`Data.List.list-length` variant for raw elements. A fresh object built with
+that exact root retains all 55 interface files and the runtime archive bytes.
+Stage2 is retrying with the verified Stage0 and Stage1 artifacts. See
 `bootstrap/current-partial-boolean-precondition-results.json` and
 `bootstrap/current-partial-boolean-input-results.json`. See also
 `bootstrap/current-partial-boolean-native-controls.json`,
@@ -120,7 +124,9 @@ and the exact executable. Stage1 is now building Stage2. See
 `bootstrap/current-partial-boolean-own-source-results.json`,
 `bootstrap/current-partial-boolean-component-results.json` and
 `bootstrap/current-partial-boolean-branch-development-2.json`.
-See also `bootstrap/current-partial-boolean-stage1-results.json`.
+See also `bootstrap/current-partial-boolean-stage1-results.json`,
+`bootstrap/current-partial-boolean-stage2-demand.json` and
+`bootstrap/current-partial-boolean-stage2-provider-results.json`.
 
 The complete source-effects target passes all 43 cases, including a foreign
 call whose declared row omits `Blocking`. Its diagnostic now retains both
@@ -138,6 +144,15 @@ hash against the Native writer and matches the three isolated `Data.Ordering`
 constructor contracts. A source-defined `Shadow.List` keeps its own identity.
 Both exporter and nominal groups pass. See
 `bootstrap/current-constructor-base-display-results.json`.
+
+The source replacement pipeline now checks a base source home against its
+dependency closure, emits a fresh interface, and validates every retained
+cached dependency hash before checking its consumers. The complete pipeline
+passes, including stale-cache and ordinary-interface collision refusals. The
+unchanged original family test passes `Data.Core` and reaches `Data.Ordering`'s
+omitted `mconcat` default. Category, Algebra, and source replacement in runtime
+object builds remain open. See
+`bootstrap/current-source-interface-overlay-results.json`.
 
 All9 development patches apply in order to a fresh published-source snapshot,
 produce the exact32ab compiler-module bytes and preserve the published FFI test

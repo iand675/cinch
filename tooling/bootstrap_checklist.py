@@ -288,11 +288,12 @@ def build_checklist(root, cfg, previous=None):
     coverage_state=read(cfg.get('inferredCaseCoverageValidation'))
     coverage_runtime=read(cfg.get('inferredCaseCoverageRuntimeReceipt'))
     function_defaults=read(cfg.get('functionDefaultApiReceipt'))
+    source_overlay=read(cfg.get('sourceInterfaceOverlayReceipt'))
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
-             'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
-             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-source-prelude-counterexample.json')),
+             'The development replay passes the original Data.Core family and its exact consumer hashes. Data.Ordering now reaches an omitted imported mconcat default. Category and Algebra are still required.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
+             'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-source-interface-overlay-results.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
         item('gap:type-term-scope','Keep term and type annotation names separate','running',
@@ -343,14 +344,21 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
-    next_chain = read(cfg.get('partialBooleanBootstrapChain'))
-    if next_chain:
+    for key, title in [
+        ('partialBooleanBootstrapChain', 'Fresh Stage0 through Stage3 rebuild'),
+        ('partialBooleanBootstrapPrior', 'Earlier Stage2 attempt before the library specialization'),
+    ]:
+        next_chain = read(cfg.get(key))
+        if not next_chain:
+            continue
         status = next_chain.get('status', '')
         active.append(dict(
-            title='Fresh Stage0 through Stage3 rebuild',
+            title=title,
             status='running' if status.startswith(('building-', 'checking-')) else status,
-            phase='Waiting for the compiler/object tests, the own-source check, and the nine component targets'
-                  if status == 'waiting-matching-development-gates' else status.replace('-', ' '),
+            phase=('Waiting for the compiler/object tests, the own-source check, and the nine component targets'
+                   if status == 'waiting-matching-development-gates'
+                   else 'Stage2 requested the missing Data.List.list-length [R] library specialization'
+                   if key == 'partialBooleanBootstrapPrior' else status.replace('-', ' ')),
             passed=sum(stage['status'] == 'passed' for stage in next_chain.get('stages', [])),
             failed=int(status.startswith('failed')),
             total=4,
@@ -385,6 +393,7 @@ def build_checklist(root, cfg, previous=None):
         ('taskTraceDiagnostics','Cinch task refusals: runtime-IR suite',1,'compile-'),
         ('taskTraceRuntimeReplay','Cinch task refusals: retained emitter, runtime setup and whole suite',3,'compile-'),
         ('sourceInterfaceOverlay','Source-library replacement: complete pipeline and dependency checks',1,'compile-'),
+        ('originalSourceOverlay','Original four-family source-library replacement test',1,'compile-'),
         ('functionDefaultProvider','Function defaults: fresh pinned library object',1,'compile-'),
         ('additionalFixityValidation','Additional original fixity tests: actual Cinch frontend',1,'compile-')]:
         state=read(cfg.get(key))
@@ -415,6 +424,7 @@ def build_checklist(root, cfg, previous=None):
                 'taskEffectDiagnostic': 'taskEffectDiagnosticReceipt',
                 'taskTraceRuntimeReplay': 'taskTraceRuntimeReplayReceipt',
                 'constructorBaseDisplay': 'constructorBaseDisplayReceipt',
+                'sourceInterfaceOverlay': 'sourceInterfaceOverlayReceipt',
             }
             receipt_key = completed_receipt_keys.get(key, receipt_key)
             receipt=read(cfg.get(receipt_key)) if receipt_key else annotation_receipt if key.startswith('nativeDefaultAnnotation') else default_receipt

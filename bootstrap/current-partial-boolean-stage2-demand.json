@@ -1,0 +1,28 @@
+{
+  "actual_requested_roots": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": [
+      {
+        "classes": "R",
+        "symbol": "Data.List.list-length"
+      }
+    ]
+  },
+  "checked_stage2_interface_files": 44,
+  "compiler_source_sha256": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+  "diagnostics_sha256": "a476a72c7a5b47e0cea0efedebde085ca44cd9e4dfbab4d1d5b36591da18c8ec",
+  "existing_variants": [
+    "Data.List.list-length@O",
+    "Data.List.list-length@T"
+  ],
+  "full_goal_complete": false,
+  "object_sha256": "ce9a91767213fd63910ec9f877e59005b195c3a09aa71917a4b5ab90d4704279",
+  "scope": "The fresh Stage1 runs the Stage2 source checker and interface writer and reaches retained-Core runtime lowering. It emits 44 schema-8 interfaces but cannot emit Stage2 IR or an executable because Data.List.list-length [R] is absent. The exact request is parsed from the retained diagnostic. Source, pin and tested object identities are retained.",
+  "stage1_compiler_sha256": "a03aa73643988c855f4565fd092b25d1429222219ce949de8ae68bfc3818cb68",
+  "stage2_executable_produced": false,
+  "stage2_exit_code": 5,
+  "status": "verified-stage2-runtime-specialization-demand",
+  "verified_at": "2026-11-07T04:08:26.421651+00:00"
+}

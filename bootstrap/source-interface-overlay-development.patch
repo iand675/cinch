@@ -1,0 +1,230 @@
+--- a/bootstrap/Bootstrap.Inputs.cinch
++++ b/bootstrap/Bootstrap.Inputs.cinch
+@@ -8,7 +8,32 @@
+   import Text.Json (parse-json)
+   import Text.Parse (ParseOutcome, Parsed, Failed)
+ 
+-  export read-interfaces
++  export read-interfaces, embedded-library-home
++
++  -- Source replacement is reserved for defining homes in the pinned
++  -- compiler-owned base package. Ordinary interface collisions still refuse.
++  embedded-library-home :: String -> Bool
++  embedded-library-home name = embedded-home-member name embedded-homes
++  embedded-home-member :: String -> List String -> Bool
++  embedded-home-member name homes = case homes of
++    Nil -> False
++    Cons home rest -> string-compare name home == 0 || embedded-home-member name rest
++  embedded-homes :: List String
++  embedded-homes =
++    ["Data.Core", "Data.Ordering", "Relation.Eq", "Relation.Ord",
++    "Algebra.Arithmetic", "Algebra.Bits", "Function.Combinators", "Data.Nat",
++    "Data.Int", "Data.Option", "Data.Result", "Data.List",
++    "Data.Enum", "Data.Char", "Data.Bool", "Data.Machine",
++    "Data.Bytes", "Data.Map", "Data.String", "Data.Json",
++    "Data.Producer", "Data.Target", "Data.Path", "Effect.Sequencing",
++    "Effect.Concurrent", "Effect.Clock", "Effect.Fs", "Effect.Process",
++    "Effect.Io", "Data.FromList", "Data.FromMap", "Text.Show",
++    "Data.Sym", "Prelude", "Algebra.Semigroup", "Algebra.Group",
++    "Algebra.Semiring", "Algebra.Monoid", "Category.Functor", "Category.Applicative",
++    "Category.Monad", "Category.Alternative", "Category.Foldable", "Category.Traversable",
++    "Data.Identity", "Data.Const", "Data.Compose", "Data.NonEmpty",
++    "Data.Sorted", "Data.NonZero", "Data.Ascii", "Data.Set",
++    "Data.Hash", "Text.Codec", "Data.HashMap"]
+ 
+   field :: String -> Json -> Json
+   field name doc = case doc of
+--- a/bootstrap/Bootstrap.Pipeline.cinch
++++ b/bootstrap/Bootstrap.Pipeline.cinch
+@@ -16,7 +16,7 @@
+ 
+ module Bootstrap.Pipeline where
+ 
+-  import Bootstrap.Ast (Program)
++  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
+   import Bootstrap.Check (CheckedProgram, check-and-retain)
+   import Bootstrap.Driver (link-and-report, link-only-and-report)
+   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
+@@ -24,8 +24,8 @@
+   import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
+   import Bootstrap.Parse (parse-program)
+   import Bootstrap.Parse (parse-program-with)
+-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract)
+-  import Bootstrap.Inputs (read-interfaces)
++  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
++  import Bootstrap.Inputs (read-interfaces, embedded-library-home)
+   import Bootstrap.Contracts (interface-headers)
+   import Bootstrap.Resolve (resolve-program, resolve-program-with)
+   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
+@@ -166,16 +166,78 @@
+ 
+   -- The interface-only path shares the real parser, resolver and retained
+   -- checker. It never asks another compiler to manufacture source contracts.
++  checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
++  checked-source program interfaces = case resolve-program-with program interfaces of
++    (resolved, Nil) -> check-and-retain resolved
++    (resolved, errors) -> Err errors
++  overlay-interface :: String -> List LoadedInterface -> Option LoadedInterface
++  overlay-interface name interfaces = case interfaces of
++    Nil -> None
++    Cons entry rest -> if string-compare name (loaded-module entry) == 0 then Some entry else overlay-interface name rest
++  overlay-dependencies :: List (String, String) -> List LoadedInterface -> List LoadedInterface -> Result String (List LoadedInterface)
++  overlay-dependencies pending all found = case pending of
++    Nil -> Ok found
++    Cons (name, hash) rest -> case overlay-interface name found of
++      Some existing -> overlay-dependencies rest all found
++      None -> case overlay-interface name all of
++        None -> Err (string-concat "missing source replacement dependency: " name)
++        Some dependency -> overlay-dependencies (loaded-imports dependency <> rest) all (Cons dependency found)
++  overlay-module :: String -> List Module -> List Module -> Option (Module, List Module)
++  overlay-module name modules before = case modules of
++    Nil -> None
++    Cons candidate rest -> if string-compare name (module-name candidate) == 0 then Some (candidate, reverse before <> rest)
++      else overlay-module name rest (Cons candidate before)
++  replace-overlay-interface :: LoadedInterface -> List LoadedInterface -> List LoadedInterface
++  replace-overlay-interface fresh interfaces = case interfaces of
++    Nil -> Nil
++    Cons previous rest -> if string-compare (loaded-module fresh) (loaded-module previous) == 0 then Cons fresh rest
++      else Cons previous (replace-overlay-interface fresh rest)
++  rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Result String (LoadedInterface, Json)
++  rebuild-source-interface source program name dependencies = case checked-source program dependencies of
++    Err errors -> Err (render-source-diagnostics source errors)
++    Ok checked -> case export-interfaces checked dependencies source of
++      Err message -> Err (string-concat "bootstrap.export: " message)
++      Ok (Cons (owner, doc) Nil) -> if string-compare owner name == 0 then
++        (case load-interface owner (interface-hash doc) (canonical-bytes doc) of
++          Err message -> Err (string-concat "bootstrap.interfaces: " message)
++          Ok fresh -> Ok (fresh, doc))
++        else Err "bootstrap.interfaces: source replacement changed the defining module"
++      Ok other -> Err "bootstrap.interfaces: expected one checked source replacement"
++  -- Recheck a base source home with its own dependency closure before
++  -- admitting it into the cached set. This keeps the Prelude facade out
++  -- of early homes and checks every retained consumer against fresh hashes.
++  recheck-source-overlays :: Bytes -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
++  recheck-source-overlays source program order interfaces written = case order of
++    Nil -> (case written of
++      Nil -> Ok (program, interfaces, Nil)
++      other -> case validate-interface-set interfaces of
++        Err message -> Err (string-concat "bootstrap.interfaces: " message)
++        Ok checked -> Ok (program, checked, reverse written))
++    Cons previous rest -> let name = loaded-module previous in
++      if embedded-library-home name then
++        (case overlay-module name (program-modules program) Nil of
++          None -> recheck-source-overlays source program rest interfaces written
++          Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) interfaces Nil of
++            Err message -> Err (string-concat "bootstrap.interfaces: " message)
++            Ok dependencies -> let sp = program-span program in
++              case rebuild-source-interface source (MkProgram sp [replacement]) name dependencies of
++                Err message -> Err message
++                Ok (fresh, doc) -> recheck-source-overlays source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
++      else recheck-source-overlays source program rest interfaces written
+   compile-source-interfaces :: forall r. using (io :: Io r) => List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
+   compile-source-interfaces interfaces source prefix = case fs-read (path-from-string source) of
+     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
+     Ok src -> case parse-program-with source src (interface-headers interfaces) of
+       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
+-      Parsed program Nil -> (case resolve-program-with program interfaces of
+-        (resolved, Nil) -> case check-and-retain resolved of
+-          Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
+-          Ok checked -> write-checked-interfaces prefix checked interfaces src
+-        (resolved, errors) -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused)
++      Parsed program Nil -> (case recheck-source-overlays src program interfaces interfaces Nil of
++        Err message -> write-failure prefix message pipeline-check-refused
++        Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
++          (Nil, Cons first rest) -> write-interface-output prefix (Ok replaced)
++          other -> case checked-source remaining effective of
++            Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
++            Ok checked -> case export-interfaces checked effective src of
++              Err message -> write-interface-output prefix (Err message)
++              Ok rows -> write-interface-output prefix (Ok (replaced <> rows)))
+       Parsed program errors -> write-failure prefix (render-bundle (Bundle source src errors)) pipeline-parse-failed
+   write-interface-files :: forall r. using (io :: Io r) => Path -> List (String, Json) ->{IO r} Result String Unit
+   write-interface-files prefix rows = case rows of
+@@ -184,7 +246,9 @@
+       Err error -> Err "cannot write checked interface"
+       Ok done -> write-interface-files prefix rest
+   write-checked-interfaces :: forall r. using (io :: Io r) => Path -> CheckedProgram -> List LoadedInterface -> Bytes ->{IO r} Int
+-  write-checked-interfaces prefix checked interfaces source = case export-interfaces checked interfaces source of
++  write-checked-interfaces prefix checked interfaces source = write-interface-output prefix (export-interfaces checked interfaces source)
++  write-interface-output :: forall r. using (io :: Io r) => Path -> Result String (List (String, Json)) ->{IO r} Int
++  write-interface-output prefix output = case output of
+     Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-emit-refused
+     Ok rows -> case write-interface-files prefix rows of
+       Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-write-failed
+@@ -206,9 +270,13 @@
+   after-parse-with :: forall r. using (io :: Io r) => PipelineMode -> List LoadedInterface -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+   after-parse-with mode interfaces name src outcome ir exe report = case outcome of
+     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+-    Parsed prog Nil -> case resolve-program-with prog interfaces of
+-      (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
+-      (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
++    Parsed prog Nil -> (case mode of
++      CheckOnly -> case recheck-source-overlays src prog interfaces interfaces Nil of
++        Err message -> write-failure ir message pipeline-check-refused
++        Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
++          (Nil, Cons first rest) -> write-interface-output ir (Ok Nil)
++          other -> after-check mode src (checked-source remaining effective) ir exe report
++      other -> after-check mode src (checked-source prog interfaces) ir exe report)
+     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+ 
+   after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+--- a/compiler/tests/bootstrap_pipeline.rs
++++ b/compiler/tests/bootstrap_pipeline.rs
+@@ -350,6 +350,7 @@
+         assert_eq!(run_built(exe, dir, &args).0, Some(0), "checked imported call must stop before its emitter refusal");
+         assert_eq!(common::read_output(dir, "imported-check.diagnostics"), "");
+     }
++    checked_source_library_replacement(dir, exe, &manifest, &source.join("build"));
+     std::fs::write(&manifest, "{\"schema\":99,\"interfaces\":[]}").unwrap();
+     let args = ["--interfaces", "interfaces.json", "unused-contracts.cinch", "invalid.ll", "invalid.bin", "invalid.report"]
+         .iter().map(|s| s.to_string()).collect::<Vec<_>>();
+@@ -357,6 +358,49 @@
+     assert!(common::read_output(dir, "invalid.ll.diagnostics").contains("unsupported interface manifest schema"));
+     assert!(std::fs::read(dir.join("invalid.ll")).unwrap().is_empty());
+     common::cleanup(&source);
++}
++
++fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, library: &Path) {
++    use cinch::interface::Iface;
++    let original = include_str!("../prelude/Data/Core.cinch");
++    let main = "module Main where\n  import Data.Core\n  main :: Int\n  main = case Some (42 :: Int) of Some value -> value; None -> 1\n";
++    let edited = original.replace("  data List a where", "  -- Checked from source during replacement.\n  data List a where");
++    let invoke = |mode: &str, input: &str, name: &str| {
++        let path = dir.join(format!("{name}.cinch"));
++        std::fs::write(&path, input).unwrap();
++        let args = [
++            mode.to_string(), "--interfaces".into(), manifest.display().to_string(),
++            path.display().to_string(), dir.join(name).display().to_string(),
++        ];
++        let output = std::process::Command::new(exe).current_dir(dir).args(args).env("PATH", "").output().unwrap();
++        let diagnostics = common::read_output(dir, &format!("{name}.diagnostics"));
++        (output.status.code(), diagnostics)
++    };
++    let exact = format!("{original}\n{main}");
++    assert_eq!(invoke("--check", &exact, "core-source-check"), (Some(0), String::new()));
++    let changed_source = format!("{edited}\n{main}");
++    assert_eq!(invoke("--emit-interfaces", &changed_source, "core-source-emit"), (Some(0), String::new()));
++    let load = |path: &Path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap();
++    let previous = load(&library.join("Data.Core.cinchif"));
++    let replacement = load(&dir.join("core-source-emit.Data.Core.cinchif"));
++    let native_consumer = load(&library.join("Data.Nat.cinchif"));
++    let source_consumer = load(&dir.join("core-source-emit.Main.cinchif"));
++    assert_ne!(replacement.source_hash, previous.source_hash, "the replacement must come from the supplied source");
++    assert_eq!(replacement.iface_hash(), previous.iface_hash(), "retain the exact checked compatibility contract");
++    assert!(replacement.imports.is_empty(), "Data.Core must not gain a Prelude back edge");
++    for consumer in [native_consumer, source_consumer] {
++        assert!(consumer.imports.iter().any(|reference| reference.module == "Data.Core" && reference.iface_hash == replacement.iface_hash()));
++    }
++    let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
++        .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");
++    let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("stale interface dependency: Data.Core"), "{diagnostics}");
++    assert!(!dir.join("stale-core-source.Data.Core.cinchif").exists());
++    assert!(!dir.join("stale-core-source.Main.cinchif").exists());
++    let (status, diagnostics) = invoke("--check", "module Lib where\n  answer :: Int\n  answer = 42\n", "ordinary-collision");
++    assert_eq!(status, Some(4), "{diagnostics}");
++    assert!(diagnostics.contains("source module conflicts with a loaded interface"), "{diagnostics}");
+ }
+ 
+ fn json_string(text: &str) -> String {

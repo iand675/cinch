@@ -1,0 +1,22 @@
+{
+  "compiler_sha256": "9009ed189852d047764d3554101b2985e3d8f1f5c8e76a6fb1e543c6f5a9c22c",
+  "compiler_source_sha256": "5d309ef740666a6d9ced99ecc6067416e165bb2544d1b2c471787b00c872a756",
+  "full_goal_complete": false,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "next_original_family": "Data.Ordering",
+  "original_families_passed": [
+    "Data.Core"
+  ],
+  "original_family_groups": 4,
+  "original_ordering_diagnostics_sha256": "052d6edf309573da55a1fc390b53826a4737d390ae16590bf4ae57e1d386f3b2",
+  "original_target_log_sha256": "351699425435f3cf80e1d9e1132c8fd81e6fbaee7709ae05c0f9ae9ebc2b1924",
+  "original_target_passed": false,
+  "patch_sha256": "e1a1726eecb2c0162278712e136eb2cab44e5a2aaae5f3ab16566452c84e96f0",
+  "rust_tests": 2,
+  "scope": "The complete pipeline passes with fresh source checking for Data.Core, exact native and source consumer hashes, no Prelude back edge, stale-cache refusal and an ordinary-interface collision refusal. The unchanged four-family original target passes its first family and then stops at Data.Ordering, which requires the checked imported mconcat default. Category and Algebra are unreached in that run. The change handles Check and interface emission, with runtime-object replacement still open.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-interface-overlay-validation-1/source",
+  "source_sha256": "155fc2587a551d3b969b0243fba02a8ee97d9b320e122a7f293f0f51cd4f3fd7",
+  "status": "verified-data-core-source-replacement-development",
+  "verified_at": "2026-11-07T04:08:26.421651+00:00",
+  "whole_groups": 1
+}

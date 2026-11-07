@@ -46,6 +46,10 @@
       "classes": "T"
     },
     {
+      "symbol": "Data.List.list-length",
+      "classes": "R"
+    },
+    {
       "symbol": "Data.List.map",
       "classes": "OO"
     },
