@@ -1,0 +1,43 @@
+{
+  "added_checks": [
+    "27 actual associativity samples and three identity samples on the three-constructor carrier.",
+    "The wrong identity gives a named law refusal and emits no accepted interface."
+  ],
+  "changed_inputs": {
+    "bootstrap/Bootstrap.Contracts.cinch": "2ae144bedb7ee272690fd63a7cbc69a4fad417ce1852829441d0afd445f4bb83",
+    "bootstrap/Bootstrap.Dictionary.cinch": "0ffd66f5b84cdd1e49d30d220b87062547bd9cd2aec86403e30e4f3549d400ea",
+    "bootstrap/Bootstrap.Export.cinch": "8f16b60450ae4c029b3f25b32a88c9348e22f893ed6a73d713bdbb9aef4a7110",
+    "bootstrap/Bootstrap.Infer.cinch": "7657f4585f81aae4faaa2b66c239402929b03478b0aafbc0d39ae78d1b0bb9e5",
+    "bootstrap/Bootstrap.Instance.cinch": "1f38fa67b717e972a70aaa673ebc9d1ec9b0dcb24b9693864d1b645ac0522595",
+    "bootstrap/Bootstrap.Load.cinch": "47ac57d8664115b4a709aac22c435e9c4a60cf1ddf85033e3564b4fd556387e2",
+    "bootstrap/Bootstrap.Resolve.cinch": "fe21bf2541114cb4f9f72bf040a0c9c05f921dc456483d780a7c644c6a0fc50c",
+    "bootstrap/Bootstrap.Type.cinch": "18120425a6e1c5232c510730cd43554314d02891744faa61a06ea0d0247d3af4",
+    "compiler/tests/bootstrap_pipeline.rs": "3f95c89843368568622a9eab54da876d4ef6f089546d81a8ff9e9df48eae287f"
+  },
+  "compiler_modules": 44,
+  "compiler_source_sha256": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f",
+  "full_goal_complete": false,
+  "native_rlib_sha256": "528c6109506905fb25d0e1a048d9bcaaf7704872a49628cf5fff64b3ac28d447",
+  "native_source_sha256": "dc2dd19280f2e51d07e7b2995d40ddc230a8265eeb1e6e75446249cd51e1e0f0",
+  "original_test_sha256": "c422c11835d436e688d6893bbe7cf84bc09e3932f78028c2c7a3667725170d37",
+  "passed": 2,
+  "patch_sha256": "491838250b81c97bd08ee706aaabab9e1de213191cedab4fa925c83535ce2b8f",
+  "rows": [
+    {
+      "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
+      "status": "passed"
+    },
+    {
+      "name": "the_ladder_compiles_the_fib_example_with_itself",
+      "status": "passed"
+    }
+  ],
+  "scope": "The complete original bootstrap pipeline target plus additive finite-constructor law assertions. The Rust seed built the frozen Cinch pipeline, which checked and executed the source fixtures. The matching Stage3 and complete acceptance suites remain required.",
+  "snapshot_sha256": "116ae7d0dc4993150a104bc38c8ce126703ed1bf2dfe04cf250afdc1400d9a95",
+  "source_test_sha256": "3f95c89843368568622a9eab54da876d4ef6f089546d81a8ff9e9df48eae287f",
+  "status": "passed-complete-schema9-candidate-pipeline",
+  "test_binary_sha256": "8bbe0ad9fda32aa2409e74c670cde5aada1fc57b507de3a8c47132cbdae3ad82",
+  "test_log_sha256": "b1c2c51de35cef06da87a757975a590119590e28b6bd66e08305194890d51c0b",
+  "total": 2,
+  "verified_at": "2026-11-07T11:54:15.628926+00:00"
+}

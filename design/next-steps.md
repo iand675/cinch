@@ -16,6 +16,14 @@ The defining-nominal repair passed the focused imported-default regression
 and the whole interface writer group. Class-law declarations still need to
 travel from their owners to separate instance checks.
 
+The schema 9 candidate passed the complete original pipeline target plus
+the new finite-constructor laws. It checked 27 associativity samples and
+three identity samples, then rejected the wrong identity without emitting an
+interface. It also passed the original inherited-default and library
+replacement assertions in that target. The separate source-instance group
+and matching Stage3 run remain open.
+See [the pipeline receipt](../bootstrap/current-schema9-finite-law-pipeline-results.json).
+
 The schema 10 candidate carries the checked law equations in the same
 interface as the class methods. Rust passed all 18 law, interface-kind and
 method-body tests. The separate Cinch consumer reached rechecking and refused

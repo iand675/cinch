@@ -365,6 +365,7 @@ def build_checklist(root, cfg, previous=None):
     nominal_dependency = read(cfg.get('schema9NominalDependencies'))
     instance_header = read(cfg.get('schema9InstanceHeader'))
     finite_law = read(cfg.get('finiteLaw'))
+    finite_law_pipeline = read(root/'bootstrap/current-schema9-finite-law-pipeline-results.json')
     typed_law = read(cfg.get('typedLawSampling'))
     native_typed_law = read(cfg.get('nativeTypedLawSampling'))
     portable_law = read(cfg.get('portableLawCinch'))
@@ -678,6 +679,11 @@ def build_checklist(root, cfg, previous=None):
             phase='Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive',
             passed=combined_arrays['passed'], failed=0, total=combined_arrays['total'],
             source=combined_arrays['compiler_source_sha256'], evidence=link('bootstrap/current-stage1-combined-arrays-results.json')))
+    if finite_law_pipeline.get('status') == 'passed-complete-schema9-candidate-pipeline':
+        active.append(dict(title='Schema 9: complete original pipeline and finite-law controls', status='passed',
+            phase='Both original tests passed with additional lawful and unlawful finite-constructor instances',
+            passed=finite_law_pipeline['passed'], failed=0, total=finite_law_pipeline['total'],
+            source=finite_law_pipeline['compiler_source_sha256'], evidence=link('bootstrap/current-schema9-finite-law-pipeline-results.json')))
     if stage_expansion_proof:
         controls = stage_expansion_proof['controls']
         active.append(dict(title='Cinch staging: typed runtime and original array case', status=stage_expansion_proof['status'],
