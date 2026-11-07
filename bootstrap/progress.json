@@ -18647,10 +18647,10 @@
       },
       {
         "title": "Cinch diagnostic origins: original API/default groups",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "class_defaults",
         "passed": 8,
-        "failed": 1,
+        "failed": 2,
         "total": 10,
         "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
         "auditPending": false
@@ -18709,5 +18709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:57:23.013279+00:00"
+  "updatedAt": "2026-11-07T01:58:25.193858+00:00"
 }
