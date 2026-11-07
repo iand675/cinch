@@ -2160,6 +2160,10 @@
               "cases": [
                 {
                   "name": "source_machine_literals_and_refinements_keep_range_and_carrier",
+                  "status": "passed"
+                },
+                {
+                  "name": "type_and_core_recheck_machine_ranges_and_actual_typed_scope",
                   "status": "running"
                 }
               ]
@@ -18841,5 +18845,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:13:57.216036+00:00"
+  "updatedAt": "2026-11-07T03:16:39.745492+00:00"
 }
