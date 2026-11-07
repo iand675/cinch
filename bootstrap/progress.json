@@ -19376,9 +19376,9 @@
       {
         "title": "Replay original Foldable and Category with the compiled library",
         "status": "running",
-        "phase": "round 2 lib_category. Round one requested 31 functions, 18 factories and 4 method variants.",
+        "phase": "round 3 lib_foldable. Round one requested 31 functions, 18 factories and 4 method variants.",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 2,
         "unit": "original test targets",
         "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
@@ -19842,8 +19842,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 16,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 17,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19862,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:22:37.978374+00:00"
+  "updatedAt": "2026-11-07T23:23:40.162360+00:00"
 }
