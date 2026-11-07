@@ -37,6 +37,21 @@ cinch repl
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
 
+The optional embedded ORC backend is built with the `jit` feature:
+
+```sh
+cargo build --features jit --bin cinch
+cinch jit examples/compiler/fib.cinch
+```
+
+`cinch jit` compiles the checked program to LLVM IR and executes its `main`
+through LLVM's C LLJIT API. The backend loads the runtime shared library, so
+JIT'd code resolves the same `cinch_*` boundary as a native build, and installs
+the program's layout table before the entry runs. It requires LLVM with the C
+ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
+The feature is off by default, so the ordinary compiler build does not depend on
+LLVM.
+
 `cinch doc` is the documentation-comment front end. It parses `.cinchdoc`
 canonical JSON, looks up symbols, indexes a source tree, runs `cinch test`
 blocks, and renders Markdown. Cinch code fences in rendered output are

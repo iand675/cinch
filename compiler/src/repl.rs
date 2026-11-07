@@ -629,9 +629,17 @@ impl Repl {
         );
         fs::write(workspace.path().join("ReplProbe.cinch"), main).ok()?;
         let probe = workspace.path().join("ReplProbe.cinch");
+        // A build with embedded ORC runs the probe through LLJIT; the
+        // default build keeps the native compile-and-link path. The
+        // subcommand check is compile-time, so a plain build never pays
+        // for an attempted JIT invocation.
+        #[cfg(feature = "jit")]
+        let subcommand = "jit";
+        #[cfg(not(feature = "jit"))]
+        let subcommand = "run";
         let mut command = Command::new(&self.compiler);
         command
-            .arg("run")
+            .arg(subcommand)
             .arg(probe)
             .current_dir(&self.root)
             .env("CINCH_STORE", &self.runtime_store);

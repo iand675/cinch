@@ -16986,6 +16986,63 @@ pub struct ProbeResult {
     pub error: Option<crate::Error>,
 }
 
+/// A checked program that has not yet been folded into a [`Program`].
+///
+/// The REPL keeps this alive across expressions: the prelude and session
+/// are checked once, then each probe elaborates and evaluates against the
+/// same checker state. A declaration change invalidates the prepared
+/// state and rebuilds it.
+pub(crate) struct PreparedCheck {
+    checker: Checker,
+    scx: StagingCx,
+    prelude_name: String,
+    checked_references: Vec<CheckedReference>,
+    safety_records: Vec<SafetyRecord>,
+}
+
+impl PreparedCheck {
+    /// Elaborate and evaluate one probe against the checked state.
+    pub(crate) fn probe(&mut self, probe: &ProbeTerm<'_>) -> ProbeResult {
+        self.checker.probe_term(&self.scx, probe)
+    }
+
+    /// Parse and evaluate a source expression in `module`'s scope.
+    pub(crate) fn probe_src(
+        &mut self,
+        module: &str,
+        src: &str,
+        fixities: &crate::parser::FixityTable,
+    ) -> ProbeResult {
+        match crate::analysis::parse_term(src, fixities) {
+            Ok(term) => {
+                let probe = ProbeTerm { module: module.to_string(), term: &term };
+                self.probe(&probe)
+            }
+            Err(error) => ProbeResult {
+                scheme: None,
+                value: None,
+                eval_error: None,
+                error: Some(error),
+            },
+        }
+    }
+
+    /// Run the final checks that do not need the assembled [`Program`].
+    /// The prepared state is reusable after this.
+    pub(crate) fn finish_checks(&mut self) -> Result<()> {
+        self.checker.check_used_comparisons()?;
+        self.checker.emit_unit_wrappers()?;
+        Ok(())
+    }
+
+    /// Fold the checked state into the ordinary program representation.
+    pub(crate) fn finish(self) -> Result<(Program, Vec<CheckedReference>, Vec<SafetyRecord>)> {
+        let mut checker = self.checker;
+        let program = checker.finish(&self.scx.entry_modules, &self.prelude_name)?;
+        Ok((program, self.checked_references, self.safety_records))
+    }
+}
+
 /// [`check_program_multi_full`] with an optional probe (P21: the REPL is
 /// backed by the same analysis the language server drives): after every
 /// module's declarations are checked, the probe expression elaborates in
@@ -17067,8 +17124,9 @@ fn in_named_module(
 }
 
 /// [`check_program_multi_full_probe`]'s body; the plain entry delegates
-/// with no probe.
-fn check_program_multi_full_impl(
+/// with no probe. Returning the checker before [`Checker::finish`] is what
+/// lets a front end reuse the checked prelude and session across probes.
+fn check_program_multi_full_prepared_impl(
     prelude: &[ast::Module],
     modules: &[ast::Module],
     source_hashes: &HashMap<String, String>,
@@ -17078,7 +17136,7 @@ fn check_program_multi_full_impl(
     probe: Option<&ProbeTerm<'_>>,
     reference_sink: Option<&mut Vec<CheckedReference>>,
 ) -> Result<(
-    Program,
+    PreparedCheck,
     Vec<crate::interface::Iface>,
     StageReport,
     Vec<Diagnostic>,
@@ -17408,7 +17466,46 @@ fn check_program_multi_full_impl(
         None => None,
     };
     let checked_references = c.editor_references.get_mut().take().unwrap_or_default();
-    let mut program = c.finish(&scx.entry_modules, &prelude_name)?;
+    let prepared = PreparedCheck {
+        checker: c,
+        scx: scx.clone(),
+        prelude_name,
+        checked_references,
+        safety_records,
+    };
+    Ok((prepared, ifaces, report, diags, probe_out))
+}
+
+/// [`check_program_multi_full_probe`]'s body with the checker retained,
+/// for a front end that will run more probes against the same checked
+/// prelude and session.
+pub(crate) fn check_program_multi_full_prepared(
+    prelude: &[ast::Module], modules: &[ast::Module], source_hashes: &HashMap<String, String>,
+    scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
+) -> Result<(PreparedCheck, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    check_program_multi_full_prepared_impl(
+        prelude, modules, source_hashes, scx, wit, profile, probe, Some(references),
+    )
+}
+
+/// Finish a prepared checker into the ordinary program representation.
+fn check_program_multi_full_impl(
+    prelude: &[ast::Module], modules: &[ast::Module], source_hashes: &HashMap<String, String>,
+    scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>, reference_sink: Option<&mut Vec<CheckedReference>>,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    // The preparation only needs to know whether editor references are
+    // requested; the actual references travel back inside the prepared
+    // state and are appended after the checker is finished.
+    let mut editor_refs = Vec::new();
+    let editor_sink = reference_sink.is_some().then_some(&mut editor_refs);
+    let (prepared, ifaces, mut report, diags, probe_out) = check_program_multi_full_prepared_impl(
+        prelude, modules, source_hashes, scx, wit, profile, probe, editor_sink,
+    )?;
+    // `finish` consumes the checker; the preparation captured the safety
+    // records and checked references that the final program needs.
+    let (mut program, checked_references, safety_records) = prepared.finish()?;
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
     // established each `bounded(n)` bound (decision D113).

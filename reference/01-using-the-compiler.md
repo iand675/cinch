@@ -25,7 +25,10 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 | `cinch build file.cinch -o program` | Check, emit IR, invoke clang, and link the native runtime. |
 | `cinch run file.cinch [args...]` | Compile and execute; return the program's exit status. |
 | `cinch repl` | Start the interactive [REPL](26-repl.md) in the current project. |
+| `cinch jit file.cinch` | JIT-compile and run through embedded LLVM ORC when the compiler is built with the `jit` feature. |
 | `cinch lsp` | Run the [language server](27-language-server.md) over standard input/output. |
+
+`cinch jit` is not part of the default build. Build it with `cargo build --features jit`; the build needs LLVM with the C ORC headers and library, and `CINCH_LLVM_CONFIG` can select a versioned `llvm-config`. The command emits the checked program's LLVM IR, loads the runtime shared library, installs the layout table, and calls the generated `main` through LLJIT. A build without the feature reports that the command is unavailable. A native `cinch build`/`cinch run` remains the default path.
 
 `-o` takes one path and is meaningful for `emit-ir` and `build`. For reproducible scripts, pass it explicitly. `--rebuild` recomputes a package-store entry that fails verification instead of stopping on the verification error. It is not an optimizer flag or a command to disable all incremental work.
 

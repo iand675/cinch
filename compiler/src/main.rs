@@ -19,6 +19,7 @@ usage:
   cinch doc markdown [<file.md>] [--out <html>]  highlight cinch fences on stdin or a file
   cinch doc highlight <file.cinch> [--out <html>]
   cinch repl                       interactive session in the current project
+  cinch jit <file.cinch>           JIT-compile and run (requires the jit feature)
 
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
@@ -48,6 +49,27 @@ fn main() {
                 exit(1);
             }
             exit(0);
+        }
+        Some("jit") => {
+            #[cfg(feature = "jit")]
+            {
+                let Some(file) = args.get(1) else {
+                    eprintln!("cinch jit: needs a source file");
+                    exit(2);
+                };
+                match cinch::driver::jit_file(std::path::Path::new(file)) {
+                    Ok(code) => exit(code),
+                    Err(error) => {
+                        eprintln!("cinch: {error}");
+                        exit(1);
+                    }
+                }
+            }
+            #[cfg(not(feature = "jit"))]
+            {
+                eprintln!("cinch: this build was compiled without the jit feature");
+                exit(2);
+            }
         }
         Some("lsp") => {
             // The language server over stdio (LSP's standard transport):

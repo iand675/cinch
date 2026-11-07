@@ -208,12 +208,39 @@ pub struct Analysis {
     prelude: Option<driver::PreludeSources>,
     /// The embedded prelude family's editor indices (built on first use).
     prelude_index: Option<BTreeMap<String, ModuleState>>,
+    /// The checked prelude and session, retained for expression probes.
+    /// Invalidated by any accepted declaration or workspace edit.
+    prepared: Option<check::PreparedCheck>,
 }
 
 /// The band width per file: a file larger than this cannot be analyzed.
 const BAND_WIDTH: u64 = 300_000;
 /// The first band base: below it, a span belongs to the embedded prelude.
 const FIRST_BAND: u64 = 1_000_000;
+
+/// The common result of a full or prepared check.
+struct CheckedRun {
+    ifaces: Vec<crate::interface::Iface>,
+    stage: check::StageReport,
+    diags: Vec<check::Diagnostic>,
+    probe_out: Option<check::ProbeResult>,
+    prepared: Option<check::PreparedCheck>,
+}
+
+fn outcome_from_probe(probe: check::ProbeResult) -> ProbeOutcome {
+    let mut outcome = ProbeOutcome::default();
+    if let Some((scheme, text)) = probe.scheme {
+        outcome.scheme = Some(text);
+        outcome.ty = Some(scheme.ty.clone());
+    }
+    if let Some(value) = probe.value {
+        let ty = outcome.ty.clone().unwrap_or(Ty::Unit);
+        outcome.value = Some(render_value(&ty, &value));
+    }
+    outcome.eval_error = probe.eval_error;
+    outcome.error = probe.error;
+    outcome
+}
 
 impl Analysis {
     /// An analysis over `root` (a directory the workspace's paths are
@@ -230,6 +257,7 @@ impl Analysis {
             pending: BTreeSet::new(),
             prelude: None,
             prelude_index: None,
+            prepared: None,
         }
     }
 
@@ -484,6 +512,42 @@ impl Analysis {
         //    feed the graph the dirty set is computed over.
         let changed: Vec<String> = self.pending.iter().cloned().collect();
         self.pending.clear();
+        if !changed.is_empty() {
+            self.prepared = None;
+        }
+        // A probe with no pending edits can elaborate and evaluate directly
+        // against the checked prelude and session. This is the warm REPL
+        // path; declarations and :load/:reload invalidate it above.
+        if changed.is_empty() {
+            if let Some((module, input)) = probe.as_ref() {
+                if let Some(mut prepared) = self.prepared.take() {
+                    let fixities = self
+                        .modules
+                        .get(*module)
+                        .map(|m| m.fixities.clone())
+                        .unwrap_or_else(|| self.prelude_base());
+                    let result = match input {
+                        ProbeInput::Src(src) => prepared.probe_src(module, src, &fixities),
+                        ProbeInput::Term(term) => {
+                            let probe = check::ProbeTerm {
+                                module: (*module).to_string(),
+                                term,
+                            };
+                            prepared.probe(&probe)
+                        }
+                    };
+                    let outcome = outcome_from_probe(result);
+                    self.prepared = Some(prepared);
+                    let report = UpdateReport {
+                        rechecked: Vec::new(),
+                        kept: self.modules.keys().cloned().collect(),
+                        diagnostics: self.diagnostics(),
+                        chain_ok: self.chain_ok(),
+                    };
+                    return (report, outcome);
+                }
+            }
+        }
         for file in &changed {
             let Some(text) = self.files.get(file).map(|f| f.text.clone()) else {
                 // Closed and gone from disk: drop its modules.
@@ -689,18 +753,48 @@ impl Analysis {
             });
         let prelude = self.ensure_prelude();
         let mut checked_references = Vec::new();
-        let res = check::check_program_multi_full_probe_indexed(
-            &prelude.modules,
-            &modules,
-            &hashes,
-            &scx,
-            &adapters,
-            &crate::core::TargetProfile::native(),
-            probe_arg.as_ref(),
-            &mut checked_references,
-        );
+        let res: Result<CheckedRun, Error> = if probe_arg.is_some() {
+            check::check_program_multi_full_prepared(
+                &prelude.modules,
+                &modules,
+                &hashes,
+                &scx,
+                &adapters,
+                &crate::core::TargetProfile::native(),
+                probe_arg.as_ref(),
+                &mut checked_references,
+            )
+            .and_then(|(mut prepared, ifaces, stage, diags, probe_out)| {
+                prepared.finish_checks()?;
+                Ok(CheckedRun {
+                    ifaces,
+                    stage,
+                    diags,
+                    probe_out,
+                    prepared: Some(prepared),
+                })
+            })
+        } else {
+            check::check_program_multi_full_probe_indexed(
+                &prelude.modules,
+                &modules,
+                &hashes,
+                &scx,
+                &adapters,
+                &crate::core::TargetProfile::native(),
+                None,
+                &mut checked_references,
+            )
+            .map(|(_, ifaces, stage, diags, probe_out)| CheckedRun {
+                ifaces,
+                stage,
+                diags,
+                probe_out,
+                prepared: None,
+            })
+        };
         match res {
-            Ok((_, ifaces, stage, diags, probe_out)) => {
+            Ok(CheckedRun { ifaces, stage, diags, probe_out, prepared }) => {
                 for (module, declarations) in &stage.generated_syntax {
                     let Some(file) = self.modules.get(module).map(|state| state.file.clone()) else { continue };
                     let base = self.band_of(&file);
@@ -754,23 +848,12 @@ impl Analysis {
                     self.diags.entry(file).or_default();
                 }
                 if let Some(p) = probe_out {
-                    if let Some((scheme, text)) = &p.scheme {
-                        outcome.scheme = Some(text.clone());
-                        outcome.ty = Some(scheme.ty.clone());
-                    }
-                    if let Some(v) = &p.value {
-                        let ty = p
-                            .scheme
-                            .as_ref()
-                            .map(|(s, _)| s.ty.clone())
-                            .unwrap_or(Ty::Unit);
-                        outcome.value = Some(render_value(&ty, v));
-                    }
-                    outcome.eval_error = p.eval_error.clone();
-                    outcome.error = p.error.clone();
+                    outcome = outcome_from_probe(p);
                 }
+                self.prepared = prepared;
             }
             Err(e) => {
+                self.prepared = None;
                 for m in &slice {
                     self.ifaces.remove(m);
                 }

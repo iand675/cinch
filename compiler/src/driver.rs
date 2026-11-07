@@ -1525,6 +1525,28 @@ fn runtime_lock(shared: bool) -> Option<std::fs::File> {
     Some(file)
 }
 
+#[cfg(feature = "jit")]
+pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
+    let archive = ensure_runtime()?;
+    let dir = archive.parent().ok_or_else(|| Error::plain("runtime archive has no parent directory"))?;
+    let dylib = dir.join(format!("libcinchruntime.{}", std::env::consts::DLL_EXTENSION));
+    if dylib.exists() {
+        return Ok(dylib);
+    }
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let status = std::process::Command::new("cargo")
+        .args(["build", "--manifest-path"])
+        .arg(runtime.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(runtime.join("target"))
+        .status()
+        .map_err(|e| Error::plain(format!("failed to build the runtime shared library: {e}")))?;
+    if !status.success() || !dylib.exists() {
+        return Err(Error::plain("libcinchruntime shared library was not produced"));
+    }
+    Ok(dylib)
+}
+
 fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
@@ -1985,6 +2007,20 @@ pub fn run_program_objects(
         .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
     let _ = std::fs::remove_dir_all(&tmp);
     Ok(status.code().unwrap_or(1))
+}
+
+/// Compile a source file to LLVM IR and execute its `main` through the
+/// embedded ORC backend. The runtime is loaded as a shared library so JIT'd
+/// code resolves the same `cinch_*` boundary as a native build.
+#[cfg(feature = "jit")]
+pub fn jit_file(path: &Path) -> Result<i32> {
+    let tmp = tempfile::tempdir().map_err(|e| Error::plain(format!("jit scratch directory: {e}")))?;
+    let ir_path = tmp.path().join("program.ll");
+    driver_opts(Mode::EmitIr, path, Some(&ir_path), &DriverOptions::default())?;
+    let ir = std::fs::read_to_string(&ir_path)
+        .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    let runtime = ensure_runtime_dylib()?;
+    crate::jit::run_main(&ir, &runtime)
 }
 
 /// Compile and run a source string linked with extra objects; used by

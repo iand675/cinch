@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "cinch"
 path = "src/main.rs"
 
+[features]
+default = []
+jit = []
+
 [dependencies]
 crossterm = "0.28"
 ratatui = "0.29"

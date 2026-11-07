@@ -11,6 +11,6 @@ license = "UNLICENSED"
 
 [lib]
 name = "cinchruntime"
-crate-type = ["staticlib", "rlib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]

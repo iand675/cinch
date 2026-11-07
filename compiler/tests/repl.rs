@@ -212,6 +212,24 @@ fn runtime_backed_io_uses_the_native_compiler() {
 }
 
 #[test]
+fn warm_expressions_reuse_the_checked_session() {
+    let dir = std::env::temp_dir().join(format!("cinch-repl-warm-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let mut repl = Repl::with_root(&dir);
+    assert!(out(repl.eval("1 + 2")).contains("3 :: Int"));
+    let start = std::time::Instant::now();
+    for _ in 0..20 {
+        assert!(out(repl.eval("1 + 2")).contains("3 :: Int"));
+    }
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(8),
+        "20 warm expressions took {elapsed:?}; the prepared checker cache regressed"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn a_failed_load_keeps_the_previous_session() {
     let base = std::env::temp_dir().join(format!("cinch-repl-load-fail-{}", std::process::id()));
     let project = base.join("project");
