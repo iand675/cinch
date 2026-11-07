@@ -19325,10 +19325,10 @@
       },
       {
         "title": "Recheck late library copies with checked facade values",
-        "status": "running",
-        "phase": "original-fold",
-        "passed": 3,
-        "failed": 1,
+        "status": "completed-overlays-with-failures",
+        "phase": "original-algebra",
+        "passed": 4,
+        "failed": 2,
         "total": 6,
         "source": "4b9cc96eb7228d6d8fe8c18b4f4ca3b33519b6f7617763a3a54199fa30ff427f"
       },
@@ -19423,9 +19423,9 @@
       },
       {
         "title": "Run every Rust compiler target on the combined fixes",
-        "status": "waiting-worker",
-        "phase": "lib",
-        "passed": 2,
+        "status": "running",
+        "phase": "argv",
+        "passed": 3,
         "failed": 0,
         "total": 235,
         "source": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
@@ -19684,5 +19684,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T18:46:08.558302+00:00"
+  "updatedAt": "2026-11-07T18:47:10.513077+00:00"
 }
