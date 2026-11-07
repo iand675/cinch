@@ -18829,10 +18829,10 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "running",
+        "status": "failed",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "source": "03eb8c61195f2126f6fca534d95ce4acd046438a7d7197da9be5765a8bba1648"
       },
@@ -18856,8 +18856,8 @@
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
-        "status": "waiting-worker",
-        "phase": null,
+        "status": "running",
+        "phase": "core",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -18877,5 +18877,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:22:28.629187+00:00"
+  "updatedAt": "2026-11-07T07:25:31.274466+00:00"
 }
