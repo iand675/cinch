@@ -16579,570 +16579,570 @@
         "unit": "tests",
         "total": 43,
         "counts": {
-          "verified": 0,
+          "verified": 43,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 43
+          "recheck": 0
         },
-        "detail": "Older passing results remain visible; matching compiler/editor frontend execution is still required.",
+        "detail": "All original tests pass on current published inputs with audited Native8ba. Native editor integration stays separate from final self-built Cinch frontend acceptance.",
         "items": [
           {
             "id": "tooling:test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
             "title": "test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
             "title": "test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
             "title": "test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
             "title": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
             "title": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
             "title": "test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
             "title": "test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
             "title": "test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
             "title": "test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
             "title": "test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
             "title": "test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
             "title": "test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
             "title": "test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
             "title": "test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
             "title": "test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
             "title": "test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
             "title": "test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
             "title": "test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
             "title": "test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
             "title": "test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
             "title": "test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
             "title": "test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
             "title": "test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
             "title": "test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
             "title": "test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
             "title": "test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
             "title": "test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
             "title": "test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "tooling:test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           }
@@ -17154,518 +17154,518 @@
         "unit": "tests",
         "total": 39,
         "counts": {
-          "verified": 0,
+          "verified": 39,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 39
+          "recheck": 0
         },
-        "detail": "Older passing results remain visible; matching compiler/editor frontend execution is still required.",
+        "detail": "All original tests pass on current published inputs with audited Native8ba. Native editor integration stays separate from final self-built Cinch frontend acceptance.",
         "items": [
           {
             "id": "editor:test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
             "title": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
             "title": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
             "title": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
             "title": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
             "title": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
             "title": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
             "title": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
             "title": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
             "title": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
             "title": "test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
             "title": "test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
             "title": "test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
             "title": "test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
             "title": "test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
             "title": "test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
             "title": "test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
             "title": "test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
             "title": "test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
             "title": "test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
             "title": "test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
             "title": "test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
             "title": "test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
             "title": "test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
             "title": "test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
             "title": "test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
             "title": "test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
             "title": "test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
             "title": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_01_clean_diagnostics (test_lsp.NativeLspTests)",
             "title": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
             "title": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
             "title": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
             "title": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
             "title": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
             "title": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
             "title": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
             "title": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
             "title": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
             "title": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           },
           {
             "id": "editor:test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
             "title": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
-            "state": "recheck",
-            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "state": "verified",
+            "detail": "Passed the complete current tooling/editor suite with audited Native8ba; final Cinch-built language coverage remains separate.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-tooling-editor-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "cases": []
             }
           }
@@ -18477,8 +18477,8 @@
       },
       {
         "title": "Cinch source-file diagnostics: complete groups",
-        "status": "waiting-optimized-host",
-        "phase": null,
+        "status": "running",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -18521,10 +18521,10 @@
       },
       {
         "title": "Result-inference source: Native and earlier self-built checks",
-        "status": "running",
+        "status": "failed",
         "phase": "earlier-stage3-44",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "source": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
@@ -18601,6 +18601,26 @@
         "auditPending": false
       },
       {
+        "title": "Cinch diagnostic origins: full compiler/object gate",
+        "status": "passed",
+        "phase": "bootstrap_library_object",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+        "auditPending": false
+      },
+      {
+        "title": "Cinch diagnostic origins: original API/default groups",
+        "status": "waiting-shared-worker",
+        "phase": null,
+        "passed": 0,
+        "failed": 0,
+        "total": 10,
+        "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+        "auditPending": false
+      },
+      {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
         "phase": "bootstrap_checked_program",
@@ -18622,11 +18642,11 @@
       }
     ],
     "counts": {
-      "verified": 331,
+      "verified": 413,
       "blocked": 4,
       "running": 6,
       "pending": 107,
-      "recheck": 219
+      "recheck": 137
     },
     "total": 667,
     "acceptanceVerified": 0,
@@ -18634,5 +18654,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:36:13.934523+00:00"
+  "updatedAt": "2026-11-07T01:39:31.438623+00:00"
 }
