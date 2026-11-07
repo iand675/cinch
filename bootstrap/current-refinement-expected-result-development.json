@@ -11,6 +11,9 @@
   "patch_application_independently_verified": true,
   "patch_sha256": "79f29b05174960e6794451f9f1e7d0f6fe3aa2ff72ee49b187d255133be24bfd",
   "private_cinch_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
-  "scope": "Generic calls checked against structural refinements receive the full expected result carrier before their arguments are checked. Comparison-only expected refinements still hint their container and re-enter by evidence. All17 Native controls pass, including direct/nested/extracted and mixed structural results, no forged NonZero and preserved numeric projection. All original sources and assertions remain. Actual Cinch eight-group validation is running; the unchanged original mconcat runtime and matching final self-built compiler remain required. The complete original NamedRefinements target now passes with all17 added structural controls. The other seven complete groups, original mconcat runtime and matching final bootstrap remain required.",
-  "status": "reviewable-private-structural-refinement-result-hint-under-validation"
+  "scope": "Generic calls checked against structural refinements receive the full expected result carrier before their arguments are checked. Comparison-only expected refinements still hint their container and re-enter by evidence. All17 Native controls pass, including direct/nested/extracted and mixed structural results, no forged NonZero and preserved numeric projection. All original sources and assertions remain. Actual Cinch eight-group validation is running; the unchanged original mconcat runtime and matching final self-built compiler remain required. The complete original NamedRefinements target now passes with all17 added structural controls. The other seven complete groups, original mconcat runtime and matching final bootstrap remain required. All eight complete component groups (ten Rust tests) now pass independent audit with every original test/assertion retained. The original mconcat runtime remains separately required.",
+  "status": "reviewable-private-structural-refinement-result-hint-under-validation",
+  "whole_component_groups_passed": 8,
+  "whole_component_rust_tests_passed": 10,
+  "component_receipt": "bootstrap/current-refinement-expected-result-component-results.json"
 }

@@ -1,0 +1,37 @@
+{
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "compiler_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+  "failed_initial_candidate_preserved": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-origins-validation-1/state.json",
+  "full_goal_complete": false,
+  "native_rlib_sha256": "28fc6a79877135149049c3ac8ab2519f22d509a4fe3ecf6c82c992fe5f751709",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_pipeline_and_resolver_and_source_instance_assertions_retained": true,
+  "runs": [
+    {
+      "log_sha256": "79362b0ddf13bd71ae3cec0dddf98fc63917d048424427d42d6fd9ebf6ad77de",
+      "name": "bootstrap_pipeline",
+      "observed_zero_leak_reports": 0,
+      "tests": 2
+    },
+    {
+      "log_sha256": "adb4cc6d80c0572caf0b64b4a7412ce8aa4f5b75eb2fb7e2874ff684e98c2f77",
+      "name": "bootstrap_resolve",
+      "observed_zero_leak_reports": 1,
+      "tests": 1
+    },
+    {
+      "log_sha256": "4dc5c13ae1c75ebd78b09f22e3c0adb70f914419a9f2f492970d4ba5c5bd5884",
+      "name": "bootstrap_source_instances",
+      "observed_zero_leak_reports": 0,
+      "tests": 3
+    }
+  ],
+  "rust_tests": 6,
+  "scope": "Whole original component targets with zero ignored or filtered Rust tests. This is development compiler evidence, not a matching final self-built compiler or complete-suite signoff.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/source-default-origins-validation-3/source",
+  "source_origin_controls": 7,
+  "source_sha256": "4ece32b748e767f72fe5e92e78a9b42b82aa3e4c0bdcd2559dc7b6d7e0a1fe8f",
+  "status": "audited-complete-development-component-groups",
+  "verified_at": "2026-11-07T02:21:13.704799+00:00",
+  "whole_groups": 3
+}

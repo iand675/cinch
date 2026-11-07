@@ -31,8 +31,9 @@ Candidate2866 preserves a structural expected result when hinting a call, while
 comparison-only refinements still hint their container. All17 Native controls
 and the complete original Cinch NamedRefinements target pass. The full44-module
 compiler/object gate also passes independent audit:9 tests,17 C clients and50
-zero-leak reports. The remaining complete component groups and original runtime
-replay remain required. See
+zero-leak reports. All8 complete component groups (10 Rust tests) also pass independent audit; the
+original runtime replay remains required. See
+`bootstrap/current-refinement-expected-result-component-results.json`. See
 `bootstrap/current-refinement-expected-result-compiler-results.json`. Its patch and
 evidence are in `bootstrap/current-refinement-expected-result-development.json`. The
 superseded broad range-preservation assumption and subsequent fixture/cache-guard
@@ -48,7 +49,9 @@ and bundled position. Seven renderer controls pass. The first candidate's
 reserved-word parse error and the second run's inherited stale FFI diagnostic
 assertions remain recorded. The third complete pipeline/resolver/source-instance
 run retains the already-published fa405 FFI diagnostic correction, its positive
-ABI control and all original refusal sources. Native accepts all44 modules;
+ABI control and all original refusal sources. All3 complete groups (6 Rust tests)
+now pass independent audit; see
+`bootstrap/current-source-origin-component-results.json`. Native accepts all44 modules;
 earlier self-built4f refuses one guarded Nat subtraction and two pattern-coverage
 checks in the new helper. Cut-down differential probes are queued. The latest
 actual14a8 compiler now passes all9 complete compiler/object tests,17 C clients

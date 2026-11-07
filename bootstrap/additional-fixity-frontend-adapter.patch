@@ -1,0 +1,28 @@
+diff --git a/compiler/tests/fixity_interfaces.rs b/compiler/tests/fixity_interfaces.rs
+--- a/compiler/tests/fixity_interfaces.rs
++++ b/compiler/tests/fixity_interfaces.rs
+@@ -12,9 +12,23 @@
+ //!      consumer checked against the interface alone still parses the
+ //!      operator.
+
+-use cinch::driver::{check_sources, driver, Mode};
++mod common;
++use cinch::driver::Mode;
+ use std::path::PathBuf;
+ use std::sync::atomic::{AtomicUsize, Ordering};
++
++// Only frontend dispatch changes. Every original source and assertion stays.
++fn check_sources(source: &str, _name: &str) -> Result<(), String> {
++    let dir = common::project("additional_fixity_single", &[("Main.cinch", source)]);
++    let frontend = common::external_frontend::configured()?.ok_or("explicit Cinch frontend required; no Native fallback")?;
++    let result = common::external_frontend::drive(&frontend, Mode::Check, &dir, "Main.cinch", None);
++    if result.is_ok() { common::cleanup(&dir); }
++    result.map(|_| ())
++}
++fn driver(mode: Mode, path: &std::path::Path, output: Option<std::path::PathBuf>) -> Result<i32, String> {
++    let frontend = common::external_frontend::configured()?.ok_or("explicit Cinch frontend required; no Native fallback")?;
++    common::external_frontend::drive(&frontend, mode, path.parent().ok_or("entry has no parent")?, path.file_name().and_then(|s| s.to_str()).ok_or("entry is not UTF-8")?, output)
++}
+
+ /// Claim 1: the single-source path carries the imported fixity.
+ #[test]
