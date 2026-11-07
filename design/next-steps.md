@@ -70,6 +70,14 @@ In the 4,096-character paired runtime probe, elapsed time fell from 17.8
 seconds to 0.26 seconds. The running ladder retains its pinned library inputs.
 See [the string tests and timing measurements](../bootstrap/current-schema10-linear-string-results.json).
 
+The consolidated producer combines the byte-observation, task-capture and
+string fixes with the library variants requested by the original examples.
+It reproduced all 55 repaired interface identities and passed the separate
+Stage1 client. On the same Native inputs, all 171 runtime tests, 42 tooling
+tests and the eight allocation tests passed. The complete 235-target Rust
+sweep and the consolidated ladder with named proofs are running separately.
+See [the consolidated provider and scoped suites](../bootstrap/current-schema10-consolidated-provider-results.json).
+
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate
 interface consumer and changed-source test.

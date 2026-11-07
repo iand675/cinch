@@ -1,0 +1,43 @@
+{
+  "checked_at": "2026-11-07T16:00:46.826804+00:00",
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "full_goal_complete": false,
+  "interface_count": 55,
+  "library_roots_sha256": "85d6f1a1a5f8dfed4f8406a2775b411d2f93e057e0ace27aca4c76dde3033616",
+  "library_sha256": "3b37467f2d559b9cf233b2eef847b58b81ec3e35727802f755ef6fa23ddbfdd9",
+  "matching_repaired_interface_identities": true,
+  "native_scope": {
+    "alloc_accounting": {
+      "log_sha256": "b175dcbe082e9f30cb891ae896f518cd6658387ca4cf7b1ae8404674f19566b6",
+      "tests_passed": 8
+    },
+    "complete-runtime-suite": {
+      "log_sha256": "9be72734097164588a2d137e24b09ff956fafc0de5c740ed8919f6ec0d380cba",
+      "tests_passed": 171
+    },
+    "complete-tooling-suite": {
+      "log_sha256": "cfb80d4352683b76d9c6d40ff214731533a0cd09ca2a4293048a687628159558",
+      "tests_passed": 42
+    }
+  },
+  "native_source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25",
+  "native_suite_revision": "345e12ede560550077fd6bfd4bc0fc3dc2b0a858",
+  "native_suite_target_count": 235,
+  "producer": {
+    "description": "ABI 6 Rust library producer for checked schema 10 interfaces.",
+    "revision": "345e12ede560550077fd6bfd4bc0fc3dc2b0a858",
+    "runtime_abi": 6,
+    "schema": 1,
+    "source_sha256": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
+  },
+  "retired_allocation_replay_log_sha256": "36dc99375166b224d725c3d4c7eb54ddbfe70af087e338ee86a907ad79b9fd9a",
+  "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
+  "stage1_client": {
+    "compiler_sha256": "b90730ef5c8e58e8b6c094de19476349dfc3d2e59819e3338e473b97596675d5",
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "name": "separate Stage1 byte-observation client",
+    "source_sha256": "622e2de431946af2549b30b6680f438b9b7000a4e636cadfd042b636587939d8",
+    "status": "passed"
+  },
+  "status": "audited-consolidated-provider-and-complete-runtime-tooling"
+}

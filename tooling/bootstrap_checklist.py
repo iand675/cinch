@@ -907,6 +907,31 @@ def build_checklist(root, cfg, previous=None):
             phase='Stage1 rebuilt all 46 compiler modules and Stage2 passed all three smoke cases.',
             passed=1, failed=0, total=1, source=repaired_stage2['compiler_source_sha256'],
             evidence=link(repaired_stage2_path)))
+    consolidated_path = 'bootstrap/current-schema10-consolidated-provider-results.json'
+    consolidated = read(root / consolidated_path)
+    if consolidated.get('status') == 'audited-consolidated-provider-and-complete-runtime-tooling':
+        active.append(dict(title='Verify the consolidated library, runtime and tooling', status='passed',
+            phase='All 55 interfaces, the Stage1 client, 171 runtime tests and 42 tooling tests passed.',
+            passed=4, failed=0, total=4, source=consolidated['compiler_source_sha256'],
+            evidence=link(consolidated_path)))
+    native_sweep = read(cfg.get('schema10ConsolidatedNativeSweep'))
+    if native_sweep:
+        status = native_sweep['status']
+        rows = native_sweep['rows']
+        active.append(dict(title='Run every Rust compiler target on the combined fixes',
+            status='passed' if status == 'passed-complete-native-runtime-and-tooling' else status,
+            phase=native_sweep.get('phase', 'Waiting for a worker'),
+            passed=sum(row['status'] == 'passed' for row in rows),
+            failed=sum(row['status'] == 'failed' for row in rows), total=native_sweep['total_groups'],
+            source=native_sweep['native_source_sha256']))
+    proof_chain = read(cfg.get('schema10ConsolidatedProofChain'))
+    if proof_chain:
+        status = proof_chain['status']
+        active.append(dict(title='Bootstrap the consolidated compiler with named proofs',
+            status='running' if status.startswith(('building-', 'checking-')) else status,
+            phase=status.replace('-', ' '), passed=len(proof_chain['stages']),
+            failed=int(status == 'failed'), total=4, source=proof_chain['compiler_source_sha256'],
+            auditPending=status == 'passed-consolidated-proof-ladder-awaiting-independent-audit'))
     reflexivity_path = 'bootstrap/current-schema10-reflexivity-core-results.json'
     reflexivity = read(root/reflexivity_path)
     if reflexivity.get('status') == 'passed-development-reflexivity-core':
