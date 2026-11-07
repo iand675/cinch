@@ -853,15 +853,28 @@ def build_checklist(root, cfg, previous=None):
         ('schema10ExternalVariantReplay3', 'Replay the three programs with both required Functor variants', 3),
         ('schema10MainTaskValidation', 'Rust task capture, units and arrays on schema 10', 3),
         ('schema10DiagnosticScanValidation', 'Replay the full pipeline with the diagnostic byte scan', 2),
+        ('schema10DiagnosticScanPipelineReplay', 'Retry the byte-scan pipeline with both runtime archives', 1),
+        ('schema10ProofReflexivityValidation', 'Check erased Eq witnesses in Core and the source pipeline', 2),
     ):
         run = read(cfg.get(key))
         if run:
-            rows = [row for row in run.get('rows', []) if not row['name'].startswith('compile-')]
+            rows = [row for row in run.get('rows', []) if not row['name'].startswith(('build-', 'compile-'))]
             active.append(dict(title=title, status=run['status'],
                 phase=(run.get('phase') or run['status']).replace('-', ' '),
                 passed=sum(row.get('status') == 'passed' for row in rows),
                 failed=sum(row.get('status') == 'failed' for row in rows), total=total,
                 source=run.get('compiler_source_sha256')))
+    diagnostic_probe = read(cfg.get('schema10Stage2DiagnosticProbe'))
+    if diagnostic_probe:
+        status = diagnostic_probe['status']
+        exit_code = diagnostic_probe.get('exit_code')
+        if exit_code is not None:
+            status = 'passed' if exit_code == 0 else 'failed'
+        active.append(dict(title='Probe the original Stage2 source with faster diagnostics', status=status,
+            phase=(diagnostic_probe.get('phase') or diagnostic_probe['status']).replace('-', ' '),
+            passed=int(bool(diagnostic_probe.get('stage1_sha256'))) + int(exit_code == 0),
+            failed=int(exit_code not in (None, 0)), total=2,
+            source=diagnostic_probe['compiler_source_sha256']))
     replay_path = 'bootstrap/current-schema10-external-replay-results.json'
     replay = read(root/replay_path)
     if replay.get('status') == 'audited-external-language-replays':

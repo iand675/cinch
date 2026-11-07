@@ -9,6 +9,11 @@ are tracked separately from the completed first schema 10 fixed point.
 See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
+The stricter Stage2 is spending CPU in character scans. A separate Stage1
+with the byte-scanning diagnostic renderer passed its smoke tests. It will
+compile the same frozen Stage2 bundle with the same library to test whether
+the scan is hiding a refusal. The original build is still running.
+
 The first schema 10 Stage3 passed 6 of 13 original valid language examples.
 All 21 invalid examples were refused, with 8 meeting their original diagnostic
 and source-location assertions. Three valid programs reached code generation
