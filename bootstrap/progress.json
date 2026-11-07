@@ -19406,8 +19406,8 @@
       {
         "title": "Replay original clients with checked refinement formers",
         "status": "running",
-        "phase": "function-family-laws",
-        "passed": 0,
+        "phase": "foldable-nonempty",
+        "passed": 1,
         "failed": 0,
         "total": 6,
         "unit": "client cases",
@@ -19882,5 +19882,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:34:59.747972+00:00"
+  "updatedAt": "2026-11-07T23:36:01.463968+00:00"
 }
