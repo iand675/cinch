@@ -18440,14 +18440,14 @@
       },
       {
         "title": "Cinch refined containers: complete groups",
-        "status": "running",
+        "status": "passed-refinement-container-components",
         "phase": "bootstrap_function_preconditions",
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "total": 8,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Cinch class/instance diagnostics: complete groups",
@@ -18462,12 +18462,12 @@
       },
       {
         "title": "Cinch source-file diagnostics: complete groups",
-        "status": "failed",
+        "status": "running",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 3,
-        "source": "dc4651292a96fc2812a5f804b582af2905300b3d25b4dddc7767a9819ca9ee2a",
+        "source": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
         "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
@@ -18534,9 +18534,9 @@
       {
         "title": "Cinch structural refinements: original API/default groups",
         "status": "running",
-        "phase": "interface_class_contracts",
-        "passed": 1,
-        "failed": 0,
+        "phase": "interface_refinement_closure",
+        "passed": 5,
+        "failed": 1,
         "total": 10,
         "source": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
         "auditPending": false
@@ -18575,5 +18575,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:06:41.592284+00:00"
+  "updatedAt": "2026-11-07T01:07:43.548278+00:00"
 }
