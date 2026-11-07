@@ -19396,8 +19396,8 @@
       {
         "title": "Run String equality and Foldable against the expanded object",
         "status": "running",
-        "phase": "unicode-equality-and-inequality",
-        "passed": 3,
+        "phase": "original-foldable-free-list",
+        "passed": 4,
         "failed": 0,
         "total": 5,
         "unit": "client cases",
@@ -19832,5 +19832,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:08:58.558343+00:00"
+  "updatedAt": "2026-11-07T23:10:00.399623+00:00"
 }
