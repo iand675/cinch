@@ -547,7 +547,7 @@
   "candidateSource": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 14 of 105 targets passing, 3 failed and 88 still running or queued.",
+  "summary": "Cinch 5bf127d9 rebuilt itself to matching Stage2 and Stage3 and passed the changed-source check. Its original frontend sweep has 15 of 105 targets passing, 3 failed and 87 still running or queued.",
   "activity": "The independently audited integrated build is running all 105 frontend targets. Open the test inventory for live failures and the repairs being replayed.",
   "checklist": {
     "version": 1,
@@ -691,9 +691,9 @@
         "id": "gap:imported-defaults",
         "title": "Use one interface format for class defaults",
         "state": "running",
-        "detail": "The schema 9 candidate carries one checked clause array in each default. All 15 Rust default and interface tests passed, including the real mconcat body. The Cinch inheritance replay and library rebuild are tracked separately.",
+        "detail": "The schema 9 candidate uses one checked clause array per default. All 15 Rust default and interface tests passed. A Cinch-built consumer inherited both producers\u2019 defaults, and the rebuilt provider verified all 55 library interfaces. The combined candidate is replaying the full component groups and preparing a fresh bootstrap.",
         "doneWhen": "Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/design/compiled-interface-metadata.md"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-default-replay-results.json"
       },
       {
         "id": "gap:laws",
@@ -11898,8 +11898,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 87,
-          "recheck": 18
+          "pending": 86,
+          "recheck": 19
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12095,16 +12095,16 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
               "startedAt": "2026-11-07T09:08:53.418862+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T09:13:17.362323+00:00",
+              "exitCode": 0,
+              "logSha256": "630304b5faf80c17f187538d21e7230234c4d399858c42715368a07ea63dc38f",
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12136,18 +12136,23 @@
           {
             "id": "stage3:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
-              "startedAt": null,
+              "startedAt": "2026-11-07T09:13:18.915971+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14006,9 +14011,9 @@
         ],
         "observedCounts": {
           "failed": 3,
-          "passed": 14,
+          "passed": 15,
           "running": 1,
-          "pending": 87
+          "pending": 86
         },
         "observedSource": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
       },
@@ -18176,8 +18181,8 @@
       {
         "title": "Integrated self-built Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types",
-        "passed": 14,
+        "phase": "bootstrap_argument_scopes",
+        "passed": 15,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185"
@@ -18764,8 +18769,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types",
-        "passed": 14,
+        "phase": "bootstrap_argument_scopes",
+        "passed": 15,
         "failed": 3,
         "total": 105,
         "source": "5bf127d9e32af67283efec39f6c337cd587ef3712dd6effe33537249bb673185",
@@ -18835,12 +18840,21 @@
         "source": "5e60a3bedeecacc8f80cf5defda3c6825e9f996df76a75c979406230425f5e5a"
       },
       {
-        "title": "Schema 9: source admission, imported defaults and pipeline",
-        "status": "failed",
-        "phase": "separate-imported-default",
+        "title": "Schema 9: source admission, imported defaults, runtime and pipeline",
+        "status": "running",
+        "phase": "checking all 44 schema 9 modules through exact Stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 5,
+        "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
+      },
+      {
+        "title": "Schema 9: Native owner to Cinch consumer",
+        "status": "passed",
+        "phase": "Cinch inherits the checked default from the Native artifact and its authenticated dependencies",
         "passed": 1,
-        "failed": 1,
-        "total": 4,
+        "failed": 0,
+        "total": 1,
         "source": "ceb02b36b4954259d906d6fd29ae7c79a3e14805e3c21133ffc61d01b6b64311"
       },
       {
@@ -18854,12 +18868,12 @@
       },
       {
         "title": "Schema 9 development bootstrap",
-        "status": "failed-prerequisite",
+        "status": "waiting-for-schema9-inheritance-and-provider",
         "phase": "Fresh Stage1, Stage2 and Stage3 with the checked development provider",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 4,
-        "source": "c7022419c62e87a276a2834fa605cc54bf41ab8b4928d02ac944d41482a6dd39"
+        "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
@@ -18875,8 +18889,8 @@
       "verified": 489,
       "blocked": 5,
       "running": 10,
-      "pending": 93,
-      "recheck": 77
+      "pending": 92,
+      "recheck": 78
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18884,5 +18898,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T09:09:11.675252+00:00"
+  "updatedAt": "2026-11-07T09:14:54.279825+00:00"
 }
