@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "101 of 235 complete groups passed; 1 running, 0 failed and 133 pending.Every group includes ignored tests. State: running.",
+      "detail": "103 of 235 complete groups passed; 1 running, 0 failed and 131 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "101 of 235 complete groups passed; 1 running, 0 failed and 133 pending."
+      "detail": "103 of 235 complete groups passed; 1 running, 0 failed and 131 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,10 +790,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 109,
+          "verified": 111,
           "blocked": 0,
           "running": 1,
-          "pending": 125,
+          "pending": 123,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -8598,17 +8598,17 @@
           {
             "id": "native:prelude_lib",
             "title": "prelude_lib",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/prelude_lib.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:28:47.188331+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:29:12.360859+00:00",
+              "exitCode": 0,
+              "logSha256": "b8b2cb2cf7da1c1e4e72ebfa1575091ca5db8ac3f17d0dc78da986a527990db2",
               "cases": [
                 {
                   "name": "bits_class_is_generic",
@@ -8632,7 +8632,35 @@
                 },
                 {
                   "name": "modulo_and_division_on_math_types",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "string_char_at_sees_code_points",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_concat_slice_and_order",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_equality_instance",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_from_bytes_validates_utf8",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_library_type_errors_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_nat_and_int_formatting",
+                  "status": "passed"
+                },
+                {
+                  "name": "string_rejects_malformed_utf8",
+                  "status": "passed"
                 }
               ]
             },
@@ -8641,17 +8669,17 @@
           {
             "id": "native:prelude_split",
             "title": "prelude_split",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/prelude_split.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:22:12.181156+00:00",
-              "finishedAt": "2026-11-06T14:22:53.076847+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:29:12.362882+00:00",
+              "finishedAt": "2026-11-07T00:29:53.701988+00:00",
               "exitCode": 0,
-              "logSha256": "0356f97339689ba96fee6aec5f86bc7f7a0a2910289f5d2edd542e5ec90b5ec0",
+              "logSha256": "7ead7c5b8de41194212f6ee1762e9f481d7bc0e5ec9109351cec938283f2d348",
               "cases": [
                 {
                   "name": "bare_class_laws_keep_symbolic_indices_when_the_definition_is_erased",
@@ -8724,17 +8752,17 @@
           {
             "id": "native:prim",
             "title": "prim",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/prim.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:22:53.085631+00:00",
-              "finishedAt": "2026-11-06T14:23:25.314027+00:00",
-              "exitCode": 0,
-              "logSha256": "7d5131e34247baee8a9e3bf8a7c8725deb672e00e6dce80801fbd78c2e6d5249",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:29:53.704129+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "assumed_prim_identity_is_the_body_hash",
@@ -8742,67 +8770,7 @@
                 },
                 {
                   "name": "capability_scoped_selection_is_manifest_only",
-                  "status": "passed"
-                },
-                {
-                  "name": "clr_and_jvm_body_slots_are_reserved",
-                  "status": "passed"
-                },
-                {
-                  "name": "conditional_only_prims_reject_naming_the_missing_platform",
-                  "status": "passed"
-                },
-                {
-                  "name": "containment_rejects_a_pure_row_with_stores_even_unsafe",
-                  "status": "passed"
-                },
-                {
-                  "name": "effectful_body_fails_containment_naming_effects",
-                  "status": "passed"
-                },
-                {
-                  "name": "effectful_prim_calls_invalidate_per_row",
-                  "status": "passed"
-                },
-                {
-                  "name": "escaping_body_fails_containment_naming_no_escape",
-                  "status": "passed"
-                },
-                {
-                  "name": "extra_parameters_fail_containment_naming_signature_discipline",
-                  "status": "passed"
-                },
-                {
-                  "name": "intrinsic_families_migrate_onto_prim_bodies",
-                  "status": "passed"
-                },
-                {
-                  "name": "justified_prim_records_its_law_identity",
-                  "status": "passed"
-                },
-                {
-                  "name": "platform_gated_asm_bodies_select_per_arch",
-                  "status": "passed"
-                },
-                {
-                  "name": "prim_with_llvm_and_asm_bodies_checks_and_compiles",
-                  "status": "passed"
-                },
-                {
-                  "name": "pure_prim_calls_leave_evidence_intact_and_carry_memory_none",
-                  "status": "passed"
-                },
-                {
-                  "name": "unsafe_pure_prim_records_its_assumption_and_stays_scan_gated",
-                  "status": "passed"
-                },
-                {
-                  "name": "unverifiable_bodies_without_unsafe_are_rejected",
-                  "status": "passed"
-                },
-                {
-                  "name": "unwinding_body_fails_containment_naming_no_unwind",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18425,8 +18393,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "prelude_lib",
-        "passed": 101,
+        "phase": "prim",
+        "passed": 103,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18444,10 +18412,10 @@
       }
     ],
     "counts": {
-      "verified": 281,
+      "verified": 283,
       "blocked": 4,
       "running": 6,
-      "pending": 164,
+      "pending": 162,
       "recheck": 212
     },
     "total": 667,
@@ -18456,5 +18424,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:28:58.124335+00:00"
+  "updatedAt": "2026-11-07T00:30:00.373384+00:00"
 }
