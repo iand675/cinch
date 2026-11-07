@@ -18969,9 +18969,9 @@
       },
       {
         "title": "Schema 9 bootstrap with the production pin",
-        "status": "building-stage1",
-        "phase": "building stage1",
-        "passed": 1,
+        "status": "building-stage2",
+        "phase": "building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
@@ -19007,5 +19007,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:13:10.031993+00:00"
+  "updatedAt": "2026-11-07T10:14:12.175877+00:00"
 }
