@@ -18674,12 +18674,12 @@
       },
       {
         "title": "Cinch copyOut: pipeline and runtime IR",
-        "status": "failed",
+        "status": "running",
         "phase": "bootstrap_pipeline",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 2,
-        "source": "6277dac303c682a853d9c784b32135b42f2af45d409aef558d46a1b020d01c4d"
+        "source": "a5c263abb412b0a509ed690506633f47d4a6da8e0716736030c6d6f7039e704c"
       },
       {
         "title": "Cinch class-law samples and counterexamples",
@@ -18692,12 +18692,12 @@
       },
       {
         "title": "Cinch imported defaults: source admission and two complete groups",
-        "status": "failed-interrupted-with-test-failure",
-        "phase": "bootstrap_source_instances",
-        "passed": 1,
+        "status": "running",
+        "phase": "checking all 44 portable-default modules through exact Stage3",
+        "passed": 0,
         "failed": 0,
         "total": 3,
-        "source": "0f0e9b72c4bb81fcb35caa74064fc89aeb4a60b9319836a123b109c5cdc906cd"
+        "source": "5e60a3bedeecacc8f80cf5defda3c6825e9f996df76a75c979406230425f5e5a"
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
@@ -18722,5 +18722,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:26:00.072630+00:00"
+  "updatedAt": "2026-11-07T08:29:02.672202+00:00"
 }
