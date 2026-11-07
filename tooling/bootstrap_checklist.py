@@ -289,10 +289,11 @@ def build_checklist(root, cfg, previous=None):
     coverage_runtime=read(cfg.get('inferredCaseCoverageRuntimeReceipt'))
     function_defaults=read(cfg.get('functionDefaultApiReceipt'))
     source_overlay=read(cfg.get('sourceInterfaceOverlayReceipt'))
+    early_base=read(cfg.get('sourceOverlayBaseScopeReceipt'))
     default_detail='Latest75fb passes all seven complete default/dependent component groups (nine tests), all nine full compiler/object tests and both original strict-value runtime/build tests. Original API/default replay:16/21 tests pass; source-Prelude, three diagnostic assertions and the refinement runtime client remain failures. Imported checked default transport and matching final bootstrap remain required.'
     gaps=[
         item('gap:prelude','Replace source copies of library modules safely','blocked'if 'interface_prelude_overrides'in failed_api else'pending',
-             'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
+             'Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra now resolves Nil, None, Cons and Some and stops at the class law.' if early_base else 'The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.' if source_overlay else 'The current interface/API run fails when source Data.Core is supplied alongside its cached interface. All four original families remain required.',
              'Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.',link('bootstrap/current-source-overlay-family-probes.json' if source_overlay else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:source-defaults','Check and inherit source class defaults','running',default_detail if default_receipt else 'Development compiler8fce passes all15 controls in a retained-checker replay with the corrected Rust oracle; complete groups and runtime integration remain separate.',
              'All source default controls, unused errors, generic scopes, metadata stability, runtime and original class-default behavior pass.',link('bootstrap/current-source-class-default-development.json')),
@@ -318,8 +319,9 @@ def build_checklist(root, cfg, previous=None):
              'Inherited imported defaults retain owner scope, private closure, actual method contracts and compiled behavior; missing or stale contracts refuse.',link('design/compiled-interface-metadata.md')),
         item('gap:laws','Elaborate source class laws and declarations','pending','The exact Category.Functor probe rejects map-identity and map-compose as well as the structural Functor_Function instance. Algebra.Semigroup rejects assoc.',
              'Retain and check the original class laws and namespace declarations; pass all original family and law assertions.',link('design/next-steps.md')),
-        item('gap:base-names','Restore source-family implicit base names','pending','With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.',
-             'Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.',link('bootstrap/current-source-prelude-counterexample.json')),
+        item('gap:base-names','Restore source-family implicit base names','running' if early_base else 'pending',
+             'The development compiler now resolves the original Algebra.Semigroup constructors. Explicit and implicit Data.Core usage give the same checked contract and exact dependency hash; qualified access still requires an import.' if early_base else 'With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.',
+             'Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.',link('bootstrap/current-source-overlay-base-scope-results.json' if early_base else 'bootstrap/current-source-prelude-counterexample.json')),
         item('gap:task-callback','Reject mutable task captures hidden by callbacks','blocked',
              'A Rust development patch rejects the original unsafe local callback, keeps safe aliases accepted, and passes all concurrency and unit tests. The published compiler still accepts the counterexample.',
              'The callback carries checked capture, transfer and lifetime facts. The published Rust and Cinch compilers refuse the unsafe capture and accept safe callbacks.',link('bootstrap/current-native-local-task-capture-results.json')),
@@ -452,6 +454,16 @@ def build_checklist(root, cfg, previous=None):
                 passed=sum(r.get('status') == 'passed' for r in rows),
                 failed=sum(r.get('status') == 'failed' for r in rows), total=total,
                 source=state.get('compiler_source_sha256'), earlier=title.startswith('Earlier')))
+
+    candidate_frontend = read(cfg.get('currentStage3FrontendValidation'))
+    if candidate_frontend:
+        rows = candidate_frontend.get('rows', [])
+        status = candidate_frontend.get('status')
+        active.append(dict(title='Current candidate: complete Stage3 frontend sweep', status=status,
+            phase=candidate_frontend.get('phase') or ('Waiting for independent Stage3 audit' if status == 'waiting-matching-stage3-audit' else None),
+            passed=sum(r.get('status') == 'passed' for r in rows),
+            failed=sum(r.get('status') == 'failed' for r in rows),
+            total=candidate_frontend['total_groups'], source=candidate_frontend.get('compiler_source_sha256')))
 
     all_rows=acceptance+gaps+[r for s in suites for r in s['items']]
     assert len({r['id']for r in all_rows})==len(all_rows)

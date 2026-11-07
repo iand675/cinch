@@ -1,0 +1,92 @@
+{
+  "checked_data_core_dependency_hash": "3420315651835929958",
+  "checked_data_set_contract_hash": "14110324645128226578",
+  "compiler_sha256": "f355868db5b18d4ce9c91aa33caf2290e2a8a874762a21e4cda72fd725916907",
+  "compiler_source_sha256": "dd1c20b4c1c3d78825718cd6fe7c055ea220e8227f12911f4dc8d8e864204f0e",
+  "full_goal_complete": false,
+  "rows": {
+    "algebra": {
+      "bundle_sha256": "af8b4b66ee0622528048a55d59c942fcd5a5297e84f19302ead76b707223cad5",
+      "diagnostic": "bootstrap.resolve:34:5: source signature member needs checked default or declaration elaboration\n",
+      "exit_code": 4,
+      "family": "algebra",
+      "interfaces": {},
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {
+        "Algebra/Monoid.cinch": "7f71172956f30dbc67374308cbb6a582b905921936183ff366d2a05c56e05258",
+        "Algebra/Semigroup.cinch": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e"
+      }
+    },
+    "category": {
+      "bundle_sha256": "f0bebf1f5a067186d12b9916ed63f7046e90beee0e2579194cef4ee7ca32b412",
+      "diagnostic": "bootstrap.resolve:43:5: source signature member needs checked default or declaration elaboration\nbootstrap.resolve:44:5: source signature member needs checked default or declaration elaboration\nbootstrap.resolve:49:3: this declaration requires further namespace elaboration\n",
+      "exit_code": 4,
+      "family": "category",
+      "interfaces": {},
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {
+        "Category/Applicative.cinch": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+        "Category/Functor.cinch": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1"
+      }
+    },
+    "core": {
+      "bundle_sha256": "f7593a172d5c975a0ae110cd6d44e2421c1b3a3446570ffd57985151149ca846",
+      "diagnostic": "",
+      "exit_code": 0,
+      "family": "core",
+      "interfaces": {
+        "core.Data.Core.cinchif": "c16acaf1ce988878a16a1fa0540fb0e45841a22fc435bbbf37d5a3cad41d9aec",
+        "core.Main.cinchif": "468690959df03e61f43714306f3952bad5f7a1eb07a704f044b5a89d87ed3e11"
+      },
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {
+        "Data/Core.cinch": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106"
+      }
+    },
+    "early-explicit": {
+      "bundle_sha256": "d54b4aa9b6c0ff29b7d059633bf9786ec068c54b048a43491414b40af788ffab",
+      "diagnostic": "",
+      "exit_code": 0,
+      "family": "early-explicit",
+      "interfaces": {
+        "early-explicit.Data.Set.cinchif": "3acc3158b5f30a4f041721d27905a73f45973d85f5902bf8f63630789e20f174"
+      },
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {}
+    },
+    "early-implicit": {
+      "bundle_sha256": "ae8a599699decb6ace8d9b006d13bad3527e578e94867de78b2eeee4d7fc7946",
+      "diagnostic": "",
+      "exit_code": 0,
+      "family": "early-implicit",
+      "interfaces": {
+        "early-implicit.Data.Set.cinchif": "2526e85aaf1b237fc9a0a0564366aaccfb0631c17414a96b9e8d93453b06c47e"
+      },
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {}
+    },
+    "early-qualified": {
+      "bundle_sha256": "1d6b2244ad79b83c4da91ef2c8943f2c9707a3319c85137ee2e728ad09261f7c",
+      "diagnostic": "bootstrap.check:2:15: unknown type constructor or unbound type variable: Data.Core.List\nbootstrap.check:2:15: type constructor is applied to too many arguments\n",
+      "exit_code": 4,
+      "family": "early-qualified",
+      "interfaces": {},
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {}
+    },
+    "ordering": {
+      "bundle_sha256": "7a40472e889b1bcc241190489b32679b1277eda57c1d710669235648fcdeed69",
+      "diagnostic": "bootstrap.check:28:12: instance Monoid_Ordering does not define method mconcat\nbootstrap.check:28:12: source dictionary constructor disagrees with its defining class or method contracts\n",
+      "exit_code": 4,
+      "family": "ordering",
+      "interfaces": {},
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "sources": {
+        "Data/Ordering.cinch": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537"
+      }
+    }
+  },
+  "scope": "A real Cinch pipeline with projected early base scope emits equal checked contracts for explicit and implicit Data.Core usage. Both identify Data.Core by its checked hash. Qualified access without import refuses. The unchanged Algebra fixture now reports only its class-law blocker at resolution; the original family integration test still requires laws, structural instances and imported defaults.",
+  "status": "verified-early-base-scope-controls-and-original-probes",
+  "verified_at": "2026-11-07T04:41:56.479258+00:00"
+}
