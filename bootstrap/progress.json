@@ -18561,8 +18561,8 @@
       {
         "title": "Cinch partial Boolean implications: complete groups",
         "status": "running",
-        "phase": "bootstrap_function_preconditions",
-        "passed": 0,
+        "phase": "bootstrap_boolean_branches",
+        "passed": 1,
         "failed": 0,
         "total": 9,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -18571,13 +18571,13 @@
       },
       {
         "title": "Core branch repair: complete Native44 source check",
-        "status": "waiting-complete-function-precondition-group",
-        "phase": null,
+        "status": "running",
+        "phase": "native44",
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": null,
-        "nativeSource": null,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+        "nativeSource": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
         "auditPending": false
       },
       {
@@ -18746,5 +18746,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:29:05.540303+00:00"
+  "updatedAt": "2026-11-07T02:30:47.595080+00:00"
 }
