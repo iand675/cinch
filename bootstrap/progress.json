@@ -19376,12 +19376,32 @@
       {
         "title": "Replay original Foldable and Category with the compiled library",
         "status": "running",
-        "phase": "round 2 lib_foldable",
+        "phase": "round 2 lib_foldable. Round one requested 31 functions, 18 factories and 4 method variants.",
         "passed": 0,
         "failed": 0,
         "total": 2,
         "unit": "original test targets",
         "source": "12ad4294369122399c47d9c40ada62259b507ff23e1c34dcb4aacc7ba812dc73"
+      },
+      {
+        "title": "Replay the original higher-kinded and NonEmpty clients",
+        "status": "completed-with-combined-client-failures",
+        "phase": "reject-empty-forgery",
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "unit": "client cases",
+        "source": "6567187a8aa8daf02d96211e37a54b3815647ba2cc8ea6e5242e9897a6800c4b"
+      },
+      {
+        "title": "Run String equality and Foldable against the expanded object",
+        "status": "running",
+        "phase": "checked-string-compare",
+        "passed": 1,
+        "failed": 0,
+        "total": 5,
+        "unit": "client cases",
+        "source": "2152b7b447814f8cedbbeffeaa3bbd15079346a27f35fafca8aaa65bd35ee08a"
       },
       {
         "title": "Run the original library clients with concrete representations",
@@ -19812,5 +19832,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:02:59.385282+00:00"
+  "updatedAt": "2026-11-07T23:07:56.665502+00:00"
 }
