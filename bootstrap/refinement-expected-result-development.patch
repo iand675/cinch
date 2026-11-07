@@ -1,0 +1,31 @@
+diff --git a/bootstrap/Bootstrap.Infer.cinch b/bootstrap/Bootstrap.Infer.cinch
+--- a/bootstrap/Bootstrap.Infer.cinch
++++ b/bootstrap/Bootstrap.Infer.cinch
+@@ -2537,7 +2537,10 @@
+     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
+     ENeg s (ELitInt at text) -> case checked-literal s carrier (string-concat "-" text) st of (term, checked) -> introduce-refinement env s expected term checked
+     ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
+-    other -> case infer-expected classes kinds families env locals expr carrier st of
++    -- Structural refinements are actual generic carriers. Hint their full
++    -- expected type before checking a call's arguments; comparison facts
++    -- still infer at the container and re-enter by checked evidence.
++    other -> case infer-expected classes kinds families env locals expr (if comparison-refinement (normalize st expected) then carrier else expected) st of
+       (term, checked) -> refine-inferred env (expr-span expr) expected carrier term checked
+   -- Check the requested result inside materialized witness scopes, then
+   -- close each CLet with that requested type. No local index escapes in
+diff --git a/compiler/tests/bootstrap_named_refinements.rs b/compiler/tests/bootstrap_named_refinements.rs
+--- a/compiler/tests/bootstrap_named_refinements.rs
++++ b/compiler/tests/bootstrap_named_refinements.rs
+@@ -24,6 +24,12 @@
+     let exe = common::build(&dir, "Main.cinch", "named-refinements").expect("build the named refinement checker");
+     std::fs::write(dir.join("interfaces.json"), "{\"schema\":1,\"interfaces\":[]}").unwrap();
+     let cases = [
++        ("generic structural direct result keeps NonZero", "type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZ -> NZ\n  copy value = identity value", 0, ""),
++        ("generic structural nested direct result keeps NonZero", "type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZ -> NZ\n  copy value = identity (identity value)", 0, ""),
++        ("generic structural direct result cannot forge NonZero", "type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  bad :: Int -> NZ\n  bad value = identity value", 4, ""),
++        ("generic structural extracted result keeps NonZero", "data Cell a where\n    Cell :: a -> Cell a\n  type NZ = refine (x :: Int) with NonZero x\n  get :: forall a. Cell a -> a\n  get cell = case cell of Cell value -> value\n  copy :: Cell NZ -> NZ\n  copy cell = get cell", 0, ""),
++        ("generic structural direct result keeps mixed predicate", "type NZRange = refine (x :: Int) with NonZero x && x < 10\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZRange -> NZRange\n  copy value = identity value", 0, ""),
++        ("generic numeric direct result still projects to Int", "type Positive = refine (x :: Int) with x > 0\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: Positive -> Int\n  copy value = identity value", 0, ""),
+         ("generic structural list keeps NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  singleton :: NZ -> Sequence NZ\n  singleton value = let values = SCons value SNil in values", 0, ""),
+         ("generic structural identity keeps NonZero", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  identity :: forall a. a -> a\n  identity value = value\n  copy :: NZ -> NZ\n  copy value = let result = identity value in result", 0, ""),
+         ("generic structural list needs explicit projection", "data Sequence a where\n    SNil :: Sequence a\n    SCons :: a -> Sequence a -> Sequence a\n  type NZ = refine (x :: Int) with NonZero x\n  bad :: NZ -> Sequence Int\n  bad value = SCons value SNil", 4, ""),

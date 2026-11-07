@@ -1,0 +1,150 @@
+{
+  "child_pid": 3101,
+  "compiler_sha256": "82707997b842e13810dbce82b58233796ac09b5965946003ea2053fe9a3b85fb",
+  "full_goal_complete": false,
+  "phase": "generic numeric direct result still projects to Int",
+  "pid": 2255,
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural list keeps NonZero",
+      "source_sha256": "0101b0879c246b3109874f81670feeb647825303a2b0cb4e1e73ee73d59dcf12",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural identity keeps NonZero",
+      "source_sha256": "4806a8c7306376942dc226c1032bc67c7e2580953ea84b97f8658a854d02d69a",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "812635eb8a9a9fcac361c513fa5ab73cc47fdf2083f14d162cf913d9512d5a98",
+      "name": "generic structural list needs explicit projection",
+      "source_sha256": "1f4b8d35afe2215d1bdc8a4f64aa8234423b71fa13d17fe4b649331c8c09c8cc",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural list accepts explicit projection",
+      "source_sha256": "1526c0230de323aa1b94a0245754289ef29dd009e7e35dba301aa9eda0c2ee41",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "5c228df6e7fa1cdf9309d9ff6367978ceae1d98a8f61b47e579d839f7b3ab695",
+      "name": "generic structural result needs explicit projection",
+      "source_sha256": "cfd7e95f27252690d9cabf953fff5036c1a0950f742f1999eda01aac1c96c269",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "6298aedb79dc35faced03afbcefa93fedc79e859c4ed9529e25124790a7bc8c9",
+      "name": "generic structural list cannot forge NonZero",
+      "source_sha256": "66261956aa9988c59fb95d35f3e6463157a7697372faaf494f77e2a469248408",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "2f9cf94c7c87da1aadb7f5a3cd51df2b0fe8ced9cb866d9b229724d440fb3d0b",
+      "name": "generic structural identity cannot forge NonZero",
+      "source_sha256": "778f203a42b44fd58588542f069ab9bd4d8760085e1def17f6a3f6ba6b1506e3",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic numeric range still widens an inferred list",
+      "source_sha256": "89be8bd9fa8bec642d45c7a537c6adb6ddb2b3c9261a68748790694213a3ade7",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic numeric range still widens an open identity",
+      "source_sha256": "6b795011df13aaa909cfaae2b720b0d3ddffc93ade139c90323022be496fb254",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "9f57aaa7c0760ec6da298761493c8a74a99329d37c5b0394f74cf79156139682",
+      "name": "generic numeric inferred list cannot claim its former range",
+      "source_sha256": "b7a40cc7d35d1b8e9900003530d93090a256299af20637a787d913eef12e4dfe",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic mixed structural predicate keeps its point",
+      "source_sha256": "f3fd17e0a169dbeaac0939b600604a836dba0c064a31f22433439735c030fa91",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural direct result keeps NonZero",
+      "source_sha256": "b28ea264017f3762cb515642a5e48f56f714e1b97c2e78bbc2f7ae1da23688cb",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural nested direct result keeps NonZero",
+      "source_sha256": "19a68cbbc9ef89c4ec2aa9bfd8041b02e483d1b3b648914f2fc5678dbd505103",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 1,
+      "log_sha256": "ac0654cf8905865782a772ef04e3833b285855886075412ff93a0cf72a74caf0",
+      "name": "generic structural direct result cannot forge NonZero",
+      "source_sha256": "b1e1359326a5d85eb1c1657d80330d069095c5fbcc374d8d0bc18034a2e85311",
+      "status": "passed",
+      "wanted_acceptance": false
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural extracted result keeps NonZero",
+      "source_sha256": "de5b64553ed684055118fa20f8a591891fb20b2423cac9fca73edc6965821bba",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic structural direct result keeps mixed predicate",
+      "source_sha256": "57e73a2eeefc5c24196e2e554d833c4f26867d62aac186bd0867c794902cbcc0",
+      "status": "passed",
+      "wanted_acceptance": true
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "generic numeric direct result still projects to Int",
+      "source_sha256": "ee980bf899d427c98f618ef94028f91a8f266be052b3e8e7ad873b677d91b3f6",
+      "status": "passed",
+      "wanted_acceptance": true
+    }
+  ],
+  "status": "audited-all17-native-structural-result-controls",
+  "worker_slot": 5,
+  "verified_at": "2026-11-07T01:18:16.193707+00:00",
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "scope": "Exact17 source controls for the structural result-hint candidate. Native8ba is only an independent source-acceptance oracle here; this does not prove actual Cinch checking or runtime behavior."
+}

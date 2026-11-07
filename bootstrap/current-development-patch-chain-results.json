@@ -1,0 +1,52 @@
+{
+  "baseline_compiler_source_sha256": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+  "bootstrap_seed_and_library_pins_unchanged": true,
+  "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+  "full_goal_complete": false,
+  "original_published_pipeline_ffi_correction_retained": true,
+  "patches": [
+    {
+      "compiler_source_sha256": "8fcedce1381fe2d1a14468b9cc10eff26cd7f07b64d3beb72fb121533dbb5095",
+      "patch": "bootstrap/source-class-default-development.patch",
+      "patch_sha256": "8e0f09648eb3fb043de99e5fed8dbfa67aa5bd4fe815810defd7ed4f989530a0"
+    },
+    {
+      "compiler_source_sha256": "00b549e3f334cff05ead4f6b0771d9e9dcccc96a5268bf82d3836e8efdccd32d",
+      "patch": "bootstrap/source-class-default-type-scope-development.patch",
+      "patch_sha256": "fe5ce3770c4784743d08338ac9382e38a2446950a9f972cc3bce871950d1ffc8"
+    },
+    {
+      "compiler_source_sha256": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+      "patch": "bootstrap/source-class-default-self-values-development.patch",
+      "patch_sha256": "3cca42c8572af454bd816cff0ee6e83d99e9067f34646a5c51f4ba333b696a01"
+    },
+    {
+      "compiler_source_sha256": "28d2abf7398291b1ecd4b905117858d454cabb8f5c217d7fc02a86993f51ad61",
+      "patch": "bootstrap/inferred-case-coverage-development.patch",
+      "patch_sha256": "5431fa8c3b5c62b365fbf8aeb7e176ba706bcfd60e12506b2e9d01464f58ab0e"
+    },
+    {
+      "compiler_source_sha256": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+      "patch": "bootstrap/refinement-structural-development.patch",
+      "patch_sha256": "988b12e3ea852cb8ddfb38f66501986256f7d55a68f6ee2ca6adff359477380d"
+    },
+    {
+      "compiler_source_sha256": "7ccd088f5a00fb1784fbfaee3b3888d7edc4ed531703925c3f78e670048f2cdf",
+      "patch": "bootstrap/source-default-diagnostics-development.patch",
+      "patch_sha256": "cfb8b283646ac5426eddf739c1459993fb0da5fd6d002680a6cd09c66059d15d"
+    },
+    {
+      "compiler_source_sha256": "14a889472c7bf47867414410bba2b91bc059a77df5b20e7105eb7274e3cff134",
+      "patch": "bootstrap/source-default-origins-development-2.patch",
+      "patch_sha256": "6cdbf38624bafb3debf8a3acf8c926bb47e96e3d6e9c07c3ab0135215e463258"
+    },
+    {
+      "compiler_source_sha256": "286613ea3571aebd6747def34f7a8f9d8af0c84c78e5fee82f9ca65ff90fe7e1",
+      "patch": "bootstrap/refinement-expected-result-development.patch",
+      "patch_sha256": "79f29b05174960e6794451f9f1e7d0f6fe3aa2ff72ee49b187d255133be24bfd"
+    }
+  ],
+  "scope": "Eight reviewable development patches apply in order to a fresh current published-source snapshot and produce the exact development44 compiler-module bytes. The published FFI refusal correction and positive ABI check remain; the renderer test is appended. This proves patch reproducibility only. Production source remains3268; full compiler, runtime, all suites and matching final bootstrap remain required before promotion.",
+  "status": "audited-eight-unapplied-development-patches-on-current-published-source",
+  "verified_at": "2026-11-07T01:17:37.494535+00:00"
+}

@@ -1,0 +1,96 @@
+{
+  "compiler_sha256": "802b344d99e5a5b4434e1c69fd19819e3e0e331939210bccda4f4ae4c3568842",
+  "compiler_source_sha256": "a02936ace8ad72c00dcc957d92c3954422a5d2223d8e86c42a9d159061426756",
+  "default_adapter_only_changes_outcome_dispatch": true,
+  "default_tests_failed": 4,
+  "default_tests_passed": 3,
+  "direct_native_annotation_controls": 11,
+  "failed_tests": 5,
+  "filtered": 0,
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "failed_tests": 0,
+      "log_sha256": "38f477cc67982924665fbe1573485147e0cf7417dfd2e9f6dd411e740bc8a95b",
+      "name": "interface_anonymous_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "4bd206030660597bdf5a1ef17a1020cea49953545e0b1f5b5df3dddc3be39c8d",
+      "name": "interface_class_contracts",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "29bcf6a64ba6da77522b5e709ca47d0692fa13df8707a82628042485ccf2ca56",
+      "name": "interface_kinds",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0dfdf4d7de41f6e846ba4db00006ac2c46aa87fc55667062a4d4c032480dbdf6",
+      "name": "interface_nominals",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "a9a10a2c1f6c4bbbe7ee148a1fd07aa11f1d76bebd6fc40d629b9d2287849b43",
+      "name": "interface_preconditions",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 1,
+      "log_sha256": "bfe20f4bf93f8cad1da7c527886f8cb8911ce1f0c8faa0565ee0345075fa7b69",
+      "name": "interface_prelude_overrides",
+      "passed_tests": 0,
+      "status": "failed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "d9eaffa1a3148051bb2d5dfc2408cdeda15583c309ba13a3a2f7dceea4ef40f6",
+      "name": "interface_refinement_closure",
+      "passed_tests": 1,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "0f5ef9fa77f2838853a67c68886d6f0096181b30d7f2d18e83b6a487a8abd74c",
+      "name": "interface_refinements",
+      "passed_tests": 4,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 0,
+      "log_sha256": "6c2c713060055af03ddf770c72a29d3c4a337b377be4f840bca8c3174025a123",
+      "name": "interface_region_effects",
+      "passed_tests": 2,
+      "status": "passed"
+    },
+    {
+      "failed_tests": 4,
+      "log_sha256": "09acc37df0498293d3cb6126e3da0c42f8b082bc3474c9130f5bc592d5a5a121",
+      "name": "class_defaults",
+      "passed_tests": 3,
+      "status": "failed"
+    }
+  ],
+  "ignored": 0,
+  "native_source_sha256": "8ba8a3e51536ce0e1a3a35affc308e490f553c79c0d5461b9d7f916d8987614b",
+  "original_default_tests": 6,
+  "original_tests_and_assertions_retained": true,
+  "passed_groups": 8,
+  "passed_tests": 16,
+  "scope": "All9 original interface/API groups plus all7 class_defaults Rust tests execute with every original source and assertion. Class-default outcome dispatch explicitly requires the actual Cincha029 frontend, with no Native fallback. The11 direct Native annotation checks in the seventh test remain classified as Native source/API evidence; its final inherited runtime42 uses actual Cinch. Original API is8/9 groups13/14 tests; original defaults are3/7 tests, improved from1/7: both original strict-value runtime/build tests now pass. The4 remaining default failures retain exact class/instance diagnostic and source-file attribution; the original mconcat runtime now passes the inferred container but still fails at its generic expected structural-refinement result. The exact source remains unchanged. A separate2866 result-hint candidate is being checked. Correct semantic rejection alone does not pass an original diagnostic/path assertion. Current-source library collision still fails. These are development compiler checks, not final matching Stage3.",
+  "source": "/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/refinement-structural-interface-api-1/source",
+  "source_sha256": "bcd46b8cfdc694a59aab1eb7e148458e3f51b7fd96102c521e5ef7d6a0f2d754",
+  "status": "audited-original-api-and-defaults-with-failures",
+  "total_tests": 21,
+  "verified_at": "2026-11-07T01:15:53.044194+00:00",
+  "whole_groups": 10
+}
