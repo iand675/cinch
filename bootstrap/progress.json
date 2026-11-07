@@ -631,9 +631,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The development replay passes the original Data.Core family and its exact consumer hashes. Data.Ordering now reaches an omitted imported mconcat default. Category and Algebra are still required.",
+        "detail": "The development pipeline checks each original source family separately. Data.Core emits the matching contract. Data.Ordering stops at the imported mconcat default. Category rejects the class laws and structural function instance. Algebra rejects the class law and cannot resolve Nil, None, Cons or Some.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-interface-overlay-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-overlay-family-probes.json"
       },
       {
         "id": "gap:source-defaults",
@@ -703,7 +703,7 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "pending",
-        "detail": "Category and Algebra source probes reach this explicit refusal.",
+        "detail": "The exact Category.Functor probe rejects map-identity and map-compose as well as the structural Functor_Function instance. Algebra.Semigroup rejects assoc.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/next-steps.md"
       },
@@ -711,7 +711,7 @@
         "id": "gap:base-names",
         "title": "Restore source-family implicit base names",
         "state": "pending",
-        "detail": "Invalidating the cached Prelude closure alone loses required constructor and base names.",
+        "detail": "With the complete authenticated library interface set, source Algebra.Semigroup still cannot resolve Nil, None, Cons and Some before Prelude.",
         "doneWhen": "Source library homes retain their checked base scope without a facade back-edge or unchecked aliases.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-source-prelude-counterexample.json"
       },
@@ -18695,8 +18695,8 @@
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "building stage2",
-        "passed": 2,
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19208,5 +19208,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:22:27.342051+00:00"
+  "updatedAt": "2026-11-07T04:24:55.007688+00:00"
 }
