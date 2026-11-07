@@ -13449,6 +13449,10 @@
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results",
                   "status": "running"
                 }
               ]
@@ -18703,10 +18707,10 @@
       },
       {
         "title": "Cinch imported defaults: source admission and two complete groups",
-        "status": "running",
+        "status": "failed",
         "phase": "separate-imported-default",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 3,
         "source": "5e60a3bedeecacc8f80cf5defda3c6825e9f996df76a75c979406230425f5e5a"
       },
@@ -18733,5 +18737,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T08:40:34.428119+00:00"
+  "updatedAt": "2026-11-07T08:43:56.731811+00:00"
 }
