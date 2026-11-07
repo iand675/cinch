@@ -18750,8 +18750,8 @@
     "active": [
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
-        "status": "running",
-        "phase": "checking fixed point and source change",
+        "status": "passed-bootstrap-chain-only",
+        "phase": "Independent audit passed, including changed compiler source",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -19264,5 +19264,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T05:21:13.747491+00:00"
+  "updatedAt": "2026-11-07T05:24:48.919903+00:00"
 }
