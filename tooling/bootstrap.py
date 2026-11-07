@@ -43,6 +43,11 @@ def source_hash(files: dict[str, bytes]) -> str:
     return h.hexdigest()
 
 
+NATIVE_BUILD_SCRIPT = "compiler/build.rs"
+NATIVE_GRAMMAR = "tooling/tree-sitter-cinch"
+NATIVE_GRAMMAR_INPUTS = ("grammar.js", "tree-sitter.json", "src/scanner.c")
+
+
 def seed_sources(directory: Path) -> dict[str, bytes]:
     files = {}
     for part in ("compiler/src", "compiler/prelude", "compiler/runtime/src"):
@@ -52,7 +57,22 @@ def seed_sources(directory: Path) -> dict[str, bytes]:
     for part in ("compiler/Cargo.toml", "compiler/Cargo.lock", "compiler/.cargo/config.toml",
                  "compiler/runtime/Cargo.toml", "compiler/runtime/Cargo.lock"):
         files[part] = (directory / part).read_bytes()
+    if (directory / NATIVE_BUILD_SCRIPT).is_file():
+        files[NATIVE_BUILD_SCRIPT] = (directory / NATIVE_BUILD_SCRIPT).read_bytes()
+        for part in NATIVE_GRAMMAR_INPUTS:
+            path = f"{NATIVE_GRAMMAR}/{part}"
+            files[path] = (directory / path).read_bytes()
     return files
+
+
+def native_source_archive(revision: str) -> bytes:
+    paths = ["compiler"]
+    build_script = subprocess.run(["git", "ls-tree", "--name-only", revision, "--", NATIVE_BUILD_SCRIPT],
+                                  cwd=ROOT, check=True, stdout=subprocess.PIPE).stdout
+    if build_script:
+        paths.extend(f"{NATIVE_GRAMMAR}/{part}" for part in NATIVE_GRAMMAR_INPUTS)
+    return subprocess.run(["git", "archive", revision, *paths], cwd=ROOT, check=True,
+                          stdout=subprocess.PIPE).stdout
 
 
 def extract_sources(archive: bytes, directory: Path) -> None:
@@ -174,8 +194,7 @@ def build_seed() -> Path:
     snapshot_id = digest(json.dumps(lock, sort_keys=True).encode())
     snapshot = BUILD / "seed-sources" / snapshot_id
     if not snapshot.exists():
-        archive = subprocess.run(["git", "archive", lock["revision"], "compiler"], cwd=ROOT,
-                                 check=True, stdout=subprocess.PIPE).stdout
+        archive = native_source_archive(lock["revision"])
         temporary = snapshot.with_name(snapshot.name + ".preparing")
         if temporary.exists():
             shutil.rmtree(temporary)

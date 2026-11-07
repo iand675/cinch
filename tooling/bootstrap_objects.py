@@ -4,7 +4,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 
 
 ENTRY = b"module CinchBaseObject where\n  export marker\n  marker :: Unit -> Unit\n  marker unit = unit\n"
@@ -55,8 +54,7 @@ def requested_roots(diagnostics):
 def source_snapshot(driver, lock):
     snapshot = driver.BUILD / "library-sources" / lock["source_sha256"]
     if not snapshot.exists():
-        archive = subprocess.run(["git", "archive", lock["revision"], "compiler"], cwd=driver.ROOT,
-                                 check=True, stdout=subprocess.PIPE).stdout
+        archive = driver.native_source_archive(lock["revision"])
         temporary = snapshot.with_name(snapshot.name + ".preparing")
         if temporary.exists():
             shutil.rmtree(temporary)
