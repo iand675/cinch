@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "100 of 105 complete groups passed; 1 running, 3 failed and 1 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "101 of 105 complete groups passed; 1 running, 3 failed and 0 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "100 of 105 complete groups passed; 1 running, 3 failed and 1 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "101 of 105 complete groups passed; 1 running, 3 failed and 0 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 1,
-          "recheck": 104
+          "pending": 0,
+          "recheck": 105
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14305,16 +14305,20 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/lib_hashmap_real.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T04:28:19.873128+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:29:01.742580+00:00",
+              "exitCode": 0,
+              "logSha256": "66eea22ca6832177abd47d5bc2fabd6f44e2bd770f47b89089bf21bb9f3e3470",
               "cases": [
                 {
                   "name": "measured_spans_bound_growth_and_report_collision_costs",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "the_map_answers_over_more_keys_than_the_fixed_table_indexed",
+                  "status": "passed"
                 }
               ]
             },
@@ -14323,18 +14327,27 @@
           {
             "id": "stage3:primitive_length_identity",
             "title": "primitive_length_identity",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitive_length_identity.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T04:29:01.755159+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "allocation_promise_agrees_with_an_actual_primitive_alias",
+                  "status": "passed"
+                },
+                {
+                  "name": "fresh_primitive_declaration_supplies_stable_length_facts",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14555,10 +14568,9 @@
           }
         ],
         "observedCounts": {
-          "passed": 100,
+          "passed": 101,
           "failed": 3,
-          "running": 1,
-          "pending": 1
+          "running": 1
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -19192,8 +19204,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "lib_hashmap_real",
-        "passed": 100,
+        "phase": "primitive_length_identity",
+        "passed": 101,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -19204,8 +19216,8 @@
       "verified": 469,
       "blocked": 4,
       "running": 9,
-      "pending": 26,
-      "recheck": 161
+      "pending": 25,
+      "recheck": 162
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -19213,5 +19225,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:28:28.531155+00:00"
+  "updatedAt": "2026-11-07T04:29:30.669749+00:00"
 }
