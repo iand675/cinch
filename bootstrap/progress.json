@@ -18784,13 +18784,22 @@
         "source": "c272860233cd944125805f27f3fb2521cd48f4c12f74fbc07b55f21f5a9ebb7f"
       },
       {
-        "title": "Schema 9 Stage1: original arrays group with staging and CopyOut",
+        "title": "Schema 9 Stage1: initial arrays run before the runtime fixture retry",
         "status": "failed",
         "phase": "arrays",
         "passed": 1,
         "failed": 1,
-        "total": 1,
+        "total": 2,
         "source": "7ccaf9ce68cc9464492c088db8a8ababa1fc19fa44bbc20515e7ba276a52d277"
+      },
+      {
+        "title": "Schema 10: pinned Stage1 and original library replacement tests",
+        "status": "waiting-provider",
+        "phase": "waiting provider",
+        "passed": 0,
+        "failed": 0,
+        "total": 8,
+        "source": "7c3cd20cf324bed6ece95c9d945718d5e036e52851d1eb5666e64e71a82fe886"
       },
       {
         "title": "Schema 9: rebuild and check the Git-pinned provider",
@@ -18800,6 +18809,25 @@
         "failed": 0,
         "total": 1,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
+      },
+      {
+        "title": "Schema 10: rebuild the library with checked class laws",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "source": "172f44e5b060d48f30666d1b2d0339d566766c2f1054fcd574da5b1681b891f9"
+      },
+      {
+        "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
+        "status": "passed",
+        "phase": "Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive",
+        "passed": 15,
+        "failed": 0,
+        "total": 15,
+        "source": "7ccaf9ce68cc9464492c088db8a8ababa1fc19fa44bbc20515e7ba276a52d277",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-stage1-combined-arrays-results.json"
       },
       {
         "title": "Cinch staging: typed runtime and original array case",
@@ -18886,5 +18914,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T11:13:21.769312+00:00"
+  "updatedAt": "2026-11-07T11:26:23.722171+00:00"
 }
