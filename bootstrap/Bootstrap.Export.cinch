@@ -1,12 +1,13 @@
--- Checked schema8 interface production. Every public spelling is matched
+-- Checked schema9 interface production. Every public spelling is matched
 -- against a retained checked binding or defining data declaration.
 module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan)
-  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-scheme, core-method-total-function)
+  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, source-clauses-document, qualify-default-clauses)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
+  import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
   import Bootstrap.Type
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
@@ -15,10 +16,10 @@ module Bootstrap.Export where
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
   import Bootstrap.ExportNominal
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry)
-  import Bootstrap.Interface (fnv-source-hash)
+  import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
-  import Data.Nat (nat-from-int)
+  import Data.Nat (nat-from-int, nat-to-int)
   import Text.Json (canonical-bytes)
   import Text.Lex (bytes-slice)
 
@@ -152,8 +153,8 @@ module Bootstrap.Export where
     Cons first rest -> case loaded-entry first "type" identity of
       Some row -> if same (text (field "kind" row)) "refinement" || same (text (field "kind" row)) "opaque" then Some row else defining-refinement-type rest identity
       None -> defining-refinement-type rest identity
-  refinement-type-row :: String -> Json -> Json
-  refinement-type-row name nominal = JObj "name" (JStr name)
+  abstract-type-row :: String -> Json -> Json
+  abstract-type-row name nominal = JObj "name" (JStr name)
     (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
       (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
         (JObj "ctors" JArrEnd (JObj "fields" JArrEnd (JObj "refinement" (field "refinement" nominal) JObjEnd)))))))
@@ -174,7 +175,9 @@ module Bootstrap.Export where
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = interface-value-arity scheme in
-      if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
+      if task-forwarder-type (scheme-body scheme) && (case default-definition symbol (elaboration-core typed) of Some definition -> task-source-forwarder definition; None -> False) then
+        Err (string-concat "a task forwarding helper requires a portable checked transfer contract to be exported: " name)
+      else if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
           (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
@@ -234,13 +237,12 @@ module Bootstrap.Export where
   constructor-hidden-parameters parameters visible = case parameters of
     Nil -> False
     Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
-  constructor-resolved :: Elaboration -> List LoadedInterface -> CoreConstructor -> Result String Json
-  constructor-resolved typed interfaces constructor = let scheme = core-constructor-scheme constructor in
-    if constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme)))
-      then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme
   constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
   constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
-    case (export-global (core-constructor-name constructor), export-constructor-fields scheme, constructor-resolved typed interfaces constructor, export-value-scheme scheme) of
+    let hidden = constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme))) in
+    let resolved = if hidden then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme in
+    let (fields, spelling) = export-constructor-display hidden scheme in
+    case (export-global (core-constructor-name constructor), fields, resolved, spelling) of
       (Ok identity, Ok fields, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
           (JObj "scheme" (JStr spelling) (JObj "resolved" resolved
@@ -273,8 +275,6 @@ module Bootstrap.Export where
     Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
   constructors-have :: String -> List CoreConstructor -> Bool
   constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
-  class-present :: String -> List CoreClass -> Bool
-  class-present name classes = case classes of Nil -> False; Cons description rest -> same name (class-name description) || class-present name rest
   public-names :: String -> Json -> Json
   public-names symbol rows = case rows of
     JArr row rest -> if same symbol (text (field "symbol" row)) then insert-string (text (field "name" row)) (public-names symbol rest) else public-names symbol rest
@@ -317,13 +317,14 @@ module Bootstrap.Export where
             else Err "admitted class method disagrees with its checked slot"
           None -> case resolved-method-scheme typed interfaces description member of
             Err error -> Err error
-            Ok resolved -> Ok (JArr
-              (method-default description member interfaces
+            Ok resolved -> case method-default typed description member interfaces
                 (JObj "name" (JStr (class-method-name member))
                   (JObj "slot" (JNum (nat-to-int slot))
                     (JObj "exports" (method-names typed description member surface)
                       (JObj "scheme" (field "scheme" resolved)
-                        (JObj "resolved" resolved JObjEnd)))))) more)
+                        (JObj "resolved" resolved JObjEnd))))) of
+              Err error -> Err error
+              Ok row -> Ok (JArr row more)
   methods-public :: Json -> Bool
   methods-public rows = case rows of
     JArr row rest -> (case field "exports" row of JArr name more -> True; other -> False) || methods-public rest
@@ -334,14 +335,27 @@ module Bootstrap.Export where
   defining-signature identity interfaces = case interfaces of Nil -> None; Cons first rest -> case loaded-entry first "signature" identity of Some row -> Some row; None -> defining-signature identity rest
   defining-method :: String -> Json -> Option Json
   defining-method name methods = case methods of JArr row rest -> if same name (text (field "name" row)) then Some row else defining-method name rest; other -> None
-  method-default :: CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Json
-  method-default description member interfaces row = case export-global (class-name description) of
-    Err error -> row
-    Ok identity -> case defining-signature identity interfaces of
-      None -> row
-      Some source -> case defining-method (class-method-name member) (field "methods" source) of
-        None -> row
-        Some original -> case field "default" original of JStr identity -> set-field "default" (JStr identity) row; other -> row
+  default-definition :: String -> List CoreDefinition -> Option CoreDefinition
+  default-definition name definitions = case definitions of
+    Nil -> None
+    Cons first rest -> if same name (core-name first) then Some first else default-definition name rest
+  method-default :: Elaboration -> CoreClass -> CoreClassMethod -> List LoadedInterface -> Json -> Result String Json
+  method-default typed description member interfaces row = case source-class-default-clauses description member (elaboration-declarations typed) of
+    Some clauses -> (case default-definition (source-class-default-symbol description member) (elaboration-core typed) of
+      Some definition -> if core-definition-closed definition && scheme-equivalent (core-scheme definition) (class-method-scheme member) then
+        let globals = portable-default-export-global (elaboration-bindings typed) (elaboration-classes typed) in
+        Ok (set-field "default" (qualify-default-clauses globals (source-clauses-document clauses)) row)
+        else Err "source class default lacks its closed defining method contract"
+      None -> Err "source class default has no checked definition")
+    None -> (case export-global (class-name description) of
+      Err error -> Err error
+      Ok identity -> case defining-signature identity interfaces of
+        None -> Ok row
+        Some source -> case defining-method (class-method-name member) (field "methods" source) of
+          None -> Ok row
+          Some original -> case field "default" original of
+            JArr first rest -> Ok (set-field "default" (JArr first rest) row)
+            other -> Ok row)
   nominal-mentioned :: String -> Json -> Bool
   nominal-mentioned identity doc = case doc of
     JObj key value rest -> (same identity (text (field "identity" doc)) && same "signature" (text (field "kind" doc)))
@@ -506,18 +520,24 @@ module Bootstrap.Export where
           Some declaration -> case type-row typed interfaces surface name declaration of
             Err error -> Err error
             Ok actual -> Ok (values, insert-row "name" actual types)
-          None -> case source-abstract-type (elaboration-declarations typed) symbol of
-            Some (Ok nominal) -> Ok (values, insert-row "name" (refinement-type-row name nominal) types)
-            Some (Err error) -> Err error
-            None -> case imported-refinement-type interfaces symbol of
-              Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
-              None -> if constructor-present symbol (elaboration-data typed) || class-present symbol (elaboration-classes typed) then Ok (values, types)
-                else case find-binding symbol (elaboration-bindings typed) of
-                  None -> Err (string-concat "export has no retained checked declaration: " name)
-                  Some binding -> if same (checked-role binding) "method" then Ok (values, types)
-                    else case value-row typed interfaces name symbol binding of
-                      Err error -> Err error
-                      Ok actual -> Ok (insert-row "name" actual values, types)
+          None -> case find-class symbol (elaboration-classes typed) of
+            Some description -> case class-nominal description of
+              Ok nominal -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
+              Err error -> Err error
+            None -> case source-abstract-type (elaboration-declarations typed) symbol of
+              Some (Ok nominal) -> Ok (values, insert-row "name" (abstract-type-row name nominal) types)
+              Some (Err error) -> Err error
+              None -> case imported-refinement-type interfaces symbol of
+                Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
+                None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
+                  else case find-binding symbol (elaboration-bindings typed) of
+                    None -> Err (string-concat "export has no retained checked declaration: " name)
+                    -- Methods and instance factories have their own contract tables.
+                    Some binding -> let role = checked-role binding in
+                      if same role "method" || same role "instance" || same role "implicit-instance" then Ok (values, types)
+                      else case value-row typed interfaces name symbol binding of
+                        Err error -> Err error
+                        Ok actual -> Ok (insert-row "name" actual values, types)
     JArrEnd -> Ok (JArrEnd, JArrEnd)
     other -> Err "module has no retained public export table"
   symbols :: Json -> Json
@@ -605,9 +625,27 @@ module Bootstrap.Export where
     other -> JArrEnd
   assumptions :: Json -> Json -> Json
   assumptions primitives rows = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" JArrEnd JObjEnd))
-  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
-  document context source-hash dependencies values types signatures instances primitives foreign-rows =
-    JObj "schema" (JNum 8) (JObj "runtime_abi" (JNum runtime-abi-int)
+  law-order :: Json -> String
+  law-order row = string-concat-all [text (field "instance" row), "\n", text (field "class" row), "\n", text (field "law" row)]
+  insert-law :: Json -> Json -> Json
+  insert-law row rows = case rows of
+    JArr first rest -> if string-compare (law-order row) (law-order first) < 0 then JArr row rows else JArr first (insert-law row rest)
+    other -> JArr row JArrEnd
+  law-observations :: Json -> List (String, String, String, String) -> Result String Json
+  law-observations context observations = case observations of
+    Nil -> Ok JArrEnd
+    Cons (subject, owner, law-name, status) rest -> case law-observations context rest of
+      Err error -> Err error
+      Ok rows -> if has-symbol subject (field "declarations" context) then
+        (case (export-global subject, export-global owner) of
+          (Ok identity, Ok class) -> Ok (insert-law (JObj "instance" (JStr identity) (JObj "class" (JStr (last-name (unpack class) Nil))
+            (JObj "law" (JStr law-name) (JObj "status" (JStr status) JObjEnd)))) rows)
+          (Err error, other) -> Err error
+          (other, Err error) -> Err error)
+        else Ok rows
+  document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+  document context source-hash dependencies values types signatures instances primitives foreign-rows laws =
+    JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
           (JObj "imports" dependencies (JObj "params" JArrEnd
@@ -616,7 +654,7 @@ module Bootstrap.Export where
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
                 (JObj "assumptions" (assumptions primitives foreign-rows) (JObj "assertions" JArrEnd
-                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" JArrEnd
+                  (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
   source-hash :: Bytes -> Json -> Result String String
   source-hash source context = case (field "source_start" context, field "source_end" context) of
@@ -639,9 +677,11 @@ module Bootstrap.Export where
               Err error -> Err error
               Ok instances -> case signature-rows typed interfaces (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
                 Err error -> Err error
-                Ok signatures -> case source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)) of
-                  Err error -> Err error
-                  Ok foreign-rows -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows in
+                Ok signatures -> case (source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
+                  law-observations context (elaboration-law-observations typed)) of
+                  (Err error, other) -> Err error
+                  (other, Err error) -> Err error
+                  (Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows laws in
                     (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))

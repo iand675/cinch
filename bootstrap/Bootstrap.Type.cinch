@@ -13,6 +13,7 @@ module Bootstrap.Type where
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
+  export arrow-constructor-kind, type-application
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexCall, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
   export type-free-bound
@@ -381,6 +382,17 @@ module Bootstrap.Type where
   put-cell :: Cell -> Store -> Store
   put-cell c st = case st of MkStore label next level cells errors numbers -> MkStore label next level (replace-cell c cells) errors numbers
 
+  arrow-constructor-kind :: Kind
+  arrow-constructor-kind = KFun KType (KFun KType KType)
+  arrow-constructor :: UType
+  arrow-constructor = UCon "(->)" arrow-constructor-kind
+  -- The partial application is a constructor. Once saturated it is the
+  -- same checked pure arrow used by ordinary function signatures.
+  type-application :: UType -> UType -> UType
+  type-application head argument = case head of
+    UApp (UCon name (KFun KType (KFun KType KType))) domain ->
+      if same-tag name "(->)" then UFun domain argument else UApp head argument
+    other -> UApp head argument
   normalize :: Store -> UType -> UType
   normalize st ty = case ty of
     UPropLit value -> UPropLit value
@@ -406,7 +418,7 @@ module Bootstrap.Type where
     URigid id name level k -> normalized-variable st ty
     UIndex carrier value -> normalize-value-index st (normalize st carrier) value
     UPi id name domain row result -> UPi id name (normalize st domain) (normalize st row) (normalize st result)
-    UApp f x -> UApp (normalize st f) (normalize st x)
+    UApp f x -> type-application (normalize st f) (normalize st x)
     UFun a b -> UFun (normalize st a) (normalize st b)
     UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
     UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
@@ -716,7 +728,9 @@ module Bootstrap.Type where
         UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
         other -> unify-structure sp a b checked
   mismatch :: Span -> UType -> UType -> Store -> Store
-  mismatch sp a b st = add-error sp (string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]) st
+  mismatch sp a b st = add-error sp (mismatch-message a b) st
+  mismatch-message :: UType -> UType -> String
+  mismatch-message a b = string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]
   unify-structure :: Span -> UType -> UType -> Store -> Store
   unify-structure sp a b st = case a of
     UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
@@ -746,11 +760,15 @@ module Bootstrap.Type where
     UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
-    UApp f x -> case b of UApp g y -> unify sp x y (unify sp f g st); other -> mismatch sp a b st
+    UApp f x -> case b of
+      UApp g y -> unify sp x y (unify sp f g st)
+      UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
+      other -> mismatch sp a b st
     UFun x y -> case b of
       UPi id name domain row result -> unify-pi sp (function-pi a) b st
       UFun u v -> unify sp y v (unify sp x u st)
       UFunEff u row v -> unify sp y v (unify sp x u (unify sp (URow UEnd) row st))
+      UApp f result -> unify sp y result (unify sp (UApp arrow-constructor x) f st)
       other -> mismatch sp a b st
     UFunEff x row y -> case b of
       UPi id name domain effects result -> unify-pi sp (function-pi a) b st
@@ -872,7 +890,7 @@ module Bootstrap.Type where
     (URow UEnd, other) -> st
     (URow labels, URow permitted) -> (case match-effects sp False labels permitted UEnd UEnd st of
       Some solved -> solved
-      None -> add-error sp "performed effects exceed the declared row" st)
+      None -> add-error sp (string-concat-all ["performed effects exceed the declared row (performed ", type-text actual, ", declared ", type-text allowed, ")"]) st)
     (URowJoin first second, other) -> include-effects sp second allowed (include-effects sp first allowed st)
     (other, URowJoin first second) ->
       let trial = include-effects sp actual first st in
@@ -904,7 +922,7 @@ module Bootstrap.Type where
     UCon name k -> UCon name (map-kind-types (substitute pairs) k)
     URigid id name level k -> URigid id name level (map-kind-types (substitute pairs) k)
     UMeta id k -> UMeta id (map-kind-types (substitute pairs) k)
-    UApp f x -> UApp (substitute pairs f) (substitute pairs x)
+    UApp f x -> type-application (substitute pairs f) (substitute pairs x)
     UFun a b -> UFun (substitute pairs a) (substitute pairs b)
     UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
     UProofFun a row b -> UProofFun (substitute pairs a) (substitute pairs row) (substitute pairs b)
@@ -960,7 +978,7 @@ module Bootstrap.Type where
     UCon name k -> UCon name (map-kind-types (replace-metas pairs) k)
     UBound id name k -> UBound id name (map-kind-types (replace-metas pairs) k)
     URigid id name level k -> URigid id name level (map-kind-types (replace-metas pairs) k)
-    UApp f x -> UApp (replace-metas pairs f) (replace-metas pairs x)
+    UApp f x -> type-application (replace-metas pairs f) (replace-metas pairs x)
     UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
     UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
     UProofFun a row b -> UProofFun (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
@@ -1187,7 +1205,7 @@ module Bootstrap.Type where
       (IAdd x y, IAdd u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
       (ISubtract x y, ISubtract u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
       (IMultiply x y, IMultiply u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
-      other -> mismatch sp (UIndex carrier a) (UIndex carrier b) st
+      other -> add-error sp (string-concat (mismatch-message (UIndex carrier a) (UIndex carrier b)) " (index mismatch)") st
 
   validate-kind-indices :: Span -> Kind -> Store -> Store
   validate-kind-indices sp kind st = case kind of

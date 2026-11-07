@@ -17,6 +17,11 @@ fn source_effect_declarations_and_calls_retain_checked_contracts() {
         ("direct do shadowing", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do { x <- 1; x <- x + 1; x }", 0),
         ("direct do effects retained", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Unit ->{Marker} Int\n  value u = do { marker u; 42 }", 0),
         ("direct do effects cannot escape", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Unit -> Int\n  value u = do { marker u; 42 }", 4),
+        ("blocking foreign effect cannot escape", r#"effect Marker where
+    marker :: Unit ->{Marker} Unit
+  foreign import ccall "fix_block_inc" blockingInc :: I64 ->{IO, Blocking} I64
+  work :: I64 ->{IO} I64
+  work value = blockingInc value"#, 4),
         ("direct do pure let polymorphism", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do { let { identity x = x }; if identity True then identity 42 else 0 }", 0),
         ("direct do binding is monomorphic", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Int\n  value = do { identity <- (\\x -> x); if identity True then identity 42 else 0 }", 4),
         ("direct do let remains pure", "effect Marker where\n    marker :: Unit ->{Marker} Unit\n  value :: Unit ->{Marker} Int\n  value u = do { let { ignored = marker u }; 42 }", 4),
@@ -69,6 +74,9 @@ fn source_effect_declarations_and_calls_retain_checked_contracts() {
         let result = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "effect-source-report.txt");
         assert_eq!(result.status.code(), Some(wanted), "{name}; project {}\n{source}\n{report}\n{}", dir.display(), String::from_utf8_lossy(&result.stderr));
+        if name == "blocking foreign effect cannot escape" {
+            assert!(report.contains("performed effects exceed the declared row") && report.contains("Blocking"), "{report}");
+        }
         println!("checked source effect case passed: {name}");
     }
     common::cleanup(&dir);

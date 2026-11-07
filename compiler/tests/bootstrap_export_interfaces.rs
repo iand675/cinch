@@ -15,6 +15,12 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.ExportInterfaces.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "export-interfaces").expect("compile actual Cinch interface writer");
+    let core_source = include_str!("../prelude/Data/Core.cinch");
+    let shadow_source = "module Shadow where\n  data List a where\n    Wrap :: a -> List a\n";
+    // Exercise Ordering's data declaration in isolation. Its source instances
+    // require the Algebra module closure, covered by the replacement suite.
+    let ordering_source = "module Data.Ordering where\n  data Ordering where\n    LT :: Ordering\n    EQ :: Ordering\n    GT :: Ordering\n";
+    std::fs::write(dir.join("base-export-fixture"), format!("{core_source}\n{ordering_source}\n{shadow_source}")).unwrap();
     let run = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
     let error = std::fs::read_to_string(dir.join("export-error.txt")).unwrap_or_default();
     assert_eq!(run.status.code(), Some(0), "{error}\n{}\nProject: {}", String::from_utf8_lossy(&run.stderr), dir.display());
@@ -25,6 +31,27 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
         interface
     }).collect();
     assert_eq!(interfaces.len(), 3);
+    let base_output = common::read_output(&dir, "exported-base-interfaces.jsonl");
+    let base_interfaces: Vec<_> = base_output.lines()
+        .map(|line| cinch::interface::Iface::from_json(line).unwrap()).collect();
+    assert_eq!(base_interfaces.len(), 3);
+    cinch::interface::verify_chain(&base_interfaces).expect("freshly checked constructor interface dependencies");
+    let (_, native_base) = cinch::driver::check_sources_ifaces(&format!("{core_source}\n{shadow_source}"), "base-constructor-oracle.cinch")
+        .expect("independent Native source family and shadow check");
+    let actual_core = base_interfaces.iter().find(|i| i.module == "Data.Core").unwrap();
+    let native_core = native_base.iter().find(|i| i.module == "Data.Core").unwrap();
+    assert_eq!(actual_core.iface_hash(), native_core.iface_hash(), "canonical source interface for Data.Core");
+    let actual_ordering = base_interfaces.iter().find(|i| i.module == "Data.Ordering").unwrap();
+    let native_ordering = native_base.iter().find(|i| i.module == "Data.Ordering").unwrap();
+    for (actual, reference) in actual_ordering.exports.types[0].ctors.iter().zip(&native_ordering.exports.types[0].ctors) {
+        assert_eq!((&actual.name, &actual.scheme, &actual.fields, &actual.resolved),
+                   (&reference.name, &reference.scheme, &reference.fields, &reference.resolved));
+    }
+    assert_eq!(actual_ordering.exports.types[0].ctors.len(), 3);
+    let shadow = base_interfaces.iter().find(|i| i.module == "Shadow").unwrap();
+    let shadow_ctor = &shadow.exports.types[0].ctors[0];
+    assert_eq!(shadow_ctor.scheme, "forall a . (a -> Shadow.List a)");
+    assert!(shadow_ctor.resolved.as_ref().unwrap().nominals.iter().any(|n| n.identity == "Shadow.List"));
     let source = std::fs::read_to_string(dir.join("export-fixture.cinch")).unwrap();
     let (_, native_interfaces) = cinch::driver::check_sources_ifaces(&source, "cinch-interface-producer-source.cinch")
         .expect("independent Native acceptance of the complete actual producer fixture");
@@ -149,7 +176,11 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert!(!cons.scheme.contains("n :: Nat"), "unused family index was quantified: {}", cons.scheme);
     let public = a.exports.types.iter().find(|t| t.name == "PublicPositive").expect("public defining refinement");
     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
+    let native_parcel = native_a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
     for constructor in &parcel.ctors {
+        let reference = native_parcel.ctors.iter().find(|c| c.name == constructor.name).unwrap();
+        assert_eq!(constructor.scheme, reference.scheme, "public constructor display");
+        assert_eq!(constructor.fields, reference.fields, "public constructor fields");
         let resolved = constructor.resolved.as_ref().unwrap();
         assert!(resolved.scheme.starts_with("forall (a :: Type)."), "{}", resolved.scheme);
     }
@@ -267,11 +298,20 @@ fn source_interfaces_preserve_private_nominals_and_defining_fixities() {
     assert_eq!(signature.methods[0].name, "give");
     assert_eq!(signature.methods[0].slot, 0);
     assert_eq!(signature.methods[0].exports, ["give"]);
+    for (interface, name) in [(a, "Give"), (b, "Refined")] {
+        let native = native_interfaces.iter().find(|item| item.module == interface.module).unwrap();
+        let actual_type = interface.exports.types.iter().find(|item| item.name == name).unwrap();
+        assert_eq!(actual_type.kind, "signature");
+        assert_eq!(Some(actual_type), native.exports.types.iter().find(|item| item.name == name));
+        let layout = interface.layouts.iter().find(|item| item.name == name).unwrap();
+        assert_eq!(Some(layout), native.layouts.iter().find(|item| item.name == name));
+    }
     let instance = a.exports.instances.iter().find(|i| i.id == "A.GiveNat").unwrap();
     assert_eq!(instance.class, "A.Give");
     assert!(instance.implicit);
     assert_eq!(instance.methods, ["A.GiveNat.give"]);
     assert!(instance.method_contracts.is_empty());
+    assert!(!a.exports.values.iter().any(|value| value.name == "GiveNat"));
     let parcel = a.exports.types.iter().find(|t| t.name == "Parcel").unwrap();
     assert_eq!(parcel.params, ["a"]);
     assert_eq!(parcel.ctors.iter().map(|c| (c.name.as_str(), c.tag)).collect::<Vec<_>>(), [("Empty", 0), ("Loaded", 1)]);

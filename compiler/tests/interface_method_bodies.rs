@@ -40,6 +40,27 @@ fn standard_numeric_methods_export_their_own_exact_closed_roots() {
     let nat = interfaces.iter().find(|interface| interface.module == "Data.Nat").unwrap();
     assert!(nat.exports.instances.iter().find(|instance| instance.id == "Data.Nat.Sub_Nat").unwrap().method_bodies.is_empty(), "partial subtraction never claims an unrestricted total body");
 }
+
+#[test]
+fn standard_monoid_default_transports_the_checked_owner_clauses() {
+    let interfaces = interfaces("module Main where\n  import Algebra.Monoid\n  main :: Int\n  main = 0\n");
+    let monoid = interfaces.iter().find(|interface| interface.module == "Algebra.Monoid").unwrap();
+    let class = monoid.exports.signatures.iter()
+        .find(|class| class.identity == "Algebra.Monoid.Monoid").unwrap();
+    let method = class.methods.iter().find(|method| method.name == "mconcat").unwrap();
+    let body = method.default.as_ref().expect("the original mconcat body").to_json();
+    let identity = |name: &str| {
+        let encoded = name.chars().map(|c| format!("{}_", u32::from(c))).collect::<String>();
+        format!("i.{encoded}")
+    };
+    assert!(body.contains("\"ECase\""));
+    assert!(body.contains(&identity("Algebra.Monoid.Monoid.mempty")));
+    assert!(body.contains(&identity("Algebra.Semigroup.sconcat")));
+    assert!(body.contains(&identity("Data.Core.None")));
+    assert!(body.contains(&identity("Data.Core.Some")));
+    assert_eq!(Iface::from_json(&monoid.to_json()).unwrap().to_json(), monoid.to_json());
+    verify_chain(&interfaces).unwrap();
+}
 #[test]
 fn private_calls_and_slots_remain_associated_without_leaking_source_names() {
     let interfaces = interfaces(OWNER); let original = owner(&interfaces);

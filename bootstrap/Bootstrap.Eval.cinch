@@ -653,6 +653,7 @@ module Bootstrap.Eval where
   decl-unmodeleds d = case d of
     DOpaque s name params kind -> Cons (MkDiagnostic rung s "opaque declarations require checked nominal elaboration") Nil
     DRefine s n params binder predicate -> Cons (MkDiagnostic rung s "named refinement declarations need proof checking, which is not supported in this rung") Nil
+    DLaw s name syntax -> Cons (MkDiagnostic rung s "class laws require checked proposition elaboration") Nil
     DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
     other -> Nil
 

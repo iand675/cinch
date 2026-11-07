@@ -232,8 +232,12 @@ module Bootstrap.RuntimeIr where
       Some plan -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan)
       None -> False) || opaque-foreign-word ty rest
   word-class :: RuntimeContext -> UType -> Option Nat
+  word-class context ty = case borrowed-carrier (base ty) of
+    Some carrier -> word-class context carrier
+    None -> value-word-class context ty
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
-  word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  value-word-class :: RuntimeContext -> UType -> Option Nat
+  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -1932,7 +1936,8 @@ module Bootstrap.RuntimeIr where
     (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
-    CArgument at input (CArgumentsEnd end) -> if same op "negate" && named (core-type input) "Int" then
+    CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then expression definitions locals w input
+      else if same op "negate" && named (core-type input) "Int" then
       (case expression definitions locals w input of
         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
       else unsupported w sp "unary primitive needs runtime lowering"

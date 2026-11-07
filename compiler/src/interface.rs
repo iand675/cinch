@@ -18,7 +18,7 @@ use std::fmt;
 /// 5: definition-site class contexts, method slots and resolved method schemes.
 /// 4: occurrence-resolved pure schemes and their private nominal contracts.
 /// 3: declaration kinds, constructor schemes and class export names.
-pub const SCHEMA_VERSION: u32 = 8;
+pub const SCHEMA_VERSION: u32 = 9;
 /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
 /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
 /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
@@ -299,10 +299,28 @@ pub struct MethodExport {
     pub exports: Vec<String>,
     pub scheme: String,
     pub resolved: Option<ResolvedScheme>,
-    /// The identity of the method's default, when the class gives one:
-    /// an instance that omits the method inlines the default, so the
-    /// default is part of the class's contract.
-    pub default: Option<String>,
+    /// Checked clauses in the defining scope, covered by the interface hash.
+    pub default: Option<MethodDefault>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MethodDefault(JsonValue);
+
+impl MethodDefault {
+    pub(crate) fn from_value(value: JsonValue) -> Result<Self, ParseError> {
+        let clauses = value.as_array()?;
+        if clauses.is_empty() || !clauses.iter().all(|clause| {
+            matches!(clause, JsonValue::Arr(pair)
+                if matches!(pair.as_slice(), [JsonValue::Arr(_), JsonValue::Arr(_)]))
+        }) {
+            return Err(ParseError("invalid class default clauses".into()));
+        }
+        Ok(Self(value))
+    }
+
+    pub fn to_json(&self) -> String {
+        self.0.to_canonical_string()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -738,7 +756,7 @@ impl Iface {
                                     ("resolved", resolved_scheme_json(m.resolved.as_ref())),
                                 ]);
                                 if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
-                                    map.insert("default".to_string(), d.into());
+                                    map.insert("default".to_string(), d.0.clone());
                                 }
                                 o
                             }),
@@ -1086,21 +1104,20 @@ impl Iface {
             let mut methods = Vec::new();
             for m in o.get("methods").ok_or_else(|| ParseError("methods".into()))?.as_array()? {
                 let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
+                if mo.keys().any(|key| !matches!(key.as_str(), "name" | "slot" | "exports" | "scheme" | "resolved" | "default")) {
+                    return Err(ParseError("unknown method contract field".into()));
+                }
                 methods.push(MethodExport {
                     name: field_str(mo, "name")?,
                     slot: field_num(mo, "slot")?,
                     exports: field_list(mo, "exports")?,
                     scheme: field_str(mo, "scheme")?,
                     resolved: field_resolved_scheme(mo)?,
-                    default: match mo.get("default") {
-                        Some(d) => Some(d.as_str()?.to_string()),
-                        None => None,
-                    },
+                    default: mo.get("default").cloned().map(MethodDefault::from_value).transpose()?,
                 });
                 let method = methods.last().unwrap();
                 if method.slot != (methods.len() - 1) as u64 || method.name.is_empty()
                     || method.scheme.is_empty()
-                    || method.default.as_ref().is_some_and(|id| id.is_empty())
                     || methods[..methods.len() - 1].iter().any(|m| m.name == method.name) {
                     return Err(ParseError("method dictionary slots must be complete and in declaration order".into()));
                 }
@@ -1464,7 +1481,7 @@ impl From<String> for ParseError {
 /// writer builds before printing it with [`JsonValue::write_canonical`].
 /// Objects are `BTreeMap`s so key order is byte order by construction,
 /// which is the canonical form's order (`Text.Json`'s `string-compare`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum JsonValue {
     Null,
     Num(u64),

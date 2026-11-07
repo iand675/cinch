@@ -15,7 +15,7 @@ module Bootstrap.Resolve where
   import Data.Json
   import Algebra.Semigroup
 
-  export resolve-program, resolve-program-with
+  export resolve-program, resolve-program-with, resolve-overlay-with
 
   -- Visible spelling, defining module, internal global spelling.
   data Binding where
@@ -274,33 +274,33 @@ module Bootstrap.Resolve where
           (entries, errors) -> case build-exports rest visible views entries of
             (surface, more) -> (surface, errors <> more)
 
-  module-visibility :: Module -> List Scoped -> (List Binding, List Binding, List View, List Diagnostic)
-  module-visibility m done =
+  module-visibility :: Module -> List Scoped -> List Binding -> (List Binding, List Binding, List View, List Diagnostic)
+  module-visibility m done base =
     let home = module-name m in
     let declared = own-bindings home (module-decls m) Nil in
     let (views, errors) = import-views (module-decls m) done in
     let (bare, clashes) = bare-imports views Nil in
     let qualified = qualified-imports views in
-    let prelude-bindings = case lookup-scoped "Prelude" done of None -> Nil; Some (MkScoped n surface body) -> surface in
+    let prelude-bindings = case lookup-scoped "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
-  build-scope :: Module -> List Scoped -> (Scoped, List Diagnostic)
-  build-scope m done =
+  build-scope :: Module -> List Scoped -> List Binding -> (Scoped, List Diagnostic)
+  build-scope m done base =
     let home = module-name m in
-    let (declared, visible, views, visibility-errors) = module-visibility m done in
+    let (declared, visible, views, visibility-errors) = module-visibility m done base in
     let (surface, export-errors) = case export-items (module-decls m) of
           Nil -> (declared, Nil)
           Cons first rest -> build-exports (Cons first rest) visible views Nil in
     let (body, body-errors) = rename-decls home visible (module-decls m) in
     (MkScoped home surface body, visibility-errors <> export-errors <> body-errors)
 
-  resolve-ordered :: List Module -> List Scoped -> (List Scoped, List Diagnostic)
-  resolve-ordered remaining done = case remaining of
+  resolve-ordered :: List Module -> List Scoped -> List Binding -> (List Scoped, List Diagnostic)
+  resolve-ordered remaining done base = case remaining of
     Nil -> (reverse done, Nil)
     Cons first rest -> case pick-ready remaining done Nil of
       None -> (reverse done, fail (module-span first) (cat ["cyclic module imports involving ", module-name first]))
-      Some (m, pending) -> case build-scope m done of
-        (ready, errors) -> case resolve-ordered pending (Cons ready done) of
+      Some (m, pending) -> case build-scope m done base of
+        (ready, errors) -> case resolve-ordered pending (Cons ready done) base of
           (ordered, more) -> (ordered, errors <> more)
 
   scoped-decls :: List Scoped -> List Decl
@@ -636,15 +636,18 @@ module Bootstrap.Resolve where
     DOpaque s name params kind -> if opaque-name-reserved name then (Nil, fail s "an opaque declaration cannot redefine a builtin type") else
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
-    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined") else (Cons (DData s (global-name home name) (rename-params visible Nil params)
+    DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
+      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
-        case rename-class-members home visible (parameter-names params) (decls-of members) of
+        case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate ->
       let names = parameter-names params in
@@ -665,13 +668,39 @@ module Bootstrap.Resolve where
     DFixity s assoc prec ops -> (Nil, Nil)
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
 
-  rename-class-members :: String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
-  rename-class-members home visible locals ds = case ds of
+  rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
+  declared-class-method :: String -> List Decl -> Bool
+  declared-class-method name ds = case ds of
+    Nil -> False
+    Cons (DSig sp member ty) rest -> same name member || declared-class-method name rest
+    Cons other rest -> declared-class-method name rest
+  rename-class-members-with :: String -> String -> List Binding -> List String -> List Decl -> List Decl -> (List Decl, List Diagnostic)
+  rename-class-members-with home owner visible locals all ds = case ds of
     Nil -> (Nil, Nil)
-    Cons (DSig s name ty) rest -> case rename-class-members home visible locals rest of
+    Cons (DSig s name ty) rest -> case rename-class-members-with home owner visible locals all rest of
       (more, errors) -> (Cons (DMethod s name (global-name home name) (rename-type visible locals ty)) more, errors)
-    Cons other rest -> case rename-class-members home visible locals rest of
+    Cons (DLaw s name syntax) rest -> case rename-law visible locals syntax of
+      (checked, failures) -> case rename-class-members-with home owner visible locals all rest of
+        (more, errors) -> (Cons (DLaw s name checked) more, failures <> errors)
+    Cons (DFun s name clauses) rest -> case rename-class-members-with home owner visible locals all rest of
+      (more, errors) -> if declared-class-method name all then
+        (case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
+          (renamed, failures) -> (Cons (DFun s name renamed) more, failures <> errors))
+        else (Cons (DFun s name clauses) more, fail s (cat ["`", name, "` is not a method of ", owner]) <> errors)
+    Cons other rest -> case rename-class-members-with home owner visible locals all rest of
       (more, errors) -> (Cons other more, fail (decl-span other) "source signature member needs checked default or declaration elaboration" <> errors)
+
+  rename-law :: List Binding -> List String -> LawSyntax -> (LawSyntax, List Diagnostic)
+  rename-law visible locals syntax = case syntax of
+    LawForall parameters rest -> case rename-law visible (parameter-names parameters <> locals) rest of
+      (renamed, errors) -> (LawForall (rename-params visible locals parameters) renamed, errors)
+    LawArrow domain rest -> case rename-law visible (bound-names domain <> locals) rest of
+      (renamed, errors) -> (LawArrow (rename-type visible locals domain) renamed, errors)
+    LawEquation left right -> case rename-expr visible locals left of
+      (first, errors) -> case rename-expr visible locals right of
+        (second, more) -> (LawEquation first second, errors <> more)
+    LawProposition ty -> (LawProposition (rename-type visible locals ty), Nil)
 
   rename-decls :: String -> List Binding -> List Decl -> (List Decl, List Diagnostic)
   rename-decls home visible ds = rename-decls-with home visible ds ds
@@ -711,17 +740,54 @@ module Bootstrap.Resolve where
   resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-program-with p interfaces = case validate-interface-set interfaces of
     Err message -> (p, fail (program-span p) message)
-    Ok ordered -> resolve-context p (interface-scopes ordered) (interface-headers ordered)
+    Ok ordered -> resolve-context p (interface-scopes ordered) (interface-headers ordered) Nil
 
-  resolve-context :: Program -> List Scoped -> List Module -> (Program, List Diagnostic)
-  resolve-context p interfaces headers = case p of
+  -- A library home may precede the Prelude facade that re-exports it.
+  -- Only project facade names whose defining interface is already in the
+  -- home's checked dependency closure. The facade itself is never loaded
+  -- into that closure or made available as a source import.
+  resolve-overlay-with :: Program -> List LoadedInterface -> LoadedInterface -> (Program, List Diagnostic)
+  resolve-overlay-with p dependencies facade = case validate-interface-set dependencies of
+    Err message -> (p, fail (program-span p) message)
+    Ok ordered -> let base = overlay-base-bindings facade (loaded-exports facade) ordered Nil in
+      resolve-context p (interface-scopes ordered) (interface-headers ordered) base
+
+  overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
+  overlay-base-bindings facade exports dependencies found = case exports of
+    Nil -> reverse found
+    Cons (name, kind, identity) rest ->
+      let symbol = interface-global identity in
+      case overlay-defining-interface (identity-owner (reverse (unpack identity))) kind identity dependencies of
+        Some owner -> overlay-base-bindings facade rest dependencies
+          (if same symbol (public-global facade name) then Cons (MkBinding name owner symbol) found else found)
+        None -> overlay-base-bindings facade rest dependencies found
+
+  identity-owner :: List Char -> String
+  identity-owner reversed = case reversed of
+    Nil -> ""
+    Cons first rest -> if first == '.' then pack (reverse rest) else identity-owner rest
+
+  overlay-defining-interface :: String -> String -> String -> List LoadedInterface -> Option String
+  overlay-defining-interface owner kind identity dependencies = case dependencies of
+    Nil -> None
+    Cons i rest -> if same owner (loaded-module i) then
+      (if exports-identity kind identity (loaded-exports i) then Some owner else None)
+      else overlay-defining-interface owner kind identity rest
+
+  exports-identity :: String -> String -> List (String, String, String) -> Bool
+  exports-identity kind identity exports = case exports of
+    Nil -> False
+    Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
+
+  resolve-context :: Program -> List Scoped -> List Module -> List Binding -> (Program, List Diagnostic)
+  resolve-context p interfaces headers base = case p of
     MkProgram sp modules -> case validate-modules modules interfaces modules Nil of
-      Nil -> case resolve-ordered modules (reverse interfaces) of
+      Nil -> case resolve-ordered modules (reverse interfaces) base of
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
           case materialize-externals (declaration-references declarations <> export-references source-surfaces) declarations Nil of
-            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) <> body))) Nil), errors)
+            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) base <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
 
@@ -732,22 +798,22 @@ module Bootstrap.Resolve where
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
-  source-contexts :: List Module -> List Module -> List Scoped -> List Scoped -> Bool -> List String -> List Decl
-  source-contexts modules available all-scopes scopes prelude records = case scopes of
+  source-contexts :: List Module -> List Module -> List Scoped -> List Scoped -> Bool -> List String -> List Binding -> List Decl
+  source-contexts modules available all-scopes scopes prelude records base = case scopes of
     Nil -> Nil
     Cons (MkScoped name surface body) rest ->
       let at = source-span name modules in
       let begin = span-start at in
       let finish = span-end at in
       Cons (DSource at name
-        (record-source-context name modules all-scopes records
+        (record-source-context name modules all-scopes records base
         (JObj "module" (JStr name)
           (JObj "source_start" (JNum (nat-to-int begin))
             (JObj "source_end" (JNum (nat-to-int finish))
               (JObj "exports" (surface-json surface)
                 (JObj "declarations" (symbols-json body)
-                  (JObj "imports" (strings-json (module-imports name modules prelude))
-                    (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records)
+                  (JObj "imports" (strings-json (module-imports name modules prelude base surface body))
+                    (JObj "fixities" (fixity-json (exported-fixities name available (surface-names surface))) JObjEnd))))))))) (source-contexts modules available all-scopes rest prelude records base)
 
   source-record-symbols :: List Module -> List String
   source-record-symbols modules = case modules of
@@ -766,16 +832,16 @@ module Bootstrap.Resolve where
   visible-record-symbol name bindings = case bindings of
     Nil -> False
     Cons binding rest -> same name (binding-symbol binding) || visible-record-symbol name rest
-  record-source-context :: String -> List Module -> List Scoped -> List String -> Json -> Json
-  record-source-context name modules scopes records document = case records of
+  record-source-context :: String -> List Module -> List Scoped -> List String -> List Binding -> Json -> Json
+  record-source-context name modules scopes records base document = case records of
     Nil -> document
-    other -> JObj "record_scope" (strings-json (module-record-scope name modules scopes records)) document
-  module-record-scope :: String -> List Module -> List Scoped -> List String -> List String
-  module-record-scope name modules scopes records = case modules of
+    other -> JObj "record_scope" (strings-json (module-record-scope name modules scopes records base)) document
+  module-record-scope :: String -> List Module -> List Scoped -> List String -> List Binding -> List String
+  module-record-scope name modules scopes records base = case modules of
     Nil -> Nil
-    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes of
+    Cons m rest -> if same name (module-name m) then (case module-visibility m scopes base of
       (declared, visible, views, errors) -> visible-record-symbols visible records)
-      else module-record-scope name rest scopes records
+      else module-record-scope name rest scopes records base
 
   -- Retain consumed imports and the parser's definition-owned fixity facts
   -- before elaboration drops source declarations. Reexport metadata carries
@@ -789,9 +855,16 @@ module Bootstrap.Resolve where
     Nil -> reverse seen
     Cons (DImport sp name mods alias members arguments) rest -> declared-imports rest (if has-name name seen then seen else Cons name seen)
     Cons other rest -> declared-imports rest seen
-  module-imports :: String -> List Module -> Bool -> List String
-  module-imports name modules prelude = declared-imports (module-declarations name modules)
-    (if prelude && not (same name "Prelude") then ["Prelude"] else Nil)
+  module-imports :: String -> List Module -> Bool -> List Binding -> List Binding -> List Decl -> List String
+  module-imports name modules prelude base surface body = declared-imports (module-declarations name modules)
+    (if prelude && not (same name "Prelude") then ["Prelude"] else case base of
+      Nil -> Nil
+      other -> consumed-base-imports base (binding-references surface <> declaration-references body) Nil)
+  consumed-base-imports :: List Binding -> List String -> List String -> List String
+  consumed-base-imports bindings references found = case bindings of
+    Nil -> found
+    Cons (MkBinding name owner symbol) rest -> consumed-base-imports rest references
+      (if has-name symbol references && not (has-name owner found) then Cons owner found else found)
   strings-json :: List String -> Json
   strings-json values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings-json rest)
   surface-names :: List Binding -> List String

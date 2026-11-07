@@ -16,7 +16,7 @@
 
 module Bootstrap.Pipeline where
 
-  import Bootstrap.Ast (Program)
+  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
@@ -24,11 +24,11 @@ module Bootstrap.Pipeline where
   import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract)
-  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
+  import Bootstrap.Inputs (read-interfaces, embedded-library-home)
   import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Resolve (resolve-program, resolve-program-with)
-  import Bootstrap.Report (Diagnostic, render-diagnostics)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
+  import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces, interface-hash)
   import Bootstrap.Interface (fnv-source-hash)
   import Algebra.Semigroup
@@ -155,27 +155,95 @@ module Bootstrap.Pipeline where
           Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
           Parsed program Nil -> (case resolve-program-with program interfaces of
             (resolved, Nil) -> case check-and-retain resolved of
-              Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
+              Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
               Ok checked -> if publish then
                 (case write-checked-interfaces ir checked interfaces src of
                   0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
                   code -> code)
                 else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-            (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
+            (resolved, errors) -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused)
           Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
+  checked-source :: Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
+  checked-source program interfaces = retain-resolved-source (resolve-program-with program interfaces)
+  retain-resolved-source :: (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
+  retain-resolved-source result = case result of
+    (resolved, Nil) -> check-and-retain resolved
+    (resolved, errors) -> Err errors
+  overlay-interface :: String -> List LoadedInterface -> Option LoadedInterface
+  overlay-interface name interfaces = case interfaces of
+    Nil -> None
+    Cons entry rest -> if string-compare name (loaded-module entry) == 0 then Some entry else overlay-interface name rest
+  overlay-dependencies :: List (String, String) -> List LoadedInterface -> List LoadedInterface -> Result String (List LoadedInterface)
+  overlay-dependencies pending all found = case pending of
+    Nil -> Ok found
+    Cons (name, hash) rest -> case overlay-interface name found of
+      Some existing -> overlay-dependencies rest all found
+      None -> case overlay-interface name all of
+        None -> Err (string-concat "missing source replacement dependency: " name)
+        Some dependency -> overlay-dependencies (loaded-imports dependency <> rest) all (Cons dependency found)
+  overlay-module :: String -> List Module -> List Module -> Option (Module, List Module)
+  overlay-module name modules before = case modules of
+    Nil -> None
+    Cons candidate rest -> if string-compare name (module-name candidate) == 0 then Some (candidate, reverse before <> rest)
+      else overlay-module name rest (Cons candidate before)
+  replace-overlay-interface :: LoadedInterface -> List LoadedInterface -> List LoadedInterface
+  replace-overlay-interface fresh interfaces = case interfaces of
+    Nil -> Nil
+    Cons previous rest -> if string-compare (loaded-module fresh) (loaded-module previous) == 0 then Cons fresh rest
+      else Cons previous (replace-overlay-interface fresh rest)
+  checked-overlay-source :: Program -> List LoadedInterface -> Option LoadedInterface -> Result (List Diagnostic) CheckedProgram
+  checked-overlay-source program dependencies facade = case facade of
+    Some entry -> retain-resolved-source (resolve-overlay-with program dependencies entry)
+    None -> checked-source program dependencies
+  rebuild-source-interface :: Bytes -> Program -> String -> List LoadedInterface -> Option LoadedInterface -> Result String (LoadedInterface, Json)
+  rebuild-source-interface source program name dependencies facade = case checked-overlay-source program dependencies facade of
+    Err errors -> Err (render-source-diagnostics source errors)
+    Ok checked -> case export-interfaces checked dependencies source of
+      Err message -> Err (string-concat "bootstrap.export: " message)
+      Ok (Cons (owner, doc) Nil) -> if string-compare owner name == 0 then
+        (case load-interface owner (interface-hash doc) (canonical-bytes doc) of
+          Err message -> Err (string-concat "bootstrap.interfaces: " message)
+          Ok fresh -> Ok (fresh, doc))
+        else Err "bootstrap.interfaces: source replacement changed the defining module"
+      Ok other -> Err "bootstrap.interfaces: expected one checked source replacement"
+  -- Recheck a base source home with its own dependency closure before
+  -- admitting it into the cached set. This keeps the Prelude facade out
+  -- of early homes and checks every retained consumer against fresh hashes.
+  recheck-source-overlays :: Bytes -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
+  recheck-source-overlays source program order interfaces written = case order of
+    Nil -> (case written of
+      Nil -> Ok (program, interfaces, Nil)
+      other -> case validate-interface-set interfaces of
+        Err message -> Err (string-concat "bootstrap.interfaces: " message)
+        Ok checked -> Ok (program, checked, reverse written))
+    Cons previous rest -> let name = loaded-module previous in
+      if embedded-library-home name then
+        (case overlay-module name (program-modules program) Nil of
+          None -> recheck-source-overlays source program rest interfaces written
+          Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) interfaces Nil of
+            Err message -> Err (string-concat "bootstrap.interfaces: " message)
+            Ok dependencies -> let sp = program-span program in
+              case rebuild-source-interface source (MkProgram sp [replacement]) name dependencies (overlay-interface "Prelude" interfaces) of
+                Err message -> Err message
+                Ok (fresh, doc) -> recheck-source-overlays source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
+      else recheck-source-overlays source program rest interfaces written
   compile-source-interfaces :: forall r. using (io :: Io r) => List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   compile-source-interfaces interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
     Ok src -> case parse-program-with source src (interface-headers interfaces) of
       Failed bundle -> write-failure prefix (render-bundle bundle) pipeline-parse-failed
-      Parsed program Nil -> (case resolve-program-with program interfaces of
-        (resolved, Nil) -> case check-and-retain resolved of
-          Err errors -> write-failure prefix (render-diagnostics errors) pipeline-check-refused
-          Ok checked -> write-checked-interfaces prefix checked interfaces src
-        (resolved, errors) -> write-failure prefix (render-diagnostics errors) pipeline-check-refused)
+      Parsed program Nil -> (case recheck-source-overlays src program interfaces interfaces Nil of
+        Err message -> write-failure prefix message pipeline-check-refused
+        Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
+          (Nil, Cons first rest) -> write-interface-output prefix (Ok replaced)
+          other -> case checked-source remaining effective of
+            Err errors -> write-failure prefix (render-source-diagnostics src errors) pipeline-check-refused
+            Ok checked -> case export-interfaces checked effective src of
+              Err message -> write-interface-output prefix (Err message)
+              Ok rows -> write-interface-output prefix (Ok (replaced <> rows)))
       Parsed program errors -> write-failure prefix (render-bundle (Bundle source src errors)) pipeline-parse-failed
   write-interface-files :: forall r. using (io :: Io r) => Path -> List (String, Json) ->{IO r} Result String Unit
   write-interface-files prefix rows = case rows of
@@ -184,7 +252,9 @@ module Bootstrap.Pipeline where
       Err error -> Err "cannot write checked interface"
       Ok done -> write-interface-files prefix rest
   write-checked-interfaces :: forall r. using (io :: Io r) => Path -> CheckedProgram -> List LoadedInterface -> Bytes ->{IO r} Int
-  write-checked-interfaces prefix checked interfaces source = case export-interfaces checked interfaces source of
+  write-checked-interfaces prefix checked interfaces source = write-interface-output prefix (export-interfaces checked interfaces source)
+  write-interface-output :: forall r. using (io :: Io r) => Path -> Result String (List (String, Json)) ->{IO r} Int
+  write-interface-output prefix output = case output of
     Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-emit-refused
     Ok rows -> case write-interface-files prefix rows of
       Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-write-failed
@@ -200,31 +270,35 @@ module Bootstrap.Pipeline where
   after-parse :: forall r. using (io :: Io r) => PipelineMode -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-parse mode name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-    Parsed prog Nil -> after-resolve mode prog ir exe report
+    Parsed prog Nil -> after-resolve mode src prog ir exe report
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   after-parse-with :: forall r. using (io :: Io r) => PipelineMode -> List LoadedInterface -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-parse-with mode interfaces name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-    Parsed prog Nil -> case resolve-program-with prog interfaces of
-      (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
-      (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
+    Parsed prog Nil -> (case mode of
+      CheckOnly -> case recheck-source-overlays src prog interfaces interfaces Nil of
+        Err message -> write-failure ir message pipeline-check-refused
+        Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
+          (Nil, Cons first rest) -> write-interface-output ir (Ok Nil)
+          other -> after-check mode src (checked-source remaining effective) ir exe report
+      other -> after-check mode src (checked-source prog interfaces) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
-  after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-resolve mode prog ir exe report = case resolve-program prog of
-    (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
-    (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
+  after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-resolve mode src prog ir exe report = case resolve-program prog of
+    (resolved, Nil) -> after-check mode src (check-and-retain resolved) ir exe report
+    (resolved, found) -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
 
-  after-check :: forall r. using (io :: Io r) => PipelineMode -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-check mode result ir exe report = case result of
+  after-check :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check mode src result ir exe report = case result of
     Ok prog -> case mode of
       CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Ok written -> pipeline-ok
         Err e -> pipeline-write-failed
       EmitOnly -> write-runtime-module ir (emit-runtime-program prog)
       other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
-    Err found -> write-failure ir (render-diagnostics found) pipeline-check-refused
+    Err found -> write-failure ir (render-source-diagnostics src found) pipeline-check-refused
 
   after-emit :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-emit mode found prog ir exe report = case found of
@@ -365,9 +439,9 @@ module Bootstrap.Pipeline where
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
                     Parsed program Nil -> (case resolve-program-with program interfaces of
                       (resolved, Nil) -> case check-and-retain resolved of
-                        Err errors -> write-failure ir (render-diagnostics errors) pipeline-check-refused
+                        Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
                         Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix
-                      (resolved, errors) -> write-failure ir (render-diagnostics errors) pipeline-check-refused)
+                      (resolved, errors) -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
   prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
   prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of

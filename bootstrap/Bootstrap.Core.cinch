@@ -26,6 +26,7 @@ module Bootstrap.Core where
   export CApplyEff, CWith, core-effects
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
+  export ownership-type-kinds, borrowed-carrier, copy-out-type
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CErasedApply, scope-erased, scoped-proof-reference
@@ -552,6 +553,19 @@ module Bootstrap.Core where
 
   core-givens :: CoreDefinition -> List CoreGiven
   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
+
+  borrow-kind :: Kind
+  borrow-kind = KFun KRegion (KFun KType KType)
+  ownership-type-kinds :: List (String, Kind)
+  ownership-type-kinds = [("Ref", borrow-kind), ("Mut", borrow-kind), ("Thunk", KFun KRow (KFun KType KType))]
+  borrowed-carrier :: UType -> Option UType
+  borrowed-carrier ty = case ty of
+    UApp (UApp (UCon name kind) region) carrier ->
+      if (string-compare name "Ref" == 0 || string-compare name "Mut" == 0)
+        && kind-equal kind borrow-kind && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType then Some carrier else None
+    other -> None
+  copy-out-type :: UType -> UType
+  copy-out-type input = case borrowed-carrier input of Some carrier -> carrier; None -> input
 
   -- Sequence nodes have no value type. They only appear in the matching
   -- tuple, primitive, pattern or alternative positions, never as values.
@@ -1527,10 +1541,18 @@ module Bootstrap.Core where
         other -> None
       None -> None
     other -> None
-  -- Exact condition readings may be negated. A partial reading supplies
-  -- only the implication for the branch actually taken: a true p && q
-  -- implies p, and a false p || q implies not p, even when q is opaque.
-  -- Never negate that weaker implication to describe the other branch.
+  -- Exact condition readings may be negated. Partial readings retain only
+  -- implications for the branch actually taken: true p && q implies both
+  -- operands; false p || q implies both negations, even if one is opaque.
+  -- A known test fact is in scope when reading the selected operand. Never
+  -- negate a partial reading to describe the opposite branch.
+  merge-branch-implications :: Option Proposition -> Option Proposition -> Option Proposition
+  merge-branch-implications first second = case (first, second) of
+    (other, Some PTruth) -> first
+    (None, other) -> second
+    (Some PTruth, other) -> second
+    (Some p, None) -> first
+    (Some p, Some q) -> Some (PBoth p q)
   scoped-core-branch :: ProofScope -> List Proposition -> CoreTerm -> Bool -> Option Proposition
   scoped-core-branch gamma facts condition positive = if not (bool-type (core-type condition)) then None else
     case scoped-core-condition gamma facts condition of
@@ -1538,10 +1560,14 @@ module Bootstrap.Core where
       None -> case condition of
         CIf sp ty test yes no -> if positive then
           (case scoped-core-condition gamma facts no of
-            Some PFalsehood -> scoped-core-branch gamma facts test True
+            Some PFalsehood -> let first = scoped-core-branch gamma facts test True in
+              let inside = case first of Some fact -> Cons fact facts; None -> facts in
+              merge-branch-implications first (scoped-core-branch gamma inside yes True)
             other -> None)
           else (case scoped-core-condition gamma facts yes of
-            Some PTruth -> scoped-core-branch gamma facts test False
+            Some PTruth -> let first = scoped-core-branch gamma facts test False in
+              let inside = case first of Some fact -> Cons fact facts; None -> facts in
+              merge-branch-implications first (scoped-core-branch gamma inside no False)
             other -> None)
         other -> None
   -- A case row states facts only about the actual checked scrutinee.

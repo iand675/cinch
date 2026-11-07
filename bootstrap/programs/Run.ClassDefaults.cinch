@@ -1,0 +1,42 @@
+-- Runtime source input passes the actual Cinch resolver, checker and writer.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Check (check-and-retain)
+  import Bootstrap.Export (export-interfaces)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Text.Json (canonical-json)
+  import Data.Json (Json)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  rows-text :: List (String, Json) -> String
+  rows-text rows = case rows of
+    Nil -> ""
+    Cons (name, row) rest -> string-concat (canonical-json row) (string-concat "\n" (rows-text rest))
+  run :: List LoadedInterface -> Bytes -> (Int, String, String)
+  run interfaces source = case parse-program-with "class-default-source" source (interface-headers interfaces) of
+    Parsed program Nil -> (case resolve-program-with program interfaces of
+      (resolved, Nil) -> case check-and-retain resolved of
+        Err errors -> (4, render-diagnostics errors, "")
+        Ok checked -> (case export-interfaces checked interfaces source of
+          Err message -> (5, message, "")
+          Ok rows -> (0, "", rows-text rows))
+      (resolved, errors) -> (4, render-diagnostics errors, ""))
+    Failed bundle -> (2, render-bundle bundle, "")
+    other -> (2, "recoverable parse errors", "")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> 90
+    Ok interfaces -> case fs-read (path-from-string "source.cinch") of
+      Err error -> 91
+      Ok source -> let (status, report, rows) = run interfaces source in
+        case fs-write (path-from-string "class-default-report.txt") (string-to-bytes report) of
+          Err error -> 92
+          Ok done -> case fs-write (path-from-string "class-default-interfaces.jsonl") (string-to-bytes rows) of
+            Err error -> 93
+            Ok done -> status

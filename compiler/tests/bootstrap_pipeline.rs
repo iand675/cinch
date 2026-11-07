@@ -350,6 +350,7 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
         assert_eq!(run_built(exe, dir, &args).0, Some(0), "checked imported call must stop before its emitter refusal");
         assert_eq!(common::read_output(dir, "imported-check.diagnostics"), "");
     }
+    checked_source_library_replacement(dir, exe, &manifest, &source.join("build"));
     std::fs::write(&manifest, "{\"schema\":99,\"interfaces\":[]}").unwrap();
     let args = ["--interfaces", "interfaces.json", "unused-contracts.cinch", "invalid.ll", "invalid.bin", "invalid.report"]
         .iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -357,6 +358,132 @@ fn checked_interfaces(dir: &Path, exe: &Path) {
     assert!(common::read_output(dir, "invalid.ll.diagnostics").contains("unsupported interface manifest schema"));
     assert!(std::fs::read(dir.join("invalid.ll")).unwrap().is_empty());
     common::cleanup(&source);
+}
+
+fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, library: &Path) {
+    use cinch::interface::Iface;
+    let original = include_str!("../prelude/Data/Core.cinch");
+    let main = "module Main where\n  import Data.Core\n  main :: Int\n  main = case Some (42 :: Int) of Some value -> value; None -> 1\n";
+    let edited = original.replace("  data List a where", "  -- Checked from source during replacement.\n  data List a where");
+    let invoke = |mode: &str, input: &str, name: &str| {
+        let path = dir.join(format!("{name}.cinch"));
+        std::fs::write(&path, input).unwrap();
+        let args = [
+            mode.to_string(), "--interfaces".into(), manifest.display().to_string(),
+            path.display().to_string(), dir.join(name).display().to_string(),
+        ];
+        let output = std::process::Command::new(exe).current_dir(dir).args(args).env("PATH", "").output().unwrap();
+        let diagnostics = common::read_output(dir, &format!("{name}.diagnostics"));
+        (output.status.code(), diagnostics)
+    };
+    let exact = format!("{original}\n{main}");
+    assert_eq!(invoke("--check", &exact, "core-source-check"), (Some(0), String::new()));
+    let changed_source = format!("{edited}\n{main}");
+    assert_eq!(invoke("--emit-interfaces", &changed_source, "core-source-emit"), (Some(0), String::new()));
+    let load = |path: &Path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let previous = load(&library.join("Data.Core.cinchif"));
+    let replacement = load(&dir.join("core-source-emit.Data.Core.cinchif"));
+    let native_consumer = load(&library.join("Data.Nat.cinchif"));
+    let source_consumer = load(&dir.join("core-source-emit.Main.cinchif"));
+    assert_ne!(replacement.source_hash, previous.source_hash, "the replacement must come from the supplied source");
+    assert_eq!(replacement.iface_hash(), previous.iface_hash(), "retain the exact checked compatibility contract");
+    assert!(replacement.imports.is_empty(), "Data.Core must not gain a Prelude back edge");
+    for consumer in [native_consumer, source_consumer] {
+        assert!(consumer.imports.iter().any(|reference| reference.module == "Data.Core" && reference.iface_hash == replacement.iface_hash()));
+    }
+    // No retained module consumes Data.Set, so a changed public interface can
+    // be emitted and compared without invalidating an unrelated consumer.
+    let implicit_core = "module Data.Set where\n  sentinel :: List Int -> Option Int\n  sentinel xs = case xs of Nil -> None; Cons x rest -> Some x\n";
+    let explicit_core = implicit_core.replace("module Data.Set where", "module Data.Set where\n  import Data.Core");
+    let (status, diagnostics) = invoke("--emit-interfaces", &explicit_core, "early-explicit-core");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let (status, diagnostics) = invoke("--emit-interfaces", implicit_core, "early-implicit-core");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let implicit = load(&dir.join("early-implicit-core.Data.Set.cinchif"));
+    let explicit = load(&dir.join("early-explicit-core.Data.Set.cinchif"));
+    assert_eq!(implicit.iface_hash(), explicit.iface_hash());
+    assert_ne!(implicit.source_hash, explicit.source_hash);
+    assert_eq!(implicit.imports.len(), 1);
+    assert_eq!(implicit.imports[0].module, "Data.Core");
+    assert_eq!(implicit.imports[0].iface_hash, previous.iface_hash());
+
+    let qualified_without_import = implicit_core.replace("List Int", "Data.Core.List Int");
+    let (status, diagnostics) = invoke("--check", &qualified_without_import, "early-qualified-core");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("unknown type constructor or unbound type variable: Data.Core.List"), "{diagnostics}");
+
+    let copy_array = r#"module CopyExample where
+  from-shared :: forall r. Ref r (Array Int) -> Array Int
+  from-shared value = copyOut value
+"#;
+    let (status, diagnostics) = invoke("--check", copy_array, "copy-immutable-array");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let affine_elements = copy_array.replace("Array Int", "Array (Thunk {} Int)");
+    let (status, diagnostics) = invoke("--check", &affine_elements, "refuse-affine-array-copy");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("copyOut requires structural Copy evidence"), "{diagnostics}");
+
+    let class_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law identity :: (x :: a) -> Eq (restore x) x\n";
+    let (status, diagnostics) = invoke("--emit-interfaces", class_law, "unchecked-class-law");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    assert!(load(&dir.join("unchecked-class-law.LawExample.cinchif")).laws.is_empty());
+    let different = class_law.replace("Eq (restore x) x", "Eq (restore x) True");
+    let (status, diagnostics) = invoke("--emit-interfaces", &different, "wrong-law-carrier");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("type mismatch"), "{diagnostics}");
+    assert!(!dir.join("wrong-law-carrier.LawExample.cinchif").exists());
+    let unresolved = class_law.replace("restore x", "not-in-law-scope x");
+    let (status, diagnostics) = invoke("--check", &unresolved, "unresolved-class-law");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("name is not in scope: not-in-law-scope"), "{diagnostics}");
+
+    let function_former = r#"module ArrowExample where
+  signature Mapping (f :: Type -> Type) where
+    project :: forall a b. (a -> b) -> f a -> f b
+  implicit instance Mapping_Function r :: Mapping ((->) r) where
+    project f g x = f (g x)
+  direct :: ((->) Int) Int
+  direct x = x
+  use-project :: Int -> Int
+  use-project = project (\n -> n + 1) direct
+"#;
+    let (status, diagnostics) = invoke("--check", function_former, "structural-function-instance");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let too_many = function_former.replace("((->) Int) Int", "(->) Int Int Int");
+    let (status, diagnostics) = invoke("--check", &too_many, "overapplied-function-constructor");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("type constructor is applied to too many arguments"), "{diagnostics}");
+
+    let boolean_law = "module LawExample where\n  signature Restore a where\n    restore :: a -> a\n    law involution :: (x :: a) -> Eq (restore (restore x)) x\n  implicit instance Restore_Bool :: Restore Bool where\n    restore x = if x then False else True\n";
+    let (status, diagnostics) = invoke("--emit-interfaces", boolean_law, "sampled-boolean-law");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let sampled = load(&dir.join("sampled-boolean-law.LawExample.cinchif"));
+    assert_eq!(sampled.laws.len(), 1);
+    assert_eq!(sampled.laws[0].instance, "LawExample.Restore_Bool");
+    assert_eq!(sampled.laws[0].status, "checked (2 samples)");
+    let unlawful = boolean_law.replace("if x then False else True", "False");
+    let (status, diagnostics) = invoke("--emit-interfaces", &unlawful, "refused-boolean-law");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("class law involution failed for Restore_Bool on a Boolean sample"), "{diagnostics}");
+    assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
+    let function_law = format!("{class_law}  implicit instance Restore_Function :: Restore (Int -> Int) where\n    restore f = f\n");
+    let (status, diagnostics) = invoke("--emit-interfaces", &function_law, "unsampled-function-law");
+    assert_eq!(status, Some(0), "{diagnostics}");
+    let unsampled = load(&dir.join("unsampled-function-law.LawExample.cinchif"));
+    assert_eq!(unsampled.laws.len(), 1);
+    assert_eq!(unsampled.laws[0].instance, "LawExample.Restore_Function");
+    assert_eq!(unsampled.laws[0].status, "not checked (no samples for the law binder `x :: (Int -> Int)`)");
+
+    let incompatible = edited.replace("Option, None, Some", "Option, None, Some, Missing")
+        .replace("    None :: Option a", "    None :: Option a\n    Missing :: Option a");
+    let (status, diagnostics) = invoke("--emit-interfaces", &format!("{incompatible}\n{main}"), "stale-core-source");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("stale interface dependency: Data.Core"), "{diagnostics}");
+    assert!(!dir.join("stale-core-source.Data.Core.cinchif").exists());
+    assert!(!dir.join("stale-core-source.Main.cinchif").exists());
+    let (status, diagnostics) = invoke("--check", "module Lib where\n  answer :: Int\n  answer = 42\n", "ordinary-collision");
+    assert_eq!(status, Some(4), "{diagnostics}");
+    assert!(diagnostics.contains("source module conflicts with a loaded interface"), "{diagnostics}");
 }
 
 fn json_string(text: &str) -> String {
@@ -435,6 +562,8 @@ fn refused_source(dir: &Path, exe: &Path) {
         ("conditional-call-lowering", "module Main where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  answer :: Nat\n  answer = pred 1\n  main :: Int\n  main = 0\n", 5, "a using constraint the fragment does not lower"),
         ("conditional-call-ignored", "module Main where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  main :: Int\n  main = let ignored = pred 0 in 0\n", 4, "function precondition is not established"),
         ("indexed-pi-lowering", "module Main where\n  data At (n :: Nat) where\n    Mark :: At n\n  make :: (n :: Nat) -> At n\n  make actual = Mark\n  main :: Int\n  main = 0\n", 5, "typed constructor lowering"),
+        ("missing-record-field", "module Main where\n  record Person where\n    age :: Int\n  salary :: Person -> Int\n  salary p = p.salary\n  main :: Int\n  main = 0\n", 4, "unknown record field salary"),
+        ("fixed-index-mismatch", "module Main where\n  data At (n :: Nat) where\n    One :: At 1\n  wrong :: At 2\n  wrong = One\n  main :: Int\n  main = 0\n", 4, "type mismatch: expected 2, found 1 (index mismatch)"),
         ("constructor-lowering", "module Main where\n  data Box a where\n    Box :: a -> Box a\n  unwrap :: forall a. Box a -> a\n  unwrap (Box x) = x\n  main :: Int\n  main = unwrap (Box 0)\n", 5, "typed constructor lowering"),
     ];
     for (name, source, expected, message) in cases {
@@ -448,4 +577,17 @@ fn refused_source(dir: &Path, exe: &Path) {
         assert!(std::fs::read(dir.join(format!("{name}.ll"))).unwrap().is_empty(), "refused source retained usable IR");
         assert!(!dir.join(format!("{name}.bin")).exists());
     }
+}
+
+#[test]
+fn diagnostic_origins_retain_actual_bundle_labels_and_local_lines() {
+    let dir = common::project("diagnostic_origins", &[
+        ("Bootstrap.Ast.cinch", include_str!("../../bootstrap/Bootstrap.Ast.cinch")),
+        ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
+        ("Main.cinch", include_str!("../../bootstrap/programs/Run.DiagnosticOrigins.cinch")),
+    ]);
+    let exe = common::build(&dir, "Main.cinch", "diagnostic-origins").expect("build actual Cinch diagnostic renderer");
+    let output = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "diagnostic origin bitmask; project {}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
+    common::cleanup(&dir);
 }

@@ -8,7 +8,32 @@ module Bootstrap.Inputs where
   import Text.Json (parse-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
-  export read-interfaces
+  export read-interfaces, embedded-library-home
+
+  -- Source replacement is reserved for defining homes in the pinned
+  -- compiler-owned base package. Ordinary interface collisions still refuse.
+  embedded-library-home :: String -> Bool
+  embedded-library-home name = embedded-home-member name embedded-homes
+  embedded-home-member :: String -> List String -> Bool
+  embedded-home-member name homes = case homes of
+    Nil -> False
+    Cons home rest -> string-compare name home == 0 || embedded-home-member name rest
+  embedded-homes :: List String
+  embedded-homes =
+    ["Data.Core", "Data.Ordering", "Relation.Eq", "Relation.Ord",
+    "Algebra.Arithmetic", "Algebra.Bits", "Function.Combinators", "Data.Nat",
+    "Data.Int", "Data.Option", "Data.Result", "Data.List",
+    "Data.Enum", "Data.Char", "Data.Bool", "Data.Machine",
+    "Data.Bytes", "Data.Map", "Data.String", "Data.Json",
+    "Data.Producer", "Data.Target", "Data.Path", "Effect.Sequencing",
+    "Effect.Concurrent", "Effect.Clock", "Effect.Fs", "Effect.Process",
+    "Effect.Io", "Data.FromList", "Data.FromMap", "Text.Show",
+    "Data.Sym", "Prelude", "Algebra.Semigroup", "Algebra.Group",
+    "Algebra.Semiring", "Algebra.Monoid", "Category.Functor", "Category.Applicative",
+    "Category.Monad", "Category.Alternative", "Category.Foldable", "Category.Traversable",
+    "Data.Identity", "Data.Const", "Data.Compose", "Data.NonEmpty",
+    "Data.Sorted", "Data.NonZero", "Data.Ascii", "Data.Set",
+    "Data.Hash", "Text.Codec", "Data.HashMap"]
 
   field :: String -> Json -> Json
   field name doc = case doc of

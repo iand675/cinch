@@ -5248,13 +5248,11 @@ impl Checker {
                     .map(|(_, s)| s.clone())
                     .expect("a default names a declared method (checked at collection)");
                 let gid = GlobalId(format!("{module}.{}.{mname}.default", sig.name));
-                let before = self.fns.len();
                 self.check_equations(mname, &gid, &scheme, eqs, Vec::new())?;
-                let rows: String = self.fns[before..].iter().map(|f| format!("{f:?}\n")).collect();
-                self.default_ids.insert(
-                    (module.to_string(), sig.name.clone(), mname.clone()),
-                    crate::interface::content_hash(&rows),
-                );
+                let body = self.portable_default_body(eqs).ok_or_else(|| {
+                    Error::at(eqs[0].span, format!("class default `{mname}` uses unsupported interface syntax"))
+                })?;
+                self.method_defaults.insert((module.to_string(), sig.name.clone(), mname.clone()), body);
             }
         }
 
@@ -16224,13 +16222,14 @@ impl Checker {
                 } else {
                     scheme.con_params.extend(higher_kinded_parameters(&s.params, &s.param_kinds));
                 }
+                let default = self.method_defaults.get(&(s.module.clone(), s.name.clone(), name.clone()));
                 crate::interface::MethodExport {
                     name: name.clone(),
                     slot: slot as u64,
                     exports: public(name),
                     scheme: render_scheme(&scheme),
                     resolved: self.resolved_interface_scheme(&s.module, &format!("{}.{}", s.name, name)),
-                    default: self.default_ids.get(&(s.module.clone(), s.name.clone(), name.clone())).cloned(),
+                    default: default.cloned(),
                 }
             }).collect(),
         }

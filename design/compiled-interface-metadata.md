@@ -7,14 +7,12 @@ where that chapter states obligations, this note fixes the mechanism.
 Status: design accepted for implementation (roadmap slice P3 in
 `compiler/CONFORMANCE.md`).
 
-The development interface schema is 8 and the runtime ABI is 6. Schema 8
-carries closed executable total-body payloads and complete defining measure
-declarations. The published c8d6 compiler has independently verified
-Stage0/1/2/3 fixed-point evidence in
-[the current bootstrap receipt](../bootstrap/current-projection-proof-bootstrap-results.json).
-Complete matching suites, original API parity and Acceptance 5 remain open.
-The explicitly pinned b64710b seed and separate library provider remain
-unchanged by the method-body metadata addition below.
+The compiler reads and writes interface schema 9 with runtime ABI 6. This
+schema carries checked method defaults, closed executable total-body
+payloads and complete defining measure declarations. Rebuild interface
+artifacts from source when changing schema. The bootstrap uses a separately
+pinned Rust library producer for its base-library interfaces. Complete
+matching suites, original API parity and Acceptance 5 remain open.
 
 A value's `total_body` is null or a version1 closed, sorted first-order graph.
 Only a supported monomorphic ordinary pure signature can advertise one. The
@@ -179,16 +177,14 @@ public spellings cannot change dictionary layout. Re-exported class
 contracts must agree with the defining interface after removing public
 aliases and export lists. Unit aliases retain one defining class contract.
 
-The schema 9 candidate carries each method default as one optional `default`
-array containing its checked patterns and bodies. The interface hash covers
-the array and its method scheme. The consumer rechecks the clauses before
-inheriting them. A compiler using schema 9 requires freshly built interface
-artifacts from its matching library producer.
+Each method default is an optional `default` array containing its checked
+patterns and bodies. The interface hash covers the array and its method
+scheme. The consumer rechecks the clauses before inheriting them. Both
+compilers require schema 9 and reject fingerprint-only defaults. The
+library producer rebuilds its interfaces from pinned source.
 
 A Cinch-built consumer inherited defaults from separate Rust and Cinch
-producers, and the rebuilt provider verified all 55 library interfaces. The
-published stage chain uses schema 8 while the combined candidate runs its
-full validation. See [the schema 9 replay](../bootstrap/current-schema9-default-replay-results.json).
+producers. See [the inheritance replay](../bootstrap/current-schema9-default-replay-results.json).
 
 ### Resolved type occurrences
 
