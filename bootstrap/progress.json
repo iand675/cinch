@@ -19266,8 +19266,8 @@
       },
       {
         "title": "Check closed named proofs and their original runtime example",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "bootstrap_proof_terms",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -19286,8 +19286,8 @@
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
         "status": "running",
-        "phase": "rebuild pinned library",
-        "passed": 0,
+        "phase": "check matching Stage0 through Stage3",
+        "passed": 2,
         "failed": 0,
         "total": 3,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
@@ -19476,5 +19476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:30:34.486745+00:00"
+  "updatedAt": "2026-11-07T15:31:36.472581+00:00"
 }
