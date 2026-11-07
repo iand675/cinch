@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "105 of 235 complete groups passed; 1 running, 0 failed and 129 pending.Every group includes ignored tests. State: running.",
+      "detail": "107 of 235 complete groups passed; 1 running, 0 failed and 127 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "105 of 235 complete groups passed; 1 running, 0 failed and 129 pending."
+      "detail": "107 of 235 complete groups passed; 1 running, 0 failed and 127 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -790,9 +790,9 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 113,
+          "verified": 114,
           "blocked": 0,
-          "running": 1,
+          "running": 0,
           "pending": 121,
           "recheck": 0
         },
@@ -8894,17 +8894,17 @@
           {
             "id": "native:primitives",
             "title": "primitives",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitives.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T00:30:35.858489+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T00:31:44.171324+00:00",
+              "exitCode": 0,
+              "logSha256": "7bcadfd5dedce10a99112e8f0ba6af88ce298c69922b1cb28657d5da8f9f298c",
               "cases": [
                 {
                   "name": "bignum_arithmetic_through_the_language",
@@ -8964,7 +8964,95 @@
                 },
                 {
                   "name": "float_nan_behavior",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "int_and_nat_comparison_instances",
+                  "status": "passed"
+                },
+                {
+                  "name": "int_beyond_i64_computed_and_compared",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_patterns_are_range_checked",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_patterns_at_nat_and_int_fall_through",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_range_checking",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_ranges_at_machine_and_mathematical_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "min_and_max_bounds",
+                  "status": "passed"
+                },
+                {
+                  "name": "minimum_maximum_propagate_nan",
+                  "status": "passed"
+                },
+                {
+                  "name": "nat_subtraction_requires_its_operands_in_order",
+                  "status": "passed"
+                },
+                {
+                  "name": "neg_and_conversions_at_int",
+                  "status": "passed"
+                },
+                {
+                  "name": "negative_nat_literal_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_arith_on_machine_integers",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_eq_and_ord_on_floats",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_neg_on_non_literal_machine_numbers",
+                  "status": "passed"
+                },
+                {
+                  "name": "retired_int_family_no_longer_resolves",
+                  "status": "passed"
+                },
+                {
+                  "name": "rotates_are_total",
+                  "status": "passed"
+                },
+                {
+                  "name": "saturating_clamps_to_bounds",
+                  "status": "passed"
+                },
+                {
+                  "name": "shifts_distinguish_invalid_counts",
+                  "status": "passed"
+                },
+                {
+                  "name": "sub_word_canonicalization",
+                  "status": "passed"
+                },
+                {
+                  "name": "total_order_orders_neg_zero_and_nan",
+                  "status": "passed"
+                },
+                {
+                  "name": "u32_to_char_rejects_non_scalars",
+                  "status": "passed"
+                },
+                {
+                  "name": "unconstrained_literal_is_an_error",
+                  "status": "passed"
                 }
               ]
             },
@@ -8979,11 +9067,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:24:40.878266+00:00",
-              "finishedAt": "2026-11-06T14:24:59.635868+00:00",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:31:44.173499+00:00",
+              "finishedAt": "2026-11-07T00:32:02.895837+00:00",
               "exitCode": 0,
-              "logSha256": "d228b58f8086b0c4fca55b51d4eaec01c9516ad47efcbf050ee9f01887e969f2",
+              "logSha256": "8d3e68e160fe22642b3aedf1204524724de76ede83e6fc360171b050713c8d4a",
               "cases": [
                 {
                   "name": "a_changed_selected_body_changes_the_retained_equation",
@@ -9025,24 +9113,16 @@
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-default-annotation-results.json",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:24:59.645210+00:00",
-              "finishedAt": "2026-11-06T14:25:17.225853+00:00",
-              "exitCode": 0,
-              "logSha256": "3db2f8abfb88f68709622acae22e03b05c7b922728ec967c22b60696a5b1b8e4",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T00:32:02.897928+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "constructor_proofs_keep_derivation_scope_and_strict_aliases",
-                  "status": "passed"
-                },
-                {
-                  "name": "quantified_evidence_constructors_execute_with_erased_fields",
-                  "status": "passed"
-                },
-                {
-                  "name": "quantified_proposition_domains_keep_their_declared_kind",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18365,8 +18445,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "primitives",
-        "passed": 105,
+        "phase": "proof_value_identity",
+        "passed": 107,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18384,9 +18464,9 @@
       }
     ],
     "counts": {
-      "verified": 285,
+      "verified": 286,
       "blocked": 4,
-      "running": 6,
+      "running": 5,
       "pending": 160,
       "recheck": 212
     },
@@ -18396,5 +18476,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T00:31:02.558383+00:00"
+  "updatedAt": "2026-11-07T00:32:04.754688+00:00"
 }
