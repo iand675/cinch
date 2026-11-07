@@ -19104,6 +19104,35 @@
         "passed": 4,
         "failed": 0,
         "total": 9,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-interface-controls-and-schema9-nonzero-results.json"
+      },
+      {
+        "title": "Stage3 structural NonZero with the missing library factory",
+        "status": "passed",
+        "phase": "The unchanged test passed using the same compiler, runtime and 55 interface identities.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-interface-controls-and-schema9-nonzero-results.json"
+      },
+      {
+        "title": "Bootstrap the stricter schema 10 candidate",
+        "status": "waiting-for-pinned-library",
+        "phase": "waiting for pinned library",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
+      },
+      {
+        "title": "Replay the original library families with the rebuilt provider",
+        "status": "waiting-stage1",
+        "phase": "waiting stage1",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
         "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
       },
       {
@@ -19221,5 +19250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T13:15:18.804380+00:00"
+  "updatedAt": "2026-11-07T13:19:17.826545+00:00"
 }
