@@ -2999,7 +2999,7 @@ module Bootstrap.Infer where
             let boolean = primitive-type "Bool" in
             if same op "&&" then (CIf sp boolean first second (CUse sp boolean "False" "constructor" Nil), sb)
             else (CIf sp boolean first (CUse sp boolean "True" "constructor" Nil) second, sb)
-    else if has op ["+", "-", "*", "<", ">", "<=", ">="] then
+    else if has op ["+", "-", "*", "/", "<", ">", "<=", ">="] then
       case infer classes kinds families env locals a st of
         (inferred, sa) ->
           let first = project-comparison sp inferred sa in
@@ -3008,11 +3008,15 @@ module Bootstrap.Infer where
                 other -> primitive-type "Int" in
           let sorted = unify sp (core-type first) carrier sa in
           case check classes kinds families env locals b carrier sorted of
-            (second, sb) -> let operation = CPrimitive sp (if has op ["+", "-", "*"] then carrier else primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))) in
+            (second, sb) -> let operation = CPrimitive sp (if has op ["+", "-", "*", "/"] then carrier else primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))) in
               if same op "-" && same (type-text carrier) "Nat" then
                 (case scoped-prove-subtraction (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
                   Some evidence -> (CProved sp carrier evidence operation, sb)
                   None -> term-error sp "Nat subtraction needs checked ordering evidence" sb)
+              else if same op "/" then
+                (case scoped-prove-division (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
+                  Some evidence -> (CProved sp carrier evidence operation, sb)
+                  None -> term-error sp "division needs checked NonZero evidence for its divisor" sb)
               else (operation, sb)
     else if has op ["==", "/="] then case infer classes kinds families env locals a st of
       (inferred, sa) -> let first = project-comparison sp inferred sa in case check classes kinds families env locals b (core-type first) sa of
@@ -3938,7 +3942,7 @@ module Bootstrap.Infer where
   law-binder-no-samples name ty = string-concat-all ["no samples for the law binder `", name, " :: ", law-domain-text ty, "`"]
   law-domain-text :: UType -> String
   law-domain-text ty = case ty of
-    UCon name kind -> instance-diagnostic-name name
+    UCon name kind -> case export-global name of Ok identity -> identity; Err error -> name
     UApp function argument -> string-concat-all [law-domain-text function, " ",
       (case argument of UApp inner value -> string-concat-all ["(", law-domain-text argument, ")"]; other -> law-domain-text argument)]
     UFun domain result -> string-concat-all ["(", law-domain-text domain, " -> ", law-domain-text result, ")"]

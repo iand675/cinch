@@ -35,7 +35,7 @@ module Bootstrap.Core where
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation
-  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction
+  export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export term-children
@@ -1613,18 +1613,29 @@ module Bootstrap.Core where
   subtraction-goal :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proposition
   subtraction-goal gamma facts first second = if nat-type (core-type first) && nat-type (core-type second) then
     (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (PCompare AtMost y x); other -> None) else None
-  scoped-prove-subtraction :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
-  scoped-prove-subtraction gamma facts first second = case subtraction-goal gamma facts first second of
+  operation-goal :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option Proposition
+  operation-goal gamma facts op first second =
+    if string-compare op "-" == 0 then subtraction-goal gamma facts first second
+    else if string-compare op "/" == 0 && same-number-sort (core-type first) (core-type second) then
+      (case core-arithmetic gamma facts second of Some divisor -> Some (PCompare Unequal divisor (AInteger 0)); None -> None)
+    else None
+  scoped-prove-operation :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option Proof
+  scoped-prove-operation gamma facts op first second = case operation-goal gamma facts op first second of
     Some goal -> let hypotheses = goal-assumptions gamma facts [goal] in case prove hypotheses goal of
       Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
       None -> None
     None -> None
+  scoped-prove-subtraction :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
+  scoped-prove-subtraction gamma facts first second = scoped-prove-operation gamma facts "-" first second
+  scoped-prove-division :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
+  scoped-prove-division gamma facts first second = scoped-prove-operation gamma facts "/" first second
   certified-operation :: ProofScope -> List Proposition -> UType -> Proof -> CoreTerm -> Bool
-  certified-operation gamma facts ty evidence body = nat-type ty && (case body of
+  certified-operation gamma facts ty evidence body = case body of
     CPrimitive s out op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
-      nat-type out && string-compare op "-" == 0 && proof-term gamma facts first && proof-term gamma facts second
-      && (case subtraction-goal gamma facts first second of Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence; None -> False)
-    other -> False)
+      same-number-sort ty out && same-number-sort out (core-type first)
+      && proof-term gamma facts first && proof-term gamma facts second
+      && (case operation-goal gamma facts op first second of Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence; None -> False)
+    other -> False
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body sc) (core-type rhs)) then None
@@ -1665,7 +1676,7 @@ module Bootstrap.Core where
     CRequire s ty body -> False
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
     CProved s ty evidence body -> certified-operation gamma facts ty evidence body
-    CPrimitive s ty op args -> not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
+    CPrimitive s ty op args -> string-compare op "/" /= 0 && not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
     CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
     CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
     CScope s ty region evidence callback -> proof-term gamma facts callback
@@ -1853,8 +1864,8 @@ module Bootstrap.Core where
       if certified-operation gamma facts ty evidence out then CProved s ty evidence out
       else case out of
         CPrimitive at result op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
-          if nat-type ty && nat-type result && string-compare op "-" == 0 then
-            (case scoped-prove-subtraction gamma facts first second of
+          if same-number-sort ty result && same-number-sort result (core-type first) then
+            (case scoped-prove-operation gamma facts op first second of
               Some fresh -> CProved s ty fresh out
               None -> CError s)
           else CError s

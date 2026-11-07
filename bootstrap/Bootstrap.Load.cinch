@@ -306,6 +306,10 @@ module Bootstrap.Load where
       && method-clauses-valid rest
     JArrEnd -> True
     other -> False
+  checked-scheme-spelling :: Json -> Bool
+  checked-scheme-spelling row = case resolved-text row of
+    Some scheme -> same scheme (text (field "scheme" row))
+    None -> True
   methods-valid :: Json -> List String -> Bool
   methods-valid rows seen = case rows of
     JArr row rest ->
@@ -314,7 +318,7 @@ module Bootstrap.Load where
       && string-length (text (field "scheme" row)) > 0 && strings-p (field "exports" row)
       && nat-p (field "slot" row) && number (field "slot" row) == list-length seen
       && resolved-entry-valid row && measure-bodies-valid (resolved-measures row)
-      && (case resolved-text row of Some scheme -> same scheme (text (field "scheme" row)); None -> True)
+      && checked-scheme-spelling row
       && method-default-valid row
       && methods-valid rest (Cons name seen)
     JArrEnd -> True

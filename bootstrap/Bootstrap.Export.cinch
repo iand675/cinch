@@ -684,7 +684,7 @@ module Bootstrap.Export where
       Err error -> Err error
       Ok rows -> if has-symbol subject (field "declarations" context) then
         (case (export-global subject, export-global owner) of
-          (Ok identity, Ok class) -> Ok (insert-law (JObj "instance" (JStr identity) (JObj "class" (JStr (last-name (unpack class) Nil))
+          (Ok identity, Ok class) -> Ok (insert-law (JObj "instance" (JStr identity) (JObj "class" (JStr class)
             (JObj "law" (JStr law-name) (JObj "status" (JStr status) JObjEnd)))) rows)
           (Err error, other) -> Err error
           (other, Err error) -> Err error)

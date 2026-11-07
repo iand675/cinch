@@ -1960,7 +1960,7 @@ module Bootstrap.RuntimeIr where
     (ready, [a, b]) ->
       let ty = core-type first in
       let prefix = cat ["@cinch_", runtime-number ty, "_"] in
-      let operation = if same op "+" then Some "add" else if same op "-" then Some "sub" else if same op "*" then Some "mul" else None in
+      let operation = if same op "+" then Some "add" else if same op "-" then Some "sub" else if same op "*" then Some "mul" else if same op "/" then Some "div" else None in
       let lowered = (case operation of
             Some suffix -> call ready (cat [prefix, suffix]) [a, b]
             None -> case comparison op of
@@ -2088,8 +2088,8 @@ module Bootstrap.RuntimeIr where
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_argv_init(i64, ptr)\ndeclare i64 @cinch_run_main(ptr)\n",
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
-    "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
-    "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
+    "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_div(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
+    "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_div(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
   apply-entry :: String
   apply-entry = apply-entry-with-linkage ""
   apply-entry-with-linkage :: String -> String
