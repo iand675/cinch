@@ -18613,12 +18613,12 @@
       },
       {
         "title": "Core branch compiler: its own44 source modules",
-        "status": "waiting-complete-actual-compiler-gate",
+        "status": "waiting-worker",
         "phase": null,
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": null,
+        "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
         "nativeSource": null,
         "auditPending": false
       },
@@ -18746,13 +18746,13 @@
       },
       {
         "title": "Cinch Core branch implications: full compiler/object gate",
-        "status": "running",
+        "status": "passed",
         "phase": "bootstrap_library_object",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Cinch result inference: original API/default groups",
@@ -18766,8 +18766,8 @@
       },
       {
         "title": "Cinch defaults: full replay with function factories",
-        "status": "waiting-shared-worker",
-        "phase": null,
+        "status": "running",
+        "phase": "interface_anonymous_contracts",
         "passed": 0,
         "failed": 0,
         "total": 10,
@@ -18808,5 +18808,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T02:50:47.148632+00:00"
+  "updatedAt": "2026-11-07T02:51:55.307339+00:00"
 }
