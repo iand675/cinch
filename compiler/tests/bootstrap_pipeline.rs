@@ -672,6 +672,11 @@ fn diagnostic_origins_retain_actual_bundle_labels_and_local_lines() {
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.DiagnosticOrigins.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "diagnostic-origins").expect("build actual Cinch diagnostic renderer");
+    let mut bundle = String::from("-- source: Earlier.cinch\nmodule Earlier where\n");
+    bundle.push_str(&format!("-- {}\n", "é".repeat(50)).repeat(20_000));
+    bundle.push_str("-- source: Étape.cinch\nmodule Étape where\n  broken = x");
+    std::fs::write(dir.join("large-bundle"), bundle).unwrap();
+    std::fs::write(dir.join("invalid-utf8"), b"-- source: NoLabel.cinch\nmodule Main where\n\xff").unwrap();
     let output = std::process::Command::new(exe).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0), "diagnostic origin bitmask; project {}\n{}", dir.display(), String::from_utf8_lossy(&output.stderr));
     common::cleanup(&dir);
