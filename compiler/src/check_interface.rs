@@ -9,6 +9,14 @@ struct DefinitionScheme {
     references: std::collections::BTreeSet<(String, String)>,
     con_params: Vec<(String, usize)>,
     measure_calls: std::collections::BTreeSet<String>,
+    instance_header: Option<DefinitionInstanceHeader>,
+}
+
+#[derive(Clone)]
+struct DefinitionInstanceHeader {
+    class: String,
+    target: String,
+    context: Vec<String>,
 }
 
 // Every portable predicate binder retains its actual checked carrier sort.
@@ -278,10 +286,15 @@ impl Checker {
         let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
             else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[]) };
         let Some(mut text) = text else { return };
+        let instance_header = class_target.then(|| {
+            // The checked class resolver emits its defining identity first.
+            let class = text.split_once(' ').map_or(text.as_str(), |(owner, _)| owner);
+            DefinitionInstanceHeader { class: class.to_owned(), target: text.clone(), context: context.clone() }
+        });
         if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
         if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
         self.interface_source_schemes.insert((module.to_string(), name.to_string()), DefinitionScheme {
-            text, references, con_params: scheme.con_params.clone(), measure_calls,
+            text, references, con_params: scheme.con_params.clone(), measure_calls, instance_header,
         });
     }
 

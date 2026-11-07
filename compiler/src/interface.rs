@@ -18,7 +18,7 @@ use std::fmt;
 /// 5: definition-site class contexts, method slots and resolved method schemes.
 /// 4: occurrence-resolved pure schemes and their private nominal contracts.
 /// 3: declaration kinds, constructor schemes and class export names.
-pub const SCHEMA_VERSION: u32 = 9;
+pub const SCHEMA_VERSION: u32 = 10;
 /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
 /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
 /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
@@ -323,6 +323,41 @@ impl MethodDefault {
     }
 }
 
+/// A defining class law. A null payload records a checked proposition whose
+/// syntax this interface cannot transport for independent sampling.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ClassLawExport {
+    pub name: String,
+    pub(crate) syntax: Option<JsonValue>,
+}
+
+impl ClassLawExport {
+    pub fn syntax_json(&self) -> Option<String> {
+        self.syntax.as_ref().map(JsonValue::to_canonical_string)
+    }
+}
+
+fn class_law_json(law: &ClassLawExport) -> JsonValue {
+    JsonValue::obj([
+        ("name", (&law.name).into()),
+        ("syntax", law.syntax.clone().unwrap_or(JsonValue::Null)),
+    ])
+}
+
+fn class_law_syntax_valid(value: &JsonValue) -> bool {
+    let JsonValue::Arr(parts) = value else { return false };
+    match parts.as_slice() {
+        [JsonValue::Str(tag), JsonValue::Arr(binders), body] if tag == "LawForall" =>
+            !binders.is_empty() && binders.iter().all(|binder| matches!(binder, JsonValue::Arr(parts)
+                if matches!(parts.as_slice(), [JsonValue::Str(name), JsonValue::Bool(_), JsonValue::Null | JsonValue::Arr(_)] if !name.is_empty())))
+                && class_law_syntax_valid(body),
+        [JsonValue::Str(tag), JsonValue::Null | JsonValue::Str(_), JsonValue::Arr(_), body] if tag == "LawArrow" =>
+            class_law_syntax_valid(body),
+        [JsonValue::Str(tag), JsonValue::Arr(_), JsonValue::Arr(_)] if tag == "LawEquation" => true,
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SigExport {
     pub name: String,
@@ -331,6 +366,7 @@ pub struct SigExport {
     pub params: Vec<String>,
     pub parameters: Vec<ParameterExport>,
     pub methods: Vec<MethodExport>,
+    pub laws: Vec<ClassLawExport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -745,6 +781,7 @@ impl Iface {
                         ("exports", (&s.exports).into()),
                         ("params", (&s.params).into()),
                         ("parameters", JsonValue::arr(&s.parameters, parameter_json)),
+                        ("laws", JsonValue::arr(&s.laws, class_law_json)),
                         (
                             "methods",
                             JsonValue::arr(&s.methods, |m| {
@@ -1121,6 +1158,24 @@ impl Iface {
                     || methods[..methods.len() - 1].iter().any(|m| m.name == method.name) {
                     return Err(ParseError("method dictionary slots must be complete and in declaration order".into()));
                 }
+                if method.resolved.as_ref().is_some_and(|checked| checked.scheme != method.scheme) {
+                    return Err(ParseError("class method spelling disagrees with its checked scheme".into()));
+                }
+            }
+            let mut laws = Vec::new();
+            let mut names = std::collections::BTreeSet::new();
+            for law in o.get("laws").ok_or_else(|| ParseError("signature laws are missing".into()))?.as_array()? {
+                let row = law.as_object()?;
+                let name = field_str(row, "name")?;
+                if row.len() != 2 || name.is_empty() || !names.insert(name.clone()) {
+                    return Err(ParseError("invalid or duplicate class law declaration".into()));
+                }
+                let syntax = match row.get("syntax") {
+                    Some(JsonValue::Null) => None,
+                    Some(value) if class_law_syntax_valid(value) => Some(value.clone()),
+                    _ => return Err(ParseError("invalid class law syntax".into())),
+                };
+                laws.push(ClassLawExport { name, syntax });
             }
             signatures.push(SigExport {
                 name: field_str(o, "name")?,
@@ -1129,6 +1184,7 @@ impl Iface {
                 params: field_list(o, "params")?,
                 parameters: field_parameters(o)?,
                 methods,
+                laws,
             });
             let signature = signatures.last().unwrap();
             if signature.identity.is_empty() || signature.params != signature.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {

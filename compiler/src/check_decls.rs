@@ -4592,6 +4592,15 @@ impl Checker {
                     self.class_sigs.entry(self.signature_key(&module, &sig.name.text))
                         .or_default().push(info.clone());
                     self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info.clone());
+                    if !sig.laws.is_empty() {
+                        let contracts = sig.laws.iter().zip(&info.laws).map(|((name, source), (_, checked))| {
+                            crate::interface::ClassLawExport {
+                                name: name.text.clone(),
+                                syntax: self.portable_law_syntax(source, &checked.ty, &[]),
+                            }
+                        }).collect();
+                        self.class_law_contracts.insert((module.clone(), sig.name.text.clone()), contracts);
+                    }
                     for ((name, source), contract) in sig.methods.iter().zip(method_contracts) {
                         if let Some(mut contract) = contract {
                             contract.con_params.extend(higher_kinded_parameters(&info.params, &info.param_kinds));
@@ -9029,22 +9038,7 @@ impl Checker {
             ITerm::Bin(op, a, b) => {
                 let x = self.eval_law_idx(cx, a, frame, methods)?;
                 let y = self.eval_law_idx(cx, b, frame, methods)?;
-                let (Value::Word(x), Value::Word(y)) = (&x, &y) else {
-                    return Err(Error::plain(
-                        "a law's index arithmetic sample did not reduce to a word",
-                    ));
-                };
-                let (r, overflow) = match op {
-                    IdxOp::Add => x.overflowing_add(*y),
-                    IdxOp::Sub => x.overflowing_sub(*y),
-                    IdxOp::Mul => x.overflowing_mul(*y),
-                };
-                if overflow {
-                    return Err(Error::plain(
-                        "a law's index arithmetic sample overflowed (not decided)",
-                    ));
-                }
-                Value::Word(r)
+                law_index_arithmetic(op, &x, &y)?
             }
             ITerm::Inst(call) => {
                 let mut arguments = Vec::new();
@@ -9124,7 +9118,10 @@ impl Checker {
         match ty {
             Ty::Prim(s) => scalar_samples(s),
             Ty::Bool => vec![Value::Bool(false), Value::Bool(true)],
-            Ty::Nat | Ty::Int => vec![Value::Word(0), Value::Word(1), Value::Word(2)],
+            Ty::Nat | Ty::Int => (0..3).map(|sample| Value::Big {
+                nat: matches!(ty, Ty::Nat),
+                digits: sample.to_string(),
+            }).collect(),
             Ty::Param(_) => vec![Value::Word(0), Value::Word(1)],
             Ty::Bytes => vec![
                 Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(Vec::new()))),
@@ -16215,20 +16212,28 @@ impl Checker {
             exports,
             params: s.params.clone(),
             parameters: self.interface_parameters(&s.module, &s.name, &s.params, &s.param_kinds),
+            laws: self.class_law_contracts.get(&(s.module.clone(), s.name.clone())).cloned().unwrap_or_default(),
             methods: s.methods.iter().enumerate().map(|(slot, (name, scheme))| {
-                let mut scheme = scheme.clone();
-                if let Some(source) = self.interface_source_schemes.get(&(s.module.clone(), format!("{}.{}", s.name, name))) {
-                    scheme.con_params = source.con_params.clone();
+                let method = format!("{}.{}", s.name, name);
+                let resolved = self.resolved_interface_scheme(&s.module, &method);
+                let spelling = if let Some(checked) = &resolved {
+                    checked.scheme.clone()
                 } else {
-                    scheme.con_params.extend(higher_kinded_parameters(&s.params, &s.param_kinds));
-                }
+                    let mut display = scheme.clone();
+                    if let Some(source) = self.interface_source_schemes.get(&(s.module.clone(), method)) {
+                        display.con_params = source.con_params.clone();
+                    } else {
+                        display.con_params.extend(higher_kinded_parameters(&s.params, &s.param_kinds));
+                    }
+                    render_scheme(&display)
+                };
                 let default = self.method_defaults.get(&(s.module.clone(), s.name.clone(), name.clone()));
                 crate::interface::MethodExport {
                     name: name.clone(),
                     slot: slot as u64,
                     exports: public(name),
-                    scheme: render_scheme(&scheme),
-                    resolved: self.resolved_interface_scheme(&s.module, &format!("{}.{}", s.name, name)),
+                    scheme: spelling,
+                    resolved,
                     default: default.cloned(),
                 }
             }).collect(),
@@ -16467,30 +16472,32 @@ impl Checker {
             // cycles through the shared family. The current per-module
             // hash protocol cannot publish those forward dependencies;
             // keep their nonportable contracts explicitly unresolved.
-            let resolved = self.resolved_interface_scheme(&i.module, &format!("@instance:{}", i.name))
+            let contract_name = format!("@instance:{}", i.name);
+            let resolved = self.resolved_interface_scheme(&i.module, &contract_name)
                 .filter(|scheme| scheme.nominals.iter().all(|n| n.identity.rsplit_once('.')
                     .is_some_and(|(owner, _)| owner == module || available.contains(owner))));
-            iface.exports.instances.push(InstanceExport {
-                id: i.base_id.0.clone(),
+            let header = resolved.as_ref().and_then(|_| self.interface_source_schemes
+                .get(&(i.module.clone(), contract_name)).and_then(|scheme| scheme.instance_header.clone()));
+            let DefinitionInstanceHeader { class, target, context } = header.unwrap_or_else(|| DefinitionInstanceHeader {
                 class: i.target.class.clone(),
                 target: i.target.to_string(),
+                context: i.ctx.iter().map(|item| match item {
+                    InstCtx::Dict(name, class) => format!("{name} :: {class}"),
+                    InstCtx::Oblig(PropOblig::Pred(predicate)) => predicate.to_string(),
+                    InstCtx::Oblig(PropOblig::Preserves { method, pred }) => format!("Preserves ({method}) {pred}"),
+                }).collect(),
+            });
+            iface.exports.instances.push(InstanceExport {
+                id: i.base_id.0.clone(),
+                class,
+                target,
                 method_bodies: if resolved.is_some() { self.interface_method_bodies(i) } else { Vec::new() },
                 resolved,
                 method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
                     slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
                     checked: self.checked_conditional_method(i, *slot),
                 }).collect(),
-                ctx: i
-                    .ctx
-                    .iter()
-                    .map(|item| match item {
-                        InstCtx::Dict(n, c) => format!("{n} :: {c}"),
-                        InstCtx::Oblig(PropOblig::Pred(p)) => p.to_string(),
-                        InstCtx::Oblig(PropOblig::Preserves { method, pred }) => {
-                            format!("Preserves ({method}) {pred}")
-                        }
-                    })
-                    .collect(),
+                ctx: context,
                 methods: self.instance_defs.iter().find(|definition| definition.id == i.base_id)
                     .map(|definition| definition.methods.iter().map(|method| method.0.clone()).collect()).unwrap_or_default(),
                 implicit: i.implicit,
@@ -19706,6 +19713,42 @@ fn big_of(v: &Value, what: &str) -> Result<Big> {
     }
 }
 
+fn law_index_arithmetic(op: &IdxOp, left: &Value, right: &Value) -> Result<Value> {
+    if let (Value::Word(x), Value::Word(y)) = (left, right) {
+        let (result, overflow) = match op {
+            IdxOp::Add => x.overflowing_add(*y),
+            IdxOp::Sub => x.overflowing_sub(*y),
+            IdxOp::Mul => x.overflowing_mul(*y),
+        };
+        if overflow {
+            return Err(Error::plain("a law's index arithmetic sample overflowed (not decided)"));
+        }
+        return Ok(Value::Word(result));
+    }
+    // A checked integer literal can still be represented as a word in an
+    // index equation. Promote it when the sampled operands are mathematical.
+    let nat = match (left, right) {
+        (Value::Big { nat: x, .. }, Value::Big { nat: y, .. }) => *x && *y,
+        (Value::Big { nat, .. }, _) | (_, Value::Big { nat, .. }) => *nat,
+        _ => return Err(Error::plain("a law's index arithmetic sample did not reduce to an integer")),
+    };
+    let numeric = |value: &Value| match value {
+        Value::Word(word) => Ok(Big::from_i64(*word)),
+        other => big_of(other, "a mathematical integer"),
+    };
+    let x = numeric(left)?;
+    let y = numeric(right)?;
+    let result = match op {
+        IdxOp::Add => x.add(&y),
+        IdxOp::Sub => x.sub(&y),
+        IdxOp::Mul => x.mul(&y),
+    };
+    if nat && result.neg {
+        return Err(Error::plain("a law's Nat arithmetic sample reduced below zero"));
+    }
+    Ok(big_value(result, nat))
+}
+
 /// Width and signedness of a machine scalar (primitive types
 /// specification section 2).
 fn scalar_shape(name: &str) -> Option<(u32, bool)> {
@@ -22508,15 +22551,12 @@ fn law_value_eq(a: &Value, b: &Value) -> LawCmp {
                 LawCmp::NotEqual
             }
         }
-        (Word(x), Big { nat, digits }) | (Big { nat, digits }, Word(x)) => {
-            let xn = *x >= 0;
-            let xd = x.abs().to_string();
-            if *nat == xn && digits.trim_start_matches('0') == xd.trim_start_matches('0') {
-                LawCmp::Equal
-            } else {
-                LawCmp::NotEqual
-            }
-        }
+        (Word(x), Big { digits, .. }) | (Big { digits, .. }, Word(x)) =>
+            match crate::core::big::Big::from_dec(digits) {
+                Some(value) if value == crate::core::big::Big::from_i64(*x) => LawCmp::Equal,
+                Some(_) => LawCmp::NotEqual,
+                None => LawCmp::Opaque,
+            },
         (Bool(x), Bool(y)) => {
             if x == y {
                 LawCmp::Equal

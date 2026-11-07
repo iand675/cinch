@@ -2846,6 +2846,7 @@ struct Checker {
     qualified_sigs: HashMap<(String, String), SigInfo>,
     /// Checked defaults by defining module, class, and method.
     method_defaults: HashMap<(String, String, String), crate::interface::MethodDefault>,
+    class_law_contracts: HashMap<(String, String), Vec<crate::interface::ClassLawExport>>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
     declaration_seed: Option<Vec<InstanceInfo>>,
@@ -3598,6 +3599,7 @@ impl Checker {
             legacy_class_sites: HashSet::new(),
             qualified_sigs: HashMap::new(),
             method_defaults: HashMap::new(),
+            class_law_contracts: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
             declaration_seed: None,
