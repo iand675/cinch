@@ -627,9 +627,9 @@
         "id": "gap:prelude",
         "title": "Replace source copies of library modules safely",
         "state": "blocked",
-        "detail": "The Core family passed. Schema 9 transports the inherited Ordering default. The rebuilt Rust provider verifies all 55 interfaces and preserves both Category arrow instances. The exact four-family test is queued with this provider. Display scheme parity remains open.",
+        "detail": "The original test passed Core and rechecked Ordering with the inherited default. Relation.Ord still records a different Ordering interface hash. An exact source/interface comparison is in progress.",
         "doneWhen": "Core, Ordering, Category and Algebra replacements pass with fresh checked provider hashes, valid consumer chains and no Prelude back-edge.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-arrow-contract-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema9-pinned-provider-results.json"
       },
       {
         "id": "gap:source-defaults",
@@ -763,9 +763,9 @@
         "id": "gap:staging",
         "title": "Finish staging and namespace behavior",
         "state": "running",
-        "detail": "The development parser passes the complete syntax target with checked staging nodes and splices. The evaluator still needs to issue the named arrayReplicate refusal and expand valid generators.",
+        "detail": "The checked evaluator computes a stage function, refuses arrayReplicate by its resolved identity and enforces a shared work budget. The full pipeline and original arrays group still need their matching results.",
         "doneWhen": "Preserve original sources and expected named refusals; execute the matching staging and language suites.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-staging-surface-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-staging-evaluation-results.json"
       },
       {
         "id": "gap:hidden-types",
@@ -18910,12 +18910,21 @@
       },
       {
         "title": "Cinch: staged generation through the full pipeline",
-        "status": "stopped-superseded-before-test",
-        "phase": "stopped superseded before test",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
         "passed": 0,
         "failed": 0,
         "total": 1,
-        "source": "c8d933aad9fad3d77f6e3bf089ee19cb048dcc3bce81118331f7a34958472308"
+        "source": "c235f623e827246722a4160b67f0603970062db1f0bf47ad621e69835d47bafa"
+      },
+      {
+        "title": "Schema 9: rebuild and check the Git-pinned provider",
+        "status": "passed-production-schema9-provider",
+        "phase": "independent checked interface readback",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
       {
         "title": "Cinch staging syntax",
@@ -18947,11 +18956,28 @@
       {
         "title": "Schema 9 development bootstrap",
         "status": "failed",
-        "phase": "Fresh Stage1, Stage2 and Stage3 with the checked development provider",
+        "phase": "Stage2 required the missing Data.List.list-length [R] variant from the older development provider",
         "passed": 2,
         "failed": 1,
         "total": 4,
         "source": "8959030d54643c5c4c2898e4e1b389930f084753b1d7424c23d02f8c228dd918"
+      },
+      {
+        "title": "Schema 9 bootstrap with the production pin",
+        "status": "waiting-disk-space",
+        "phase": "waiting disk space",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
+      },
+      {
+        "title": "Ordering: compare interfaces from the same source",
+        "status": "waiting-worker",
+        "phase": "Cinch and Rust check the original module with the same dependency closure",
+        "passed": 0,
+        "failed": 0,
+        "total": 1
       },
       {
         "title": "Unchanged source-library families: structural arrow candidate",
@@ -18976,5 +19002,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T10:02:31.643605+00:00"
+  "updatedAt": "2026-11-07T10:07:02.905941+00:00"
 }
