@@ -19774,9 +19774,9 @@
       },
       {
         "title": "Finish the preceding published compiler ladder",
-        "status": "building-stage3",
-        "phase": "building stage3",
-        "passed": 3,
+        "status": "checking-fixed-point-and-source-change",
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19813,9 +19813,9 @@
       },
       {
         "title": "Check NotNull in Core and both original visitor refusals",
-        "status": "running",
+        "status": "completed-with-notnull-or-visitor-failures",
         "phase": "the unchanged Category visitor diagnostics",
-        "passed": 2,
+        "passed": 3,
         "failed": 1,
         "total": 4,
         "source": "f34deb5ffbc3bc02847b773bdc99744331cc7a086994187eaf07d3955bcb3279"
@@ -19862,5 +19862,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T23:24:42.065275+00:00"
+  "updatedAt": "2026-11-07T23:25:43.972610+00:00"
 }
