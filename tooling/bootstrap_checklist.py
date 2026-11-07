@@ -920,6 +920,21 @@ def build_checklist(root, cfg, previous=None):
             phase='Both original refusal reasons and original source locations matched.',
             passed=len(diagnostics['cases']), failed=0, total=2,
             source=diagnostics['compiler_source_sha256'], evidence=link(replay_path)))
+    expanded_path = 'bootstrap/current-schema10-expanded-runtime-replays-results.json'
+    expanded = read(root / expanded_path)
+    if expanded.get('status') == 'audited-three-original-stage3-runtime-replays-and-stage1-diagnostics':
+        runtime = expanded['stage3_runtime']
+        active.append(dict(title='Stage3 runs Html, Reactive and TensorAD with the expanded library', status='passed',
+            phase='All three original programs passed at 32 MiB with poisoning and zero leaks.',
+            passed=len(runtime['cases']), failed=0, total=3,
+            source=runtime['compiler_source_sha256'], evidence=link(expanded_path)))
+    renderer_path = 'bootstrap/current-schema10-diagnostic-renderer-results.json'
+    renderer = read(root / renderer_path)
+    if renderer.get('status') == 'audited-complete-schema10-diagnostic-pipeline-target':
+        active.append(dict(title='Verify the diagnostic renderer in the complete pipeline target', status='passed',
+            phase='Both tests passed with the matching debug and release runtime archives.',
+            passed=renderer['tests_passed'], failed=0, total=2,
+            source=renderer['compiler_source_sha256'], evidence=link(renderer_path)))
     external_acceptance = read(cfg.get('schema10Stage3ExternalAcceptance'))
     external_audit_path = 'bootstrap/current-schema10-external-acceptance-results.json'
     external_audit = read(root/external_audit_path)

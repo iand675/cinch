@@ -1,0 +1,129 @@
+{
+  "checked_at": "2026-11-07T15:40:25.668098+00:00",
+  "development_law_identities": {
+    "compiler_source_sha256": "9df59053b3dc0df7c8af55f7903bd252728427448ae03345b95a6b120efc584a",
+    "frozen_inputs_sha256": "f200b04d5f37a1ea8792a5b43432c6b72f5f9e404fd304c59a768b49e357a118",
+    "groups": [
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "check-46-compiler-modules",
+        "status": "passed"
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 14,
+        "log_sha256": "dfaf5144dc3d8f7cd1c5a45ea46a9cc77519d42bc94e493ffdc2132f7044b5e0",
+        "name": "array-runtime-target-directory",
+        "status": "passed",
+        "tests_passed": 1
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "6be7b05ec2c50371b484b095cdc7f38c029dfd1cf4fa9c35470c034b8af258c9",
+        "name": "native-laws",
+        "status": "passed",
+        "tests_passed": 8
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "248d3931c0487cfae7474debda8e233f47600b20737f498adc1ec269a79c3bfc",
+        "name": "bootstrap-source-instances",
+        "status": "passed",
+        "tests_passed": 3
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "7cd49aa775b7290b39688bed04aa0888f22e18640ba8ecb7389cb4c2599465c7",
+        "name": "bootstrap-pipeline",
+        "status": "passed",
+        "tests_passed": 2
+      }
+    ],
+    "native_source_sha256": "196c5940e068a268870140ac2cb482421dcf0d8c00a5272d87774720b9781268",
+    "state_sha256": "bb2a4a3d4551a541cdbf303bc41e4f3f3bdd2dcc0f6e43ee32abbc1be387557e"
+  },
+  "full_goal_complete": false,
+  "status": "audited-schema10-interface-and-law-groups",
+  "strict_schema10": {
+    "compiler_source_sha256": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020",
+    "frozen_inputs_sha256": "2ec964bf7540a21c3640548c0e2254e1a1661e042a25877c5263a9a0c3e2d774",
+    "groups": [
+      {
+        "exit_code": 0,
+        "filtered_out": 170,
+        "log_sha256": "7aecf1d2516117c50373ff7380b3b118fa0d563c9bdc82f2a6e409c911bdcb7b",
+        "name": "rust-interface-unit",
+        "status": "passed",
+        "tests_passed": 17
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "341542f88dbb0c9e70b55be16863e777b831ddc7d2cddb237d9c6d5cbdb7735a",
+        "name": "interface_refinements",
+        "status": "passed",
+        "tests_passed": 4
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "5d67e3fe7a48661f097d5df762e69b7c41a2ea827fcac5b7e87c5f8c9d85ae61",
+        "name": "interface_nominals",
+        "status": "passed",
+        "tests_passed": 1
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "ec5d8bad82b78e3a87a12292067b7797da1e29d29ac733f00ef6373d9d77d2d9",
+        "name": "interface_kinds",
+        "status": "passed",
+        "tests_passed": 4
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "541ed6c080d8722fe934f361ee20f9bf4089ec7f4c5119520f351a81da93598f",
+        "name": "arrays",
+        "status": "passed",
+        "tests_passed": 15
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "005df611db7054aa88ccfe1b01a2616569cfc43231c3eb7dc6edd196c024a9a2",
+        "name": "interface_byte_observations",
+        "status": "passed",
+        "tests_passed": 1
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "69b2db3b4c9eb6bf896c773164b6e3c843b04d9100fcc1e748eefbd0d6d95988",
+        "name": "interface_machine_contracts",
+        "status": "passed",
+        "tests_passed": 2
+      },
+      {
+        "exit_code": 0,
+        "filtered_out": 0,
+        "log_sha256": "5e994fb5699564e3b95bc24b32c546e15c8f55fbf9e07a68049a394e6cb319c5",
+        "name": "bootstrap_library_object",
+        "status": "passed",
+        "tests_passed": 1
+      },
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "check-46-compiler-modules",
+        "status": "passed"
+      }
+    ],
+    "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+    "state_sha256": "16f1965faa3319c70cb77081952d6e00c1ebf53acba297812a5b8a2fb3a2370f"
+  }
+}

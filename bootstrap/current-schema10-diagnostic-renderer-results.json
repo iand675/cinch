@@ -1,0 +1,43 @@
+{
+  "checked_at": "2026-11-07T15:40:25.668098+00:00",
+  "compiler_source_sha256": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+  "exact_test_binary_sha256": "591aab27e24c2649e9341be10b2805d4468e15ff1e1f24c448ddc3af6a8388f5",
+  "frozen_inputs_sha256": "cbe6d67c2bc0f55c951cfda1555887b380f85ee13fc8682461e75436e7ec9303",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "exit_code": 0,
+      "log_sha256": "cd48da53471387c677f9db93ce6249b0339bfd450f0061c796687f4b9257ff3e",
+      "name": "build-runtime-debug",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "2ab10f0ae66128e6af165dd4f1e354099235720e69121ca8afd5b48c1b05b0c3",
+      "name": "build-runtime-release",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "545b70748f815ca4438c9d783f11d2be44fe5e9595c18654275890414346e198",
+      "name": "bootstrap_pipeline",
+      "status": "passed"
+    }
+  ],
+  "native_source_sha256": "9022a54f85312db671f7ee14a89a7aa9b6dfcfa7c54010b6f304016ff3401f57",
+  "origin_control": {
+    "exit_code": 0,
+    "log_sha256": "2c6c6034697fa652e093c93ba412a3bfece16dc592d91162822618e5d918b466",
+    "name": "origin-controls",
+    "status": "passed"
+  },
+  "original_failure": "missing debug runtime archive",
+  "original_failure_log_sha256": "d0f15da0b0f5be047e5eff0a3b93aeaa686437bf3ba3c6bec0723866ddc36a38",
+  "revision": "a489f30e4782cc41364c0aec0a1e3af6c94dc48b",
+  "runtime_archives": {
+    "debug": "eca758eb67cceafab669f0c495742593bf2d89aa98dcf4ccb7acfec956d30379",
+    "release": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6"
+  },
+  "status": "audited-complete-schema10-diagnostic-pipeline-target",
+  "tests_passed": 2
+}

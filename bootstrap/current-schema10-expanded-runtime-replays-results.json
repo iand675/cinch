@@ -1,0 +1,81 @@
+{
+  "development_stage1_diagnostics": {
+    "cases": [
+      {
+        "diagnostic": "18:105: integer literal cannot have type (Unit -> Int)",
+        "exit_code": 4,
+        "log_sha256": "05cdd1057f5520c1cf3a87b6d2e316f4645f2c28e8b4d3ecf0c9b1919645470c",
+        "name": "Html",
+        "source_sha256": "db69c4595acddc1eaa7839d633d063b2608d5eb28f1e11c1abd35c8ec9d4cbdc",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "4:9: unknown constructor Tensor.MkMatrix: not exported into this scope",
+        "exit_code": 4,
+        "log_sha256": "e5b6302106367b21e841903a592106c0448f395bc3462005fe817f958036cffc",
+        "name": "TensorPrivate",
+        "source_sha256": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+        "status": "passed"
+      }
+    ],
+    "compiler_sha256": "75a97a3148f7391313c74814d7c3407fcd5c4d932e7317ce0fd763a064a7d1aa",
+    "compiler_source_sha256": "290271332083a03c48c87d411e8f931108d7e1d12a0e5ebecb2e54de68259aea",
+    "positive_runtime": {
+      "binary_sha256": "e30fcb7b2f6c217e6fa60453af6669a36ae5f16df6abffff885f4889d01da8de",
+      "extended_object_sha256": "f2ce3da97a008fbc468fa2708405217fa3d79cb09149c158148bac5df3ccc7ff",
+      "heap": "32M",
+      "leaked": 0,
+      "log_sha256": "c8f5c27213d3cdf224779c0696b54bd225c9792bbe0e308ac275e2514b058032",
+      "name": "Html",
+      "poisoned": true,
+      "source_sha256": "5062098ae93a5d23dd988d8ce4ac476080e16dd2ca27b250cfde7bd6baa615d9",
+      "status": "passed"
+    },
+    "stage1_receipt_sha256": "e7c5dafcfc769dd68e08e29295a8f6344c4874664884ef702e5621828e8e76df"
+  },
+  "full_goal_complete": false,
+  "original_behavioral_tests_sha256": "2d05c2b458f12a5e112121b2d4306b3db95c1b3500c6267000dd0e731f2c64a5",
+  "original_language_audit_sha256": "54fa4e9cf0d4666238ebe4f2fbe33b80c59cc0d8016bc7d5ace9e95755362fa2",
+  "schema": 1,
+  "stage3_runtime": {
+    "cases": [
+      {
+        "binary_sha256": "34673ad4fa6a41ced34fadffb8288061bb88c70525bfed11cfe2e0d186b11e9b",
+        "heap": "32M",
+        "leaked": 0,
+        "log_sha256": "c8f5c27213d3cdf224779c0696b54bd225c9792bbe0e308ac275e2514b058032",
+        "name": "Html",
+        "poisoned": true,
+        "source_sha256": "5062098ae93a5d23dd988d8ce4ac476080e16dd2ca27b250cfde7bd6baa615d9",
+        "status": "passed"
+      },
+      {
+        "binary_sha256": "3ccae01b45993fad314e9289cfbd179626f1786e849066a1605cdef0751ae335",
+        "heap": "32M",
+        "leaked": 0,
+        "log_sha256": "c8f5c27213d3cdf224779c0696b54bd225c9792bbe0e308ac275e2514b058032",
+        "name": "Reactive",
+        "poisoned": true,
+        "source_sha256": "2a8a85284cbede9c4da06d5f0b0ecd3a7cf29726561766d65de57a27e768eb7c",
+        "status": "passed"
+      },
+      {
+        "binary_sha256": "652b3505f925e49a0a514701950dd050fcb1e5fc298d59c18686a466f19226b2",
+        "heap": "32M",
+        "leaked": 0,
+        "log_sha256": "c8f5c27213d3cdf224779c0696b54bd225c9792bbe0e308ac275e2514b058032",
+        "name": "TensorAD",
+        "poisoned": true,
+        "source_sha256": "ff657f3f2e65ba738987f2ca4fa7e6b6c6a354245529ba487b349bca2575bee8",
+        "status": "passed"
+      }
+    ],
+    "compiler_sha256": "db3ba254048bcf7e4d88d2e07053cb0528280886aa7fac8b4e774034d7f71395",
+    "compiler_source_sha256": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+    "extended_object_sha256": "06bdcce3f9e8f26db4ce848da5cbb39440e72a4277b90a680d4d034d52919e16",
+    "manifest_sha256": "b3486b03ab66d70e9bbaa5a04da0c496e999a07fa048c8b917b4c395176afb43",
+    "matching_interface_identities": 55,
+    "runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6"
+  },
+  "status": "audited-three-original-stage3-runtime-replays-and-stage1-diagnostics"
+}

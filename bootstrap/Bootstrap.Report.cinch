@@ -7,7 +7,8 @@
 
 module Bootstrap.Report where
 
-  import Text.Lex (Span, span-line, span-col)
+  import Text.Lex (Span, span-line, span-col, bytes-slice)
+  import Data.String (utf8-valid-from)
   import Text.Show (nat-to-string)
   import Bootstrap.Ast (span-join, span-here)
 
@@ -55,38 +56,49 @@ module Bootstrap.Report where
   -- `-- source: <escaped path>` comments. These affect presentation only:
   -- no source name or proof authority is obtained from a label. Preserve
   -- the phase and bundled position, adding the original file and line.
-  origin-prefix :: List Char -> List Char -> Option String
-  origin-prefix prefix input = case prefix of
-    Nil -> if list-length input == 0 then None else Some (pack input)
-    Cons a rest -> (case input of
-      Cons b more -> if char-code a == char-code b then origin-prefix rest more else None
-      Nil -> None)
-  origin-line :: List Char -> List Char -> (List Char, List Char)
-  origin-line input seen = case input of
-    Nil -> (reverse seen, Nil)
-    Cons c rest -> if char-code c == 10 then (reverse seen, rest) else origin-line rest (Cons c seen)
-  origin-at :: Nat -> List Char -> Nat -> String -> Nat -> Option (String, Nat)
-  origin-at wanted-line input line label start =
+  -- A newline and the label prefix are ASCII bytes. Scan forward once
+  -- per lookup, decoding only the path between the prefix and the newline.
+  origin-prefix :: Bytes -> Bytes -> Nat -> Nat -> Bool
+  origin-prefix prefix source offset index =
+    if index < bytes-len prefix then
+      if offset < bytes-len source then
+        if bytes-get prefix index == bytes-get source offset then origin-prefix prefix source (offset + 1) (index + 1) else False
+      else False
+    else True
+  origin-line-end :: Bytes -> Nat -> Nat
+  origin-line-end source offset =
+    if offset < bytes-len source then
+      if bytes-get source offset == 10 then offset else origin-line-end source (offset + 1)
+    else offset
+  origin-label :: Bytes -> Bytes -> Nat -> Nat -> Option String
+  origin-label prefix source offset end =
+    let start = offset + bytes-len prefix in
+    if end <= bytes-len source then
+      if start < end then
+        if origin-prefix prefix source offset 0 then string-from-bytes (bytes-slice source start end) else None
+      else None
+    else None
+  origin-at :: Nat -> Bytes -> Bytes -> Nat -> Nat -> String -> Nat -> Option (String, Nat)
+  origin-at wanted-line prefix source offset line label start =
     if line == wanted-line then
       if string-length label > 0 && wanted-line > start then Some (label, wanted-line - start) else None
-    else case input of
-      Nil -> None
-      other -> (case origin-line input Nil of
-        (text, rest) -> case origin-prefix (unpack "-- source: ") text of
-          Some path -> origin-at wanted-line rest (line + 1) path line
-          None -> origin-at wanted-line rest (line + 1) label start)
-  render-source-diagnostic :: List Char -> Diagnostic -> String
-  render-source-diagnostic source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) source 1 "" 0 of
+    else if offset >= bytes-len source then None
+    else let end = origin-line-end source offset in
+      case origin-label prefix source offset end of
+        Some path -> origin-at wanted-line prefix source (end + 1) (line + 1) path line
+        None -> origin-at wanted-line prefix source (end + 1) (line + 1) label start
+  render-source-diagnostic :: Bytes -> Bytes -> Diagnostic -> String
+  render-source-diagnostic prefix source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) prefix source 0 1 "" 0 of
     None -> render-diagnostic diagnostic
     Some (path, line) -> string-concat (render-diagnostic diagnostic)
       (string-concat " (" (string-concat path (string-concat ":" (string-concat (nat-to-string line)
         (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic-span diagnostic))) ")"))))))
-  render-source-diagnostics-from :: List Char -> List Diagnostic -> String
-  render-source-diagnostics-from source diagnostics = case diagnostics of
+  render-source-diagnostics-from :: Bytes -> Bytes -> List Diagnostic -> String
+  render-source-diagnostics-from prefix source diagnostics = case diagnostics of
     Nil -> empty-string
-    Cons first rest -> string-concat (render-source-diagnostic source first)
-      (string-concat "\n" (render-source-diagnostics-from source rest))
+    Cons first rest -> string-concat (render-source-diagnostic prefix source first)
+      (string-concat "\n" (render-source-diagnostics-from prefix source rest))
   render-source-diagnostics :: Bytes -> List Diagnostic -> String
-  render-source-diagnostics source diagnostics = case string-from-bytes source of
-    None -> render-diagnostics diagnostics
-    Some text -> render-source-diagnostics-from (unpack text) diagnostics
+  render-source-diagnostics source diagnostics =
+    if utf8-valid-from source 0 then render-source-diagnostics-from (string-to-bytes "-- source: ") source diagnostics
+    else render-diagnostics diagnostics

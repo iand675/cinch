@@ -31,20 +31,26 @@ diagnostic. The next candidate routes predicate syntax through typed checking
 and validates closed named proof declarations before erasing their uses.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json).
 
-The first schema 10 Stage3 passed 6 of 13 original valid language examples.
-All 21 invalid examples were refused, with 8 meeting their original diagnostic
-and source-location assertions. Three valid programs reached code generation
-and requested missing library variants. A library rebuild and exact replay
-are in progress. The other four stopped during source checking.
-See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json).
+The first schema 10 Stage3 passed 6 of 13 original valid language examples
+in the full run. All 21 invalid examples were refused, with 8 meeting their
+original diagnostic and source-location assertions. Html, Reactive and
+TensorAD then passed on the same compiler with the expanded library object.
+The replays kept the original expanded source, runtime and all 55 interface
+identities. All three had zero leaks at 32 MiB with poisoning. A separate
+development Stage1 ran Html and matched the original Html and TensorPrivate
+refusals. Proof, Protocol, Tactics and Choreography still need source checker
+work. The repaired Stage3 still needs its full suite.
+See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json)
+and [the expanded runtime and diagnostic replays](../bootstrap/current-schema10-expanded-runtime-replays-results.json).
 
-TensorAD now runs on that same Stage3 with the expanded library object.
-The replay kept the original source, runtime and all 55 interface identities.
-The program exited with zero leaks. Html and Reactive now request the
-`OO` variant of Functor method slot 1. A separate development Stage1
-matched the original Html and TensorPrivate refusal reasons and source
-locations. The positive Html and Reactive replays remain open.
-See [the scoped runtime and diagnostic replays](../bootstrap/current-schema10-external-replay-results.json).
+The UTF-8 diagnostic renderer passed both original pipeline tests when
+replayed with the matching debug and release runtime archives. The stricter
+compiler and producer passed 45 interface, array and library-object tests
+and source admission for all 46 compiler modules. A separate law-identity
+candidate passed 14 tests across law checks, source instances, the pipeline
+and the original array case with a custom build directory.
+See [the renderer audit](../bootstrap/current-schema10-diagnostic-renderer-results.json)
+and [the scoped interface and law audits](../bootstrap/current-schema10-interface-and-law-suite-results.json).
 
 The schema 9 chain remains a historical checkpoint. Its four stages and
 smoke tests passed, including the Stage2 and Stage3 fixed point, separate
