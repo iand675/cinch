@@ -19230,6 +19230,53 @@
         "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
       },
       {
+        "title": "Replay the three programs with both required Functor variants",
+        "status": "waiting-library-variants",
+        "phase": "waiting library variants",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+      },
+      {
+        "title": "Rust task capture, units and arrays on schema 10",
+        "status": "waiting-worker",
+        "phase": "original concurrency",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "309a4f696ed5072050009e59562deabb2fc205731e47655662d1d8d69cd2d020"
+      },
+      {
+        "title": "Replay the full pipeline with the diagnostic byte scan",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
+      },
+      {
+        "title": "Stage3 TensorAD with the requested library variants",
+        "status": "passed",
+        "phase": "The unchanged program passed at 32 MiB with poisoning and zero leaks.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-replay-results.json"
+      },
+      {
+        "title": "Stage1 Html and TensorPrivate refusals",
+        "status": "passed",
+        "phase": "Both original refusal reasons and original source locations matched.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "290271332083a03c48c87d411e8f931108d7e1d12a0e5ebecb2e54de68259aea",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-external-replay-results.json"
+      },
+      {
         "title": "Run the original 14 external acceptance checks on schema 10 Stage3",
         "status": "passed",
         "phase": "passed",
@@ -19382,5 +19429,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T14:24:20.255491+00:00"
+  "updatedAt": "2026-11-07T14:29:06.793698+00:00"
 }
