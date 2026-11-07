@@ -11895,9 +11895,9 @@
         "total": 105,
         "counts": {
           "verified": 12,
-          "blocked": 2,
+          "blocked": 3,
           "running": 1,
-          "pending": 90,
+          "pending": 89,
           "recheck": 0
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11905,17 +11905,17 @@
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "running",
+            "state": "blocked",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
               "startedAt": "2026-11-07T11:59:16.374477+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T12:01:56.859028+00:00",
+              "exitCode": 101,
+              "logSha256": "87f09ad8950429a4f7b713815f36a5199859ead4dc45dcc8c687ca94d217d892",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -11947,7 +11947,7 @@
                 },
                 {
                   "name": "unbounded_allocation_hits_the_named_cap",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -11956,18 +11956,31 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "pending",
+            "state": "running",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "startedAt": "2026-11-07T12:01:57.978528+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13985,10 +13998,10 @@
           }
         ],
         "observedCounts": {
-          "failed": 2,
+          "failed": 3,
           "passed": 12,
           "running": 1,
-          "pending": 90
+          "pending": 89
         },
         "observedSource": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18156,9 +18169,9 @@
       {
         "title": "Published schema 9 Stage3: all 105 frontend targets",
         "status": "running",
-        "phase": "alloc_accounting",
+        "phase": "argv",
         "passed": 12,
-        "failed": 2,
+        "failed": 3,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854"
       },
@@ -18753,9 +18766,9 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "alloc_accounting",
+        "phase": "argv",
         "passed": 12,
-        "failed": 2,
+        "failed": 3,
         "total": 105,
         "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
         "earlier": true
@@ -19061,9 +19074,9 @@
     ],
     "counts": {
       "verified": 188,
-      "blocked": 7,
+      "blocked": 8,
       "running": 11,
-      "pending": 96,
+      "pending": 95,
       "recheck": 372
     },
     "total": 674,
@@ -19072,5 +19085,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:01:49.744758+00:00"
+  "updatedAt": "2026-11-07T12:02:51.983907+00:00"
 }
