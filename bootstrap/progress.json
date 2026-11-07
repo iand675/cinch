@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "153 of 235 complete groups passed; 2 running, 0 failed and 80 pending.Every group includes ignored tests. State: running.",
+      "detail": "154 of 235 complete groups passed; 2 running, 0 failed and 79 pending.Every group includes ignored tests. State: running.",
       "state": "running"
     },
     {
@@ -499,7 +499,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "153 of 235 complete groups passed; 2 running, 0 failed and 80 pending."
+      "detail": "154 of 235 complete groups passed; 2 running, 0 failed and 79 pending."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -795,10 +795,10 @@
         "unit": "targets",
         "total": 235,
         "counts": {
-          "verified": 154,
+          "verified": 155,
           "blocked": 0,
           "running": 2,
-          "pending": 79,
+          "pending": 78,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1215,17 +1215,17 @@
           {
             "id": "native:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
               "startedAt": "2026-11-07T01:09:08.111252+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T01:12:28.019424+00:00",
+              "exitCode": 0,
+              "logSha256": "a9ea5aeb5d0bdd0b48c9ef5810226b38eae4735b042f469ddd0d11bc0d6cab37",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -1233,7 +1233,7 @@
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1265,21 +1265,21 @@
           {
             "id": "native:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T15:48:44.895758+00:00",
-              "finishedAt": "2026-11-06T15:55:37.083782+00:00",
-              "exitCode": 0,
-              "logSha256": "8b5b47eb38715461ee7bd5e8058734127d226011fadda33572fc1979c5ff1300",
+              "status": "running",
+              "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
+              "startedAt": "2026-11-07T01:12:28.022254+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18549,8 +18549,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_boolean_branches",
-        "passed": 153,
+        "phase": "bootstrap_buffer_aliases",
+        "passed": 154,
         "failed": 0,
         "total": 235,
         "source": "3268c73cfeee1f800ff5b0cf3be42e76b315a7626d8223210a4e2941fafddc29",
@@ -18568,10 +18568,10 @@
       }
     ],
     "counts": {
-      "verified": 326,
+      "verified": 327,
       "blocked": 4,
       "running": 7,
-      "pending": 113,
+      "pending": 112,
       "recheck": 217
     },
     "total": 667,
@@ -18580,5 +18580,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T01:10:56.567407+00:00"
+  "updatedAt": "2026-11-07T01:12:38.498479+00:00"
 }
