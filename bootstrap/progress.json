@@ -19314,6 +19314,35 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-stage2-results.json"
       },
       {
+        "title": "Verify the consolidated library, runtime and tooling",
+        "status": "passed",
+        "phase": "All 55 interfaces, the Stage1 client, 171 runtime tests and 42 tooling tests passed.",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-consolidated-provider-results.json"
+      },
+      {
+        "title": "Run every Rust compiler target on the combined fixes",
+        "status": "running",
+        "phase": "arrays",
+        "passed": 4,
+        "failed": 0,
+        "total": 235,
+        "source": "1a7e275f0519f670012f993304a975446020a814dc62bad21ec9244117a64d25"
+      },
+      {
+        "title": "Bootstrap the consolidated compiler with named proofs",
+        "status": "running",
+        "phase": "building stage1",
+        "passed": 1,
+        "failed": 0,
+        "total": 4,
+        "source": "7e94e53cca26f1df764d79741a0fab9f8d4e8201c4d06d722b76a2790cd02454",
+        "auditPending": false
+      },
+      {
         "title": "Core checks erased Eq witnesses",
         "status": "passed",
         "phase": "The full original Core target passed with six additional assertions across all five runtime nonces.",
@@ -19526,5 +19555,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T15:50:43.589245+00:00"
+  "updatedAt": "2026-11-07T16:02:48.427472+00:00"
 }
