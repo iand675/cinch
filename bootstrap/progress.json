@@ -1,30 +1,30 @@
 {
   "schema": 2,
-  "commit": "08101d62f6fbcd37d83c44371e2795861da256ba",
+  "commit": "cc16f93b62bd4aa17a195c266214b80f083ee772",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
       "name": "Stage 0",
       "state": "passed",
-      "label": "Smoke tests passed",
+      "label": "Pinned seed verified",
       "description": "Verify the pinned Rust seed."
     },
     {
       "name": "Stage 1",
       "state": "passed",
       "label": "Smoke tests passed",
-      "description": "Build Cinch from source with the seed."
+      "description": "Build the repaired Cinch sources with the seed."
     },
     {
       "name": "Stage 2",
-      "state": "passed",
-      "label": "Smoke tests passed",
+      "state": "pending",
+      "label": "Recheck required",
       "description": "Build the same compiler sources with Stage1."
     },
     {
       "name": "Stage 3",
-      "state": "passed",
-      "label": "Fixed point audited",
+      "state": "pending",
+      "label": "Recheck required",
       "description": "Rebuild with Stage2 and check the fixed point."
     }
   ],
@@ -543,16 +543,16 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
+  "candidateSource": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "Main combines the strict schema 10 reader with checked named proofs and the consolidated library producer.",
-  "activity": "The current compiler passed the fixed-point, separate-client and changed-source audit. The complete test suites remain open.",
+  "summary": "Main includes the strict-let numeric repair and the Native scratch cleanup.",
+  "activity": "The repaired compiler sources passed the Stage1 smokes and the six original small-number tests. The matching Stage2 and Stage3 rebuilds and the full suites remain open. The earlier fixed-point audit remains in the checklist.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
-      "native": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
+      "compiler": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
+      "native": "3f4110a6687a9b200d15b372602f7331f3f6594a984ed1d310c34f88fc566e2f"
     },
     "acceptance": [
       {
@@ -19334,7 +19334,7 @@
       },
       {
         "title": "Run Foldable as a client of the compiled library",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "The fixture writes only Main.cinch and retains all 16 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
         "passed": 0,
         "failed": 0,
@@ -19351,9 +19351,9 @@
       {
         "title": "Replay the five original library targets with the expanded object",
         "status": "running",
-        "phase": "lib_map_set_ops",
+        "phase": "lib_hash_keys",
         "passed": 0,
-        "failed": 2,
+        "failed": 4,
         "total": 5,
         "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a"
       },
@@ -19370,12 +19370,21 @@
       {
         "title": "Preserve numeric inference through local bindings",
         "status": "passed",
-        "phase": "The original map-key fixture and both literal checks passed. The complete runtime group remains open.",
+        "phase": "The original map-key fixture and both literal checks passed. All six original small_nats runtime tests passed.",
         "passed": 3,
         "failed": 0,
         "total": 3,
         "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-local-numeric-check-results.json"
+      },
+      {
+        "title": "Evaluate the original Const law and two controls",
+        "status": "waiting-disk-space",
+        "phase": "Waiting to build the Stage1 law sampler and compare the pinned interface",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "source": "e3bb55095234f4daed2ea57198b25879a19fc0273492a09ca951ebb94a743c77"
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19700,5 +19709,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:05:43.152928+00:00"
+  "updatedAt": "2026-11-07T19:07:38.552713+00:00"
 }
