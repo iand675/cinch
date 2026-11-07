@@ -143,6 +143,14 @@ See also `bootstrap/current-partial-boolean-stage1-results.json`,
 `bootstrap/current-partial-boolean-stage2-demand.json` and
 `bootstrap/current-partial-boolean-stage2-provider-results.json`.
 
+The current 32ab Stage3 also passed all 14 original external checks, including
+the two poisoned 32 MiB programs and both defining-module fixity controls.
+Across the separate 34 language cases, eight of 13 valid programs ran,
+all 21 invalid programs refused, and three matched the required reason and
+source location. The case-level results keep every failure visible. See
+`bootstrap/current-partial-boolean-external-acceptance-results.json` and
+`bootstrap/current-partial-boolean-stage3-language-results.json`.
+
 The complete earlier 4f Stage3 sweep finished with 102 of 105 targets passing.
 The four failing assertions are in arrays, the bootstrap pipeline and the
 source-family override test. The 105 original target results are independently

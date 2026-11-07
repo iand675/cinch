@@ -211,6 +211,7 @@ def build_checklist(root, cfg, previous=None):
     suites.append(suite('external','External acceptance controls','checks',ext_rows,'All 14 original checks remain required on the final compiler.'))
 
     language = read(cfg.get('currentExternalBehaviorReceipt'))
+    language_evidence = Path(cfg['currentExternalBehaviorReceipt']).name
     # This independently audited receipt includes all thirteen positive examples
     # and all twenty-one required refusal reasons, rather than just exit codes.
     example_root = root/'experiments/malleable-syntax'
@@ -234,7 +235,7 @@ def build_checklist(root, cfg, previous=None):
                 ('verified'if status=='passed'else'blocked') if language.get('compiler_source_sha256')==compiler else'recheck',
                 'Valid programs must compile and run.' if positive else 'Required diagnostic: '+reasons[name]+'. An unrelated refusal does not pass.',
                 'Pass the original program or exact refusal-reason assertion through the final matching Stage3.',
-                link('bootstrap/current-record-indexed-stage3-language-results.json'),
+                link('bootstrap/'+language_evidence),
                 observed=dict(status=status,source=language.get('compiler_source_sha256'),cases=[])))
     suites.append(suite('language','Language behavior and refusal reasons','cases',lang_rows,'All 13 valid examples and all 21 intended-reason refusal checks.'))
 
@@ -486,6 +487,12 @@ def build_checklist(root, cfg, previous=None):
         active.append(dict(title='Current candidate: external Stage3 acceptance', status='passed',
             phase='Independently verified original runtime, fixity and class identity checks',
             passed=count, failed=0, total=count, source=candidate_external['compiler_source_sha256']))
+
+    if language.get('status', '').startswith('audited-matching-stage3-external-behavior'):
+        passed_cases = language['positive_passed'] + language['negative_intended_reason_passed']
+        active.append(dict(title='Current candidate: Stage3 language examples', status='completed-with-failures' if passed_cases != 34 else 'passed',
+            phase=f"{language['positive_passed']}/13 valid programs and {language['negative_intended_reason_passed']}/21 exact refusal checks",
+            passed=passed_cases, failed=34-passed_cases, total=34, source=language['compiler_source_sha256']))
 
     candidate_frontend = read(cfg.get('currentStage3FrontendValidation'))
     if candidate_frontend:
