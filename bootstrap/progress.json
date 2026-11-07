@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "cc16f93b62bd4aa17a195c266214b80f083ee772",
+  "commit": "d280976a212c95b9bd36cdce72abe0c05a7870c0",
   "status": "Full bootstrap verification remains open",
   "stages": [
     {
@@ -552,7 +552,7 @@
     "version": 1,
     "target": {
       "compiler": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
-      "native": "3f4110a6687a9b200d15b372602f7331f3f6594a984ed1d310c34f88fc566e2f"
+      "native": "2d4c256c2681bd69a16009d5333957a94999e49ea20a7b4a11f5431ef263792e"
     },
     "acceptance": [
       {
@@ -786,7 +786,7 @@
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
         "state": "pending",
-        "detail": "130 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
+        "detail": "131 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
       },
@@ -820,12 +820,12 @@
         "id": "native",
         "title": "Rust compiler suite",
         "unit": "targets",
-        "total": 235,
+        "total": 236,
         "counts": {
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 0,
+          "pending": 1,
           "recheck": 235
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -5020,6 +5020,16 @@
                 }
               ]
             },
+            "currentTests": null
+          },
+          {
+            "id": "native:jit",
+            "title": "jit",
+            "state": "pending",
+            "detail": "Awaiting a complete run on the current compiler inputs.",
+            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/jit.rs",
+            "observed": null,
             "currentTests": null
           },
           {
@@ -14073,19 +14083,19 @@
         "unit": "tests",
         "total": 171,
         "counts": {
-          "verified": 171,
+          "verified": 0,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 0
+          "recheck": 171
         },
-        "detail": "Exact runtime/test input equivalence checked against the retained successful run.",
+        "detail": "Older passing results remain visible; matching compiler/editor frontend execution is still required.",
         "items": [
           {
             "id": "runtime:abi::tests::alloc_zero_fills_and_writes_a_fresh_header",
             "title": "abi::tests::alloc_zero_fills_and_writes_a_fresh_header",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14097,8 +14107,8 @@
           {
             "id": "runtime:abi::tests::boxing_round_trips_through_the_word_api",
             "title": "abi::tests::boxing_round_trips_through_the_word_api",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14110,8 +14120,8 @@
           {
             "id": "runtime:abi::tests::decimal_entry_points_round_trip",
             "title": "abi::tests::decimal_entry_points_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14123,8 +14133,8 @@
           {
             "id": "runtime:abi::tests::error_exit_codes_match_the_fault_paths",
             "title": "abi::tests::error_exit_codes_match_the_fault_paths",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14136,8 +14146,8 @@
           {
             "id": "runtime:abi::tests::exit_codes_match_the_documented_fault_table",
             "title": "abi::tests::exit_codes_match_the_documented_fault_table",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14149,8 +14159,8 @@
           {
             "id": "runtime:abi::tests::free_releases_mortal_blocks_and_ignores_immortal_words",
             "title": "abi::tests::free_releases_mortal_blocks_and_ignores_immortal_words",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14162,8 +14172,8 @@
           {
             "id": "runtime:abi::tests::int_words_are_canonical_across_both_immediate_edges",
             "title": "abi::tests::int_words_are_canonical_across_both_immediate_edges",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14175,8 +14185,8 @@
           {
             "id": "runtime:abi::tests::nat_words_are_canonical_across_the_immediate_edge",
             "title": "abi::tests::nat_words_are_canonical_across_the_immediate_edge",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14188,8 +14198,8 @@
           {
             "id": "runtime:arrays::tests::columns_share_buffers_and_reject_mismatched_lengths",
             "title": "arrays::tests::columns_share_buffers_and_reject_mismatched_lengths",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14201,8 +14211,8 @@
           {
             "id": "runtime:arrays::tests::element_pointer_maps_retain_objects_and_tagged_bignums",
             "title": "arrays::tests::element_pointer_maps_retain_objects_and_tagged_bignums",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14214,8 +14224,8 @@
           {
             "id": "runtime:arrays::tests::mark_on_spawn_visits_counted_array_elements",
             "title": "arrays::tests::mark_on_spawn_visits_counted_array_elements",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14227,8 +14237,8 @@
           {
             "id": "runtime:arrays::tests::packed_storage_has_scalar_stride_and_generic_updates_are_persistent",
             "title": "arrays::tests::packed_storage_has_scalar_stride_and_generic_updates_are_persistent",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14240,8 +14250,8 @@
           {
             "id": "runtime:arrays::tests::shapes_cover_rank_zero_zero_axes_overflow_and_row_major_indexing",
             "title": "arrays::tests::shapes_cover_rank_zero_zero_axes_overflow_and_row_major_indexing",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14253,8 +14263,8 @@
           {
             "id": "runtime:block::tests::constructor_blocks_size_from_the_layout_table",
             "title": "block::tests::constructor_blocks_size_from_the_layout_table",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14266,8 +14276,8 @@
           {
             "id": "runtime:block::tests::header_fields_round_trip_at_their_extremes",
             "title": "block::tests::header_fields_round_trip_at_their_extremes",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14279,8 +14289,8 @@
           {
             "id": "runtime:block::tests::layout_ids_carry_the_tag_at_every_group",
             "title": "block::tests::layout_ids_carry_the_tag_at_every_group",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14292,8 +14302,8 @@
           {
             "id": "runtime:block::tests::small_and_big_blocks_record_their_size",
             "title": "block::tests::small_and_big_blocks_record_their_size",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14305,8 +14315,8 @@
           {
             "id": "runtime:bytes::tests::bytes_bounds_and_value_checks",
             "title": "bytes::tests::bytes_bounds_and_value_checks",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14318,8 +14328,8 @@
           {
             "id": "runtime:bytes::tests::bytes_get_and_set_round_trip",
             "title": "bytes::tests::bytes_get_and_set_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14331,8 +14341,8 @@
           {
             "id": "runtime:bytes::tests::bytes_new_zeroes_and_lengths",
             "title": "bytes::tests::bytes_new_zeroes_and_lengths",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14344,8 +14354,8 @@
           {
             "id": "runtime:bytes::tests::bytes_rejects_negative_length",
             "title": "bytes::tests::bytes_rejects_negative_length",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14357,8 +14367,8 @@
           {
             "id": "runtime:bytes::tests::copy_range_moves_overlapping_and_checks_bounds",
             "title": "bytes::tests::copy_range_moves_overlapping_and_checks_bounds",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14370,8 +14380,8 @@
           {
             "id": "runtime:error::tests::byte_buffer_bounds_and_read_only_are_compiler_bug_traps",
             "title": "error::tests::byte_buffer_bounds_and_read_only_are_compiler_bug_traps",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14383,8 +14393,8 @@
           {
             "id": "runtime:error::tests::display_names_each_variant",
             "title": "error::tests::display_names_each_variant",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14396,8 +14406,8 @@
           {
             "id": "runtime:error::tests::div_by_zero_is_a_compiler_bug_trap_on_the_panic_path",
             "title": "error::tests::div_by_zero_is_a_compiler_bug_trap_on_the_panic_path",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14409,8 +14419,8 @@
           {
             "id": "runtime:error::tests::negative_nat_difference_is_a_compiler_bug_trap_on_the_panic_path",
             "title": "error::tests::negative_nat_difference_is_a_compiler_bug_trap_on_the_panic_path",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14422,8 +14432,8 @@
           {
             "id": "runtime:error::tests::nesting_too_deep_exits_exhausted",
             "title": "error::tests::nesting_too_deep_exits_exhausted",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14435,8 +14445,8 @@
           {
             "id": "runtime:error::tests::the_remaining_errors_exit_through_the_panic_path",
             "title": "error::tests::the_remaining_errors_exit_through_the_panic_path",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14448,8 +14458,8 @@
           {
             "id": "runtime:evolution::tests::activation_requires_a_complete_update_set",
             "title": "evolution::tests::activation_requires_a_complete_update_set",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14461,8 +14471,8 @@
           {
             "id": "runtime:evolution::tests::deopt_refuses_an_unbalanced_linear_transfer",
             "title": "evolution::tests::deopt_refuses_an_unbalanced_linear_transfer",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14474,8 +14484,8 @@
           {
             "id": "runtime:evolution::tests::live_frames_keep_old_code_resident",
             "title": "evolution::tests::live_frames_keep_old_code_resident",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14487,8 +14497,8 @@
           {
             "id": "runtime:evolution::tests::old_code_never_resumes_over_new_state_without_a_reverse_transition",
             "title": "evolution::tests::old_code_never_resumes_over_new_state_without_a_reverse_transition",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14500,8 +14510,8 @@
           {
             "id": "runtime:evolution::tests::target_compatibility_blocks_reachability",
             "title": "evolution::tests::target_compatibility_blocks_reachability",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14513,8 +14523,8 @@
           {
             "id": "runtime:evolution::tests::variants_install_and_retire_safely_with_live_frames",
             "title": "evolution::tests::variants_install_and_retire_safely_with_live_frames",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14526,8 +14536,8 @@
           {
             "id": "runtime:heap::tests::allocations_are_counted",
             "title": "heap::tests::allocations_are_counted",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14539,8 +14549,8 @@
           {
             "id": "runtime:heap::tests::limit_suffixes",
             "title": "heap::tests::limit_suffixes",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14552,8 +14562,8 @@
           {
             "id": "runtime:heap::tests::missing_and_invalid_limits_use_the_documented_default",
             "title": "heap::tests::missing_and_invalid_limits_use_the_documented_default",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14565,8 +14575,8 @@
           {
             "id": "runtime:int::tests::add_sub_cross_sign",
             "title": "int::tests::add_sub_cross_sign",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14578,8 +14588,8 @@
           {
             "id": "runtime:int::tests::cmp_orders_across_signs",
             "title": "int::tests::cmp_orders_across_signs",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14591,8 +14601,8 @@
           {
             "id": "runtime:int::tests::decimal_len_includes_the_sign",
             "title": "int::tests::decimal_len_includes_the_sign",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14604,8 +14614,8 @@
           {
             "id": "runtime:int::tests::decimal_parse_format_round_trip_with_signs",
             "title": "int::tests::decimal_parse_format_round_trip_with_signs",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14617,8 +14627,8 @@
           {
             "id": "runtime:int::tests::div_by_zero_is_the_division_fault",
             "title": "int::tests::div_by_zero_is_the_division_fault",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14630,8 +14640,8 @@
           {
             "id": "runtime:int::tests::div_truncates_toward_zero_and_rem_matches_dividend_sign",
             "title": "int::tests::div_truncates_toward_zero_and_rem_matches_dividend_sign",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14643,8 +14653,8 @@
           {
             "id": "runtime:int::tests::from_i64_covers_the_full_range",
             "title": "int::tests::from_i64_covers_the_full_range",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14656,8 +14666,8 @@
           {
             "id": "runtime:int::tests::malformed_decimal_inputs_fault",
             "title": "int::tests::malformed_decimal_inputs_fault",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14669,8 +14679,8 @@
           {
             "id": "runtime:int::tests::mul_signs_and_zero",
             "title": "int::tests::mul_signs_and_zero",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14682,8 +14692,8 @@
           {
             "id": "runtime:int::tests::neg_is_an_involution_and_zero_is_fixed",
             "title": "int::tests::neg_is_an_involution_and_zero_is_fixed",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14695,8 +14705,8 @@
           {
             "id": "runtime:int::tests::to_decimal_faults_on_small_buffer",
             "title": "int::tests::to_decimal_faults_on_small_buffer",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14708,8 +14718,8 @@
           {
             "id": "runtime:int::tests::to_i64_range_boundaries",
             "title": "int::tests::to_i64_range_boundaries",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14721,8 +14731,8 @@
           {
             "id": "runtime:limbs::tests::add_carries_across_the_limb_boundary",
             "title": "limbs::tests::add_carries_across_the_limb_boundary",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14734,8 +14744,8 @@
           {
             "id": "runtime:limbs::tests::cmp_orders_by_length_then_most_significant_limb",
             "title": "limbs::tests::cmp_orders_by_length_then_most_significant_limb",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14747,8 +14757,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_by_word_in_place_normalizes",
             "title": "limbs::tests::div_rem_by_word_in_place_normalizes",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14760,8 +14770,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_by_word_matches_u64_reference",
             "title": "limbs::tests::div_rem_by_word_matches_u64_reference",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14773,8 +14783,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_limbs_crafted_add_back_vector",
             "title": "limbs::tests::div_rem_limbs_crafted_add_back_vector",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14786,8 +14796,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_limbs_crafted_estimate_cap_vector",
             "title": "limbs::tests::div_rem_limbs_crafted_estimate_cap_vector",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14799,8 +14809,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_limbs_matches_an_independent_binary_division",
             "title": "limbs::tests::div_rem_limbs_matches_an_independent_binary_division",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14812,8 +14822,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_limbs_multi_limb_identity",
             "title": "limbs::tests::div_rem_limbs_multi_limb_identity",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14825,8 +14835,8 @@
           {
             "id": "runtime:limbs::tests::div_rem_limbs_small_grid_matches_u64_reference",
             "title": "limbs::tests::div_rem_limbs_small_grid_matches_u64_reference",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14838,8 +14848,8 @@
           {
             "id": "runtime:limbs::tests::mul_add_small_matches_reference",
             "title": "limbs::tests::mul_add_small_matches_reference",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14851,8 +14861,8 @@
           {
             "id": "runtime:limbs::tests::mul_handles_limb_boundaries_and_zero",
             "title": "limbs::tests::mul_handles_limb_boundaries_and_zero",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14864,8 +14874,8 @@
           {
             "id": "runtime:limbs::tests::normalize_strips_only_leading_zeros",
             "title": "limbs::tests::normalize_strips_only_leading_zeros",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14877,8 +14887,8 @@
           {
             "id": "runtime:limbs::tests::sub_borrows_across_the_limb_boundary",
             "title": "limbs::tests::sub_borrows_across_the_limb_boundary",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14890,8 +14900,8 @@
           {
             "id": "runtime:limbs::tests::zero_is_the_empty_magnitude",
             "title": "limbs::tests::zero_is_the_empty_magnitude",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14903,8 +14913,8 @@
           {
             "id": "runtime:nat::tests::add_sub_round_trip_and_underflow",
             "title": "nat::tests::add_sub_round_trip_and_underflow",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14916,8 +14926,8 @@
           {
             "id": "runtime:nat::tests::cmp_orders_naturals",
             "title": "nat::tests::cmp_orders_naturals",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14929,8 +14939,8 @@
           {
             "id": "runtime:nat::tests::decimal_len_matches_written_length",
             "title": "nat::tests::decimal_len_matches_written_length",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14942,8 +14952,8 @@
           {
             "id": "runtime:nat::tests::decimal_parse_format_round_trip",
             "title": "nat::tests::decimal_parse_format_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14955,8 +14965,8 @@
           {
             "id": "runtime:nat::tests::decimal_round_trip_on_large_values",
             "title": "nat::tests::decimal_round_trip_on_large_values",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14968,8 +14978,8 @@
           {
             "id": "runtime:nat::tests::div_by_zero_is_reported_and_traps_as_a_compiler_bug",
             "title": "nat::tests::div_by_zero_is_reported_and_traps_as_a_compiler_bug",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14981,8 +14991,8 @@
           {
             "id": "runtime:nat::tests::from_i64_rejects_negatives",
             "title": "nat::tests::from_i64_rejects_negatives",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -14994,8 +15004,8 @@
           {
             "id": "runtime:nat::tests::malformed_decimal_inputs_fault",
             "title": "nat::tests::malformed_decimal_inputs_fault",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15007,8 +15017,8 @@
           {
             "id": "runtime:nat::tests::mul_and_div_rem_against_u64_reference",
             "title": "nat::tests::mul_and_div_rem_against_u64_reference",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15020,8 +15030,8 @@
           {
             "id": "runtime:nat::tests::to_decimal_faults_on_small_buffer_but_not_on_exact_cap",
             "title": "nat::tests::to_decimal_faults_on_small_buffer_but_not_on_exact_cap",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15033,8 +15043,8 @@
           {
             "id": "runtime:nat::tests::to_i64_boundaries",
             "title": "nat::tests::to_i64_boundaries",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15046,8 +15056,8 @@
           {
             "id": "runtime:nat::tests::zero_has_empty_magnitude_and_is_non_negative",
             "title": "nat::tests::zero_has_empty_magnitude_and_is_non_negative",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15059,8 +15069,8 @@
           {
             "id": "runtime:net::tests::net_exports_are_global_text_symbols",
             "title": "net::tests::net_exports_are_global_text_symbols",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15072,8 +15082,8 @@
           {
             "id": "runtime:net::tests::socket_round_trip_eof_and_named_errors",
             "title": "net::tests::socket_round_trip_eof_and_named_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15085,8 +15095,8 @@
           {
             "id": "runtime:platform::pipe_tests::piped_child_signal_death_and_bad_selector",
             "title": "platform::pipe_tests::piped_child_signal_death_and_bad_selector",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15098,8 +15108,8 @@
           {
             "id": "runtime:platform::pipe_tests::piped_child_streams_round_trip",
             "title": "platform::pipe_tests::piped_child_streams_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15111,8 +15121,8 @@
           {
             "id": "runtime:platform::tests::argv_capture_round_trips",
             "title": "platform::tests::argv_capture_round_trips",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15124,8 +15134,8 @@
           {
             "id": "runtime:platform::tests::clock_readings_are_ordered_and_finite",
             "title": "platform::tests::clock_readings_are_ordered_and_finite",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15137,8 +15147,8 @@
           {
             "id": "runtime:platform::tests::fs_mutations_entropy_and_signal_round_trip",
             "title": "platform::tests::fs_mutations_entropy_and_signal_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15150,8 +15160,8 @@
           {
             "id": "runtime:platform::tests::fs_round_trip_rename_and_named_errors",
             "title": "platform::tests::fs_round_trip_rename_and_named_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15163,8 +15173,8 @@
           {
             "id": "runtime:platform::tests::platform_exports_are_global_text_symbols",
             "title": "platform::tests::platform_exports_are_global_text_symbols",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15176,8 +15186,8 @@
           {
             "id": "runtime:platform::tests::process_capture_round_trips",
             "title": "platform::tests::process_capture_round_trips",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15189,8 +15199,8 @@
           {
             "id": "runtime:platform::tests::word_buffers_round_trip",
             "title": "platform::tests::word_buffers_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15202,8 +15212,8 @@
           {
             "id": "runtime:pty::tests::pty_exports_are_global_text_symbols",
             "title": "pty::tests::pty_exports_are_global_text_symbols",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15215,8 +15225,8 @@
           {
             "id": "runtime:pty::tests::pty_round_trip_exit_status_and_named_errors",
             "title": "pty::tests::pty_round_trip_exit_status_and_named_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15228,8 +15238,8 @@
           {
             "id": "runtime:rc::tests::a_marked_subgraph_mixes_with_unmarked_blocks",
             "title": "rc::tests::a_marked_subgraph_mixes_with_unmarked_blocks",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15241,8 +15251,8 @@
           {
             "id": "runtime:rc::tests::a_million_cell_list_marks_in_constant_stack_and_keeps_its_words",
             "title": "rc::tests::a_million_cell_list_marks_in_constant_stack_and_keeps_its_words",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15254,8 +15264,8 @@
           {
             "id": "runtime:rc::tests::a_million_cell_list_releases_in_constant_stack",
             "title": "rc::tests::a_million_cell_list_releases_in_constant_stack",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15267,8 +15277,8 @@
           {
             "id": "runtime:rc::tests::children_are_released_in_reverse_slot_order_before_their_parent",
             "title": "rc::tests::children_are_released_in_reverse_slot_order_before_their_parent",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15280,8 +15290,8 @@
           {
             "id": "runtime:rc::tests::closures_scan_their_filled_slots_by_shape",
             "title": "rc::tests::closures_scan_their_filled_slots_by_shape",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15293,8 +15303,8 @@
           {
             "id": "runtime:rc::tests::concurrent_counts_on_one_marked_block_end_exact_and_free_once",
             "title": "rc::tests::concurrent_counts_on_one_marked_block_end_exact_and_free_once",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15306,8 +15316,8 @@
           {
             "id": "runtime:rc::tests::counts_above_one_only_decrement",
             "title": "rc::tests::counts_above_one_only_decrement",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15319,8 +15329,8 @@
           {
             "id": "runtime:rc::tests::debug_mode_poisons_and_quarantines_freed_blocks",
             "title": "rc::tests::debug_mode_poisons_and_quarantines_freed_blocks",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15332,8 +15342,8 @@
           {
             "id": "runtime:rc::tests::dictionaries_scan_closure_methods_but_not_value_methods",
             "title": "rc::tests::dictionaries_scan_closure_methods_but_not_value_methods",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15345,8 +15355,8 @@
           {
             "id": "runtime:rc::tests::marking_stops_at_immortal_blocks",
             "title": "rc::tests::marking_stops_at_immortal_blocks",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15358,8 +15368,8 @@
           {
             "id": "runtime:rc::tests::marking_visits_a_shared_child_once_and_reads_closures_by_shape",
             "title": "rc::tests::marking_visits_a_shared_child_once_and_reads_closures_by_shape",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15371,8 +15381,8 @@
           {
             "id": "runtime:rc::tests::memo_cells_release_their_thunk_only",
             "title": "rc::tests::memo_cells_release_their_thunk_only",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15384,8 +15394,8 @@
           {
             "id": "runtime:rc::tests::raw_slots_are_never_touched",
             "title": "rc::tests::raw_slots_are_never_touched",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15397,8 +15407,8 @@
           {
             "id": "runtime:rc::tests::regular_ids_scan_nothing_in_the_unmapped_test_entries",
             "title": "rc::tests::regular_ids_scan_nothing_in_the_unmapped_test_entries",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15410,8 +15420,8 @@
           {
             "id": "runtime:rc::tests::shared_substructure_is_freed_exactly_once",
             "title": "rc::tests::shared_substructure_is_freed_exactly_once",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15423,8 +15433,8 @@
           {
             "id": "runtime:rc::tests::tobj_immediates_are_skipped_and_boxed_numbers_freed",
             "title": "rc::tests::tobj_immediates_are_skipped_and_boxed_numbers_freed",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15436,8 +15446,8 @@
           {
             "id": "runtime:rc::tests::wide_constructors_read_their_map_extension",
             "title": "rc::tests::wide_constructors_read_their_map_extension",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15449,8 +15459,8 @@
           {
             "id": "runtime:string::tests::decode_encode_round_trip_at_boundaries",
             "title": "string::tests::decode_encode_round_trip_at_boundaries",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15462,8 +15472,8 @@
           {
             "id": "runtime:string::tests::simd_and_naive_agree_on_the_mixed_corpus",
             "title": "string::tests::simd_and_naive_agree_on_the_mixed_corpus",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15475,8 +15485,8 @@
           {
             "id": "runtime:sym::tests::equal_names_are_one_cell_and_identity_holds",
             "title": "sym::tests::equal_names_are_one_cell_and_identity_holds",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15488,8 +15498,8 @@
           {
             "id": "runtime:sym::tests::names_round_trip",
             "title": "sym::tests::names_round_trip",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15501,8 +15511,8 @@
           {
             "id": "runtime:sym::tests::non_utf8_names_are_refused",
             "title": "sym::tests::non_utf8_names_are_refused",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15514,8 +15524,8 @@
           {
             "id": "runtime:sym::tests::order_is_by_name_not_by_cell",
             "title": "sym::tests::order_is_by_name_not_by_cell",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15527,8 +15537,8 @@
           {
             "id": "runtime:text::tests::f64_decimal_text_is_the_shortest_scientific_form",
             "title": "text::tests::f64_decimal_text_is_the_shortest_scientific_form",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15540,8 +15550,8 @@
           {
             "id": "runtime:text::tests::f64_decimal_text_round_trips",
             "title": "text::tests::f64_decimal_text_round_trips",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15553,8 +15563,8 @@
           {
             "id": "runtime:text::tests::hmac_sha256_matches_the_rfc_4231_vectors",
             "title": "text::tests::hmac_sha256_matches_the_rfc_4231_vectors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15566,8 +15576,8 @@
           {
             "id": "runtime:text::tests::md5_matches_the_rfc_1321_vectors",
             "title": "text::tests::md5_matches_the_rfc_1321_vectors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15579,8 +15589,8 @@
           {
             "id": "runtime:text::tests::sha1_matches_the_fips_180_1_vectors",
             "title": "text::tests::sha1_matches_the_fips_180_1_vectors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15592,8 +15602,8 @@
           {
             "id": "runtime:text::tests::sha256_matches_the_fips_180_4_vectors",
             "title": "text::tests::sha256_matches_the_fips_180_4_vectors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15605,8 +15615,8 @@
           {
             "id": "runtime:text::tests::sha512_matches_the_fips_180_4_vectors",
             "title": "text::tests::sha512_matches_the_fips_180_4_vectors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15618,8 +15628,8 @@
           {
             "id": "runtime:text::tests::the_text_externs_are_nm_visible",
             "title": "text::tests::the_text_externs_are_nm_visible",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15631,8 +15641,8 @@
           {
             "id": "runtime:a_child_observes_cancellation_at_a_poll_point_only",
             "title": "a_child_observes_cancellation_at_a_poll_point_only",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15644,8 +15654,8 @@
           {
             "id": "runtime:a_child_that_never_polls_keeps_its_own_outcome_under_cancellation",
             "title": "a_child_that_never_polls_keeps_its_own_outcome_under_cancellation",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15657,8 +15667,8 @@
           {
             "id": "runtime:dropped_handles_are_not_detached_and_close_leaves_nothing_queued",
             "title": "dropped_handles_are_not_detached_and_close_leaves_nothing_queued",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15670,8 +15680,8 @@
           {
             "id": "runtime:first_failure_cancels_the_siblings_and_the_join_awaits_all",
             "title": "first_failure_cancels_the_siblings_and_the_join_awaits_all",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15683,8 +15693,8 @@
           {
             "id": "runtime:fork_join_happens_before_at_spawn_and_join",
             "title": "fork_join_happens_before_at_spawn_and_join",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15696,8 +15706,8 @@
           {
             "id": "runtime:poll_cancel_and_io_sleep_return_the_documented_words",
             "title": "poll_cancel_and_io_sleep_return_the_documented_words",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15709,8 +15719,8 @@
           {
             "id": "runtime:the_spawn_sequence_fixes_the_interleaving",
             "title": "the_spawn_sequence_fixes_the_interleaving",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15722,8 +15732,8 @@
           {
             "id": "runtime:app_applies_a_unit_closure_to_its_arguments_in_order",
             "title": "app_applies_a_unit_closure_to_its_arguments_in_order",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15735,8 +15745,8 @@
           {
             "id": "runtime:app_applies_a_zero_arity_thunk",
             "title": "app_applies_a_zero_arity_thunk",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15748,8 +15758,8 @@
           {
             "id": "runtime:big_constants_parse_their_decimal_digits",
             "title": "big_constants_parse_their_decimal_digits",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15761,8 +15771,8 @@
           {
             "id": "runtime:big_constants_reject_malformed_digits_and_padding",
             "title": "big_constants_reject_malformed_digits_and_padding",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15774,8 +15784,8 @@
           {
             "id": "runtime:case_selects_the_matching_arm_and_binds_its_fields",
             "title": "case_selects_the_matching_arm_and_binds_its_fields",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15787,8 +15797,8 @@
           {
             "id": "runtime:case_variable_default_binds_the_scrutinee",
             "title": "case_variable_default_binds_the_scrutinee",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15800,8 +15810,8 @@
           {
             "id": "runtime:case_wildcard_default_when_no_tag_matches",
             "title": "case_wildcard_default_when_no_tag_matches",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15813,8 +15823,8 @@
           {
             "id": "runtime:case_with_defaults_only_never_reads_an_immediate_scrutinee",
             "title": "case_with_defaults_only_never_reads_an_immediate_scrutinee",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15826,8 +15836,8 @@
           {
             "id": "runtime:constants_evaluate_to_their_words",
             "title": "constants_evaluate_to_their_words",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15839,8 +15849,8 @@
           {
             "id": "runtime:count_operations_skip_immediates_and_name_bound_slots",
             "title": "count_operations_skip_immediates_and_name_bound_slots",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15852,8 +15862,8 @@
           {
             "id": "runtime:ctor_allocates_a_block_case_can_consume",
             "title": "ctor_allocates_a_block_case_can_consume",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15865,8 +15875,8 @@
           {
             "id": "runtime:demand_moves_the_thunk_out_of_its_cell",
             "title": "demand_moves_the_thunk_out_of_its_cell",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15878,8 +15888,8 @@
           {
             "id": "runtime:exit_codes_match_the_fault_table",
             "title": "exit_codes_match_the_fault_table",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15891,8 +15901,8 @@
           {
             "id": "runtime:fault_opcode_takes_the_black_hole_fault",
             "title": "fault_opcode_takes_the_black_hole_fault",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15904,8 +15914,8 @@
           {
             "id": "runtime:hole_evaluates_the_captured_quote_block",
             "title": "hole_evaluates_the_captured_quote_block",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15917,8 +15927,8 @@
           {
             "id": "runtime:lam_builds_a_closure_record_over_its_saved_words",
             "title": "lam_builds_a_closure_record_over_its_saved_words",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15930,8 +15940,8 @@
           {
             "id": "runtime:lazy_cell_demands_its_thunk_once_across_repeated_demands",
             "title": "lazy_cell_demands_its_thunk_once_across_repeated_demands",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15943,8 +15953,8 @@
           {
             "id": "runtime:lazy_init_evaluates_to_the_unit_word",
             "title": "lazy_init_evaluates_to_the_unit_word",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15956,8 +15966,8 @@
           {
             "id": "runtime:let_if_and_local_evaluate_to_the_known_word",
             "title": "let_if_and_local_evaluate_to_the_known_word",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15969,8 +15979,8 @@
           {
             "id": "runtime:malformed_case_is_an_error",
             "title": "malformed_case_is_an_error",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15982,8 +15992,8 @@
           {
             "id": "runtime:malformed_program_streams_are_errors",
             "title": "malformed_program_streams_are_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -15995,8 +16005,8 @@
           {
             "id": "runtime:malformed_quote_blocks_are_errors",
             "title": "malformed_quote_blocks_are_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16008,8 +16018,8 @@
           {
             "id": "runtime:nesting_past_the_bound_is_an_error",
             "title": "nesting_past_the_bound_is_an_error",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16021,8 +16031,8 @@
           {
             "id": "runtime:nesting_within_the_bound_evaluates",
             "title": "nesting_within_the_bound_evaluates",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16034,8 +16044,8 @@
           {
             "id": "runtime:non_block_words_where_a_block_is_required_are_errors",
             "title": "non_block_words_where_a_block_is_required_are_errors",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16047,8 +16057,8 @@
           {
             "id": "runtime:out_of_range_hole_index_is_an_error",
             "title": "out_of_range_hole_index_is_an_error",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16060,8 +16070,8 @@
           {
             "id": "runtime:proj_mode_0_loads_a_field_word",
             "title": "proj_mode_0_loads_a_field_word",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16073,8 +16083,8 @@
           {
             "id": "runtime:proj_mode_1_extends_signed_and_unsigned",
             "title": "proj_mode_1_extends_signed_and_unsigned",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16086,8 +16096,8 @@
           {
             "id": "runtime:proj_mode_2_loads_a_boundary_word",
             "title": "proj_mode_2_loads_a_boundary_word",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16099,8 +16109,8 @@
           {
             "id": "runtime:self_demanding_cell_faults_as_the_black_hole",
             "title": "self_demanding_cell_faults_as_the_black_hole",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16112,8 +16122,8 @@
           {
             "id": "runtime:set_replaces_the_binder_word",
             "title": "set_replaces_the_binder_word",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16125,8 +16135,8 @@
           {
             "id": "runtime:extern_alloc_zero_fills_blocks",
             "title": "extern_alloc_zero_fills_blocks",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16138,8 +16148,8 @@
           {
             "id": "runtime:extern_word_api_arithmetic_and_conversion",
             "title": "extern_word_api_arithmetic_and_conversion",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16151,8 +16161,8 @@
           {
             "id": "runtime:extern_word_api_fault_codes_are_the_documented_ones",
             "title": "extern_word_api_fault_codes_are_the_documented_ones",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16164,8 +16174,8 @@
           {
             "id": "runtime:extern_word_api_nat_boundaries_and_decimal",
             "title": "extern_word_api_nat_boundaries_and_decimal",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16177,8 +16187,8 @@
           {
             "id": "runtime:int_ops_match_the_i128_reference_model",
             "title": "int_ops_match_the_i128_reference_model",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16190,8 +16200,8 @@
           {
             "id": "runtime:large_decimal_round_trips_and_arithmetic_identities",
             "title": "large_decimal_round_trips_and_arithmetic_identities",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16203,8 +16213,8 @@
           {
             "id": "runtime:nat_ops_match_the_u128_reference_model",
             "title": "nat_ops_match_the_u128_reference_model",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16216,8 +16226,8 @@
           {
             "id": "runtime:to_decimal_cap_boundary_on_random_values",
             "title": "to_decimal_cap_boundary_on_random_values",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16229,8 +16239,8 @@
           {
             "id": "runtime:to_i64_boundaries_for_both_types",
             "title": "to_i64_boundaries_for_both_types",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16242,8 +16252,8 @@
           {
             "id": "runtime:a_spawned_task_result_joins_correctly",
             "title": "a_spawned_task_result_joins_correctly",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16255,8 +16265,8 @@
           {
             "id": "runtime:handle_and_scope_words_are_distinct_allocations",
             "title": "handle_and_scope_words_are_distinct_allocations",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16268,8 +16278,8 @@
           {
             "id": "runtime:join_all_or_cancel_cancels_the_siblings_on_failure",
             "title": "join_all_or_cancel_cancels_the_siblings_on_failure",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16281,8 +16291,8 @@
           {
             "id": "runtime:poll_cancel_is_false_on_the_main_thread",
             "title": "poll_cancel_is_false_on_the_main_thread",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -16294,8 +16304,8 @@
           {
             "id": "runtime:scope_close_cancels_and_joins_unfinished_children",
             "title": "scope_close_cancels_and_joins_unfinished_children",
-            "state": "verified",
-            "detail": "Passed; complete runtime source and test inputs are unchanged.",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
             "doneWhen": "The complete original test passes against matching code and its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
@@ -19306,7 +19316,7 @@
       {
         "title": "Replay the dependent constructor and diagnostic repairs",
         "status": "completed-original-tactics-and-diagnostics-with-failures",
-        "phase": "Tactics and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.",
+        "phase": "The original proof-term group, Tactics, and the Html and Tensor diagnostic cases passed. The stale-evidence case still reaches unresolved refSet.",
         "passed": 6,
         "failed": 1,
         "total": 7,
@@ -19335,18 +19345,21 @@
       {
         "title": "Run Foldable as a client of the compiled library",
         "status": "passed-stage3",
-        "phase": "The fixture writes only Main.cinch and retains all 16 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
+        "phase": "The fixture writes only Main.cinch and retains all 15 cases. The replay uses the audited Stage3 and pinned library interfaces and object.",
         "passed": 1,
         "failed": 0,
         "total": 1
       },
       {
-        "title": "Build and test the missing library specializations",
-        "status": "passed-both-consumer-targets",
-        "phase": "lib_foldable",
-        "passed": 2,
+        "title": "Verify the rebuilt library with the original consumers",
+        "status": "passed",
+        "phase": "All 55 interface identities match. Stage3 passed nine function cases and 15 Foldable cases. Native passed all 15 Foldable cases.",
+        "passed": 24,
         "failed": 0,
-        "total": 2
+        "total": 24,
+        "unit": "Stage3 cases",
+        "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-compiled-library-consumer-results.json"
       },
       {
         "title": "Replay the five original library targets with the expanded object",
@@ -19376,15 +19389,6 @@
         "total": 3,
         "source": "9f1d93da35d7ee94f974cc2ff76ddb85bcadf8cf4a8dcac50c954fa609ce0ac0",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-local-numeric-check-results.json"
-      },
-      {
-        "title": "Evaluate the original Const law and two controls",
-        "status": "running",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
-        "passed": 0,
-        "failed": 0,
-        "total": 3,
-        "source": "e3bb55095234f4daed2ea57198b25879a19fc0273492a09ca951ebb94a743c77"
       },
       {
         "title": "Rebuild the pinned library and rerun the ladder with one bytes-len type spelling",
@@ -19449,9 +19453,9 @@
       {
         "title": "Run every Rust compiler target on the combined fixes",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types",
-        "passed": 7,
-        "failed": 0,
+        "phase": "bootstrap_buffer_aliases",
+        "passed": 11,
+        "failed": 2,
         "total": 235,
         "source": "a4bc2344653dc50ef044ba7a0e4661cf589a91dbf2b12907e279869f7586632b"
       },
@@ -19589,8 +19593,8 @@
         "title": "Run the full original 105-target Stage3 frontend matrix",
         "status": "running",
         "phase": "1 disjoint runs share the same audited compiler and provider.",
-        "passed": 5,
-        "failed": 0,
+        "passed": 20,
+        "failed": 1,
         "total": 105,
         "source": "1c8e4305e070018121b087e47dd7572c3844617af7391841d74b1e8f2ed4c3d5"
       },
@@ -19697,17 +19701,17 @@
       }
     ],
     "counts": {
-      "verified": 172,
+      "verified": 1,
       "blocked": 5,
       "running": 10,
-      "pending": 85,
-      "recheck": 402
+      "pending": 86,
+      "recheck": 573
     },
-    "total": 674,
+    "total": 675,
     "acceptanceVerified": 0,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T19:19:13.267020+00:00"
+  "updatedAt": "2026-11-07T21:39:50.943073+00:00"
 }
