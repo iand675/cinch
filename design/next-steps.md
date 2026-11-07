@@ -53,17 +53,18 @@ location. Its full pipeline and matching Stage3 replay remain open.
 See [the Core proof replay](../bootstrap/current-schema10-reflexivity-core-results.json)
 and [the original Proof example audit](../bootstrap/current-schema10-original-proof-replay-results.json).
 
-The first schema 10 Stage3 passed 6 of 13 original valid language examples
-in the full run. All 21 invalid examples were refused, with 8 meeting their
-original diagnostic and source-location assertions. Html, Reactive and
-TensorAD then passed on the same compiler with the expanded library object.
-The replays kept the original expanded source, runtime and all 55 interface
-identities. All three had zero leaks at 32 MiB with poisoning. A separate
-development Stage1 ran Html and matched the original Html and TensorPrivate
-refusals. Protocol, Tactics and Choreography still need source checker work.
-The repaired Stage3 still needs its full suite, including Proof.
-See [the original language-suite audit](../bootstrap/current-schema10-external-language-results.json)
-and [the expanded runtime and diagnostic replays](../bootstrap/current-schema10-expanded-runtime-replays-results.json).
+The repaired Stage3 ran all 34 original language cases. Nine of thirteen
+valid programs ran at 32 MiB with poisoned allocations and zero leaks.
+All 21 invalid programs were refused, and eight refusals met the original
+reason and source-location assertions. Proof, Protocol, Tactics and
+Choreography remain open on that exact compiler. Named proof support and
+the finite-index tactic work are tracked on separate source snapshots.
+See [the repaired language-suite audit](../bootstrap/current-schema10-repaired-external-language-results.json).
+
+The separate library targets exposed missing runtime specializations and
+conflicts between copied Category and Foldable sources and loaded interfaces.
+The test library rebuild takes its specialization requests from the compiler's
+retained diagnostics. Source replacement in executable builds remains open.
 
 The UTF-8 diagnostic renderer passed both original pipeline tests when
 replayed with the matching debug and release runtime archives. The stricter

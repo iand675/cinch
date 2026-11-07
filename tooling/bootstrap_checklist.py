@@ -650,9 +650,10 @@ def build_checklist(root, cfg, previous=None):
 
     if language.get('status', '').startswith('audited-matching-stage3-external-behavior'):
         passed_cases = language['positive_passed'] + language['negative_intended_reason_passed']
-        active.append(dict(title='Current candidate: Stage3 language examples', status='completed-with-failures' if passed_cases != 34 else 'passed',
+        active.append(dict(title='Stage3 language examples on the audited checkpoint', status='completed-with-failures' if passed_cases != 34 else 'passed',
             phase=f"{language['positive_passed']}/13 valid programs and {language['negative_intended_reason_passed']}/21 exact refusal checks",
-            passed=passed_cases, failed=34-passed_cases, total=34, source=language['compiler_source_sha256']))
+            passed=passed_cases, failed=34-passed_cases, total=34, source=language['compiler_source_sha256'],
+            evidence=link('bootstrap/'+language_evidence)))
 
     for key, title in (
         ('currentStage3FrontendValidation', 'Earlier self-built Stage3: complete frontend sweep'),
@@ -885,6 +886,21 @@ def build_checklist(root, cfg, previous=None):
             passed=int(bool(diagnostic_probe.get('stage1_sha256'))) + int(exit_code == 0),
             failed=int(exit_code not in (None, 0)), total=2,
             source=diagnostic_probe['compiler_source_sha256'], evidence=link(byte_observation_path) if diagnosed else None))
+    library_variants = read(cfg.get('schema10LibraryDispatchVariants'))
+    if library_variants:
+        added = library_variants['added']
+        active.append(dict(title='Supply the library specializations requested by Stage3',
+            status=library_variants['status'],
+            phase=f"{len(added['units'])} function variants and {len(added['dictionaries'])} dictionary variants requested by the original tests.",
+            passed=int(library_variants['status']=='passed-provider-and-identity-check'),
+            failed=int(library_variants['status']=='failed'), total=1, source=library_variants['compiler_source_sha256']))
+    tactic_validation = read(cfg.get('schema10ProofTactics'))
+    if tactic_validation:
+        rows = tactic_validation['rows']
+        active.append(dict(title='Check finite-index tactics on the original programs',
+            status=tactic_validation['status'], phase=tactic_validation.get('phase', 'Waiting for a worker'),
+            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
+            total=4, source=tactic_validation['compiler_source_sha256']))
     byte_repair = read(cfg.get('schema10ByteObservationRepair'))
     if byte_repair:
         status = byte_repair['status']
