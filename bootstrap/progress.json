@@ -18553,7 +18553,7 @@
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "building library only provider",
+        "phase": "building stage1",
         "passed": 1,
         "failed": 0,
         "total": 4,
@@ -19022,5 +19022,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T03:39:39.974837+00:00"
+  "updatedAt": "2026-11-07T03:40:41.868282+00:00"
 }
