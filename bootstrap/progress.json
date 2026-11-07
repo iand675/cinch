@@ -71,7 +71,7 @@
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
-      "detail": "96 of 105 complete groups passed; 1 running, 3 failed and 5 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "97 of 105 complete groups passed; 1 running, 3 failed and 4 pending.All105 required targets:96 portable and9 original interface/API groups, preserving the original100 plus5 additions. Original explicit32M poisoned client limits remain; compiler/checker consumers use256M. Direct Native operations in mixed targets remain classified separately. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -507,7 +507,7 @@
     },
     {
       "title": "Finish the exact self-built compiler tests",
-      "detail": "96 of 105 complete groups passed; 1 running, 3 failed and 5 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "97 of 105 complete groups passed; 1 running, 3 failed and 4 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Pass all external language examples through Stage3",
@@ -11878,8 +11878,8 @@
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 5,
-          "recheck": 100
+          "pending": 4,
+          "recheck": 101
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14193,12 +14193,12 @@
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/exhaustion.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "startedAt": "2026-11-07T04:04:38.565514+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-07T04:05:51.232033+00:00",
+              "exitCode": 0,
+              "logSha256": "e62cc974bce78020ebbab55ce84baf252781b942c83992cd01bcf537a7533b27",
               "cases": [
                 {
                   "name": "deep_recursion_inside_a_task_exits_exhausted_stack",
@@ -14214,7 +14214,7 @@
                 },
                 {
                   "name": "unbounded_non_tail_recursion_exits_exhausted_stack",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14223,18 +14223,27 @@
           {
             "id": "stage3:folded_literal_ownership",
             "title": "folded_literal_ownership",
-            "state": "pending",
+            "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/folded_literal_ownership.rs",
             "observed": {
-              "status": "pending",
+              "status": "running",
               "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": null,
+              "startedAt": "2026-11-07T04:05:51.244911+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "folded_integer_lists_reclaim_small_and_bignum_tagged_heads",
+                  "status": "passed"
+                },
+                {
+                  "name": "folded_object_lists_keep_constructor_instantiations_and_reclaim_their_fields",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14527,10 +14536,10 @@
           }
         ],
         "observedCounts": {
-          "passed": 96,
+          "passed": 97,
           "failed": 3,
           "running": 1,
-          "pending": 5
+          "pending": 4
         },
         "observedSource": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2"
       },
@@ -19142,8 +19151,8 @@
       {
         "title": "Earlier Stage3: complete frontend sweep",
         "status": "running",
-        "phase": "exhaustion",
-        "passed": 96,
+        "phase": "folded_literal_ownership",
+        "passed": 97,
         "failed": 3,
         "total": 105,
         "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
@@ -19154,8 +19163,8 @@
       "verified": 462,
       "blocked": 4,
       "running": 9,
-      "pending": 37,
-      "recheck": 157
+      "pending": 36,
+      "recheck": 158
     },
     "total": 669,
     "acceptanceVerified": 0,
@@ -19163,5 +19172,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T04:05:34.080118+00:00"
+  "updatedAt": "2026-11-07T04:06:35.941169+00:00"
 }
