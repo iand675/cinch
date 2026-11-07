@@ -19030,6 +19030,34 @@
         "source": "7779280734c485942b9fe5c009c686f0719c8b3bcad7e224dccd4c32c7690f8c"
       },
       {
+        "title": "Schema 10: combined source check and Git-pinned library",
+        "status": "passed",
+        "phase": "The pinned seed accepted all 46 modules and the normal library build matched all 55 interfaces",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage1-and-integrated-input-results.json"
+      },
+      {
+        "title": "Schema 10: combined self-host chain",
+        "status": "building-stage1",
+        "phase": "building stage1",
+        "passed": 1,
+        "failed": 0,
+        "total": 4,
+        "source": "b59c4893c4214d1c94c624bf9ba3f9e99ee7eb9b9568c1f092b20e5080967b38"
+      },
+      {
+        "title": "Schema 10: division and canonical value schemes",
+        "status": "running",
+        "phase": "check-46-compiler-modules",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "source": "fd96d8d21894bdb3d578caeddcbff3f48b5bd54867f541634f5121e92efc0f00"
+      },
+      {
         "title": "Schema 9 Stage1: original arrays with staging and CopyOut",
         "status": "passed",
         "phase": "Fourteen tests passed in the full run and the remaining test passed with the matching runtime archive",
@@ -19144,5 +19172,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T12:37:19.914062+00:00"
+  "updatedAt": "2026-11-07T12:41:55.466073+00:00"
 }
