@@ -19474,7 +19474,7 @@
       },
       {
         "title": "Run four more original library and numeric targets with Stage3",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "Forty original tests retain their fixtures and assertions and use the selected frontend.",
         "passed": 1,
         "failed": 2,
@@ -19615,5 +19615,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T17:06:45.300026+00:00"
+  "updatedAt": "2026-11-07T17:12:08.047229+00:00"
 }
