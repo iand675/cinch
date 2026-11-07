@@ -794,7 +794,7 @@
       {
         "id": "gap:structural-projection",
         "title": "Replay anonymous refinement contracts",
-        "state": "running",
+        "state": "recheck",
         "detail": "The original sweep stops on an implicit projection from a structural refinement. Both compilers refuse that expression and accept explicit unrefine. The full replay includes both controls and retains the stronger-predicate refusal.",
         "doneWhen": "The complete anonymous-contract target passes through matching Stage3, including explicit projection and the exact refusal reasons.",
         "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs"
@@ -18847,8 +18847,8 @@
       },
       {
         "title": "Cinch imported defaults: source admission and two complete groups",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "checking all 44 portable-default modules through exact Stage3",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -18867,9 +18867,9 @@
     "counts": {
       "verified": 489,
       "blocked": 6,
-      "running": 11,
+      "running": 10,
       "pending": 88,
-      "recheck": 80
+      "recheck": 81
     },
     "total": 674,
     "acceptanceVerified": 0,
@@ -18877,5 +18877,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-07T07:20:24.579663+00:00"
+  "updatedAt": "2026-11-07T07:21:26.596520+00:00"
 }
