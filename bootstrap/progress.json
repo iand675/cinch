@@ -21109,6 +21109,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-object-parity-results.json"
       },
       {
+        "title": "Repair checked ordering fields in bootstrap_load and bootstrap_nominals",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
+        "passed": 0,
+        "total": 4,
+        "unit": "gates",
+        "failed": 0,
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": null
+      },
+      {
         "title": "Replay the permanent library object regression",
         "status": "running",
         "phase": "run-exact-object-test",
@@ -21240,5 +21251,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:59:50.238287+00:00"
+  "updatedAt": "2026-11-08T16:03:15.286852+00:00"
 }
