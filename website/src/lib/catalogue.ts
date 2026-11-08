@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { readFile } from 'node:fs/promises';
 
 /**
  * Build-time catalogue loader.
@@ -81,6 +82,9 @@ export type Catalogue = {
   registry: string | null;
   builtAt: string;
   offline: boolean;
+  fallback: boolean;
+  warning?: string;
+  snapshotBuiltAt?: string;
   packages: LibraryPackage[];
 };
 
@@ -355,41 +359,80 @@ export function loadCatalogue(): Promise<Catalogue> {
   return cache;
 }
 
+const SNAPSHOT_URL = new URL('../data/catalogue-snapshot.json', import.meta.url);
+
+async function loadSnapshot(registry: string, reason: string): Promise<Catalogue> {
+  const builtAt = new Date().toISOString();
+  try {
+    const text = await readFile(SNAPSHOT_URL, 'utf8');
+    const snapshot = JSON.parse(text) as Partial<Catalogue>;
+    if (
+      !snapshot ||
+      !Array.isArray(snapshot.packages) ||
+      typeof snapshot.builtAt !== 'string'
+    ) {
+      throw new Error('snapshot is missing its package list');
+    }
+    return {
+      registry: snapshot.registry ?? registry,
+      builtAt: snapshot.builtAt,
+      offline: false,
+      fallback: true,
+      warning: `Live registry unavailable: ${reason}. Showing the last synced catalogue from ${snapshot.builtAt}.`,
+      snapshotBuiltAt: snapshot.builtAt,
+      packages: snapshot.packages,
+    };
+  } catch (error) {
+    return {
+      registry,
+      builtAt,
+      offline: false,
+      fallback: true,
+      warning: `Live registry unavailable (${reason}) and no cached catalogue is present. Run catalogue:snapshot after a successful live build. ${message(error)}`,
+      packages: [],
+    };
+  }
+}
+
 async function buildCatalogue(): Promise<Catalogue> {
   const builtAt = new Date().toISOString();
   if (catalogueOffline()) {
-    return { registry: null, builtAt, offline: true, packages: [] };
+    return { registry: null, builtAt, offline: true, fallback: false, packages: [] };
   }
 
   const registry = catalogueRegistry();
-  let index: { packages?: unknown };
   try {
-    index = await getJson<{ packages?: unknown }>(`${registry}/api/v1/index`, 'public index');
+    let index: { packages?: unknown };
+    try {
+      index = await getJson<{ packages?: unknown }>(`${registry}/api/v1/index`, 'public index');
+    } catch (error) {
+      throw failure(registry, message(error));
+    }
+
+    const entries = (Array.isArray(index.packages) ? index.packages : []).filter(indexEntry);
+    const groups = new Map<string, IndexEntry[]>();
+    for (const entry of entries) {
+      if (entry.blocked === true) continue;
+      const group = groups.get(entry.name) ?? [];
+      group.push(entry);
+      groups.set(entry.name, group);
+    }
+
+    if (groups.size === 0) {
+      throw failure(registry, `the registry at ${registry} returned no public releases`);
+    }
+
+    const packages = await mapLimit([...groups.entries()], 8, ([name, group]) =>
+      loadPackage(registry, name, group, builtAt),
+    );
+    packages.sort((a, b) => a.name.localeCompare(b.name));
+    return { registry, builtAt, offline: false, fallback: false, packages };
   } catch (error) {
-    throw failure(registry, message(error));
+    return loadSnapshot(registry, message(error));
   }
-
-  const entries = (Array.isArray(index.packages) ? index.packages : []).filter(indexEntry);
-  const groups = new Map<string, IndexEntry[]>();
-  for (const entry of entries) {
-    if (entry.blocked === true) continue;
-    const group = groups.get(entry.name) ?? [];
-    group.push(entry);
-    groups.set(entry.name, group);
-  }
-
-  if (groups.size === 0) {
-    throw failure(registry, `the registry at ${registry} returned no public releases`);
-  }
-
-  const packages = await mapLimit([...groups.entries()], 8, ([name, group]) =>
-    loadPackage(registry, name, group, builtAt),
-  );
-  packages.sort((a, b) => a.name.localeCompare(b.name));
-  return { registry, builtAt, offline: false, packages };
 }
 
-export type PublicModule = Omit<LibraryModule, 'source'>;
+export type PublicModule = LibraryModule;
 export type PublicRelease = Omit<LibraryRelease, 'modules'> & { modules: PublicModule[] };
 export type PublicPackage = Omit<LibraryPackage, 'modules' | 'releases'> & {
   modules: PublicModule[];
@@ -403,6 +446,7 @@ function publicModule(module: LibraryModule): PublicModule {
     description: module.description,
     imports: module.imports,
     declarations: module.declarations,
+    source: module.source,
   };
 }
 
@@ -410,6 +454,9 @@ export function publicCatalogue(catalogue: Catalogue): {
   schema: number;
   sample: false;
   offline: boolean;
+  fallback: boolean;
+  warning: string | null;
+  snapshotBuiltAt: string | null;
   registry: string | null;
   builtAt: string;
   packages: PublicPackage[];
@@ -418,6 +465,9 @@ export function publicCatalogue(catalogue: Catalogue): {
     schema: 2,
     sample: false,
     offline: catalogue.offline,
+    fallback: catalogue.fallback,
+    warning: catalogue.warning ?? null,
+    snapshotBuiltAt: catalogue.snapshotBuiltAt ?? null,
     registry: catalogue.registry,
     builtAt: catalogue.builtAt,
     packages: catalogue.packages.map((pkg) => ({

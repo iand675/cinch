@@ -9,7 +9,7 @@ const categories=[...new Set(packages.map(p=>p.category))].sort();
 ---
 <PlatformLayout title="Packages" description="Browse Cinch libraries, modules, and API documentation." section="packages" sample={catalogue.offline}>
   <section class="platform-banner catalogue-banner">
-    <div class="platform-eyebrow mono"><span>LIBRARY INDEX</span><span class="sample-badge">{catalogue.offline?'OFFLINE':'REGISTRY DATA'}</span></div>
+    <div class="platform-eyebrow mono"><span>LIBRARY INDEX</span><span class="sample-badge">{catalogue.offline?'OFFLINE':catalogue.fallback?'CACHED DATA':'REGISTRY DATA'}</span></div>
     <h1>Packages.</h1><p>Find a release. Read its modules.<br />Follow the source into the registry.</p>
     <form class="catalogue-search" role="search" action="/packages/">
       <label for="package-search" class="mono">SEARCH PACKAGES, MODULES, OR PATHS</label>
@@ -27,7 +27,8 @@ const categories=[...new Set(packages.map(p=>p.category))].sort();
     </div>
     <div class="empty-results" data-empty hidden><h2>No matching entries.</h2><p>Try a shorter name, a module path, or another category.</p><button type="button" data-clear-filters>Clear filters</button></div>
     {catalogue.offline&&<div class="empty-results" data-offline><h2>Offline catalogue.</h2><p>This build ran with <code>CINCH_CATALOGUE_OFFLINE=1</code>, so no registry releases were read. Set <code>CINCH_CATALOGUE_REGISTRY</code> and rebuild to publish the live catalogue.</p></div>}
-    <aside class="preview-note"><span class="mono">{catalogue.offline?'OFFLINE BUILD':'REGISTRY CATALOGUE'}</span>{catalogue.offline?<p>No package data is shown because the offline flag was set. The site remains static and does not fall back to sample libraries.</p>:<p>Generated at build time from <code>{catalogue.registry}</code> on {catalogue.builtAt}. The pages list the public releases that registry returned. Declaration signatures are not part of a registry release, so module pages show the manifest path, package identity, dependencies, and published source instead of invented APIs. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>}</aside>
+    {catalogue.fallback&&<div class="empty-results" data-fallback><h2>Cached catalogue.</h2><p>{catalogue.warning ?? 'The live registry was unavailable, so this build used the last cached catalogue.'}</p></div>}
+    <aside class="preview-note"><span class="mono">{catalogue.offline?'OFFLINE BUILD':catalogue.fallback?'CACHED BUILD':'REGISTRY CATALOGUE'}</span>{catalogue.offline?<p>No package data is shown because the offline flag was set. The site remains static and does not fall back to sample libraries.</p>:catalogue.fallback?<p>The live registry was unavailable when this site was built, so the catalogue is the last cached snapshot{catalogue.snapshotBuiltAt?` from ${catalogue.snapshotBuiltAt}`:''}. The snapshot is refreshed by a live build. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>:<p>Generated at build time from <code>{catalogue.registry}</code> on {catalogue.builtAt}. The pages list the public releases that registry returned. Declaration signatures are not part of a registry release, so module pages show the manifest path, package identity, dependencies, and published source instead of invented APIs. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>}</aside>
   </section>
 </PlatformLayout>
 <script>

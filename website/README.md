@@ -91,7 +91,16 @@ The selected wordmark is `public/brand/cinch-wordmark-instrument-v2.webp`. It re
 | `CINCH_CATALOGUE_REGISTRY` | Base URL of the registry. Defaults to `http://127.0.0.1:8787`, the local prototype. |
 | `CINCH_CATALOGUE_OFFLINE=1` | Build a minimal catalogue with no package data. The page says the build is offline. |
 
-The build fails when the registry is unreachable, returns no public releases, or a release manifest cannot be read, unless `CINCH_CATALOGUE_OFFLINE=1` is set. It never falls back to sample libraries. `/packages/index.json` exposes the same model with `sample: false`, the registry URL, and the build time.
+When the registry is unreachable, empty, or a release cannot be read, the build uses `src/data/catalogue-snapshot.json` as a last-synced snapshot. With no snapshot it builds a cached-empty catalogue with a warning, so a Vercel build does not fail when the registry is down. It never falls back to sample libraries. `/packages/index.json` exposes the same model with `sample: false`, `fallback`, the registry URL, and the build time.
+
+Refresh the committed snapshot after a successful live build:
+
+```sh
+CINCH_CATALOGUE_REGISTRY=https://registry.example npm run build
+npm run catalogue:snapshot
+```
+
+Run that refresh periodically, or point a scheduled CI job at the same commands. Vercel's static build then has a real last-known catalogue when the registry is unavailable.
 
 `node scripts/verify-catalogue.mjs` starts `registry/server.mjs` with a temporary data directory, publishes `fixture/hello@1.2.3`, builds the site against it, checks the package, module, and source pages, and runs `verify-preview.py`.
 
