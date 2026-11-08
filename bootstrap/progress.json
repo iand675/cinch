@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "21/236 Rust targets and 16/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "22/236 Rust targets and 16/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -797,11 +797,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 21,
+          "verified": 22,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 214
+          "recheck": 213
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -1194,48 +1194,44 @@
           {
             "id": "native:bootstrap_array_float_bits",
             "title": "bootstrap_array_float_bits",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T19:03:49.331230+00:00",
+              "finishedAt": "2026-11-08T19:16:32.936147+00:00",
+              "exitCode": 0,
+              "logSha256": "2164aeb3c5509b4d1513eadfad8ea1030ad4e5fdd16da357c19d67de35faa65c",
+              "cases": [
+                {
+                  "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
+                  "status": "passed"
+                }
+              ]
+            },
+            "currentTests": 1
+          },
+          {
+            "id": "native:bootstrap_body_bindings",
+            "title": "bootstrap_body_bindings",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
+            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
+            "observed": {
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T19:16:32.955409+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
               "cases": [
                 {
-                  "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
-                  "status": "running"
-                }
-              ]
-            },
-            "currentTests": null
-          },
-          {
-            "id": "native:bootstrap_body_bindings",
-            "title": "bootstrap_body_bindings",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
-            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T04:11:34.600083+00:00",
-              "finishedAt": "2026-11-08T04:15:55.988985+00:00",
-              "exitCode": 0,
-              "logSha256": "89768da5ac4806815a3da9f17ad8ca18c69023cf01824a6e0d4057c7dde41ff5",
-              "cases": [
-                {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
-                  "status": "passed"
-                },
-                {
-                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20333,8 +20329,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_array_float_bits",
-        "passed": 21,
+        "phase": "bootstrap_body_bindings",
+        "passed": 22,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20560,11 +20556,11 @@
       }
     ],
     "counts": {
-      "verified": 375,
+      "verified": 376,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 323
+      "recheck": 322
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20572,5 +20568,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:11:38.420213+00:00"
+  "updatedAt": "2026-11-08T19:16:43.898778+00:00"
 }
