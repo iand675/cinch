@@ -2013,6 +2013,15 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     let abi: serde_json::Value = serde_json::from_slice(&bytes)
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    let runtime_abi = abi.get("runtime_abi").and_then(serde_json::Value::as_u64);
+    let expected_runtime_abi = crate::interface::RUNTIME_ABI_VERSION;
+    if runtime_abi != Some(u64::from(expected_runtime_abi)) {
+        let found = runtime_abi.map_or_else(|| "missing".into(), |version| version.to_string());
+        return Err(Error::plain(format!(
+            "{}: package object runtime ABI {found} does not match this compiler's {expected_runtime_abi}",
+            abi_path.display()
+        )));
+    }
     let object_bytes =
         std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
     let expected = abi
@@ -2054,6 +2063,13 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             };
             let iface = crate::interface::Iface::from_json(&text)
                 .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+            if iface.runtime_abi != expected_runtime_abi {
+                return Err(Error::plain(format!(
+                    "{}: package interface runtime ABI {} does not match this compiler's {expected_runtime_abi}",
+                    path.display(),
+                    iface.runtime_abi
+                )));
+            }
             if iface.iface_hash() != expected_hash {
                 return Err(Error::plain(format!(
                     "{}: interface hash does not match package.abi.json",

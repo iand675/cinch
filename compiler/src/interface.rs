@@ -26,8 +26,8 @@ pub const SCHEMA_VERSION: u32 = 10;
 /// live bytes. (4: pointer maps and shaped closures; 3: the tag in the
 /// header; 2: the header word and small immediates.)
 /// 6: immutable Array/Tensor/Columnar block kinds and element pointer maps.
-/// ABI5 runtimes must not consume these values.
-pub const RUNTIME_ABI_VERSION: u32 = 6;
+/// 7: Mut arguments carry owned, shared one-field cells through calls.
+pub const RUNTIME_ABI_VERSION: u32 = 7;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 const CALLING_CONVENTION: &str = "uniform-word, curried apply stub";
 

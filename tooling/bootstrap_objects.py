@@ -111,17 +111,7 @@ def cached(driver, directory, inputs):
 
 
 def provider(driver):
-    lock = driver.read_json(driver.ROOT / "bootstrap/library-provider.lock.json")
-    if (type(lock.get("schema")) is not int or lock.get("schema") != 1 or type(lock.get("runtime_abi")) is not int
-            or lock.get("runtime_abi") not in (5, 6)
-            or not isinstance(lock.get("revision"), str)
-            or not isinstance(lock.get("source_sha256"), str)
-            or not re.fullmatch(r"[0-9a-f]{40}", lock["revision"])
-            or not re.fullmatch(r"[0-9a-f]{64}", lock["source_sha256"])):
-        raise driver.BootstrapError("unsupported or missing library producer lock")
-    seed, _ = driver.seed_inputs()
-    if lock["runtime_abi"] != seed["runtime_abi"]:
-        raise driver.BootstrapError("library producer and pinned stage runtime ABIs differ; select matching inputs intentionally")
+    lock = driver.library_provider_lock()
     roots = (driver.ROOT / "bootstrap/library-object-roots.json").read_bytes()
     inputs = {"protocol": 2, "host": driver.HOST, "producer": lock,
               "roots_sha256": driver.digest(roots), "entry_sha256": driver.digest(ENTRY)}

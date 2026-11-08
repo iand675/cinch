@@ -3195,6 +3195,20 @@ mod tests {
         let status = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
             .expect("native build with package objects");
         assert_eq!(status, 8);
+        let execution_path = top.interfaces.join("package.cinchif");
+        let mut execution: Value = serde_json::from_slice(
+            &std::fs::read(&execution_path).expect("package execution interface"),
+        )
+        .expect("package execution JSON");
+        execution["runtime_abi"] = json!(crate::interface::RUNTIME_ABI_VERSION - 1);
+        std::fs::write(
+            &execution_path,
+            canonical(&execution).expect("encode old runtime ABI"),
+        )
+        .expect("replace package execution interface");
+        let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
+            .expect_err("native linker must reject an old package runtime ABI");
+        assert!(error.to_string().contains("package object runtime ABI"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
     }
 }

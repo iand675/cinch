@@ -22,6 +22,7 @@ TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
 FROZEN_SOURCES = None
+RUNTIME_ABIS = (5, 6, 7)
 
 
 class BootstrapError(RuntimeError):
@@ -187,6 +188,17 @@ def seed_inputs() -> tuple[dict, bytes]:
     return lock, patch
 
 
+def library_provider_lock() -> dict:
+    lock = read_json(ROOT / "bootstrap/library-provider.lock.json")
+    revision, source = lock.get("revision"), lock.get("source_sha256")
+    if (type(lock.get("schema")) is not int or lock["schema"] != 1
+            or type(lock.get("runtime_abi")) is not int or lock["runtime_abi"] not in RUNTIME_ABIS
+            or not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
+            or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{64}", source)):
+        raise BootstrapError("unsupported or missing library producer lock")
+    return lock
+
+
 def build_seed() -> Path:
     lock, patch = seed_inputs()
     inputs = {"protocol": PROTOCOL, "host": HOST, "seed": lock}
@@ -248,10 +260,10 @@ def build_seed_runtime() -> Path:
 def runtime_abi_source(abi: int) -> bytes:
     # This is build configuration, not permission to translate artifacts.
     # Interfaces and the linked archive must come from the same producer.
-    if type(abi) is not int or abi not in (5, 6):
+    if type(abi) is not int or abi not in RUNTIME_ABIS:
         raise BootstrapError(f"unsupported compiler runtime ABI: {abi!r}")
     return ("-- One exact ABI per compiler build. The pinned stage builder renders this\n"
-            "-- module from its verified seed lock before hashing the complete sources.\n"
+            "-- module from the target library lock before hashing the complete sources.\n"
             "module Bootstrap.RuntimeAbi where\n"
             "  export runtime-abi, runtime-abi-int\n"
             "  runtime-abi :: Nat\n"
@@ -262,8 +274,9 @@ def runtime_abi_source(abi: int) -> bytes:
 
 def collect_compiler_sources() -> dict[str, bytes]:
     files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
-    lock, _ = seed_inputs()
-    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock.get("runtime_abi"))
+    # The seed links Stage1. The compiler inside Stage1 targets the pinned
+    # library and runtime used to build and run Stage2 and later.
+    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(library_provider_lock()["runtime_abi"])
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()
@@ -481,7 +494,7 @@ def require_compiler_interfaces(directory: Path, files: dict[str, bytes]) -> Non
     if set(documents) != expected:
         raise BootstrapError(f"{directory.name} is missing actual compiler interfaces: {', '.join(sorted(expected - set(documents)))}")
     contracts = {}
-    runtime_abi = seed_inputs()[0]["runtime_abi"]
+    runtime_abi = library_provider_lock()["runtime_abi"]
     for name, path in documents.items():
         try:
             doc = read_contract(path)
