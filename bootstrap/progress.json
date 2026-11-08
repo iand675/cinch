@@ -1333,6 +1333,10 @@
                 },
                 {
                   "name": "imported_observation_identity_survives_a_renamed_facade",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
                   "status": "running"
                 }
               ]
@@ -20788,5 +20792,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:42:37.195350+00:00"
+  "updatedAt": "2026-11-08T04:43:39.237091+00:00"
 }
