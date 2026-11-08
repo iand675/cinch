@@ -1,0 +1,231 @@
+{
+  "concurrency": {
+    "adapted_test_sha256": "0fa63877b45440132630c109b0dcc963c4254b9b157d4a4bae23181bb9b4db13",
+    "compiler_sha256": "a8d959a0bb94454bfa10bafa5c495766ccda1e72a9df87950dfcad459ff6820a",
+    "compiler_source_sha256": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+    "failed": 3,
+    "improved": [
+      "a_linear_capture_transfers_into_a_task_exactly_once",
+      "a_mut_borrow_capture_is_rejected",
+      "an_affine_thunk_moves_into_a_task_by_transfer",
+      "double_capture_of_a_linear_value_is_rejected",
+      "source_task_forwarders_check_actual_captures"
+    ],
+    "log_sha256": "08e33346b210d1d2005143587aa4e6cf72717d99ee34ac385a0151b3c1a9dcf6",
+    "original_test_sha256": "eb2456fcd7039a620b0ef04f3a25f4cc6a536c99367e274b59fb4819dddf7c9c",
+    "passed": 16,
+    "rows": [
+      {
+        "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+        "status": "passed"
+      },
+      {
+        "name": "a_mut_borrow_capture_is_rejected",
+        "status": "passed"
+      },
+      {
+        "name": "a_thread_shared_memo_cell_is_rejected",
+        "status": "failed"
+      },
+      {
+        "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+        "status": "passed"
+      },
+      {
+        "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+        "status": "passed"
+      },
+      {
+        "name": "an_unshared_mutable_capture_is_rejected",
+        "status": "passed"
+      },
+      {
+        "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+        "status": "passed"
+      },
+      {
+        "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+        "status": "passed"
+      },
+      {
+        "name": "double_capture_of_a_linear_value_is_rejected",
+        "status": "passed"
+      },
+      {
+        "name": "dropping_a_handle_is_rejected",
+        "status": "passed"
+      },
+      {
+        "name": "example_11_structured_tasks_accepts",
+        "status": "passed"
+      },
+      {
+        "name": "io_read_and_write_round_trip",
+        "status": "passed"
+      },
+      {
+        "name": "join_all_or_cancel_cancels_siblings_on_failure",
+        "status": "passed"
+      },
+      {
+        "name": "local_task_callbacks_retain_their_captures_through_aliases",
+        "status": "passed"
+      },
+      {
+        "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+        "status": "passed"
+      },
+      {
+        "name": "ref_and_copy_captures_are_accepted",
+        "status": "failed"
+      },
+      {
+        "name": "source_task_forwarders_check_actual_captures",
+        "status": "passed"
+      },
+      {
+        "name": "spawned_task_results_join_correctly",
+        "status": "passed"
+      },
+      {
+        "name": "task_handles_cannot_escape_their_scope",
+        "status": "failed"
+      }
+    ],
+    "stage1_receipt_sha256": "8b41d794df97e8da41de7e4c98ba81929cf4b7d1321bde38f585ad1d1deb4da1",
+    "zero_leak_runtime_clients": 13
+  },
+  "full_goal_complete": false,
+  "native_mutable_referent_counterexample": {
+    "compiler_sha256": "67751461cdb58be57e375aee44066403a8ada9e546c6b4cc613924047f61dd4b",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "source_sha256": "515dda8b5542637e0f1dd5648ef5a87d2e30dd727c1a7ba691b433bc6f697ac1"
+  },
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "schema": 1,
+  "scope": "Separate Stage 1 binaries on the combined and strict where sources. The current published Stage 3 and the next fixed point have separate gates.",
+  "status": "audited-where-and-combined-concurrency-stage1",
+  "where": {
+    "compiler_source_sha256": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
+    "controls": [
+      {
+        "compiler_sha256": "31876c611e7a91a1774fed6ee174fd0e0415f755df35d5dc1eb393cf23282276",
+        "name": "stage1",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected_diagnostic": null,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "leaked": false,
+        "link_exit": 0,
+        "name": "original-strict-where",
+        "run_exit": 0,
+        "source_sha256": "b8536346f2390003e7d7dc56e28fdbbb790d63348d9a7000deb26bef22abc0e9",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected_diagnostic": null,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "leaked": false,
+        "link_exit": 0,
+        "name": "original-guarded-where",
+        "run_exit": 0,
+        "source_sha256": "4960093ec078728e73c43d87e06b2d93b28c60c80bfa9a12ba9bb068b056c9cf",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected_diagnostic": null,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "leaked": false,
+        "link_exit": 0,
+        "name": "boxed-guard-cleanup-and-true",
+        "run_exit": 0,
+        "source_sha256": "a4970ee541c7c56230dc2cc61e401360c5d3785816f7b21313a43edb79ac8c54",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.resolve:3:24: name is not in scope: b\n",
+        "exit_code": 4,
+        "expected_diagnostic": "name is not in scope: b",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "strict-where-forward-reference",
+        "source_sha256": "879f169955567a970931cadfefa4010552449cb3e5a8116cc5c41c9b14d53446",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.resolve:6:14: name is not in scope: local\n",
+        "exit_code": 4,
+        "expected_diagnostic": "name is not in scope: local",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "where-names-stop-at-the-equation",
+        "source_sha256": "9e9a0591a413ec6362306b05202aaa2365d816e6e6e880f9a2b0fcab644a4b9f",
+        "status": "passed"
+      }
+    ],
+    "guard_coverage": {
+      "cases": [
+        {
+          "name": "all_guarded_match_is_rejected",
+          "status": "passed",
+          "target": "guard_coverage"
+        },
+        {
+          "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+          "status": "passed",
+          "target": "guard_coverage"
+        },
+        {
+          "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+          "status": "passed",
+          "target": "guard_coverage"
+        },
+        {
+          "name": "true_guard_counts_as_unguarded",
+          "status": "passed",
+          "target": "guard_coverage"
+        },
+        {
+          "name": "unguarded_final_row_compiles_and_runs_every_row",
+          "status": "passed",
+          "target": "guard_coverage"
+        }
+      ],
+      "exit_code": 0,
+      "harness_sha256": "7864f6acb70aa091a5d1ec6e3d3fde8e004393637f456b61339eb81728959092",
+      "invocation_receipts": {
+        "37361-0.json": "07884c1481f1eb6b0f52707d791e6d7e88e3b087a54340b1510b97f75ce50c80",
+        "37361-1.json": "8609d44ce59074c944b7f1c25fa842452ab2dcf08db4b66f9d38001b69c3402e",
+        "37361-10.json": "bf6d5f0c40c9467f11f2e61b6942fdff37bd52fe48490b4269413ad3fbb7beb4",
+        "37361-11.json": "e1c816dc5d7a3ab7c6c7ee5562c81aaaf9755e5cebe2d2d630fa461c23e981eb",
+        "37361-12.json": "b7ce32e8d747a5dc9d490391fc6381cdbaf1527a5b46b3c1d14d8bdf9cb6315d",
+        "37361-13.json": "2df9ef60e9ed94a1c47933b1fefafeb2c9f7fe6ff3fc1e00c4abb4c90a3e4510",
+        "37361-14.json": "8da008dbe4b7705572e02c219d971fdd0d942904d787a5327a62d7c70296a036",
+        "37361-15.json": "6c062720cbafb0e557937e1c93b121440c6a9ffdfea71b9a2f5659201c8642f8",
+        "37361-16.json": "ef800d22f8af16754ee6a0384732c3e8e03368e018af33ef7ee4eae201bd9505",
+        "37361-17.json": "6e5427f4e578ca7723709323b4e3e5cbff52bea474b440905ec0f2986147e3a5",
+        "37361-18.json": "34e9db40cda33a921203c33e9485041803107877f0f646943f6ed046a77a965b",
+        "37361-19.json": "de7e1705ba505f88b621ad095425d8c8722a301409ff0be0e7f51fa8838bbe89",
+        "37361-2.json": "4b82923399fada07f68c26b3fa166e7a31c12939edfa2b14279ff52d468e120c",
+        "37361-20.json": "098ff4bb371a084d76c689ce79a371e09fc60abc7773887ce7f2fcfc0ae8bca9",
+        "37361-21.json": "fb8c02aed78f6aa09addfc911e08033f6e1cb6d27eb9ab1bfe54df456c18fbe0",
+        "37361-3.json": "7c7319315345ec82fd8d9747d7abb22660e5068f10380795b82afc2c738c57ee",
+        "37361-4.json": "6fb968f52b53b1bd5bc14dfe1c7d59a948871a3dc8220f07306a35a05a130c06",
+        "37361-5.json": "f47226fffd03ea7bfd18bae8abb08bced458c4f8f1b147ea3f370068e422929e",
+        "37361-6.json": "9f3d06864e70b98d6f684836e1a7b5006fae8f146d69eeecb32a35be0d84af8c",
+        "37361-7.json": "a5ec0e6ffae17c23d8fdcda9a8815ee03ea8c8dc531ddcf305a9de5489cfe32c",
+        "37361-8.json": "17b174493f91b580015f49c6c2365f50e32206fcce50ebcd1839f8251f7ec95e",
+        "37361-9.json": "cf6ffcb8cf7d981dfa9c76c835e2a050a26462bfce0c2f3a5a60c7d5b8fc85b6"
+      },
+      "log_sha256": "fc9f42ece7b64314b95c2aac11ad2393f8104cb24ac373350022544ef9664aca",
+      "name": "guard_coverage"
+    },
+    "stage1_receipt_sha256": "0b249a7faac2be773bf972b3676eaaa8ab7c0071f847d048e8c48c2e501c0231"
+  }
+}

@@ -17,8 +17,11 @@ integration diagnostics request one additional provider root,
 fixtures. The current fixed point predates that wider integration demand.
 See [the original case results and checked object requests](../bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json).
 
-The expanded pinned object linked both original tagged List clients and
-each ran without leaks. All 55 library interface identities were preserved.
+`Data.List.cinchif` already exported the generic `sum-list` scheme. The
+pinned `library.o` lacked the `Data.List.sum-list@T` machine-code variant
+and its generated helper. The rebuilt object and its physical manifest now
+include both symbols. Both original clients ran without leaks, and all 55
+library interface identities were preserved.
 Isolated Stage 1 builds passed the five task-capture controls and four
 quantified annotation controls. Forwarder interface omission passed for
 both direct and renamed exports. Two first-class-use cases still require
@@ -31,6 +34,14 @@ tests. Its complete replay includes the eleven annotation checks and the
 inherited default that returns 42. The combined compiler still has its own
 Stage 3 replay.
 See [the whole class-default target audit](../bootstrap/current-schema10-abi7-annotation-original-class-defaults-results.json).
+
+The combined Stage 1 passed 16 of 19 original concurrency cases. The remaining
+cases cover shared memo cells, read-only reference captures and the task-scope
+escape diagnostic. An isolated Stage 1 with strict `where` bindings passed
+all five original guard-coverage cases. Both original strict and guarded
+`where` programs ran without leaks. The full integration replay and the
+combined Stage 3 checks have separate gates.
+See [the Stage 1 concurrency and guard audit](../bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
