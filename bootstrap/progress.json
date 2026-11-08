@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "27 of 236 complete groups passed; 1 running, 1 failed and 207 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "28 of 236 complete groups passed; 1 running, 1 failed and 206 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "27 of 236 complete groups passed; 1 running, 1 failed and 207 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "28 of 236 complete groups passed; 1 running, 1 failed and 206 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 27,
+          "verified": 28,
           "blocked": 1,
           "running": 1,
-          "pending": 207,
+          "pending": 206,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1538,21 +1538,21 @@
           {
             "id": "native:bootstrap_effect_types",
             "title": "bootstrap_effect_types",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:36:24.166627+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:38:38.471237+00:00",
+              "exitCode": 0,
+              "logSha256": "567c684d82b0c46c18cca0028047f58b2a0e326779c83adac254738629c08426",
               "cases": [
                 {
                   "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1561,21 +1561,21 @@
           {
             "id": "native:bootstrap_effects",
             "title": "bootstrap_effects",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:02:46.435419+00:00",
-              "finishedAt": "2026-11-06T17:10:30.849865+00:00",
-              "exitCode": 0,
-              "logSha256": "b7ffc4e6c9095c17d29697ec52597b4144fae13e54a1e04d3d4d581bf86df7a0",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:38:38.474154+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19668,8 +19668,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_effect_types",
-        "passed": 27,
+        "phase": "bootstrap_effects",
+        "passed": 28,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20943,10 +20943,10 @@
       }
     ],
     "counts": {
-      "verified": 376,
+      "verified": 377,
       "blocked": 12,
       "running": 12,
-      "pending": 221,
+      "pending": 220,
       "recheck": 59
     },
     "total": 680,
@@ -20955,5 +20955,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:37:27.432001+00:00"
+  "updatedAt": "2026-11-08T05:38:49.636231+00:00"
 }
