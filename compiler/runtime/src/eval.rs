@@ -61,9 +61,9 @@
 //! | 17 | `DEMAND` | `[cell, counted]` | run the memo cell's state machine; `counted` 1 dups the value |
 //! | 18 | `UNITREF` | `[clo]` | a unit's closure word as a value |
 //! | 19 | `CONST_BYTES` | `[len, words...]` | a constant byte buffer: `len` data bytes packed eight per word little endian; each evaluation boxes a fresh heap buffer (a compiled string literal's shared data-section constant is the compiled form, never this stream) |
-//! | 20 | `SET` | `[slot, value]` | replace the binder's word (a `RefSet`); the value is the unit word |
 //! | 21 | `DUP` | `[slot, body]` | add a reference to the binder's counted word, then `body` |
 //! | 22 | `DROP` | `[slot, body]` | release the binder's counted reference, then `body` |
+//! | 23 | `SET` | `[cell-local, counted, value]` | replace the mutable cell's payload and release the old payload if counted; the result is the unit word |
 //!
 //! # Value conventions
 //!
