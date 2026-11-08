@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "75 passed, 3 running, 24 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 75,
+        "phase": "77 passed, 3 running, 22 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 77,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20972,7 +20972,7 @@
       {
         "title": "Verify stale mutable proof rejection in the self-hosted checker",
         "status": "running",
-        "phase": "Case write then use.",
+        "phase": "Read only fact survives write.",
         "passed": 2,
         "failed": 0,
         "total": 3,
@@ -21003,5 +21003,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:29:55.573404+00:00"
+  "updatedAt": "2026-11-08T09:30:58.209619+00:00"
 }
