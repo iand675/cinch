@@ -21175,7 +21175,7 @@
       {
         "title": "Verify erased value arguments and the repaired interface dependency scan",
         "status": "running",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "phase": "erased-named",
         "passed": 0,
         "failed": 0,
         "total": 35,
@@ -21281,5 +21281,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:13:54.378710+00:00"
+  "updatedAt": "2026-11-08T15:15:37.648438+00:00"
 }
