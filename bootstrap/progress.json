@@ -21148,9 +21148,9 @@
       },
       {
         "title": "Replay body binding and decision fixtures on repaired Stage 1",
-        "status": "running",
+        "status": "passed-stage1-diagnostic",
         "phase": "Bootstrap_decisions. Diagnostic replay before the full Stage 3 suite.",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "unit": "groups",
@@ -21191,5 +21191,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:02:55.414686+00:00"
+  "updatedAt": "2026-11-08T13:03:58.930150+00:00"
 }
