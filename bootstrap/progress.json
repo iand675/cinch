@@ -20527,7 +20527,7 @@
         "total": 8,
         "failed": 0,
         "source": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
         "title": "Bootstrap the combined frontend and provider repairs",
@@ -20538,6 +20538,17 @@
         "total": 14,
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
+      },
+      {
+        "title": "Build Stage 1 and replay 32 original integration, guard and concurrency tests",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with strict where, borrows and integration diagnostics",
+        "passed": 0,
+        "total": 33,
+        "failed": 0,
+        "source": "d212410648137b5155ed9a36a218ba65e259e4bd92c461e92a803afe814d7ead",
         "evidence": null
       },
       {
@@ -20548,7 +20559,8 @@
         "passed": 2,
         "total": 2,
         "failed": 0,
-        "source": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74"
+        "source": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       }
     ],
     "counts": {
@@ -20564,5 +20576,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:05:06.447265+00:00"
+  "updatedAt": "2026-11-08T19:06:52.605607+00:00"
 }
