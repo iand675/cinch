@@ -29,7 +29,7 @@ module Bootstrap.Core where
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, copy-out-type
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
-  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
+  export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct, handler-performs
   export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
   export scoped-list-index
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
@@ -392,6 +392,15 @@ module Bootstrap.Core where
     other -> False
   handler-label-absent :: UType -> UType -> Bool
   handler-label-absent label labels = case labels of UEnd -> True; UArg first rest -> not (contract-equal label first) && handler-label-absent label rest; other -> False
+  handler-performs :: UType -> UType -> Bool
+  handler-performs label row = case row of
+    URow labels -> handler-label-present label labels
+    URowJoin a b -> handler-performs label a || handler-performs label b
+    other -> False
+  handler-label-present :: UType -> UType -> Bool
+  handler-label-present label labels = case labels of
+    UArg first rest -> contract-equal label first || handler-label-present label rest
+    other -> False
   handler-direct-operation :: List String -> CoreTerm -> Bool
   handler-direct-operation names term = case term of
     CUse sp ty name role actuals -> string-compare role "operation" == 0 && effect-operation-seen name names

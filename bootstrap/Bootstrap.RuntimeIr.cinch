@@ -55,7 +55,7 @@ module Bootstrap.RuntimeIr where
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -94,24 +94,26 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> bindings
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> provider
+  program-effects :: ProgramInfo -> List CoreEffect
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed -> ProgramInfo datas descriptions instances bindings versions provider exposed
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects -> ProgramInfo datas descriptions instances bindings versions provider exposed effects
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -239,9 +241,11 @@ module Bootstrap.RuntimeIr where
   word-class context ty = case borrowed-carrier (base ty) of
     Some carrier -> word-class context carrier
     None -> value-word-class context ty
+  handler-word-type :: UType -> Bool
+  handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
-  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -649,6 +653,168 @@ module Bootstrap.RuntimeIr where
     CArgument sp first rest -> CArgument sp (specialize-local id scheme value first) (specialize-local id scheme value rest)
     CAlternative sp pattern body rest -> CAlternative sp pattern (if pattern-binds id pattern then body else specialize-local id scheme value body) (specialize-local id scheme value rest)
     other -> term
+  -- The checked effect declaration gives the physical order of operation
+  -- closures. A handler owns the return closure followed by those slots.
+  handler-fields :: CoreTerm -> Nat -> Option CoreTerm
+  handler-fields fields index = case fields of
+    CHandlerEnd sp -> Some (CArgumentsEnd sp)
+    CHandlerOperation sp slot openings row closure rest -> if slot /= index then None else
+      (case handler-fields rest (index + 1) of Some more -> Some (CArgument sp closure more); None -> None)
+    other -> None
+  handler-operations :: UType -> List CoreEffect -> Option (List CoreOperation)
+  handler-operations label effects = case (type-head label, effects) of
+    (UCon name kind, Cons declaration rest) ->
+      if same name (core-effect-name declaration) && kind-equal kind (core-effect-kind declaration) then Some (core-effect-operations declaration)
+      else handler-operations label rest
+    other -> None
+  handler-operation-slot :: String -> List CoreOperation -> Option Nat
+  handler-operation-slot name operations = case operations of
+    Nil -> None
+    Cons first rest -> if same name (core-operation-name first) then Some (core-operation-slot first) else handler-operation-slot name rest
+  handler-field :: Span -> UType -> CoreTerm -> Nat -> CoreTerm
+  handler-field sp ty value slot =
+    CPrimitive sp ty "#handler-field" (CArgument sp value (CArgument sp (CInt sp (UCon "I64" KType) (nat-to-string slot)) (CArgumentsEnd sp)))
+  handler-largest :: Nat -> Nat -> Nat
+  handler-largest first second = if first > second then first else second
+  handler-pattern-id :: CorePattern -> Nat
+  handler-pattern-id pattern = case pattern of
+    CPVar sp ty id name -> id
+    CPProof sp ty id name -> id
+    CPAs sp ty id name nested -> handler-largest id (handler-pattern-id nested)
+    CPConstructor sp ty name args scheme fields -> handler-pattern-id fields
+    CPTuple sp ty fields -> handler-pattern-id fields
+    CPField sp field rest -> handler-largest (handler-pattern-id field) (handler-pattern-id rest)
+    other -> 0
+  handler-term-id :: CoreTerm -> Nat
+  handler-term-id term = let inside = handler-terms-id (term-children term) in case term of
+    CLocal sp ty id name actuals -> id
+    CLet sp ty id name scheme rhs body -> handler-largest id inside
+    CLambda sp ty pattern body -> handler-largest (handler-pattern-id pattern) inside
+    CAlternative sp pattern body rest -> handler-largest (handler-pattern-id pattern) inside
+    other -> inside
+  handler-terms-id :: List CoreTerm -> Nat
+  handler-terms-id terms = case terms of
+    Nil -> 0
+    Cons first rest -> handler-largest (handler-term-id first) (handler-terms-id rest)
+  handler-local-id :: List Local -> Nat
+  handler-local-id locals = case locals of
+    Nil -> 0
+    Cons (Local id ty value) rest -> handler-largest id (handler-local-id rest)
+    Cons (Borrowed id ty value) rest -> handler-largest id (handler-local-id rest)
+    Cons other rest -> handler-local-id rest
+  data HandlerLowering where
+    HandlerLowering :: UType -> UType -> UType -> CoreTerm -> List CoreOperation -> HandlerLowering
+  -- Fresh synthetic bindings are above every local in the handled tree.
+  -- The record is evaluated once, outside the extent it handles.
+  lower-handler :: List CoreEffect -> List Local -> Span -> UType -> UType -> CoreTerm -> CoreTerm -> Result String CoreTerm
+  lower-handler effects locals sp output label body handled-by = case (handler-parts (core-type handled-by), handler-operations label effects) of
+    (Some (actual, input, result, row), Some operations) ->
+      let id = 1 + handler-largest (handler-local-id locals) (handler-terms-id [body, handled-by]) in
+      let frame = CLocal sp (core-type handled-by) id "#handler" Nil in
+      let prompt value cursor = Ok (CApply sp output (handler-field sp (UFunEff input row output) frame 0) value, cursor) in
+      (case handler-cps (HandlerLowering label output row frame operations) sp body prompt (id + 1) of
+        Ok (lowered, cursor) -> Ok (CLet sp output id "#handler" (mono (core-type handled-by)) handled-by lowered)
+        Err message -> Err message)
+    other -> Err "handle needs its checked effect declaration and clause record"
+  handler-bind :: Span -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-bind sp value next cursor =
+    let ty = core-type value in
+    case next (CLocal sp ty cursor "#handled-value" Nil) (cursor + 1) of
+      Ok (body, fresh) -> Ok (CLet sp (core-type body) cursor "#handled-value" (mono ty) value body, fresh)
+      Err message -> Err message
+  handler-arguments :: Span -> List CoreTerm -> CoreTerm
+  handler-arguments sp values = case values of
+    Nil -> CArgumentsEnd sp
+    Cons first rest -> CArgument sp first (handler-arguments sp rest)
+  handler-values :: HandlerLowering -> Span -> List CoreTerm -> (List CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-values context sp values next cursor = case values of
+    Nil -> next Nil cursor
+    Cons first rest -> handler-cps context sp first (\value fresh -> handler-values context sp rest (\tail after -> next (Cons value tail) after) fresh) cursor
+  handler-apply :: Span -> CoreTerm -> List CoreTerm -> Option CoreTerm
+  handler-apply sp fun values = case values of
+    Nil -> Some fun
+    Cons first rest -> case core-type fun of
+      UFun input result -> handler-apply sp (CApply sp result fun first) rest
+      UFunEff input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
+      UPi id name input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
+      other -> None
+  handler-dispatch :: HandlerLowering -> Span -> UType -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-dispatch context sp response term next cursor = case (context, head term) of
+    (HandlerLowering label output row frame operations, CUse at operation name role actuals) ->
+      if not (same role "operation") then Err "handled effect escaped its lexical operation call" else
+      (case handler-operation-slot name operations of
+        None -> Err "handled operation has no checked dispatch slot"
+        Some slot -> handler-values context sp (arguments term Nil) (\values fresh ->
+          let resumed = CLocal sp response fresh "#resume-argument" Nil in
+          case next resumed (fresh + 1) of
+            Err message -> Err message
+            Ok (body, after) ->
+              let continuation = CLambda sp (UFun response output) (CPVar sp response fresh "#resume-argument") body in
+              let clause = handler-field sp (handler-clause-type operation output row) frame (slot + 1) in
+              (case handler-apply sp clause (values <> [continuation]) of
+                Some called -> Ok (called, after)
+                None -> Err "handled operation arguments do not fit the checked clause")) cursor)
+    other -> Err "handled effect needs a direct checked operation call"
+  -- The continuation is ordinary Core and therefore uses the existing
+  -- closure and reference-counting path. Only the operation clause can
+  -- enter it, so aborting drops the captured continuation without running it.
+  handler-cps :: HandlerLowering -> Span -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-cps context at term next cursor = case context of
+    HandlerLowering label output row frame operations ->
+      if not (handler-performs label (core-effects term)) then handler-bind at term next cursor else case term of
+        CApplyEff sp ty performed f x -> if handler-performs label performed then handler-dispatch context sp ty term next cursor
+          else handler-cps-apply context sp ty f x next cursor
+        CApply sp ty f x -> handler-cps-apply context sp ty f x next cursor
+        CLet sp ty id name sc rhs body -> if not (handler-performs label (core-effects rhs)) then
+          (case handler-cps context sp body next cursor of
+            Ok (lowered, fresh) -> Ok (CLet sp output id name sc rhs lowered, fresh)
+            Err message -> Err message)
+          else handler-cps context sp rhs (\value fresh -> case handler-cps context sp body next fresh of
+            Ok (lowered, after) -> Ok (CLet sp output id name sc value lowered, after)
+            Err message -> Err message) cursor
+        CIf sp ty condition yes no -> handler-cps context sp condition (\test fresh -> case handler-cps context sp yes next fresh of
+          Err message -> Err message
+          Ok (left, after) -> case handler-cps context sp no next after of
+            Ok (right, done) -> Ok (CIf sp output test left right, done)
+            Err message -> Err message) cursor
+        CCase sp ty value alternatives -> handler-cps context sp value (\scrutinee fresh -> handler-cps-case context sp output scrutinee alternatives next fresh) cursor
+        CWith sp ty given value body -> handler-cps context sp value (\word fresh -> case handler-cps context sp body next fresh of
+          Ok (lowered, after) -> Ok (CWith sp output given word lowered, after)
+          Err message -> Err message) cursor
+        CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
+        CPrimitive sp ty operation fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
+        CDecision sp ty predicate test -> handler-cps context sp test (\value fresh -> handler-bind sp (CDecision sp ty predicate value) next fresh) cursor
+        CProved sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CProved sp ty evidence value) fresh) cursor
+        CRefine sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefine sp ty evidence value) fresh) cursor
+        CRefineProof sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefineProof sp ty evidence value) fresh) cursor
+        CForget sp ty body -> handler-cps context sp body (\value fresh -> next (CForget sp ty value) fresh) cursor
+        CRequire sp ty body -> handler-cps context sp body (\value fresh -> next (CRequire sp ty value) fresh) cursor
+        CDischarge sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CDischarge sp ty evidence value) fresh) cursor
+        other -> Err "handled operation occurs in a Core form without continuation lowering"
+  handler-cps-apply :: HandlerLowering -> Span -> UType -> CoreTerm -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-cps-apply context sp ty fun arg next cursor =
+    handler-cps context sp fun (\function fresh -> handler-cps context sp arg (\value after -> handler-bind sp (CApply sp ty function value) next after) fresh) cursor
+  handler-cps-fields :: HandlerLowering -> Span -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-cps-fields context sp fields next cursor = case term-fields fields of
+    Some values -> handler-values context sp values (\lowered fresh -> next (handler-arguments sp lowered) fresh) cursor
+    None -> Err "handled computation has a malformed argument spine"
+  handler-cps-case :: HandlerLowering -> Span -> UType -> CoreTerm -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-cps-case context sp output value alternatives next cursor = case alternatives of
+    CAlternativesEnd at -> Ok (CCase sp output value alternatives, cursor)
+    CAlternative at pattern body rest -> case handler-cps-case context sp output value rest next cursor of
+      Err message -> Err message
+      Ok (fallback, fresh) -> case handler-cps-row context output body fallback next fresh of
+        Err message -> Err message
+        Ok (success, after) -> let other = CAlternative at (CPWild at (core-type value)) fallback (CAlternativesEnd at) in
+          Ok (CCase sp output value (CAlternative at pattern success other), after)
+    other -> Err "handled computation has a malformed case alternative spine"
+  handler-cps-row :: HandlerLowering -> UType -> CoreTerm -> CoreTerm -> (CoreTerm -> Nat -> Result String (CoreTerm, Nat)) -> Nat -> Result String (CoreTerm, Nat)
+  handler-cps-row context output body fallback next cursor = case body of
+    CGuard sp ty condition value -> handler-cps context sp condition (\test fresh -> case handler-cps-row context output value fallback next fresh of
+      Err message -> Err message
+      Ok (success, after) -> Ok (CIf sp output test success fallback, after)) cursor
+    other -> handler-cps context (Span 0 0 1 1) body next cursor
+
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
     CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text)
@@ -674,6 +840,12 @@ module Bootstrap.RuntimeIr where
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) -> case expression definitions (Cons (GivenLocal (given-symbol given) (given-type given) word) locals) ready body of
         (done, result) -> (count-op False (given-type given) word done, result)
+    CHandler sp ty returned operations -> case handler-fields operations 0 of
+      Some fields -> tuple definitions locals w sp (CArgument sp returned fields)
+      None -> unsupported w sp "handler fields need their checked declaration order and runtime representations"
+    CHandle sp ty label residual body handled-by -> case lower-handler (program-effects (writer-program w)) locals sp ty label body handled-by of
+      Ok lowered -> expression definitions locals w lowered
+      Err message -> unsupported w sp message
     CApplyEff sp ty row f x -> application definitions locals w sp term f x
     CApply sp ty f x -> application definitions locals w sp term f x
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
@@ -1679,6 +1851,9 @@ module Bootstrap.RuntimeIr where
     CSpawn sp ty token body -> given-uses name token || given-uses name body
     CJoin sp ty token body -> given-uses name token || given-uses name body
     CWith sp ty given value body -> given-uses name value || (not (same name (given-symbol given)) && given-uses name body)
+    CHandler sp ty returned operations -> given-uses name returned || given-uses name operations
+    CHandlerOperation sp slot openings row closure rest -> given-uses name closure || given-uses name rest
+    CHandle sp ty label residual body frame -> given-uses name frame || given-uses name body
     CIf sp ty test yes no -> given-uses name test || given-uses name yes || given-uses name no
     CCase sp ty value alternatives -> given-uses name value || given-uses name alternatives
     CTuple sp ty fields -> given-uses name fields
@@ -2008,7 +2183,14 @@ module Bootstrap.RuntimeIr where
         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
       else unsupported w sp "unary primitive needs runtime lowering"
     CArgument at first (CArgument bt second (CArgumentsEnd end)) ->
-      if number (core-type first) then binary definitions locals w sp op first second
+      if same op "#handler-field" then
+        (case second of
+          CInt offset offset-type slot -> case expression definitions locals w first of
+            (ready, frame) -> let (one, pointer) = fresh ready "%ptr" in
+              (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", frame, " to ptr"])) pointer slot of
+                (loaded, field) -> (count-op False (core-type first) frame (count-op True ty field loaded), field))
+          other -> unsupported w sp "handler field has no checked slot")
+      else if number (core-type first) then binary definitions locals w sp op first second
       else if (same op "==" || same op "/=") && scalar (core-type first) then
         (case expressions definitions locals w [first, second] of
           (ready, [a, b]) -> compare-word ready (if same op "==" then "eq" else "ne") a b
@@ -2243,7 +2425,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) in
     let initial = empty-writer (plan-root-method-versions definitions roots info) in
     case workers definitions (demand-roots roots initial) of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
@@ -2352,7 +2534,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) (elaboration-effects typed) in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -2474,7 +2656,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) (elaboration-effects typed) in
     let initial = empty-writer (plan-root-method-versions definitions selected info) in
     case library-bridges definitions roots Nil (workers definitions (demand-roots selected initial)) of
       (bridged, units) -> case workers definitions bridged of
@@ -2489,7 +2671,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None (elaboration-effects typed) in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
