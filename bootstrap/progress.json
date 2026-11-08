@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "46 of 236 complete groups passed; 1 running, 2 failed and 187 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "47 of 236 complete groups passed; 1 running, 2 failed and 186 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "46 of 236 complete groups passed; 1 running, 2 failed and 187 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "47 of 236 complete groups passed; 1 running, 2 failed and 186 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 46,
+          "verified": 47,
           "blocked": 2,
           "running": 1,
-          "pending": 187,
+          "pending": 186,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2034,17 +2034,17 @@
           {
             "id": "native:bootstrap_ir",
             "title": "bootstrap_ir",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ir.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T07:18:36.017608+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T07:30:11.293380+00:00",
+              "exitCode": 0,
+              "logSha256": "9f7ca3db23a07ef88de37824be0d3b6b30fa896879c9494f6651dd4557a5fd6b",
               "cases": [
                 {
                   "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
@@ -2052,7 +2052,7 @@
                 },
                 {
                   "name": "the_emitted_ir_assembles_and_runs_to_the_fragments_meaning",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2061,21 +2061,21 @@
           {
             "id": "native:bootstrap_ladder",
             "title": "bootstrap_ladder",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ladder.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:15:01.440695+00:00",
-              "finishedAt": "2026-11-06T19:25:00.758277+00:00",
-              "exitCode": 0,
-              "logSha256": "c530ecf994906bbe0df945cbd2f7c05f92ab047cb1fc9fae69dee685d3e6cf71",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:30:11.296044+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "every_ladder_module_checks_together",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_ir",
-        "passed": 46,
+        "phase": "bootstrap_ladder",
+        "passed": 47,
         "failed": 2,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20936,10 +20936,10 @@
       }
     ],
     "counts": {
-      "verified": 356,
+      "verified": 357,
       "blocked": 13,
       "running": 11,
-      "pending": 194,
+      "pending": 193,
       "recheck": 101
     },
     "total": 675,
@@ -20948,5 +20948,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:28:44.664784+00:00"
+  "updatedAt": "2026-11-08T07:30:26.918996+00:00"
 }
