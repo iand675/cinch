@@ -1637,7 +1637,10 @@ module Bootstrap.Core where
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> same-number-sort ty (core-type first) && same-number-sort ty (core-type second)
       && (string-compare operation "+" == 0 || string-compare operation "*" == 0 || (string-compare operation "-" == 0 && not (nat-type ty)))
       && decision-operand gamma facts first && decision-operand gamma facts second
-    CPrimitive sp ty operation (CArgument a first (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
+    CPrimitive sp ty operation (CArgument a first (CArgumentsEnd end)) ->
+      if string-compare operation "copy-out" == 0 then
+        (case local-borrow-index gamma ty first of Some reading -> True; None -> False)
+      else string-compare operation "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) && decision-operand gamma facts first
     CApply sp ty (CUse at function symbol role Nil) (CLocal arg carrier id name Nil) ->
       (byte-length-function ty function symbol role && (case proof-local id gamma of Some declared -> contract-equal carrier declared; None -> False))
       || decision-total-operand gamma facts term

@@ -2456,12 +2456,21 @@ module Bootstrap.Infer where
     EApp sp function argument -> decision-call-name function
     EAnn sp value annotation -> decision-call-name value
     other -> None
+  decision-copy-out :: List CheckedBinding -> Expr -> Bool
+  decision-copy-out env function = case projection-syntax-head env function of
+    Some operation -> same operation "b.copyOut"
+    None -> False
   decision-hint :: List CheckedBinding -> Expr -> Option UType
   decision-hint env expression = case expression of
     EVar sp name -> (case lookup-binding name env of Some binding -> let carrier = predicate-base-carrier (scheme-body (checked-scheme binding)) in if integer-carrier carrier then Some carrier else None; None -> None)
     EAnn sp value (TName at name) -> if primitive name && integer-carrier (primitive-type name) then Some (primitive-type name) else decision-hint env value
     EBin sp operation left right -> (case decision-hint env left of Some carrier -> Some carrier; None -> decision-hint env right)
     ENeg sp input -> decision-hint env input
+    EApp sp function (EVar at name) | decision-copy-out env function -> (case lookup-binding name env of
+      Some binding -> (case borrowed-carrier (scheme-body (checked-scheme binding)) of
+        Some carrier -> if integer-carrier carrier then Some carrier else None
+        None -> None)
+      None -> None)
     EApp sp function input -> (case decision-call-name function of
       None -> None
       Some name -> case lookup-binding name env of
@@ -2494,7 +2503,7 @@ module Bootstrap.Infer where
       other -> term-error sp "decision operands need actual scoped numeric values" st)
     EApp sp function input -> (case decision-call-name function of
       None -> term-error sp "decision calls need checked pure total body authority" st
-      Some name -> if not (byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
+      Some name -> if not (decision-copy-out env function || byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
         (case infer classes kinds families env locals syntax st of
           (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked)))
     other -> term-error (expr-span syntax) "decision operands need checked pure total reification" st
