@@ -18813,14 +18813,14 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
-        "title": "Development Stage1: Nat operations and allocation probe",
+        "title": "Development Stage1: checked allocation object",
         "status": "completed-with-failures",
-        "phase": "Boxed Nat operations and the wrong-carrier refusal passed. The original probe emitted IR and compiled its C source. The linker could not resolve private Main.build.",
+        "phase": "The object linked. Four ownership modes passed. The kept structure counted 20 instead of 14 because six fieldless values were allocated. A diagnostic relink with static blocks restored 14 and passed all five modes. The compiler-source replay is pending.",
         "passed": 4,
         "failed": 1,
         "total": 5,
         "source": "ca778bc9d81f2b425fb4e27107a15b7c5628ad30dd557d0fa7b66b778b18a110",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-nat-intrinsic-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-allocation-object-abi-results.json"
       },
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
@@ -20682,5 +20682,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:04:25.911236+00:00"
+  "updatedAt": "2026-11-08T04:05:19.572266+00:00"
 }
