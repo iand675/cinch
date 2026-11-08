@@ -21185,8 +21185,8 @@
       {
         "title": "Run the 23 package and JIT tests on the integrated Rust compiler",
         "status": "running",
-        "phase": "package-install-verify-and-native-link",
-        "passed": 0,
+        "phase": "package-store-integration",
+        "passed": 13,
         "total": 23,
         "unit": "tests",
         "failed": 0,
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:02:16.857860+00:00"
+  "updatedAt": "2026-11-08T17:03:39.833438+00:00"
 }
