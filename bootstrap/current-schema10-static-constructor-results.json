@@ -1,0 +1,144 @@
+{
+  "allocation_ir_sha256": "461abec8858cd34ff398ceb771499773e0288333a6a130aafdebb130e33d319b",
+  "c_source_sha256": "c862d12fcdfba40567659a16c77da847b472d22e8aed7a234f04aa58761179db",
+  "compiler_sha256": "7266c3ce48fd7a4055afb9630c486b051ca911561211a29d9feb449ffbc227d6",
+  "compiler_source_sha256": "4ed7e2fe9cb2f0e5e72c05100cd844d00a7c612c8372041025f0942b96aef235",
+  "entry_source_sha256": "0e6d8f7d33723924e707270a66cbe4a2e46c4a9b65fd8713bc14f077713f9c90",
+  "executable_sha256": "70180c589da8a21f8f11473ceb0167c19fd7188edaa7baf9ba184ae73381ff5c",
+  "full_goal_complete": false,
+  "interface_sha256": "9803c25825f47099a1a8f05e94ef03e5151cc62adf1bad4b79283248fef580be",
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "library_source_sha256": "1d940e5cf660b172f58286d1948ded92873d4718acf0d872524ff5c09674e79b",
+  "metadata_sha256": "b1ff915d3db0299aeed6d22ec60e5e2848de51a252e94f139fb83cd1c549afb7",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "object_sha256": "06a9e6c33b32e86f75d0d6f8fb84695450c96dbc984d5a4616857429527c8137",
+  "original_test_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "527d3f10",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emit-library-object",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emit-entry-ir",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "compile-c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 74,
+      "expected_exit": 74,
+      "expected_leaked": 14,
+      "leaked": 14,
+      "log_sha256": "fbe3943ac2df6a6bce31a7ec376a342c13a823293385a31a5269374a471355f2",
+      "name": "keep",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": 0,
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "drop",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": 0,
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "debug",
+      "status": "passed"
+    },
+    {
+      "exit_code": 71,
+      "expected_exit": 71,
+      "expected_leaked": null,
+      "leaked": null,
+      "log_sha256": "e5a25f2f957522e296bb35c8437b21f725bb3af5ac8d3690f65fd81410d9b8c5",
+      "name": "twice",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": null,
+      "leaked": null,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "quiet",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "last-regular-tag-emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "last-regular-tag-link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 137,
+      "ir_sha256": "c11bf3009141f667aa5bd040b427df0dd3130410ae70267187617b3c8937e81e",
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "last-regular-tag",
+      "source_sha256": "2e280719c9a22578f6687f0dbe55bdbe9b9bb99060049ffe6ebcbe0e8e85abd0",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "first-escaped-tag-emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "first-escaped-tag-link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 139,
+      "ir_sha256": "b33afcd17e446c9a3ac277ff8158ccd46e5aa9ac680daa4585f81d705229fdec",
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "first-escaped-tag",
+      "source_sha256": "33d313d0aa24f4b0b62fbe17c663ba4a3aacf69d4644e8e81d8e9f0dc4b4f008",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "486cab4f90e420cd00e7f010f869ba7e2b8f64c7ae53505fe2153c5e8ddd91b3",
+  "status": "audited-static-constructors-and-all-original-allocation-modes",
+  "worker": {
+    "arity": 1,
+    "closure_entry": "AllocationFixture.build.object-closure",
+    "params": [
+      "R"
+    ],
+    "result": "O",
+    "symbol": "AllocationFixture.build"
+  }
+}

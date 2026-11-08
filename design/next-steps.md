@@ -87,10 +87,17 @@ Moving the builder into a separately compiled object resolves the link.
 Four of the five original ownership checks pass. The kept structure has
 20 live blocks against the expected 14. The staged emitter allocates four
 `Leaf` values and two `Nil` values that the Rust emitter represents as static
-blocks. Changing only those zero-field allocations in the emitted IR gives
-14 live blocks and passes all five checks. The compiler-source repair
-awaits a fresh Stage1 replay.
+blocks. Changing only those zero-field allocations in the emitted IR gave
+14 live blocks and passed all five checks.
 See [the object replay and diagnostic relink](../bootstrap/current-schema10-allocation-object-abi-results.json).
+
+The compiler-source repair now passes all five modes through freshly built
+Stage1. The generated object preserves the builder interface and keeps 14
+live blocks in the keep case. Drop and debug return to zero, a second drop
+traps, and the quiet case is silent. Static constructors at tag 63 and
+escaped tag 64 also run with zero leaks. The complete allocation target
+still needs its separate replay.
+See [the static constructor audit](../bootstrap/current-schema10-static-constructor-results.json).
 
 The machine-contract replay passed all 13 consumer cases on the published
 Stage3. The producer refused type-level addition over an `I64` argument.

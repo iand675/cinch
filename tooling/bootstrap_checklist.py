@@ -687,7 +687,19 @@ def build_checklist(root, cfg, previous=None):
     nat_audit = read(root / nat_path)
     object_path = 'bootstrap/current-schema10-allocation-object-abi-results.json'
     object_audit = read(root / object_path)
-    if (object_audit.get('status') == 'audited-checked-object-link-with-six-extra-allocations'
+    static_path = 'bootstrap/current-schema10-static-constructor-results.json'
+    static_audit = read(root / static_path)
+    if (static_audit.get('status') == 'audited-static-constructors-and-all-original-allocation-modes'
+            and static_audit.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/alloc_accounting.rs', static_audit.get('original_test_sha256'))):
+        ownership = [row for row in static_audit['rows'] if 'expected_exit' in row]
+        active.append(dict(title='Development Stage1: checked allocation object',
+            status='passed',
+            phase='All five ownership modes passed on compiler-emitted code. The kept structure counts 14 live blocks. Regular and escaped static constructor tags both ran without leaks. The complete allocation target is tracked separately.',
+            passed=sum(row['status'] == 'passed' for row in ownership),
+            failed=sum(row['status'] == 'failed' for row in ownership),
+            total=len(ownership), source=static_audit['compiler_source_sha256'], evidence=link(static_path)))
+    elif (object_audit.get('status') == 'audited-checked-object-link-with-six-extra-allocations'
             and object_audit.get('compiler_sha256') == nat_audit.get('compiler_sha256')
             and object_audit.get('native_source_sha256') == native
             and matches_digest(root / 'compiler/tests/alloc_accounting.rs', object_audit.get('original_test_sha256'))):
