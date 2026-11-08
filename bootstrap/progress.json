@@ -17670,8 +17670,8 @@
         "counts": {
           "verified": 1,
           "blocked": 5,
-          "running": 1,
-          "pending": 1,
+          "running": 2,
+          "pending": 0,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17814,7 +17814,7 @@
           {
             "id": "additional:prim",
             "title": "prim",
-            "state": "pending",
+            "state": "running",
             "detail": "Host LLVM/ASM fixture and ten original refusal checks. Cross-target selection and the remaining primitive assertions are separate.",
             "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
@@ -20024,8 +20024,8 @@
       },
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
-        "status": "running",
-        "phase": "Finishing 2 active targets before releasing their worker lanes.",
+        "status": "completed-superseded-snapshot",
+        "phase": "Superseded by the published integrated compiler. Historical test logs are retained.",
         "passed": 68,
         "failed": 2,
         "total": 105,
@@ -20372,8 +20372,8 @@
     "counts": {
       "verified": 350,
       "blocked": 6,
-      "running": 4,
-      "pending": 3,
+      "running": 5,
+      "pending": 2,
       "recheck": 348
     },
     "total": 711,
@@ -20382,5 +20382,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:49:32.633148+00:00"
+  "updatedAt": "2026-11-08T17:57:38.105728+00:00"
 }
