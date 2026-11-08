@@ -20956,6 +20956,26 @@
         "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
       },
       {
+        "title": "Replay the body and decision fixtures with their checked data context",
+        "status": "waiting-worker",
+        "phase": "waiting worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "unit": "targets",
+        "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587"
+      },
+      {
+        "title": "Compile and execute lexical effect handlers",
+        "status": "waiting-disk-space",
+        "phase": "Waiting disk space. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
+        "passed": 0,
+        "failed": 0,
+        "total": 6,
+        "unit": "gates",
+        "source": "bd33d3f6385ab1c17683349e95511d541d13be2f9456f09b75414a3bd7c4486a"
+      },
+      {
         "title": "Rust mutable writes through calls",
         "status": "waiting-worker",
         "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
@@ -20979,5 +20999,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:18:56.502775+00:00"
+  "updatedAt": "2026-11-08T07:20:33.689788+00:00"
 }
