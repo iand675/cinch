@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "43 of 236 complete groups passed; 0 running, 1 failed and 192 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "43 of 236 complete groups passed; 1 running, 1 failed and 191 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "43 of 236 complete groups passed; 0 running, 1 failed and 192 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "43 of 236 complete groups passed; 1 running, 1 failed and 191 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -824,8 +824,8 @@
         "counts": {
           "verified": 43,
           "blocked": 1,
-          "running": 0,
-          "pending": 192,
+          "running": 1,
+          "pending": 191,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1938,21 +1938,21 @@
           {
             "id": "native:bootstrap_infer",
             "title": "bootstrap_infer",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:43:21.559006+00:00",
-              "finishedAt": "2026-11-06T18:51:12.195759+00:00",
-              "exitCode": 0,
-              "logSha256": "7d4e378d62e08d3aeefe9718f8346f11ffcdd32591c6c36a85b6791fbae188d1",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:04:27.843461+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19631,6 +19631,16 @@
         "auditPending": false
       },
       {
+        "title": "Current compiler: full Rust sweep",
+        "status": "running",
+        "phase": "bootstrap_infer",
+        "passed": 43,
+        "failed": 1,
+        "total": 236,
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "earlier": false
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -20953,8 +20963,8 @@
     "counts": {
       "verified": 401,
       "blocked": 12,
-      "running": 10,
-      "pending": 199,
+      "running": 11,
+      "pending": 198,
       "recheck": 58
     },
     "total": 680,
@@ -20963,5 +20973,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:04:24.625136+00:00"
+  "updatedAt": "2026-11-08T07:05:27.071331+00:00"
 }
