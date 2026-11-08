@@ -21108,8 +21108,8 @@
       {
         "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
         "status": "running",
-        "phase": "default-test-harnesses",
-        "passed": 0,
+        "phase": "jit-test-harness",
+        "passed": 1,
         "total": 2,
         "unit": "gates",
         "failed": 0,
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:30:07.921816+00:00"
+  "updatedAt": "2026-11-08T16:31:10.127261+00:00"
 }
