@@ -11993,10 +11993,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 44,
+          "verified": 45,
           "blocked": 6,
           "running": 3,
-          "pending": 45,
+          "pending": 44,
           "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13060,21 +13060,21 @@
           {
             "id": "stage3:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:57:41.341439+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:15:24.832910+00:00",
+              "exitCode": 0,
+              "logSha256": "e85833c8ac10c2f9b28b584827aa52b71a935cb5accf7a81688a2989e4cd3440",
               "cases": [
                 {
                   "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13178,18 +13178,23 @@
           {
             "id": "stage3:bootstrap_module_scopes",
             "title": "bootstrap_module_scopes",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_module_scopes.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:15:25.658285+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "module_registries_do_not_collide_or_leak_private_values",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20284,8 +20289,8 @@
       },
       {
         "title": "Replay anonymous and list refinement interface contracts",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -20295,9 +20300,9 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "running",
-        "phase": "projection facts retain the input value",
-        "passed": 1,
+        "status": "waiting-worker",
+        "phase": "partial constructor projection has no observation authority",
+        "passed": 4,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20493,10 +20498,10 @@
       }
     ],
     "counts": {
-      "verified": 311,
+      "verified": 312,
       "blocked": 11,
       "running": 14,
-      "pending": 282,
+      "pending": 281,
       "recheck": 62
     },
     "total": 680,
@@ -20505,5 +20510,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:14:35.811817+00:00"
+  "updatedAt": "2026-11-08T03:15:37.835116+00:00"
 }
