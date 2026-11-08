@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "23 of 236 complete groups passed; 1 running, 1 failed and 211 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "24 of 236 complete groups passed; 1 running, 1 failed and 210 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "23 of 236 complete groups passed; 1 running, 1 failed and 211 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "24 of 236 complete groups passed; 1 running, 1 failed and 210 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 23,
+          "verified": 24,
           "blocked": 1,
           "running": 1,
-          "pending": 211,
+          "pending": 210,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1442,21 +1442,21 @@
           {
             "id": "native:bootstrap_contract",
             "title": "bootstrap_contract",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_contract.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:27:28.947259+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:27:36.133364+00:00",
+              "exitCode": 0,
+              "logSha256": "b8b0b737b1205e0fcf1eda0eeadb78395adaf656a82b90e75522386f77c38300",
               "cases": [
                 {
                   "name": "the_shared_contract_compiles_and_answers",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1465,21 +1465,21 @@
           {
             "id": "native:bootstrap_core",
             "title": "bootstrap_core",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_core.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:51:31.007885+00:00",
-              "finishedAt": "2026-11-06T16:58:48.237382+00:00",
-              "exitCode": 0,
-              "logSha256": "db9751747c32bb66e63a8d525ddba45bedaee6755052727267a41c023c6f2bef",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:27:36.136342+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "typed_terms_retain_instantiation_patterns_and_polymorphic_scope",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19623,8 +19623,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_contract",
-        "passed": 23,
+        "phase": "bootstrap_core",
+        "passed": 24,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20898,10 +20898,10 @@
       }
     ],
     "counts": {
-      "verified": 369,
+      "verified": 370,
       "blocked": 12,
       "running": 12,
-      "pending": 228,
+      "pending": 227,
       "recheck": 59
     },
     "total": 680,
@@ -20910,5 +20910,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:27:34.479174+00:00"
+  "updatedAt": "2026-11-08T05:28:36.834333+00:00"
 }
