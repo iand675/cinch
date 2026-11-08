@@ -12007,9 +12007,9 @@
         "counts": {
           "verified": 55,
           "blocked": 9,
-          "running": 3,
+          "running": 2,
           "pending": 31,
-          "recheck": 7
+          "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14222,17 +14222,17 @@
           {
             "id": "stage3:interface_machine_contracts",
             "title": "interface_machine_contracts",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "1 of 2 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_machine_contracts.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:42:15.156469+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:51:57.880529+00:00",
+              "exitCode": 0,
+              "logSha256": "f05d1162e8cbb6194ac6f5d51c95047c15da313b7e65f81ad6bc4cb415002f73",
               "cases": [
                 {
                   "name": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
@@ -14240,7 +14240,7 @@
                 },
                 {
                   "name": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -20485,8 +20485,8 @@
       },
       {
         "title": "Check explicit library sources against their compiled object",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test Stage1 from all 46 modules",
         "passed": 0,
         "failed": 0,
         "total": 8,
@@ -20663,9 +20663,9 @@
     "counts": {
       "verified": 330,
       "blocked": 15,
-      "running": 14,
+      "running": 13,
       "pending": 259,
-      "recheck": 62
+      "recheck": 63
     },
     "total": 680,
     "acceptanceVerified": 4,
@@ -20673,5 +20673,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:51:04.940486+00:00"
+  "updatedAt": "2026-11-08T03:52:06.920071+00:00"
 }
