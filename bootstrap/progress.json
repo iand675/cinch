@@ -21154,12 +21154,22 @@
       {
         "title": "Replay thunk semantics and the original proof cases together",
         "status": "completed-combined-controls-with-failures",
-        "phase": "Failed cases: force-once, drop-unforced, affine-choice, replay-refused, delay-latent-effect, force-latent-effect, force-row-refused, force-carrier-refused",
+        "phase": "Seven proof cases passed. Eight thunk cases stopped at the same kernel syntax lookup before thunk checking.",
         "passed": 7,
         "failed": 8,
         "total": 15,
         "unit": "cases",
         "source": "1184ab8b3b8472cbad506cfb40307452c3afc098e15b68de14b1d7dcbaf7bd4a"
+      },
+      {
+        "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "passed": 0,
+        "failed": 0,
+        "total": 26,
+        "unit": "cases",
+        "source": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21250,5 +21260,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:41:33.445354+00:00"
+  "updatedAt": "2026-11-08T14:42:57.089764+00:00"
 }
