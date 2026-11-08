@@ -19915,8 +19915,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_guarded_association. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 8,
+        "phase": "bootstrap_imported_preconditions. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 9,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19974,19 +19974,19 @@
       },
       {
         "title": "Replay Algebra with the numeric repair and expanded object",
-        "status": "completed-with-selected-algebra-failures",
+        "status": "running",
         "phase": "selected-lib_algebra",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
         "unit": "original test target",
-        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       {
         "title": "Check direct refinement construction and erased LLVM",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules with checked static refinement discharge",
-        "passed": 0,
+        "phase": "original-erasure-source",
+        "passed": 1,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
@@ -19994,13 +19994,13 @@
       },
       {
         "title": "Run the original argv suite through the real Cinch CLI",
-        "status": "failed",
-        "phase": "build and smoke-test 46 compiler modules with direct CLI execution",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
         "passed": 0,
         "failed": 0,
         "total": 2,
         "unit": "frontend replays",
-        "source": "dfab86f6febada8b3f74d208a64d7ccc21ae6615e3beee9d2a794a4e46665b65"
+        "source": "ab2d7921f3580b190fe7ecf1b355c7da312f451f29e165cf1166133ad62df911"
       },
       {
         "title": "Check original NonEmpty clients against compiled contracts",
@@ -20071,5 +20071,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:46:19.238620+00:00"
+  "updatedAt": "2026-11-08T00:50:23.545820+00:00"
 }
