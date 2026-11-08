@@ -21098,8 +21098,8 @@
       },
       {
         "title": "Replay Rust ownership and link its erased-arrow object from Cinch",
-        "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "status": "running",
+        "phase": "rust-ownership",
         "passed": 0,
         "total": 4,
         "unit": "gates",
@@ -21108,8 +21108,8 @@
       },
       {
         "title": "Rebuild the erased-arrow compiler through Stage 3",
-        "status": "running",
-        "phase": "build Stage 2 with the audited Stage 1",
+        "status": "superseded-redundant-stage1",
+        "phase": "BootstrapError('stage1 did not build (exit -15).\\n\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-erased-argument-ladder-1/build/stage1/build.log')",
         "passed": 1,
         "total": 4,
         "unit": "gates",
@@ -21215,5 +21215,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:35:47.359404+00:00"
+  "updatedAt": "2026-11-08T15:37:30.551095+00:00"
 }
