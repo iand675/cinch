@@ -21083,12 +21083,43 @@
         "failed": 0,
         "total": 35,
         "unit": "cases",
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-erased-arguments-results.json"
+      },
+      {
+        "title": "Link a source-free Cinch client to a staged erased-arrow object",
+        "status": "passed",
+        "phase": "The checked object exports have zero and one physical parameters. The separately linked consumer exited zero without leaks.",
+        "passed": 3,
+        "total": 3,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+      },
+      {
+        "title": "Replay Rust ownership and link its erased-arrow object from Cinch",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
+        "passed": 0,
+        "total": 4,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+      },
+      {
+        "title": "Rebuild the erased-arrow compiler through Stage 3",
+        "status": "running",
+        "phase": "build Stage 2 with the audited Stage 1",
+        "passed": 1,
+        "total": 4,
+        "unit": "gates",
+        "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
         "status": "passed",
-        "phase": "The Rust ownership target passed the focused erased-argument regressions.",
+        "phase": "All five focused Rust erased-argument regressions passed.",
         "passed": 1,
         "failed": 0,
         "total": 1,
@@ -21184,5 +21215,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:32:23.150793+00:00"
+  "updatedAt": "2026-11-08T15:35:47.359404+00:00"
 }
