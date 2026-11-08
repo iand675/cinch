@@ -11940,10 +11940,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 28,
+          "verified": 29,
           "blocked": 3,
           "running": 4,
-          "pending": 62,
+          "pending": 61,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12491,17 +12491,17 @@
           {
             "id": "stage3:bootstrap_driver",
             "title": "bootstrap_driver",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:36:09.107331+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:37:00.002198+00:00",
+              "exitCode": 0,
+              "logSha256": "d6c60f97563ad0aca431a778183373266582671a6da7e4cae7d18a1e143de4b9",
               "cases": [
                 {
                   "name": "driver_links_a_fixed_ir_module_and_reports_both_exit_codes",
@@ -12509,7 +12509,7 @@
                 },
                 {
                   "name": "driver_refuses_incomplete_arguments_with_its_named_exit_code",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12605,18 +12605,23 @@
           {
             "id": "stage3:bootstrap_export_types",
             "title": "bootstrap_export_types",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:37:01.582595+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "checked_schemes_have_portable_definition_owned_syntax",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20049,8 +20054,8 @@
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
         "status": "running",
-        "phase": "building stage2",
-        "passed": 2,
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20290,10 +20295,10 @@
       }
     ],
     "counts": {
-      "verified": 250,
+      "verified": 251,
       "blocked": 8,
       "running": 14,
-      "pending": 303,
+      "pending": 302,
       "recheck": 102
     },
     "total": 677,
@@ -20302,5 +20307,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:36:41.032983+00:00"
+  "updatedAt": "2026-11-08T02:37:42.955314+00:00"
 }
