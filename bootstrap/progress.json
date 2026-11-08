@@ -18850,7 +18850,7 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "80 passed, 2 running, 20 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "phase": "80 passed, 3 running, 19 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
         "passed": 80,
         "failed": 3,
         "total": 105,
@@ -20986,9 +20986,10 @@
         "phase": "Build stage1. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
         "passed": 4,
         "failed": 0,
-        "total": 10,
+        "total": 13,
         "unit": "gates",
-        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-native-provider-results.json"
       }
     ],
     "counts": {
@@ -21004,5 +21005,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:39:15.498757+00:00"
+  "updatedAt": "2026-11-08T09:40:05.719806+00:00"
 }
