@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 
-from bootstrap_interfaces import content_hash
 
 ENTRY = b"module CinchBaseObject where\n  export marker\n  marker :: Unit -> Unit\n  marker unit = unit\n"
 
@@ -100,25 +99,6 @@ def admitted_interfaces(driver, metadata, package, directory):
     return {"schema": 1, "interfaces": sorted(rows)}
 
 
-def record_source_digests(driver, metadata, package, snapshot):
-    """Bind the provider's checked homes to the exact pinned source bytes."""
-    prelude = (snapshot / "compiler/prelude").resolve()
-    paths = {row["name"]: row["path"] for row in package["modules"]}
-    digests = {}
-    for row in metadata["interfaces"]:
-        name = row["module"]
-        if name not in paths:
-            continue
-        path = (prelude / paths[name]).resolve()
-        if not path.is_relative_to(prelude):
-            raise driver.BootstrapError("library module source leaves the pinned package: " + name)
-        source = path.read_bytes()
-        if row["interface"].get("source_hash") != content_hash(source):
-            raise driver.BootstrapError("library source disagrees with the emitted interface: " + name)
-        digests[name] = driver.digest(source)
-    metadata["source_sha256"] = digests
-
-
 def cached(driver, directory, inputs):
     record = driver.read_json(directory / "provider.json")
     required = {"cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a"}
@@ -143,7 +123,7 @@ def provider(driver):
     if lock["runtime_abi"] != seed["runtime_abi"]:
         raise driver.BootstrapError("library producer and pinned stage runtime ABIs differ; select matching inputs intentionally")
     roots = (driver.ROOT / "bootstrap/library-object-roots.json").read_bytes()
-    inputs = {"protocol": 3, "host": driver.HOST, "producer": lock,
+    inputs = {"protocol": 2, "host": driver.HOST, "producer": lock,
               "roots_sha256": driver.digest(roots), "entry_sha256": driver.digest(ENTRY)}
     snapshot = source_snapshot(driver, lock)
     directory = driver.BUILD / "library-provider" / driver.digest(canonical(inputs))
@@ -181,8 +161,6 @@ def provider(driver):
             raise driver.BootstrapError("library object has an incompatible runtime/descriptor ABI")
         package = driver.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
         interfaces = admitted_interfaces(driver, metadata, package, directory)
-        record_source_digests(driver, metadata, package, snapshot)
-        driver.write_json(directory / "library.abi.json", metadata)
         driver.write_json(directory / "interfaces.json", interfaces)
         artifacts = {name: driver.file_hash(directory / name) for name in
                      ("cinch", "library.o", "library.ll", "library.abi.json", "interfaces.json", "libcinchruntime.a")}

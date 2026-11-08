@@ -35,10 +35,8 @@ class LibraryProviderContract(unittest.TestCase):
         bootstrap.write_json(root / "bootstrap/library-provider.lock.json", lock)
         bootstrap.write_json(root / "bootstrap/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
-        prelude = snapshot / "compiler/prelude"
-        (prelude / "Data").mkdir(parents=True)
-        (prelude / "Data/Core.cinch").write_bytes(b"module Data.Core where\n")
-        bootstrap.write_json(prelude / "cinch-base.cinchpkg", {"modules": [{"name": "Data.Core", "path": "Data/Core.cinch"}]})
+        (snapshot / "compiler/prelude").mkdir(parents=True)
+        bootstrap.write_json(snapshot / "compiler/prelude/cinch-base.cinchpkg", {"modules": [{"name": "Data.Core"}]})
         return root, snapshot
 
     def test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild(self):
@@ -69,8 +67,6 @@ class LibraryProviderContract(unittest.TestCase):
                     rows = []
                     for name in ["Data.Core", "CinchBaseObject"]:
                         doc = {"module": name, "imports": []}
-                        if name == "Data.Core":
-                            doc["source_hash"] = bootstrap_objects.content_hash((snapshot / "compiler/prelude/Data/Core.cinch").read_bytes())
                         interface = Path(args[2]).parent / "build" / (name + ".cinchif")
                         bootstrap.write_json(interface, doc)
                         rows.append({"module": name, "iface_hash": name + "-hash", "interface": doc})
@@ -88,8 +84,6 @@ class LibraryProviderContract(unittest.TestCase):
                 self.assertEqual(len(calls), 3)
                 self.assertEqual([row[0] for row in provider["interfaces"]["interfaces"]], ["Data.Core"])
                 self.assertEqual(provider["configuration"]["object_sha256"], bootstrap.file_hash(provider["object"]))
-                metadata = bootstrap.read_json(Path(provider["configuration"]["metadata"]))
-                self.assertEqual(metadata["source_sha256"], {"Data.Core": bootstrap.digest(b"module Data.Core where\n")})
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 3)
                 contract = Path(provider["interfaces"]["interfaces"][0][2])
@@ -99,15 +93,6 @@ class LibraryProviderContract(unittest.TestCase):
                 provider["object"].write_bytes(b"corrupted library code")
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 9)
-
-    def test_source_digest_requires_the_same_source_as_the_emitted_contract(self):
-        with tempfile.TemporaryDirectory() as temp:
-            _, snapshot = self.fixture(Path(temp))
-            package = bootstrap.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
-            metadata = {"interfaces": [{"module": "Data.Core", "interface": {
-                "source_hash": bootstrap_objects.content_hash(b"module Data.Core where\n  forged = 0\n")}}]}
-            with self.assertRaisesRegex(bootstrap.BootstrapError, "source disagrees with the emitted interface"):
-                bootstrap_objects.record_source_digests(bootstrap, metadata, package, snapshot)
 
     def test_abi_mismatch_is_rejected_before_a_native_command(self):
         with tempfile.TemporaryDirectory() as temp:

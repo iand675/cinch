@@ -78,20 +78,6 @@ module Bootstrap.Report where
         if origin-prefix prefix source offset 0 then string-from-bytes (bytes-slice source start end) else None
       else None
     else None
-  -- Bundle labels only delimit the byte ranges. A source digest from the
-  -- authenticated provider establishes whether a range can reuse code.
-  source-sections :: Bytes -> List (Nat, Nat)
-  source-sections source = source-section-scan (string-to-bytes "-- source: ") source 0 0 Nil
-  source-section-scan :: Bytes -> Bytes -> Nat -> Nat -> List (Nat, Nat) -> List (Nat, Nat)
-  source-section-scan prefix source offset start previous =
-    if offset >= bytes-len source then reverse (Cons (start, bytes-len source) previous)
-    else let end = origin-line-end source offset in
-      if origin-prefix prefix source offset 0 && offset + bytes-len prefix < end then
-        if end == bytes-len source then reverse
-          (if start < offset then Cons (start, offset) previous else previous)
-        else source-section-scan prefix source (end + 1) (end + 1)
-          (if start < offset then Cons (start, offset) previous else previous)
-      else source-section-scan prefix source (end + 1) start previous
   origin-at :: Nat -> Bytes -> Bytes -> Nat -> Nat -> String -> Nat -> Option (String, Nat)
   origin-at wanted-line prefix source offset line label start =
     if line == wanted-line then

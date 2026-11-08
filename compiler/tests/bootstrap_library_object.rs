@@ -386,6 +386,11 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     std::fs::write(&client, "module Main where\n  import Library (hidden)\n  main :: Int\n  main = hidden 0\n").unwrap();
     assert_eq!(run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &final_objects).status.code(), Some(4));
     assert!(std::fs::read_to_string(&client_ir).unwrap().is_empty());
+    std::fs::write(&client, "module Library where\n  hidden :: Int -> Int\n  hidden n = n\n").unwrap();
+    std::fs::write(&client_ir, "stale IR").unwrap();
+    assert_eq!(run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &final_objects).status.code(), Some(4));
+    assert!(common::read_output(&dir, "client.ll.diagnostics").contains("module Library is already supplied by the library object"));
+    assert!(std::fs::read(&client_ir).unwrap().is_empty());
     // A failed rebuild invalidates its previously good manifest.
     std::fs::write(&library, "module Library where\n  broken = (\n").unwrap();
     assert!(!run(&compiler, &[&library, &ir, &out, &abi, Path::new(&prefix)], "--emit-object", &manifest, &objects).status.success());
