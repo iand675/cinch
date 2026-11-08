@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_byte_observations, bootstrap_checked_program, bootstrap_collections",
-        "passed": 13,
+        "phase": "Bootstrap_byte_observations, bootstrap_collections, bootstrap_conditional_methods",
+        "passed": 14,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21154,9 +21154,9 @@
       {
         "title": "Replay thunk semantics and the original proof cases together",
         "status": "running",
-        "phase": "delay-latent-effect",
-        "passed": 0,
-        "failed": 4,
+        "phase": "Proof",
+        "passed": 1,
+        "failed": 8,
         "total": 15,
         "unit": "cases",
         "source": "1184ab8b3b8472cbad506cfb40307452c3afc098e15b68de14b1d7dcbaf7bd4a"
@@ -21250,5 +21250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:38:25.649366+00:00"
+  "updatedAt": "2026-11-08T14:39:28.232455+00:00"
 }
