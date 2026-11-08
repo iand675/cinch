@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "0 of 236 complete groups passed; 0 running, 0 failed and 236 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "1 of 236 complete groups passed; 0 running, 0 failed and 235 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "0 of 236 complete groups passed; 0 running, 0 failed and 236 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "1 of 236 complete groups passed; 0 running, 0 failed and 235 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 0,
+          "verified": 1,
           "blocked": 0,
           "running": 0,
-          "pending": 236,
+          "pending": 235,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -5287,17 +5287,17 @@
           {
             "id": "native:lib",
             "title": "lib",
-            "state": "pending",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/src/lib.rs",
             "observed": {
               "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T13:55:28.257160+00:00",
-              "finishedAt": "2026-11-06T13:55:55.364709+00:00",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:10:05.934597+00:00",
+              "finishedAt": "2026-11-08T02:10:32.573738+00:00",
               "exitCode": 0,
-              "logSha256": "c95f7928dfdb674fe7b94974a45be000ba9dce734614c197df5a75ae8df58d80",
+              "logSha256": "60c793bc23fd8d32ea7c3b45dc833f73db49997b702c0593cf6667125fda1c9e",
               "cases": [
                 {
                   "name": "check::float_integer_exactness_tests::decimal_exactness_matches_independent_binary_significands",
@@ -5368,6 +5368,10 @@
                   "status": "passed"
                 },
                 {
+                  "name": "check::interface_scheme_tests::repeated_member_binders_retain_their_own_inferred_kinds",
+                  "status": "passed"
+                },
+                {
                   "name": "check::local_value_capability_tests::hidden_value_reads_keep_the_original_mutable_region_and_numeric_sort",
                   "status": "passed"
                 },
@@ -5397,6 +5401,42 @@
                 },
                 {
                   "name": "check::signature_scope_tests::signature_scope_uses_frozen_owners_and_never_repairs_absent_or_wrong_kind_names",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::cli_extract_writes_canonical_json",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::nested_fence_is_literal",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::parses_canonical_docs",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::parses_test_sections_and_protects_tags",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::render_uses_tree_sitter_highlighting",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::renders_named_parameter_sections",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::reports_orphans_and_duplicate_docs",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::runs_a_documentation_test_with_a_compiler",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinchdoc::tests::uses_checked_interface_identity",
                   "status": "passed"
                 },
                 {
@@ -5576,6 +5616,18 @@
                   "status": "passed"
                 },
                 {
+                  "name": "highlight::tests::highlights_comments_skipped_by_the_grammar",
+                  "status": "passed"
+                },
+                {
+                  "name": "highlight::tests::highlights_keywords_and_constructors",
+                  "status": "passed"
+                },
+                {
+                  "name": "highlight::tests::replaces_only_plain_cinch_fences",
+                  "status": "passed"
+                },
+                {
                   "name": "interface::tests::accepts_surrogate_pairs",
                   "status": "passed"
                 },
@@ -5617,6 +5669,10 @@
                 },
                 {
                   "name": "interface::tests::refinement_definitions_round_trip_and_cannot_be_omitted",
+                  "status": "passed"
+                },
+                {
+                  "name": "interface::tests::rejects_incomplete_current_schema_contracts",
                   "status": "passed"
                 },
                 {
@@ -5920,6 +5976,26 @@
                   "status": "passed"
                 },
                 {
+                  "name": "pkg::tests::bundle_materializes_sources_and_an_object",
+                  "status": "passed"
+                },
+                {
+                  "name": "pkg::tests::caret_ranges_select_compatible_majors",
+                  "status": "passed"
+                },
+                {
+                  "name": "repl_tui::tests::draws_header_transcript_and_editor",
+                  "status": "passed"
+                },
+                {
+                  "name": "repl_tui::tests::submit_updates_transcript_and_bindings",
+                  "status": "passed"
+                },
+                {
+                  "name": "repl_tui::tests::tab_completes_a_command",
+                  "status": "passed"
+                },
+                {
                   "name": "repr::tests::base_unit_strips_one_vector_segment",
                   "status": "passed"
                 },
@@ -5993,6 +6069,10 @@
                 },
                 {
                   "name": "types::local_value_identity_tests::local_values_cannot_be_selected_by_a_spelling_or_dictionary_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "types::local_value_identity_tests::logical_literals_keep_identity_under_unification_and_substitution",
                   "status": "passed"
                 },
                 {
@@ -11860,10 +11940,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 15,
+          "verified": 16,
           "blocked": 2,
           "running": 4,
-          "pending": 73,
+          "pending": 72,
           "recheck": 11
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12419,21 +12499,21 @@
           {
             "id": "stage3:bootstrap_effect_types",
             "title": "bootstrap_effect_types",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:06:39.675183+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:10:17.963436+00:00",
+              "exitCode": 0,
+              "logSha256": "954e1cabe798a613da68c73b6b9a8d273c5e1bc30c61403e858b6f12b4a1f7eb",
               "cases": [
                 {
                   "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12519,18 +12599,23 @@
           {
             "id": "stage3:bootstrap_function_preconditions",
             "title": "bootstrap_function_preconditions",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:10:19.369370+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "function_preconditions_use_actual_arguments_and_cannot_be_ignored",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18854,16 +18939,6 @@
         "auditPending": false
       },
       {
-        "title": "Current compiler: full Rust sweep",
-        "status": "running",
-        "phase": "complete-runtime-suite",
-        "passed": 0,
-        "failed": 0,
-        "total": 236,
-        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-        "earlier": false
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19890,7 +19965,7 @@
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
         "status": "running",
-        "phase": "Waiting for one of the five build workers.",
+        "phase": "checking pinned provider",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -20131,10 +20206,10 @@
       }
     ],
     "counts": {
-      "verified": 20,
+      "verified": 22,
       "blocked": 7,
       "running": 14,
-      "pending": 315,
+      "pending": 313,
       "recheck": 319
     },
     "total": 675,
@@ -20143,5 +20218,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:09:59.284164+00:00"
+  "updatedAt": "2026-11-08T02:11:01.291534+00:00"
 }
