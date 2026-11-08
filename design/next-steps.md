@@ -43,14 +43,22 @@ all five original guard-coverage cases. Both original strict and guarded
 combined Stage 3 checks have separate gates.
 See [the Stage 1 concurrency and guard audit](../bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
-The combined frontend and provider candidate reached Stage 2. Its
-executable, LLVM IR and 46 compiler interfaces matched the build receipt.
-Stage 2 is the input to the separate Stage 3 comparison. An isolated
-Stage 1 passed the original shared-reference and task-scope escape cases
-plus five focused borrow checks. The Rust candidate passed all 20
-concurrency and 27 ownership cases, including a regression for mutable
-referents in direct, wrapped and transferred reference captures.
-See [the Stage 2 and borrow audit](../bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json).
+The combined frontend and provider candidate reached Stage 3. The
+Stage 2 and Stage 3 executables, LLVM IR and 46 compiler interfaces agree.
+The complete fixed-point gate includes the independent consumer and
+changed-source rebuild. A separate Stage 1 passed the original
+shared-reference and task-scope escape cases plus five focused borrow
+checks. The strict `where` Stage 1 passed 26 of 39 original integration
+tests, eight more than the published Stage 3, and all five guard tests.
+See [the stage comparison](../bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json)
+and [the original integration replay](../bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json).
+
+The Rust checker now inspects the actual fields of a value transferred
+into a task. The regression covers direct, generic and nominal wrappers
+around `Ref g Bytes` and preserves a transfer containing `Ref g Nat`.
+All 20 concurrency and 27 ownership tests passed on this Rust source.
+The full Rust sweep has a separate source identity.
+See [the Rust task transfer audit](../bootstrap/current-native-task-transfer-reference-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55

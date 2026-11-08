@@ -226,6 +226,270 @@
       "log_sha256": "fc9f42ece7b64314b95c2aac11ad2393f8104cb24ac373350022544ef9664aca",
       "name": "guard_coverage"
     },
+    "integration": {
+      "cases": [
+        {
+          "name": "arithmetic_through_class_methods",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "case_guards_fall_through_to_later_rows",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "constructor_from_another_type_is_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "constructor_patterns_in_equations",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "custom_class_custom_operator_custom_instance",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "duplicate_binders_in_one_pattern_are_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "effect_rows_are_typed_and_honest",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "generic_constraint_and_partial_application",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "guard_failure_on_boxed_result_is_rejected",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "guard_failure_with_covered_patterns_is_rejected",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "integer_match_without_catch_all_is_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "lambdas_capture_and_prelude_folds",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "library_modules_check_without_an_entry_point",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "list_literals_and_list_patterns",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "literal_patterns_fall_through_in_source_order",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "local_let_polymorphism",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "memo_bindings_demand_on_use",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "memo_cells_with_signatures_and_shared_use",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "memo_group_black_hole_is_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "memo_group_mutual_demand_is_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "nested_constructor_patterns",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "nested_patterns_keep_source_order_fall_through",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "prelude_sum_list_generic",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "record_rejections",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "records_construction_projection_and_patterns",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "recursion_negation_and_bool_operators",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_missing_instance",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_non_exhaustive_match",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_type_mismatch",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_undeclared_operator",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_unknown_name",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "rejects_wrong_main_type",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "surface_and_or_short_circuit",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "thunks_delay_and_force",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "tuple_arity_mismatch_rejected",
+          "status": "failed",
+          "target": "integration"
+        },
+        {
+          "name": "tuple_let_destructuring_and_types",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "tuples_through_functions",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "where_clauses_in_equations",
+          "status": "passed",
+          "target": "integration"
+        },
+        {
+          "name": "wrong_main_type_still_rejected",
+          "status": "passed",
+          "target": "integration"
+        }
+      ],
+      "exit_code": 101,
+      "failed": 13,
+      "harness_sha256": "25a8e8e8af910a891adc2208c4c98728b90faee85da27e390ab2156cf41af788",
+      "improved": [
+        "guard_failure_on_boxed_result_is_rejected",
+        "guard_failure_with_covered_patterns_is_rejected",
+        "list_literals_and_list_patterns",
+        "literal_patterns_fall_through_in_source_order",
+        "prelude_sum_list_generic",
+        "rejects_wrong_main_type",
+        "where_clauses_in_equations",
+        "wrong_main_type_still_rejected"
+      ],
+      "invocation_receipts": {
+        "51724-0.json": "1cdad6d61145dad0468a1c6ba3ff350e71605496e10883cbc0f112b2ad5c9306",
+        "51724-1.json": "f748e5d96b6626b0a5cacea56c11d37fda74c84fea966bf4f52731e9a0647ec0",
+        "51724-10.json": "d4bd2562047340b7a651be7bc5a021bbd001eeb5f0963306afd5f41662cf44e2",
+        "51724-11.json": "11f36369b74c423fa40422e6dce17a064780d0b622c5efc33fbf1ea159e4c7c6",
+        "51724-12.json": "98a3b03c6ec30989631ec736eab0df1a137e487e0a8958ac51681c80345cf621",
+        "51724-13.json": "aafcb7e4cd47edba7e7601227b46cdf424401db85cd606acafe6f91f0d0d7880",
+        "51724-14.json": "2d0839206db1136e6b6797b80141e2315ffdad566b688d52c7cec35ae5bca49e",
+        "51724-15.json": "33c86b7a102f014b148d071ef8d704fe22c90034f280e30928845c875e1c4159",
+        "51724-16.json": "21a97542ef518f3bf88df67b047172dea65d650600897532555571d0789ed387",
+        "51724-17.json": "9e7bb3fcdbecb315177536d376e058cae19ff733669553456e571bcea4680d50",
+        "51724-18.json": "7f171699a2db6f6a199396791b1690c7d7c5fa7737649eaac3f290a0ff79a99c",
+        "51724-19.json": "3ad33e7ab8de030f30ed1e21f05d84a4103435032bdc22c47ee4154e6437d4b2",
+        "51724-2.json": "b7b4370e0009d6810385fa777e95bf00b6697131c5311a0b8880d54a57cd79f8",
+        "51724-20.json": "e6f6e9584fe39928ec2ade66cb2ef709156a1d7d657f14cb6bdde57462220dbd",
+        "51724-21.json": "d87a65db4c3ddebd879820b08c1dccfdce9ceb6465d598177a130548c3563477",
+        "51724-22.json": "90c4ebb6d744b5736c77b46ee35177c19317f02d8cea87410524cf73f6d15816",
+        "51724-23.json": "d8ed44ffdf1aaa37d363bf52e8147fbb35c1d03d57fd6f3fff4519c80a890a3c",
+        "51724-24.json": "41e59c4501b68284a317b75adab0f59efaa76205dd4f34f4abdf726cd1492d8d",
+        "51724-25.json": "690e8305639e5aa41d37736a9167f7707a769476926d3038c0f4e246728295b0",
+        "51724-26.json": "101929d2e356c5e66542aa7f5c0da9067547122577a3a18e5e4a4f9c23b22653",
+        "51724-27.json": "672f8bb3760bed18c4d43026c1ffbebbf384a904a8745c00d4f02dea8dc8aadc",
+        "51724-28.json": "8df9f68573a5f4e09d4959bd8aba1dae05a70fdf50f1329220f65d514e055c8e",
+        "51724-29.json": "53f0bda14499c418c925127572b78f0f8be9e267e7d2a2318ac3df8ad353f0c4",
+        "51724-3.json": "ece5bc77cfce11773230127587e6c54eb5245f8c7291715391cc0d15ee4386c5",
+        "51724-30.json": "dca6f9e9cd27b67b567dfeb665fa1e5993fd03d1fe31124647166588acb5e737",
+        "51724-31.json": "6fb8965211bb3f1d0849f2fe99fe26a91ee1835543f3c823b8a91d5cf729fc77",
+        "51724-32.json": "eed369a15e8229070d49f0eccde63ad883802d835d90da903906a2f35322c15f",
+        "51724-33.json": "e16848733038f553f5c815915c4daf41e8fb41a490848c422fce6a9886ce8378",
+        "51724-34.json": "6fa480c277647d733a2583313676ea4afba4927b047be98abcad930f182aec98",
+        "51724-35.json": "81290cea98652f991216120f0cef1606aa9ea0b0d6d33859176b79db37b7a005",
+        "51724-36.json": "451090a4459993e3094bd215dc14954b53168deb3d9aef7346d4d1892408383f",
+        "51724-37.json": "a2a42e71472b01f608b3b8915cdcd66df4d89b27eee1372247fa376b729e69b4",
+        "51724-38.json": "8bfad01beb8d37ab9e0f13de2663c06ddbf5a688627e53e1de31a6bb2858a5b3",
+        "51724-39.json": "0899033e8cc1ecbc32d1b375a487148b23cc9f5964bb19f02f799c403e4cc00a",
+        "51724-4.json": "c4dd911f7ce4b04b6a96598093404ca83521d639aedb04a642a423207c93a764",
+        "51724-40.json": "79afe8b9c4f07a77ec5298d5e48a261d3a799aa4596c3dfc0e1b200caea880d1",
+        "51724-41.json": "640f43377505329814c92a97777fdacfdd215fb01708c0482b669cbe05ac7369",
+        "51724-42.json": "b275206aff4bf48152bf8e93f77cc652a1f72b153426874d06132f0b8357d3e2",
+        "51724-43.json": "9af7f8d46a96b5496ccd576ef73e42801944bb47c7253e9cce4331d17c743c30",
+        "51724-44.json": "5b1c8c1290a6f49d9aa0dc185c82f842364589b153addc4aa04f2bebc71df117",
+        "51724-45.json": "38ca42969bce08d0a5c7bf878492d18b67e8171eecc643e98d00d0af8c9e3374",
+        "51724-5.json": "080d28ff2b3589cd8cc8beaa39b0d86a26b73e5e65a4a98f02b316214c14fb34",
+        "51724-6.json": "9f834ed1bf55f520b7fc161ff81ca4911d2acea39f5ed2490c9a3be255b33ff8",
+        "51724-7.json": "961661dfd04f94f27d293dc0c876cbe9bafacb74c964b964a0ef06e0e4488a69",
+        "51724-8.json": "a46dacba686fb01c26895bb0fdc9c320799832f01a1ce4e9d099ffd6e55229bd",
+        "51724-9.json": "1fdbd429fe7d455a77b7c7f8ce2e63f074cc9ab8c0fc88ba079f5b97c280d763"
+      },
+      "log_sha256": "1d4a6c7983473353d4ce1386eb2bb0e93d7596247c2c15a49dda482cb93cda6e",
+      "name": "integration",
+      "passed": 26,
+      "regressed": []
+    },
     "stage1_receipt_sha256": "0b249a7faac2be773bf972b3676eaaa8ab7c0071f847d048e8c48c2e501c0231"
   }
 }

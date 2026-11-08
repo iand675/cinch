@@ -321,6 +321,50 @@ module Main where
 }
 
 #[test]
+fn task_shared_ref_requires_a_shareable_referent() {
+    let source = r#"
+module Main where
+  touch :: forall g. Ref g Bytes -> Nat
+  touch b = 42
+
+  bad :: forall r g. using (io :: Io r) => Ref g Bytes ->{Async r, Cancel r, Diverge} Result LoadError Nat
+  bad b = withScope $ \s -> do
+    h <- spawn s (\() -> Ok (touch b))
+    joinAllOrCancel s h
+  main :: Int
+  main = 0
+"#;
+    let aggregate = source.replace("Ref g Bytes", "Option (Ref g Bytes)");
+    let transferred = source.replace("=> Ref g Bytes ->", "=> Ref g Bytes %1 ->");
+    for (name, fixture) in [
+        ("shared-ref-bytes", source),
+        ("aggregate-ref-bytes", aggregate.as_str()),
+        ("transferred-ref-bytes", transferred.as_str()),
+    ] {
+        expect_err(name, fixture, "without shareable evidence");
+    }
+    // The wrapper's type has no reference-shaped argument. The actual
+    // constructor field still contains a borrow after the move.
+    let nominal = r#"
+module Main where
+  data Parcel where
+    Pack :: forall g. Ref g Bytes -> Parcel
+  touch :: Parcel -> Nat
+  touch parcel = 42
+  inspect :: forall r. using (io :: Io r) => Parcel %1 ->{Async r, Cancel r, Diverge} Result LoadError Nat
+  inspect parcel = withScope $ \s -> do
+    h <- spawn s (\() -> Ok (touch parcel))
+    joinAllOrCancel s h
+  main :: Int
+  main = 0
+"#;
+    expect_err("transferred-nominal-ref-bytes", nominal, "without shareable evidence");
+    let safe = nominal.replace("Ref g Bytes", "Ref g Nat");
+    check_sources(&safe, "<transferred-nominal-ref-nat>")
+        .expect("a transferred wrapper may contain a shareable reference");
+}
+
+#[test]
 fn an_unshared_mutable_capture_is_rejected() {
     // `Bytes` is a mutable buffer: sharing it across tasks without a
     // transfer would race (section 3).

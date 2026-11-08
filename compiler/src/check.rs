@@ -2471,6 +2471,13 @@ struct TaskCapture {
     transfer_allowed: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StructuralUsage {
+    Copy,
+    Share,
+    Transfer,
+}
+
 /// Region names a type mentions in `Ref`/`Mut` borrow positions, with
 /// whether each is an exclusive borrow.
 fn borrow_regions(ty: &Ty, out: &mut Vec<(String, bool)>) {
@@ -5010,7 +5017,12 @@ impl Checker {
                 self.effective_mult(c.binder),
                 Some(Mult::One) | Some(Mult::Aff)
             );
-            if !transferred && !self.share_safe(&t, &c.dicts) {
+            let safe = if transferred {
+                self.structural_usage(&t, &c.dicts, &mut Vec::new(), StructuralUsage::Transfer)
+            } else {
+                self.share_safe(&t, &c.dicts)
+            };
+            if !safe {
                 return Err(Error::at(
                     c.span,
                     format!(
@@ -5034,7 +5046,7 @@ impl Checker {
             {
                 args.iter().all(|a| self.share_safe(a, dicts))
             }
-            _ => self.copy_structural(t, dicts, &mut Vec::new()),
+            _ => self.structural_usage(t, dicts, &mut Vec::new(), StructuralUsage::Share),
         }
     }
 
@@ -5124,47 +5136,79 @@ impl Checker {
         scope: &[(B, ClassApp)],
         seen: &mut Vec<(String, Vec<Ty>)>,
     ) -> bool {
+        self.structural_usage(ty, scope, seen, StructuralUsage::Copy)
+    }
+
+    fn structural_usage<B>(
+        &self,
+        ty: &Ty,
+        scope: &[(B, ClassApp)],
+        seen: &mut Vec<(String, Vec<Ty>)>,
+        usage: StructuralUsage,
+    ) -> bool {
+        let transferring = usage == StructuralUsage::Transfer;
         match ty {
-            Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
-            Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
+            Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) => true,
+            Ty::Ref(_, inner) => match usage {
+                StructuralUsage::Copy => true,
+                StructuralUsage::Share => self.structural_usage(inner, scope, seen, usage),
+                // Moving a reference moves its handle. Its referent can
+                // remain aliased outside the task, including through an
+                // actual constructor field of a transferred value.
+                StructuralUsage::Transfer => {
+                    self.structural_usage(inner, scope, &mut Vec::new(), StructuralUsage::Share)
+                }
+            },
+            Ty::Mut(_, _) | Ty::Lazy { .. } => false,
+            Ty::Bytes | Ty::Meta(_) | Ty::Thunk { .. } => transferring,
             // `Sym` is a handle to runtime-owned interned state; the
             // specification grants it `Eq`/`Ord`/`Show` only (primitive
             // types specification section 9), never `Copy`.
-            Ty::Sym => false,
+            Ty::Sym => transferring,
             // An owned boundary pointer transfers ownership exactly once
             // (foreign function interface specification section 3), so it
             // is not duplicable; raw and borrow roles are plain addresses
             // and carry no ownership to duplicate.
-            Ty::Ptr { role: PtrRole::Owned(_), .. } => false,
+            Ty::Ptr { role: PtrRole::Owned(_), .. } => transferring,
             Ty::Ptr { .. } => true,
             // `Later` keeps the thunk representation at runtime (codata
             // and guardedness design, section 6), so like a thunk it is
             // not duplicable evidence.
-            Ty::Later(_) => false,
-            Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => false,
+            Ty::Later(_) => transferring,
+            Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => transferring,
             // Index values and erased propositions occupy no runtime
             // representation that could be duplicated (core specification
             // section 3).
             Ty::Sort(_) | Ty::Idx(_) | Ty::Prp(_) => true,
             Ty::Sigma { dom, cod, .. } => {
-                self.copy_structural(dom, scope, seen) && self.copy_structural(cod, scope, seen)
+                self.structural_usage(dom, scope, seen, usage)
+                    && self.structural_usage(cod, scope, seen, usage)
             }
             Ty::Region(_) => true,
-            Ty::Param(p) => scope.iter().any(|(_, c)| {
-                c.class == "Copy" && c.args.iter().any(|a| matches!(a, Ty::Param(q) if q == p))
-            }),
+            // Copy evidence for an unknown type can describe a shallow
+            // reference copy. Task sharing needs the checked structure.
+            Ty::Param(p) => {
+                transferring || usage == StructuralUsage::Copy
+                    && scope.iter().any(|(_, c)| {
+                        c.class == "Copy"
+                            && c.args.iter().any(|a| matches!(a, Ty::Param(q) if q == p))
+                    })
+            }
             // A higher-kinded application is duplicable only under an
             // explicit `Copy` constraint on the applied type itself; a
             // bare type former is never a value's type.
-            Ty::App(..) | Ty::Former(_) => scope
-                .iter()
-                .any(|(_, c)| c.class == "Copy" && c.args.iter().any(|a| a == ty)),
+            Ty::App(..) | Ty::Former(_) => {
+                transferring || usage == StructuralUsage::Copy
+                    && scope
+                        .iter()
+                        .any(|(_, c)| c.class == "Copy" && c.args.iter().any(|a| a == ty))
+            }
             Ty::Tuple(items) => items
                 .iter()
-                .all(|i| self.copy_structural(i, scope, seen)),
+                .all(|i| self.structural_usage(i, scope, seen, usage)),
             Ty::Adt(name, args) => {
                 if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
-                    return args.iter().all(|a| self.copy_structural(a, scope, seen));
+                    return args.iter().all(|a| self.structural_usage(a, scope, seen, usage));
                 }
                 if seen.iter().any(|(n, a)| n == name && a == args) {
                     return true;
@@ -5172,23 +5216,27 @@ impl Checker {
                 seen.push((name.clone(), args.clone()));
                 let info = match self.lookup_known_type(name) {
                     Ok(i) => i,
-                    Err(_) => return false,
+                    Err(_) => return transferring,
                 };
                 // A codata value is a record of observation closures: the
                 // closures themselves are never `Copy`.
                 if self.codata_types.contains(&(info.module.clone(), info.name.clone())) {
-                    return false;
+                    return transferring;
                 }
                 for (cname, _) in &info.ctors {
                     let v = match self.ctor_of_type(&info, cname) {
                         Ok(v) => v,
+                        Err(_) if transferring => continue,
                         Err(_) => return false,
                     };
-                    let fields = match self.ctor_parts(&v, args) {
-                        Ok(p) => p.fields.into_iter().map(|(_, t, _)| t).collect::<Vec<_>>(),
+                    let parts = match self.ctor_parts(&v, args) {
+                        Ok(parts) => parts,
+                        Err(_) if transferring => continue,
                         Err(_) => return false,
                     };
-                    if !fields.iter().all(|f| self.copy_structural(f, scope, seen)) {
+                    if !parts.fields.iter().all(|(_, field, _)| {
+                        self.structural_usage(field, scope, seen, usage)
+                    }) {
                         return false;
                     }
                 }

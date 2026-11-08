@@ -10,6 +10,29 @@
     },
     "baseline_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
     "native_source_sha256": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74",
+    "nominal_transfer_probe": {
+      "cases": [
+        {
+          "exit_code": 1,
+          "log_sha256": "ec8891c762edb4562228ffed60ea8cbd8591588358c531ec6e11a68d1813ef19",
+          "name": "shared-wrapper-with-bytes",
+          "source_sha256": "e89ea423024177e809564ee0467ac088ca6b0507b57e82ea9a71e0669baa197b"
+        },
+        {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "name": "transferred-wrapper-with-bytes",
+          "source_sha256": "5355f61a3a2e11dce2aef8737c162e7bd84ada150a5518f50fc10e49be84f083"
+        },
+        {
+          "exit_code": 0,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "name": "transferred-wrapper-with-nat",
+          "source_sha256": "66b2eab60ee98e074c8ed53e24138ac7f595d56e9760a6495dabf516111aac43"
+        }
+      ],
+      "executable_sha256": "605a7204009c590ca77613a9a38a45da39896a11b88d62640a02f01f341753c1"
+    },
     "targets": {
       "concurrency": {
         "cases": [
@@ -218,7 +241,7 @@
     }
   },
   "schema": 1,
-  "scope": "The combined candidate reached Stage 2. The borrow controls ran on a separate Stage 1. Rust concurrency and ownership results refer to the Rust-only candidate. Matching Stage 3 and complete suites remain separate.",
+  "scope": "The combined candidate has a verified Stage 2 and an artifact comparison against Stage 3. The borrow controls ran on a separate Stage 1. Rust concurrency and ownership results refer to the first Rust-only candidate. The nominal transfer counterexample was reproduced against that candidate.",
   "stage1_borrows": {
     "compiler_source_sha256": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
     "rows": [
@@ -309,6 +332,13 @@
     "llvm_sha256": "3e15d629ef814a62fb4215baac497c43c18dd8ac586a8b81a3fa56f5416901fb",
     "revision": "0306f8f035f0dcef585163410823df4cab5a1a0a",
     "stage_receipt_sha256": "7e41b989ad1a4779f82194d9ac95430498f4b1b4a7cd43fe53becf077bce0364"
+  },
+  "stage3_artifacts": {
+    "compiler_interfaces": 46,
+    "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+    "compiler_source_sha256": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+    "llvm_sha256": "3e15d629ef814a62fb4215baac497c43c18dd8ac586a8b81a3fa56f5416901fb",
+    "stage_receipt_sha256": "ff0ecb595bcb1e78738d311e8dddab8b82e0e63b8cd9bf40af7dacb20a066ff6"
   },
   "status": "audited-abi7-borrow-and-combined-stage2"
 }

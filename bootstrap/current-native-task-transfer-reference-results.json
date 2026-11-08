@@ -1,0 +1,231 @@
+{
+  "baseline_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "full_goal_complete": false,
+  "native_source_sha256": "9dd2b45de58652076a5732ef609b6ebfe22ad590cc521c179a2acf096860dc57",
+  "nominal_transfer_counterexample": {
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "name": "transferred-wrapper-with-bytes",
+    "source_sha256": "5355f61a3a2e11dce2aef8737c162e7bd84ada150a5518f50fc10e49be84f083"
+  },
+  "original_compiler_probe": {
+    "compiler_sha256": "67751461cdb58be57e375aee44066403a8ada9e546c6b4cc613924047f61dd4b",
+    "exit_code": 0,
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schema": 1,
+  "scope": "Original concurrency and ownership targets on the Rust source with the reference capture fix. The regression checks direct, wrapped, explicitly transferred, and nominally hidden mutable references and accepts the nominal wrapper with an immutable referent.",
+  "source_files": {
+    "compiler/src/check.rs": "2a1f819c2c8b758286dc6ddff67394a21a1c45344d953d4d169aa41b494640b5",
+    "compiler/tests/concurrency.rs": "9a243adecca071b9c7e43cc9fbc26e5ed653ab50e4d867b931345b661a697084"
+  },
+  "status": "audited-native-task-transfer-reference-fields",
+  "targets": {
+    "concurrency": {
+      "cases": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "passed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "passed"
+        },
+        {
+          "name": "task_shared_ref_requires_a_shareable_referent",
+          "status": "passed"
+        }
+      ],
+      "exit_code": 0,
+      "log_sha256": "5d4f76e16ac2e1f3760dd8d27f1bc4a1533e616969dba03565ed47895c00b12d",
+      "name": "concurrency",
+      "passed": 20,
+      "status": "passed"
+    },
+    "ownership": {
+      "cases": [
+        {
+          "name": "affine_double_use_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "affine_thunk_is_forced_at_most_once",
+          "status": "passed"
+        },
+        {
+          "name": "annotated_linear_lambda_owns_its_parameter_inside_its_body",
+          "status": "passed"
+        },
+        {
+          "name": "borrow_escape_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "borrow_matching_yields_field_borrows",
+          "status": "passed"
+        },
+        {
+          "name": "copy_class_from_the_vector_filter_shape_works",
+          "status": "passed"
+        },
+        {
+          "name": "copy_class_is_structural_and_not_user_extensible",
+          "status": "passed"
+        },
+        {
+          "name": "copy_out_coheres_with_multiplicity",
+          "status": "passed"
+        },
+        {
+          "name": "erased_argument_has_no_worker_word",
+          "status": "passed"
+        },
+        {
+          "name": "erased_arrows_preserve_curried_stages_and_counted_captures",
+          "status": "passed"
+        },
+        {
+          "name": "erased_boundary_preserves_the_callees_effects",
+          "status": "passed"
+        },
+        {
+          "name": "erased_operand_must_typecheck_and_be_pure",
+          "status": "passed"
+        },
+        {
+          "name": "erased_use_is_rejected_and_non_use_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "exclusive_borrows_are_lexically_unique",
+          "status": "passed"
+        },
+        {
+          "name": "linear_double_use_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "linear_dropped_on_one_path_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped",
+          "status": "passed"
+        },
+        {
+          "name": "linear_record_disjoint_projections_split_once",
+          "status": "passed"
+        },
+        {
+          "name": "linear_thunk_forced_once_per_branch_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "linear_thunk_is_forced_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "linear_use_once_per_case_branch_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "linear_use_once_per_if_branch_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "scoped_borrow_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "strict_aliases_preserve_linear_and_affine_usage",
+          "status": "passed"
+        },
+        {
+          "name": "unannotated_binders_default_to_unrestricted",
+          "status": "passed"
+        },
+        {
+          "name": "unannotated_thunk_defaults_to_affine",
+          "status": "passed"
+        },
+        {
+          "name": "unrestricted_use_is_free",
+          "status": "passed"
+        }
+      ],
+      "exit_code": 0,
+      "log_sha256": "ea9e049db8221fa79ba311f0eb10ea75cb12d13e97417577c067203ce9f11ffe",
+      "name": "ownership",
+      "passed": 27,
+      "status": "passed"
+    }
+  }
+}
