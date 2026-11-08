@@ -1,0 +1,73 @@
+{
+  "compiler_sha256": "cd310b23f00b5e32446b3f221344ab34a70b5bacb70cd5032454bfe56fdd77d3",
+  "compiler_source_sha256": "1355f5a501cd7e76434d8ea9f316529f875fbf87c55230c3273680c453483a0f",
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_test_source_sha256": "02e587188ca04f04cf263f0aed74ab447dba8604a64293785b3e3a5493ee1c01",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "cfb837762bb7e8688d2a8cc1af1fdcb5391831d1",
+  "rows": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "f01678ffae6aa6f489c967853d4a37459214e91efe30196d6a3f01c3bb5878ef",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-list-case",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "735570a2f8010e742cff797e7d54364e34fe43b6aef3f8df9b4215ceca4faac1",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:10:18: function precondition is not established at this call\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-nil-refusal",
+      "source_sha256": "972ba009893977bdce6719091ea0b0594888119475925586e9438e0dae0e7de5",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:11:17: function precondition is not established at this call\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "wrong-list-identity",
+      "source_sha256": "192a0b100852eb66cec22ca603777255390b392b69d3f32063b5000040547792",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "0e31b7a73ae72694dad91e1bdad15dd3f41db91765df9402af3555f93076d0a4",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-guard-case",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "4498189eccfb94551422d7e89d87837a7feb845a855859ad6d6c3c28b15fbee0",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:30:21: function precondition is not established at this call\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-guard-rebinding-refusal",
+      "source_sha256": "bebcd520cc71789af4dc143a361bb681d11b21bb1fc738f80022ab0bd96459da",
+      "status": "passed"
+    }
+  ],
+  "run_receipt_sha256": "f720833a232d806af66671f7ac2531bee5fd87d3c3e20ffcd437e15b6d42aaa6",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "selected_test_source_sha256": "043489337f27b3f391c784cfac626c09d4fa56b4bb906bc1f95403b5f9a58823",
+  "stage1_receipt_sha256": "c17a7d99ef92ef2f97c21b16e6ba1f14bab382544e217e8d190861146691d1c9",
+  "status": "audited-original-list-and-guard-stage1-cases"
+}

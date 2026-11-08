@@ -683,6 +683,15 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    list_guard_path = 'bootstrap/current-schema10-list-and-guard-results.json'
+    list_guard = read(root / list_guard_path)
+    if (list_guard.get('status') == 'audited-original-list-and-guard-stage1-cases'
+            and list_guard.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/case_evidence.rs', list_guard['original_test_source_sha256'])):
+        active.append(dict(title='Development Stage1: list and guard branch evidence',
+            status='passed', phase='Both original programs ran without leaks. The checker refused evidence from an empty list, a different list, and a shadowed guard variable.',
+            passed=len(list_guard['rows']), failed=0, total=len(list_guard['rows']), unit='client cases',
+            source=list_guard['compiler_source_sha256'], evidence=link(list_guard_path)))
     machine_path = 'bootstrap/current-schema10-machine-proof-parity-results.json'
     machine = read(root / machine_path)
     if (machine.get('status') == 'audited-stage1-machine-contracts-and-source-refinements'
