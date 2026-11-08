@@ -20662,9 +20662,20 @@
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. guard-in-eager-local",
+        "phase": "Stage 1, all ten original codata tests and both eager-recursion refusals passed. Both programs ran without leaks.",
         "passed": 13,
         "total": 13,
+        "failed": 0,
+        "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-codata-results.json"
+      },
+      {
+        "title": "Rebuild the codata and memo compiler through Stage 3",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Isolated Stage 1 candidate. Queued for a shared worker.",
+        "passed": 3,
+        "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": null
@@ -20673,12 +20684,12 @@
         "title": "Compile and replay the host inline primitive cases",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. same-line-store",
+        "phase": "Stage 1 and 13 host controls passed, including two leak-free executables and all ten original refusals.",
         "passed": 14,
         "total": 14,
         "failed": 0,
         "source": "d1313796d53f42bd0bdd9d9875f44a80f0d5dd3214cf5b8ec09cdd18b1a60bf7",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-primitive-containment-results.json"
       },
       {
         "title": "Replay the original integration failures and guard coverage",
@@ -20700,6 +20711,17 @@
         "total": 5,
         "failed": 0,
         "source": "6cb202e5ba6c226bfe1fc5563a2e240ece1702015a950def8d5b2f81e82830dc",
+        "evidence": null
+      },
+      {
+        "title": "Compile and consume record interfaces and objects",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with compiled record transport",
+        "passed": 1,
+        "total": 7,
+        "failed": 0,
+        "source": "6ede6a5a0abecfc5d9107bb260a89f6a7029ba630b887871eaa5fc45352d805a",
         "evidence": null
       },
       {
@@ -20738,5 +20760,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:39:50.958483+00:00"
+  "updatedAt": "2026-11-08T21:41:35.729681+00:00"
 }
