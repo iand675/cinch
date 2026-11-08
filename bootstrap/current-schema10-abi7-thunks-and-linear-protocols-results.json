@@ -1,0 +1,254 @@
+{
+  "checked_base_interfaces": 55,
+  "compiler_modules": 46,
+  "compiler_sha256": "dcfcf8a3bae1fecb139a4c86ed5c1a08d5bab3b396c6b4372fd909cefb847854",
+  "compiler_source_sha256": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "56fd24ada584f82007b994612cec3d89e95513582993cb4efe69aaf6e7bfd40b"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let thunk = delay (\\() -> 42) in if force thunk == 42 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "force-once",
+      "result_sha256": "dc184ac11fbc6ccd278f42e3a0eed0ef9ecc3341a5834c38156a8b6ffc186013",
+      "source": "validation-fixtures/force-once/Main.cinch",
+      "source_sha256": "56fd24ada584f82007b994612cec3d89e95513582993cb4efe69aaf6e7bfd40b",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "a48b2ded7c3b7381063146880863dae7ae43e7c0cba8202ea21730a14713bd0f"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let count = 42 in let thunk = delay (\\() -> count) in 0\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "drop-unforced",
+      "result_sha256": "306960073d1f68b681be6e3198c28db48fbd7a970eb7573db91a2614f40db19c",
+      "source": "validation-fixtures/drop-unforced/Main.cinch",
+      "source_sha256": "a48b2ded7c3b7381063146880863dae7ae43e7c0cba8202ea21730a14713bd0f",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "74fb797caed99153bc8853540089ad31a8ad6fa1856fff22c4c788e484dd1802"
+      },
+      "fixture_text": "module Main where\n  choose :: Bool -> Int\n  choose yes = let thunk = delay (\\() -> 42) in if yes then force thunk else 0\n  main :: Int\n  main = if choose True == 42 && choose False == 0 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "affine-choice",
+      "result_sha256": "7e058c026e86f573893455eb85c899178a71dd45afe4694daafe108137201db8",
+      "source": "validation-fixtures/affine-choice/Main.cinch",
+      "source_sha256": "74fb797caed99153bc8853540089ad31a8ad6fa1856fff22c4c788e484dd1802",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/replay-refused/Main.cinch: 3:10: multiplicity %aff: a thunk must be used at most once",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "36598ac9007d2d38fb03461b58163964f67d8eaae18718e34119dbc0909bb0eb"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let thunk = delay (\\() -> 42) in force thunk + force thunk\n",
+      "mode": "check",
+      "name": "replay-refused",
+      "result_sha256": "ee118aa6362c6b229f8e86dc732aa06556682cac6df2527e825c09e4f2b052ef",
+      "source": "validation-fixtures/replay-refused/Main.cinch",
+      "source_sha256": "36598ac9007d2d38fb03461b58163964f67d8eaae18718e34119dbc0909bb0eb",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "3f0a027932401249e916b1e89feb973c24a17c05e16ed890f45f2060e11c7d61"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  hold :: Unit -> Thunk {Marker} Int\n  hold u = delay callback\n",
+      "mode": "check",
+      "name": "delay-latent-effect",
+      "result_sha256": "3866575d9217b8531052368df70291e0ccc194707e51e31cac6c8a9df6a419b6",
+      "source": "validation-fixtures/delay-latent-effect/Main.cinch",
+      "source_sha256": "3f0a027932401249e916b1e89feb973c24a17c05e16ed890f45f2060e11c7d61",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "40ff3294e10dae1d51ec1ae10f78a471e66944a3d0b6725c48227c8c7c8665ba"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  use-thunk :: Unit ->{Marker} Int\n  use-thunk u = force (delay callback)\n",
+      "mode": "check",
+      "name": "force-latent-effect",
+      "result_sha256": "8b3e74bfa065acd3c8eb9df34033a66f21cbb5c2beaa116393819592823a2a0a",
+      "source": "validation-fixtures/force-latent-effect/Main.cinch",
+      "source_sha256": "40ff3294e10dae1d51ec1ae10f78a471e66944a3d0b6725c48227c8c7c8665ba",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/force-row-refused/Main.cinch: 7:17: performed effects exceed the declared row (performed {m.77_97_105_110_.77_97_114_107_101_114_}, declared {})",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "0b29d4054e31ca4e00bceac2d011f8d3cc71a14bc032ddbe5c738f24ac352f80"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  use-thunk :: Unit -> Int\n  use-thunk u = force (delay callback)\n",
+      "mode": "check",
+      "name": "force-row-refused",
+      "result_sha256": "26725bc473263794c3c8790f0485d9e1c7617cb8123d074037fd4fe0b6420b40",
+      "source": "validation-fixtures/force-row-refused/Main.cinch",
+      "source_sha256": "0b29d4054e31ca4e00bceac2d011f8d3cc71a14bc032ddbe5c738f24ac352f80",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/force-carrier-refused/Main.cinch: 3:16: type mismatch: expected ((Thunk ?14) ?15), found Int",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "4b5019bb79aadf3c694bc920da4f9b7fb7a0ac19792991d33cb5e29825078890"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = force 42\n",
+      "mode": "check",
+      "name": "force-carrier-refused",
+      "result_sha256": "eb9b681aed1fada0878687a8963da85b82405f0c7c57d26c4cf941a7406db020",
+      "source": "validation-fixtures/force-carrier-refused/Main.cinch",
+      "source_sha256": "4b5019bb79aadf3c694bc920da4f9b7fb7a0ac19792991d33cb5e29825078890",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "37b6018ad060744cff0af1fc112ff6961532093251d040ac90c6388e6f112965"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Protocol",
+      "result_sha256": "42c44e233da4f935b127644556c0c877967caa8a37877642bdeb45ee916ea836",
+      "source": "experiments/malleable-syntax/examples/Protocol.cinch",
+      "source_sha256": "822acfa42c5c2a0c712b49d5fd21d6f773afe462cee9a531503eac550875702c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Checkout.cinch": "351da0da64e2dccdc899fe143571f4b5418e5e86fec9cf503a54dc89ed5c8402",
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "eef90be33bbba79028286e5b7e4e1ed0b3a86763ce44c0f4c11b42e31a70366b"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Choreography",
+      "result_sha256": "32c018651779b2515fc6bbd53722e49f3092b2956845702f22f98107065c4ffa",
+      "source": "experiments/malleable-syntax/examples/Choreography.cinch",
+      "source_sha256": "eef90be33bbba79028286e5b7e4e1ed0b3a86763ce44c0f4c11b42e31a70366b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Once.cinch: 4:13: multiplicity %1: the argument must be used exactly once on every path",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "5aeebb7bf9eed9df0cbd482bb151e1f6e699c5d4142af2bcffb907efa74ad20c"
+      },
+      "mode": "check",
+      "name": "Once",
+      "result_sha256": "65e967f4488ed4dad2d871ea8b3582f3fdc0e93dcf30fb5de6aa11030fd7bd74",
+      "source": "experiments/malleable-syntax/examples/negative/Once.cinch",
+      "source_sha256": "94bbd3d2af0faad7ae989da22a3271eaccdead08014a4631a674e0c279668dbb",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Protocol.cinch: 11:24: type mismatch: expected m.77_97_105_110_.80_101_110_100_105_110_103_, found m.77_97_105_110_.79_102_102_101_114_101_100_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "c732f2e5e0d7b8c7ab7f67b971bf2bf562cf58e2029966d1ebf673fa0806a031"
+      },
+      "mode": "check",
+      "name": "Protocol",
+      "result_sha256": "265194bb3a4572600391ba3501530c8c5d07c132ce55fca8c286e55519385f49",
+      "source": "experiments/malleable-syntax/examples/negative/Protocol.cinch",
+      "source_sha256": "af69827f9eda4c2f883ef21e10034c72b161e8f131eece765a58ee6923a04b75",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyState.cinch: 22:45: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_49_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_48_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "f7ab09e174700db82e9d3905fe929cf5b085c517e9ac17d3ecf97690402386cf"
+      },
+      "mode": "check",
+      "name": "ChoreographyState",
+      "result_sha256": "f5f9dd8fb2687eed876533a3c829664bf6c22935495747e116b2be6c3a8b51d8",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyState.cinch",
+      "source_sha256": "42ddc0f44b94cdbbb71ed12e2ae65abb9c55f0c0257b97b57ace83b513dbc1b3",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyBranch.cinch: 22:64: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_65_112_112_114_111_118_101_100_83_48_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_68_101_99_108_105_110_101_100_83_48_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "3ff98c1a03cd3736cf739ddfcac8f8939656f928607ddeb4df0c14dcb9335dcf"
+      },
+      "mode": "check",
+      "name": "ChoreographyBranch",
+      "result_sha256": "c132078c8f9fcde150c3372d8867999a02a35a5bedda17308f4489e8d5e3b78f",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyBranch.cinch",
+      "source_sha256": "4442780c4f962ab333e07d2da0482c32cee18419825514fbd72dd1bc646e344b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyWire.cinch: 22:73: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_65_112_112_114_111_118_101_100_82_101_99_101_105_112_116_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_68_101_99_108_105_110_101_100_82_101_97_115_111_110_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "27bd059fad1a4a22ac7fbbebd04f56c3d1ab09e38f705504eaced795e05c37d6"
+      },
+      "mode": "check",
+      "name": "ChoreographyWire",
+      "result_sha256": "80fd1ca5320584399e1f83bc53a5168edf23e82b7eac2b7c7f5265c5c77b9711",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyWire.cinch",
+      "source_sha256": "0745ff183874f56b5b17d46d2f52894938845a2f539a286e0135acadd64a64ce",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyReplay.cinch: 23:18: multiplicity %aff: a thunk must be used at most once",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "6a122e8a59760431acf4019c2b51c55c16697c76003c238174b45da1915726d1"
+      },
+      "mode": "check",
+      "name": "ChoreographyReplay",
+      "result_sha256": "affd171830d0ee5ff1fc8ebd362c4ecd2c5315d2fa95fb181ab73c0d040cf5c8",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyReplay.cinch",
+      "source_sha256": "7c0fc9efddd8ba1f67d690af3129b8b41284cdb6f2dad4688a6b1227ca153c02",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyForge.cinch: 4:23: unknown constructor Checkout.MkCheckoutBuyerP1: not exported into this scope",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Checkout.cinch": "351da0da64e2dccdc899fe143571f4b5418e5e86fec9cf503a54dc89ed5c8402",
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "c518de4b5afce8cd1bf4452591c4c375234bfff127618eb7c3d0baa8f2ab3b30"
+      },
+      "mode": "check",
+      "name": "ChoreographyForge",
+      "result_sha256": "ecd1804d4264baccdca7c48d9dcc2eb5d6bcefc434bddc5caec8508a1b4dbe8a",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyForge.cinch",
+      "source_sha256": "c518de4b5afce8cd1bf4452591c4c375234bfff127618eb7c3d0baa8f2ab3b30",
+      "status": "passed"
+    }
+  ],
+  "groups_passed": 17,
+  "library_object_sha256": "0b865c627836e7e0325440552ff663f7e5821c4762a407f5d635676c4aa87e8b",
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "f68224b7e17d303c7863f2650c56dd8a1c5c3baa",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "scope": "Eight thunk controls and all nine original protocol, once and choreography cases on exact Stage 1 with the checked ABI 7 library object and runtime archive.",
+  "seed_compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+  "stage1_receipt_sha256": "64b631d52f04d4a5d60a919a86a28321702b7bef560bbe6537161fedf9e905cb",
+  "status": "audited-abi7-stage1-thunks-and-linear-protocols"
+}
