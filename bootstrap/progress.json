@@ -13566,6 +13566,14 @@
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reads_closed_bodies_without_inventing_unknown_branch_results",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_reflects_only_actual_numeric_equations",
                   "status": "running"
                 }
               ]
@@ -20094,5 +20102,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:35:17.318090+00:00"
+  "updatedAt": "2026-11-08T01:36:19.273946+00:00"
 }
