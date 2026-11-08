@@ -14324,7 +14324,24 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "allocation_promise_agrees_with_an_actual_primitive_alias",
+                  "status": "passed"
+                },
+                {
+                  "name": "fresh_primitive_declaration_supplies_stable_length_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "index_operands_use_forall_and_nested_application_carriers",
+                  "status": "passed"
+                },
+                {
+                  "name": "length_indices_reject_non_byte_carriers",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20719,5 +20736,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:12:10.435791+00:00"
+  "updatedAt": "2026-11-08T04:13:12.378051+00:00"
 }
