@@ -1829,7 +1829,6 @@ module Bootstrap.RuntimeIr where
     CLocal sp ty key name actuals -> id == key
     CApply sp ty first second -> term-uses id first || term-uses id second
     CApplyEff sp ty row first second -> term-uses id first || term-uses id second
-    CErasedApply sp ty row f witness -> term-uses id f
     CScope sp ty region evidence callback -> term-uses id callback
     CSpawn sp ty token body -> term-uses id token || term-uses id body
     CJoin sp ty token body -> term-uses id token || term-uses id body
@@ -1848,7 +1847,7 @@ module Bootstrap.RuntimeIr where
     CGuard sp ty guard body -> term-uses id guard || term-uses id body
     CArgument sp first rest -> term-uses id first || term-uses id rest
     CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
-    other -> index-term-uses id (term-children term)
+    other -> index-term-uses id (runtime-term-children term)
   index-term-uses :: Nat -> List CoreTerm -> Bool
   index-term-uses id terms = case terms of Nil -> False; Cons first rest -> term-uses id first || index-term-uses id rest
   evidence-uses :: String -> CoreEvidence -> Bool

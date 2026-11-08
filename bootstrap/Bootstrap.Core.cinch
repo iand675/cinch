@@ -47,7 +47,7 @@ module Bootstrap.Core where
   export scoped-core-equation-facts, extend-equation-prefix, pattern-value
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
-  export term-children
+  export term-children, runtime-term-children
   export core-total-function
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
   export core-source-body, core-source-function, core-total-function-uses, core-method-total-function
@@ -570,6 +570,11 @@ module Bootstrap.Core where
     CArgument sp first rest -> [first, rest]
     CAlternative sp p body rest -> [body, rest]
     other -> Nil
+  runtime-term-children :: CoreTerm -> List CoreTerm
+  runtime-term-children term = case term of
+    CErasedApply sp ty row f witness -> [f]
+    CRefineProof sp ty witness body -> [body]
+    other -> term-children term
   core-name :: CoreDefinition -> String
   core-name d = case d of MkCoreDefinition s name sc openings givens private clauses -> name
   core-scheme :: CoreDefinition -> Scheme

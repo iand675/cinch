@@ -470,7 +470,7 @@ module Bootstrap.Typing where
     CLambda sp ty p body -> task-free (task-pattern-ids p <> bound) body
     CLet sp ty id name sc rhs body -> task-free bound rhs <> task-free (Cons id bound) body
     CAlternative sp p body rest -> task-free (task-pattern-ids p <> bound) body <> task-free bound rest
-    other -> task-free-children bound (term-children term)
+    other -> task-free-children bound (runtime-term-children term)
   task-free-children :: List Nat -> List CoreTerm -> List (Nat, UType)
   task-free-children bound terms = case terms of Nil -> Nil; Cons first rest -> task-free bound first <> task-free-children bound rest
   task-free-regions :: List TaskLocal -> List (Nat, UType) -> List UType
@@ -518,9 +518,7 @@ module Bootstrap.Typing where
       let uses = use-count-once interrupted id callback in
       use-count-after interrupted token (use-count interrupted id token) (if interrupted then use-count-choice (Some (0, 0)) uses else uses)
     CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
-    CErasedApply sp ty row f witness -> use-count interrupted id f
-    CRefineProof sp ty witness body -> use-count interrupted id body
-    other -> use-count-list interrupted id (term-children term)
+    other -> use-count-list interrupted id (runtime-term-children term)
   use-pattern-total :: CorePattern -> Bool
   use-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> use-pattern-total inner; other -> False
   use-count-row :: Bool -> Nat -> CoreTerm -> CoreTerm -> Option (Nat, Nat)
@@ -574,7 +572,7 @@ module Bootstrap.Typing where
     CLet sp ty key name sc (CLocal at carrier original display Nil) body ->
       (if id == original then use-count-fits usage (use-count True key body) && aliases-use-allowed usage key body else True)
         && aliases-use-allowed usage id body
-    other -> alias-children-allowed usage id (term-children term)
+    other -> alias-children-allowed usage id (runtime-term-children term)
   alias-children-allowed :: ArrowUsage -> Nat -> List CoreTerm -> Bool
   alias-children-allowed usage id children = case children of
     Nil -> True
@@ -702,7 +700,7 @@ module Bootstrap.Typing where
     CMethod sp ty name owner slot actuals evidence -> task-free-evidences bound evidence
     CScope sp ty region evidence callback -> task-evidence-types bound evidence <> task-free-evidence bound callback
     CWith sp ty given value body -> task-free-evidence bound value <> task-free-evidence (Cons (given-symbol given) bound) body
-    other -> task-free-evidence-list bound (term-children term)
+    other -> task-free-evidence-list bound (runtime-term-children term)
   task-evidence-types :: List String -> CoreEvidence -> List UType
   task-evidence-types bound evidence = case evidence of
     CEGiven sp ty name -> if has name bound then Nil else [ty]
