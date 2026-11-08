@@ -1,0 +1,89 @@
+{
+  "compiler_source_sha256": "0f58c64dc7ba7ddf62ddacb2f87e04e2c1e21d5a07298087475fa03218775f45",
+  "final_state_sha256": "d6f3101253c3eba26a8744cbe8c695e51811ec11f6c8cb8d7b72dfeff0264477",
+  "full_goal_complete": false,
+  "manifest_sha256": "94f008e02b74946a4a53d10cf34361fa8dc31ec980522f98337ff7cd6b0338a3",
+  "object_metadata_sha256": "d592d665c3d89360e497c45ce1ae241619865a0dc528d9cbc3f1fff78b3cd62d",
+  "prior_revision": "dd33c1a5455b8acaad7a9718fbfe5d98c9ac27d0",
+  "prior_state_sha256": "4de6579162fab1c89b01a9199070aa4ba29f971cb48e701afad8c80308be94d8",
+  "provider_object_sha256": "9c084483dbcd29f344104ca956bdcd71deed7d562027228c08a5fcd1a6d6bcc7",
+  "revision": "d2f773081207cf7a82c0dace9710037e020f7526",
+  "rows": [
+    {
+      "compiler_sha256": "680b6cbe017f7837cd1b19c2483ffd1d2b69807acb9ea891cde7da99140cc472",
+      "name": "stage1",
+      "receipt_sha256": "6c4ea083219c5f87701a38879bc5ca55199316b7881ef79511b97876642a7017",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "fe3f357285bf2a715f152785b6bef8e78880166a4246d25f169d9040856dbe1b",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-case-evidence",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "def35b1a22954a043aeb0aa903e467e326f6407fb3010dcd102235499e6b9902",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 7,
+      "ir_sha256": "29e8364ec8f62d55126855c648f833bcdbe4041d0290c618fb9825d34d99d659",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "abort",
+      "program_exit": 7,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "705835bace3a71b9a3c72838c8a0ed6f02a89fbb8a31466b703f504a10d6aebb",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 26,
+      "ir_sha256": "bbe23bfdedf621e8a8f39b2570c03158db909b86a3d4ed79977803fc182c1e9d",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "slot-order",
+      "program_exit": 26,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "f78ee3d226228f83391cb5731be6ff20628b885001bcef2a59357598f7dcd7a9",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 10,
+      "ir_sha256": "bc1f5bbdef448e7e352c2956dba771bf923a4a3afdeee12ac737edb2cdb7ba89",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "first-class",
+      "program_exit": 10,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "e5e3b89a3a1c6e70eb0ac369f68e6c060985e6ce4a84d6297a6691e6d55dc44c",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:5: handler resumption is repeated or escapes its one-shot scope\n",
+      "exit_code": 4,
+      "expected_exit": null,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "repeated-resumption",
+      "source_sha256": "5eb97a3433f308094957ec4e32b255e67d4759349cbfbc8e8a7fc5a0aa896f5a",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "scope": "Frozen Stage1 with five exact client-only fixtures, including the original case-evidence executable. The compiled library provider supplies 55 checked interfaces.",
+  "stage1_compiler_sha256": "680b6cbe017f7837cd1b19c2483ffd1d2b69807acb9ea891cde7da99140cc472",
+  "status": "audited-stage1-lexical-handler-clients"
+}
