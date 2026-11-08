@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "83 passed, 3 running, 16 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 83,
+        "phase": "84 passed, 3 running, 15 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 84,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20982,9 +20982,9 @@
       },
       {
         "title": "Verify the ABI 7 library and mutable object boundary",
-        "status": "waiting-worker",
-        "phase": "Waiting worker. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
-        "passed": 6,
+        "status": "running",
+        "phase": "Emit mutable client. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
+        "passed": 8,
         "failed": 0,
         "total": 13,
         "unit": "gates",
@@ -21003,8 +21003,8 @@
       },
       {
         "title": "Run all required ABI 7 Stage 3 frontend groups",
-        "status": "waiting-stage3",
-        "phase": "Waiting for the ABI 7 fixed point and matching Native runtime archives.",
+        "status": "superseded-before-running",
+        "phase": "Superseded before running.",
         "passed": 0,
         "failed": 0,
         "total": 105,
@@ -21025,5 +21025,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:47:24.994971+00:00"
+  "updatedAt": "2026-11-08T09:48:27.652862+00:00"
 }
