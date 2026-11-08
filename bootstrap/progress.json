@@ -21154,8 +21154,8 @@
       {
         "title": "Replay thunk semantics and the original proof cases together",
         "status": "running",
-        "phase": "Proof",
-        "passed": 1,
+        "phase": "TacticsStale",
+        "passed": 4,
         "failed": 8,
         "total": 15,
         "unit": "cases",
@@ -21250,5 +21250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:39:28.232455+00:00"
+  "updatedAt": "2026-11-08T14:40:31.006596+00:00"
 }
