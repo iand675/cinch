@@ -19906,13 +19906,13 @@
       },
       {
         "title": "Check explicit library sources against their compiled object",
-        "status": "failed",
-        "phase": "modules_load_as_a_multi_file_project",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
         "passed": 0,
         "failed": 0,
-        "total": 5,
+        "total": 8,
         "unit": "client cases",
-        "source": "32950d57a91b767801db1234c9e90be97764e9165ba3d0dc6a0adc4676199629",
+        "source": "817ab54c2f77ff0df497f2166f349b04d8a3e0e59686e9cc0ff9245e0380da7e",
         "evidence": null
       },
       {
@@ -20094,5 +20094,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:34:13.299630+00:00"
+  "updatedAt": "2026-11-08T01:35:17.318090+00:00"
 }
