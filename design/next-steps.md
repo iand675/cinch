@@ -11,6 +11,13 @@ See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-result
 [the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
+The current published compiler source (`45bbfe94`) passed the independent
+bootstrap audit. Its rebuilt Stage2 and Stage3 executables, LLVM IR and
+all 46 compiler interfaces agree. The separate interface client and the
+changed-source rebuild passed with the same pinned library provider. The
+complete matching test suite remains open.
+See [the published fixed-point audit](../bootstrap/current-schema10-published-bootstrap-results.json).
+
 The preceding published snapshot (`0b518fbd`) passed the independent
 fixed-point audit with the corrected library provider. Stage2 and Stage3
 match on the executable, LLVM IR and all 46 compiler interfaces. The audit
