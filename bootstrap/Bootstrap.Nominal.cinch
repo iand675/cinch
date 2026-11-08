@@ -232,7 +232,7 @@ module Bootstrap.Nominal where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull"]
     other -> False
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of

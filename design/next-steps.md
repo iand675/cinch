@@ -119,6 +119,16 @@ leaks. All 55 library interface identities were preserved across the object
 expansion. The full selected-frontend replay remains open.
 See [the NonEmpty object audit](../bootstrap/current-schema10-compiled-nonempty-results.json).
 
+The checked dictionary ABI uses representation classes from the generic
+factory and the method's own parameters. The original Const, Identity,
+function and NonEmpty clients linked and ran with zero leaks in a
+focused replay. Runtime `NotNull` checks use the checked Nil and Cons
+declarations and retain the exact list index in the witness. Two
+positive programs ran with zero leaks and the wrong-list and wrong-carrier
+controls were refused. Rebuild the combined compiler and rerun the
+original suites to verify the integrated snapshot.
+See [the integration inputs](../bootstrap/current-schema10-compiled-client-integration-inputs.json).
+
 The runtime assigns Unit's word representation to private, unconstrained
 type variables after Core has checked their scope. The original `Result`
 client now requests the concrete `from-result [RT]` variant. The expanded

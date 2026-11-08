@@ -1464,13 +1464,13 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
   extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
   extend-context bindings context = case context of RuntimeContext info bounds rigids pending done -> RuntimeContext info (bindings <> bounds) rigids pending done
-  external-field-map :: Writer -> CoreClass -> Scheme -> List (Nat, Nat, List Nat) -> Option (List Nat)
-  external-field-map w description factory slots = case slots of
+  external-field-map :: Writer -> CoreClass -> Scheme -> List Nat -> List (Nat, Nat, List Nat) -> Option (List Nat)
+  external-field-map w description factory factory-codes slots = case slots of
     Nil -> Some Nil
     Cons (logical, physical, codes) rest -> (case method-at logical (class-methods description) of
       Some member -> (case specialize-method description factory member of
-        Some sc -> (case class-bindings (scheme-params sc) codes of
-          Some bindings -> (case (word-class (extend-context bindings (writer-context w)) (scheme-body sc), external-field-map w description factory rest) of
+        Some sc -> (case class-bindings (scheme-params sc) (factory-codes <> codes) of
+          Some bindings -> (case (word-class (extend-context bindings (writer-context w)) (scheme-body sc), external-field-map w description factory factory-codes rest) of
             (Some code, Some more) -> Some (Cons (if list-length (scheme-requirements sc) == 0 then code else 1) more)
             other -> None)
           None -> None)
@@ -1480,10 +1480,14 @@ module Bootstrap.RuntimeIr where
   external-evidence definitions locals w sp ty name actuals args = case (program-object (writer-program w), instance-binding name (program-bindings (writer-program w))) of
     (Some provider, Some binding) -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
       Some codes -> (case object-dictionary name codes provider of
-        Some (unit, owner, context-count, fields) -> let sc = concrete-scheme (checked-scheme binding) actuals in
+        Some (unit, owner, context-count, fields) ->
+          let factory = checked-scheme binding in
+          let sc = concrete-scheme factory actuals in
           (case (class-owner (scheme-body sc), find-class owner (program-classes (writer-program w)), object-family owner provider) of
             (Some actual-owner, Some description, Some (declared, slots)) -> if not (same owner actual-owner) || declared /= list-length (class-methods description) || context-count /= list-length (scheme-requirements sc) then unsupported w sp "external factory disagrees with its checked class or context" else
-              (case (external-field-map w description sc slots, class-vector (writer-context w) (requirement-types (scheme-requirements sc)), unit-result unit) of
+              -- Specialize the closed declaration. The instantiated use can
+              -- contain caller-local rigid variables, including phantom types.
+              (case (external-field-map w description factory codes slots, class-vector (writer-context w) (requirement-types (scheme-requirements sc)), unit-result unit) of
                 (Some expected-fields, Some expected-params, Some 1) -> if not (same-classes expected-fields fields && same-classes expected-params (unit-params unit)) then unsupported w sp "external factory word ABI disagrees with its checked class fields" else
                   (case evidence-values definitions locals w args of
                     (ready, values) -> if list-length values /= context-count then unsupported ready sp "external factory context arity disagrees with checked evidence" else

@@ -1403,9 +1403,22 @@ module Bootstrap.Core where
   decision-index-reading gamma facts term = case actual-index gamma facts term of
     Some value -> (case typed-index-arithmetic gamma value of Some reading -> Some reading; None -> typed-index-arithmetic gamma (UIndexPromote value))
     None -> None
+  decision-not-null-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  decision-not-null-test gamma facts expected condition = case condition of
+    CCase sp ty input (CAlternative at empty no (CAlternative next nonempty yes (CAlternativesEnd end))) ->
+      (case (empty, nonempty) of
+        (CPConstructor nil-at nil-type nil args nil-ctor (CPDone nil-end),
+         CPConstructor cons-at cons-type cons params cons-ctor (CPField head (CPWild h-at h-type) (CPField tail (CPWild t-at t-type) (CPDone cons-end)))) ->
+          string-compare nil (interface-global "Data.Core.Nil") == 0 && string-compare cons (interface-global "Data.Core.Cons") == 0
+            && contract-equal nil-type (core-type input) && contract-equal cons-type (core-type input)
+            && decision-constant False no && decision-constant True yes
+            && (case actual-index gamma facts input of Some index -> contract-equal expected index; None -> False)
+        other -> False)
+    other -> False
   decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   decision-predicate-test gamma facts predicate condition = case predicate of
     UPropLit value -> decision-constant value condition
+    UPropNotNull input -> decision-not-null-test gamma facts input condition
     UPropNot input -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts input test && decision-constant False yes && decision-constant True no; other -> False)
     UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test gamma (branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
     UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)

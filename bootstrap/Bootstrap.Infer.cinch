@@ -2386,7 +2386,7 @@ module Bootstrap.Infer where
   decision-predicate :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-predicate classes kinds families env locals syntax st = case syntax of
     ECon sp name (EArgsEnd end) -> if same name "True" || same name "False" then (UPropLit (same name "True"), decision-boolean sp (same name "True"), st) else decision-failure sp "predicate needs an executable checked decision procedure" st
-    ECon sp name (EArg at input (EArgsEnd end)) -> if same name "NonZero" || same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "unknown executable predicate former" st
+    ECon sp name (EArg at input (EArgsEnd end)) -> decision-unary classes kinds families env locals sp name input st
     EApp sp (ECon at name (EArgsEnd end)) input -> decision-unary classes kinds families env locals sp name input st
     EApp sp (EVar at name) input -> if same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "predicate calls need checked decision authority" st
     EIf sp first second (ECon at name (EArgsEnd end)) -> if same name "False" then decision-predicate classes kinds families env locals (EBin sp "&&" first second) st
@@ -2417,7 +2417,20 @@ module Bootstrap.Infer where
        case decision-value classes kinds families env locals carrier input st of
          (value, checked) -> case decision-index sp env carrier value checked of
            (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
+    else if same name "NotNull" then decision-not-null classes kinds families env locals sp input st
     else decision-failure sp "unknown executable predicate former" st
+  decision-not-null :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)
+  decision-not-null classes kinds families env locals sp input st = case fresh-meta KType st of
+    (element, opened) -> let list = collection-list element in
+      case check classes kinds families env locals input list opened of
+        (value, checked) -> case reify-argument sp env (map-term-types (normalize checked) value) checked of
+          (index, indexed) -> case bind-pattern classes kinds families env locals (PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)) list indexed of
+            (empty-scope, empty, matched) ->
+              let cons = PCon sp (interface-global "Data.Core.Cons") (pat-spine sp [PWild sp, PWild sp]) in
+              case bind-pattern classes kinds families env locals cons list matched of
+                (nonempty-scope, nonempty, done) ->
+                  let branches = CAlternative sp empty (decision-boolean sp False) (CAlternative sp nonempty (decision-boolean sp True) (CAlternativesEnd sp)) in
+                  (UPropNotNull index, CCase sp (primitive-type "Bool") value branches, done)
   infer-decision :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
   infer-decision classes kinds families env locals sp syntax st = case decision-predicate classes kinds families env locals syntax st of
     (predicate, condition, checked) -> let p = normalize checked predicate in let test = map-term-types (normalize checked) condition in let ty = decision-type p in
@@ -4583,7 +4596,7 @@ module Bootstrap.Infer where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull"]
     other -> False
   predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
   predicate-carrier locals syntax = case syntax of

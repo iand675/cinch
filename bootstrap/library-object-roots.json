@@ -126,6 +126,14 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.Option.Monoid_Option"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Option.Semigroup_Option"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.Result.Applicative_Result"
     },
     {
@@ -143,6 +151,14 @@
     {
       "classes": "T",
       "symbol": "Relation.Ord.Ord_Down"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Algebra.Monoid.Monoid_Function"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Algebra.Semigroup.Semigroup_Function"
     }
   ],
   "methods": [
@@ -420,6 +436,10 @@
     },
     {
       "classes": "O",
+      "symbol": "Algebra.Semigroup.stimes"
+    },
+    {
+      "classes": "O",
       "symbol": "Category.Applicative.unless"
     },
     {
@@ -429,6 +449,10 @@
     {
       "classes": "O",
       "symbol": "Data.List.sort-by"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.NonEmpty.non-empty"
     },
     {
       "classes": "O",

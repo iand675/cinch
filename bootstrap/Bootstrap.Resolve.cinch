@@ -346,7 +346,7 @@ module Bootstrap.Resolve where
   rename-predicate visible locals syntax = case syntax of
     TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
     TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if same name "NonZero" then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
+      if has-name name ["NonZero", "NotNull"] then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
       else rename-type visible locals syntax
     TInfix s op first second -> TInfix s op (rename-predicate visible locals first) (rename-predicate visible locals second)
     other -> rename-type visible locals syntax
@@ -486,9 +486,9 @@ module Bootstrap.Resolve where
   -- retain their declaration-owned bindings and cannot become decision authority.
   rename-decision-syntax :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-decision-syntax visible locals syntax = case syntax of
-    ECon sp name arguments -> if same name "NonZero" || same name "Not" || same name "True" || same name "False" then
+    ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Not", "True", "False"] then
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
-    EApp sp (ECon at name (EArgsEnd end)) input -> if same name "NonZero" || same name "Not" then
+    EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Not"] then
       (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
     EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
     EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
