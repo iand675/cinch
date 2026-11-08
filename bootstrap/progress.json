@@ -18915,8 +18915,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "26 passed, 3 running, 75 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 26,
+        "phase": "27 passed, 3 running, 74 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 27,
         "failed": 1,
         "total": 105,
         "unit": "targets",
@@ -20950,14 +20950,24 @@
         "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
       },
       {
+        "title": "Replay the complete case-evidence group with the repaired Stage3",
+        "status": "waiting-stage3",
+        "phase": "waiting stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "unit": "target",
+        "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
+      },
+      {
         "title": "Rust mutable writes through calls",
-        "status": "failed",
-        "phase": "runtime-suite. The original runtime returned the old value after a callee wrote through the borrow. The candidate carries a shared, counted cell across calls.",
-        "passed": 2,
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "passed": 3,
         "failed": 0,
         "total": 9,
         "unit": "gates",
-        "source": "0c3098392aedf8357db53497046097b87f960b46e8d31561e8dcd8cba15fd8c3"
+        "source": "4028387f4c29cf57ee02bf2bd5570f630eabec6503bd2b74622dda08b5ee3eb7"
       }
     ],
     "counts": {
@@ -20973,5 +20983,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:05:27.071331+00:00"
+  "updatedAt": "2026-11-08T07:06:13.941265+00:00"
 }
