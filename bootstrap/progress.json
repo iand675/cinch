@@ -18915,8 +18915,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "14 passed, 3 running, 87 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 14,
+        "phase": "20 passed, 3 running, 81 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 20,
         "failed": 1,
         "total": 105,
         "unit": "targets",
@@ -20931,12 +20931,22 @@
       {
         "title": "Cinch ordering branch facts from compiled interfaces",
         "status": "running",
-        "phase": "case_evidence. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
-        "passed": 1,
+        "phase": "probe-ordinary. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
+        "passed": 4,
         "failed": 0,
         "total": 6,
         "unit": "gates",
         "source": "5176bebeaa48c3af4abf6ce9e08a9f571e449fae7b3ca35e319a2d544416e8b6"
+      },
+      {
+        "title": "Rust mutable writes through calls",
+        "status": "waiting-worker",
+        "phase": "waiting worker. The original runtime returned the old value after a callee wrote through the borrow. The candidate carries a shared, counted cell across calls.",
+        "passed": 0,
+        "failed": 0,
+        "total": 9,
+        "unit": "gates",
+        "source": "0c3098392aedf8357db53497046097b87f960b46e8d31561e8dcd8cba15fd8c3"
       }
     ],
     "counts": {
@@ -20952,5 +20962,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:37:07.516814+00:00"
+  "updatedAt": "2026-11-08T06:52:11.820915+00:00"
 }
