@@ -20540,9 +20540,9 @@
       {
         "title": "Bootstrap the combined frontend and provider repairs",
         "unit": "controls",
-        "status": "running",
+        "status": "passed",
         "phase": "Combined candidate, starting from the pinned seed. check the fixed point, interface consumer, and changed-source control",
-        "passed": 13,
+        "passed": 14,
         "total": 14,
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
@@ -20584,8 +20584,8 @@
       {
         "title": "Check explicit let layout in the Rust compiler",
         "unit": "target",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker.",
+        "status": "running",
+        "phase": "Native layout unit tests",
         "passed": 0,
         "total": 1,
         "failed": 0,
@@ -20605,5 +20605,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:33:06.271110+00:00"
+  "updatedAt": "2026-11-08T19:35:30.070139+00:00"
 }
