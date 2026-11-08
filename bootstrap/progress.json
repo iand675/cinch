@@ -21107,7 +21107,7 @@
       },
       {
         "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
-        "status": "waiting-worker",
+        "status": "waiting-disk-space",
         "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 2,
@@ -21248,5 +21248,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:21:49.434346+00:00"
+  "updatedAt": "2026-11-08T16:24:33.514927+00:00"
 }
