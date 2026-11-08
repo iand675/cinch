@@ -20656,7 +20656,7 @@
         "total": 4,
         "failed": 0,
         "source": "120a0c96b6e10f9bd772c0f02f643bd0d17a181f727d08dc83a1e9fa4ab04ac3",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-guarded-later-stage1-results.json"
       },
       {
         "title": "Replay all ten codata tests with memo and guarded recursion",
@@ -20672,12 +20672,23 @@
       {
         "title": "Compile and replay the host inline primitive cases",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with inline primitives",
         "passed": 0,
         "total": 14,
-        "failed": 0,
+        "failed": 1,
         "source": "0d8798c10506aac597bcd2c0d9d13cd61055a6f2bbe55814aa77ed87b6dba20f",
+        "evidence": null
+      },
+      {
+        "title": "Replay the original integration failures and guard coverage",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with integration diagnostics",
+        "passed": 0,
+        "total": 15,
+        "failed": 0,
+        "source": "a498e06d14fab7d58ebc35afcb760a184c4482c64da940a35899bdbd4684fecf",
         "evidence": null
       },
       {
@@ -20716,5 +20727,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:13:35.816512+00:00"
+  "updatedAt": "2026-11-08T21:16:00.693919+00:00"
 }
