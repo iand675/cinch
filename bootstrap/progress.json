@@ -17938,6 +17938,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
+        "title": "Run all 236 targets on the published Rust compiler",
+        "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
+        "unit": "targets",
+        "passed": 0,
+        "failed": 0,
+        "total": 236,
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
+      },
+      {
+        "title": "Fix Rust memo cache ownership and strict initializer order",
+        "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
+        "unit": "tests",
+        "passed": 210,
+        "failed": 0,
+        "total": 210,
+        "status": "passed",
+        "phase": "All 171 runtime and 39 integration tests passed. Both original failures replayed without leaks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
+      },
+      {
         "title": "Build and verify the integrated ABI 7 compiler",
         "unit": "stages",
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -20593,6 +20615,28 @@
         "evidence": null
       },
       {
+        "title": "Resolve nested effect rows and replay memo typing",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked memo scopes",
+        "passed": 0,
+        "total": 12,
+        "failed": 0,
+        "source": "b4523dcf1e4b705b6a8ea06263d237946ce330f87a357a6eea7cfa4370ba44df",
+        "evidence": null
+      },
+      {
+        "title": "Execute Cinch memo groups and verify scope cleanup",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked memo scopes",
+        "passed": 0,
+        "total": 12,
+        "failed": 0,
+        "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+        "evidence": null
+      },
+      {
         "title": "Check Rust task sharing and transfer through reference fields",
         "unit": "targets",
         "status": "passed",
@@ -20628,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:10:15.574608+00:00"
+  "updatedAt": "2026-11-08T20:15:22.471681+00:00"
 }
