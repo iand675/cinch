@@ -37,7 +37,7 @@ module Bootstrap.Pipeline where
   import Data.Json
   import Data.List (map)
   import Text.Json (canonical-bytes)
-  import Text.Lex (bytes-slice, span-start, span-end)
+  import Text.Lex (bytes-slice, span-start, span-end, LToken, lt-span, lex-tokens, LexedTokens, LexedFail)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize)
   import Data.String (string-concat, string-to-bytes)
@@ -292,20 +292,34 @@ module Bootstrap.Pipeline where
         matches-source-digest source begin (end - 1) (separators - 1) digest else False)
     else False
 
-  matches-source-section :: Bytes -> Module -> List (Nat, Nat) -> String -> Bool
-  matches-source-section source home sections digest = case sections of
+  -- The parser ends a module span at the next token, which can be past
+  -- the source separator. Every token belonging to this module must still
+  -- be within the authenticated bytes, even across a forged bundle label.
+  module-tokens-within :: List LToken -> Nat -> Nat -> Nat -> Bool
+  module-tokens-within tokens start finish end = case tokens of
+    Nil -> True
+    Cons token rest -> let location = lt-span token in
+      let at = span-start location in
+      if at >= finish then True
+      else if at >= start && span-end location > end then False
+      else module-tokens-within rest start finish end
+
+  matches-source-section :: Bytes -> List LToken -> Module -> List (Nat, Nat) -> String -> Bool
+  matches-source-section source tokens home sections digest = case sections of
     Nil -> False
     Cons (begin, end) rest -> let location = module-span home in
-      if begin <= span-start location && span-end location <= end then matches-source-digest source begin end 2 digest
-      else matches-source-section source home rest digest
+      let start = span-start location in
+      if begin <= start && start < end then
+        matches-source-digest source begin end 2 digest && module-tokens-within tokens start (span-end location) end
+      else matches-source-section source tokens home rest digest
 
-  authenticate-source-overlays :: Bytes -> List (Nat, Nat) -> List Module -> Json -> Result String Unit
-  authenticate-source-overlays source sections replacements digests = case replacements of
+  authenticate-source-overlays :: Bytes -> List LToken -> List (Nat, Nat) -> List Module -> Json -> Result String Unit
+  authenticate-source-overlays source tokens sections replacements digests = case replacements of
     Nil -> Ok ()
     Cons home rest -> let name = module-name home in
       (case object-field name digests of
-        JStr digest -> if matches-source-section source home sections digest then
-          authenticate-source-overlays source sections rest digests
+        JStr digest -> if matches-source-section source tokens home sections digest then
+          authenticate-source-overlays source tokens sections rest digests
           else Err ("bootstrap.object: rebuild the library object for changed source module " <> name)
         other -> Err ("bootstrap.object: library object has no authenticated source for " <> name))
 
@@ -320,13 +334,15 @@ module Bootstrap.Pipeline where
   check-object-source :: Bytes -> Program -> List LoadedInterface -> Json -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
   check-object-source source program interfaces metadata = case object-overlays (program-modules program) interfaces of
     Nil -> check-object-client source program interfaces Nil
-    replacements -> case authenticate-source-overlays source (source-sections source) replacements (object-field "source_sha256" metadata) of
-      Err message -> Err message
-      Ok done -> case recheck-source-overlays source program interfaces interfaces Nil of
-        Err message -> Err message
-        Ok (remaining, effective, written) -> case overlay-object-identities written interfaces of
+    replacements -> case lex-tokens source of
+      LexedFail at reason -> Err "bootstrap.object: cannot authenticate unlexed source"
+      LexedTokens tokens -> (case authenticate-source-overlays source tokens (source-sections source) replacements (object-field "source_sha256" metadata) of
           Err message -> Err message
-          Ok done -> check-object-client source remaining effective written
+          Ok done -> case recheck-source-overlays source program interfaces interfaces Nil of
+            Err message -> Err message
+            Ok (remaining, effective, written) -> case overlay-object-identities written interfaces of
+              Err message -> Err message
+              Ok done -> check-object-client source remaining effective written)
 
   check-object-client :: Bytes -> Program -> List LoadedInterface -> List (String, Json) -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
   check-object-client source program interfaces written = case checked-source program interfaces of
