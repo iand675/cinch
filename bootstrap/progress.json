@@ -11906,9 +11906,9 @@
         "counts": {
           "verified": 0,
           "blocked": 0,
-          "running": 0,
+          "running": 1,
           "pending": 79,
-          "recheck": 26
+          "recheck": 25
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13963,21 +13963,21 @@
           {
             "id": "stage3:interface_prelude_overrides",
             "title": "interface_prelude_overrides",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_prelude_overrides.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T10:54:59.725984+00:00",
-              "finishedAt": "2026-11-07T10:55:18.536077+00:00",
-              "exitCode": 101,
-              "logSha256": "a668d303e760191067f2ccefd27761fa04b9802a57fd71ccb58ac08bd4427053",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:30:48.123843+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_family_homes_precede_embedded_consumers_with_checked_hashes",
-                  "status": "failed"
+                  "status": "running"
                 }
               ]
             },
@@ -19872,8 +19872,8 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "building stage2",
-        "passed": 2,
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19883,13 +19883,23 @@
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
         "status": "running",
-        "phase": "Waiting for Stage2 on the preceding combined compiler.",
+        "phase": "Waiting for one of the five build workers.",
         "passed": 0,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "4a3a72968db350d25636cdb280880d7d00e03e24063788a0dbb1912d55f2e366",
         "auditPending": false
+      },
+      {
+        "title": "Run the first frontend shard on the audited published Stage3",
+        "status": "running",
+        "phase": "interface_prelude_overrides",
+        "passed": 0,
+        "failed": 0,
+        "total": 21,
+        "unit": "original test targets",
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       {
         "title": "Check explicit library sources against their compiled object",
@@ -20071,9 +20081,9 @@
     "counts": {
       "verified": 5,
       "blocked": 5,
-      "running": 10,
+      "running": 11,
       "pending": 86,
-      "recheck": 569
+      "recheck": 568
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20081,5 +20091,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:30:25.597261+00:00"
+  "updatedAt": "2026-11-08T01:31:27.409808+00:00"
 }
