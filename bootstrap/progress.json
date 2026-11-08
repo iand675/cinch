@@ -20662,8 +20662,8 @@
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. unproductive_corec_is_rejected_naming_the_call",
-        "passed": 3,
+        "phase": "Isolated Stage 1 candidate. later_is_not_interchangeable_with_thunk",
+        "passed": 5,
         "total": 13,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20673,8 +20673,8 @@
         "title": "Compile and replay the host inline primitive cases",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. bodies",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. extra-params",
+        "passed": 3,
         "total": 14,
         "failed": 0,
         "source": "d1313796d53f42bd0bdd9d9875f44a80f0d5dd3214cf5b8ec09cdd18b1a60bf7",
@@ -20738,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:31:27.744807+00:00"
+  "updatedAt": "2026-11-08T21:32:31.008646+00:00"
 }
