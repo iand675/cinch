@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "10/236 Rust targets and 4/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "10/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12035,11 +12035,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 4,
+          "verified": 5,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 99
+          "recheck": 98
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12577,23 +12577,18 @@
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T01:52:58.269609+00:00",
-              "finishedAt": "2026-11-08T01:57:11.615211+00:00",
-              "exitCode": 0,
-              "logSha256": "015d691d887305249ec2321b75dc164b65bb8a18c214b3822a14575f20d5d670",
-              "cases": [
-                {
-                  "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior",
             "currentTests": null
@@ -13348,18 +13343,23 @@
           {
             "id": "stage3:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "43c06292d3a37bcb41e5269904aefca89164d875b4144293ea6da2bf97244def",
+              "cases": [
+                {
+                  "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20297,8 +20297,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_body_bindings, bootstrap_nominals",
-        "passed": 4,
+        "phase": "bootstrap_body_bindings, bootstrap_decisions",
+        "passed": 5,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20436,11 +20436,11 @@
       }
     ],
     "counts": {
-      "verified": 352,
+      "verified": 353,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 346
+      "recheck": 345
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20448,5 +20448,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:02:07.908196+00:00"
+  "updatedAt": "2026-11-08T18:03:11.522808+00:00"
 }
