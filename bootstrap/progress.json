@@ -20994,8 +20994,8 @@
       {
         "title": "Run the complete ABI 7 Native suite",
         "status": "running",
-        "phase": "Bootstrap_anonymous_contracts.",
-        "passed": 15,
+        "phase": "Bootstrap_argument_scopes.",
+        "passed": 16,
         "failed": 0,
         "total": 236,
         "unit": "targets",
@@ -21203,5 +21203,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:18:12.950146+00:00"
+  "updatedAt": "2026-11-08T13:21:37.278030+00:00"
 }
