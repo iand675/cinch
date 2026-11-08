@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "1 of 236 complete groups passed; 0 running, 0 failed and 235 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "1 of 236 complete groups passed; 1 running, 0 failed and 234 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "1 of 236 complete groups passed; 0 running, 0 failed and 235 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "1 of 236 complete groups passed; 1 running, 0 failed and 234 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -824,8 +824,8 @@
         "counts": {
           "verified": 1,
           "blocked": 0,
-          "running": 0,
-          "pending": 235,
+          "running": 1,
+          "pending": 234,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -9580,47 +9580,18 @@
           {
             "id": "native:repl",
             "title": "repl",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/repl.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:28:27.387388+00:00",
-              "finishedAt": "2026-11-06T14:28:49.709500+00:00",
-              "exitCode": 0,
-              "logSha256": "e67d724ac398fb2a68049e2abf75273f7581824cb8afe56de938fbe6713f9761",
-              "cases": [
-                {
-                  "name": "an_error_shows_its_source_span",
-                  "status": "passed"
-                },
-                {
-                  "name": "completion_covers_session_and_prelude_names",
-                  "status": "passed"
-                },
-                {
-                  "name": "definition_and_expression_evaluation_persist_across_inputs",
-                  "status": "passed"
-                },
-                {
-                  "name": "history_records_the_accepted_inputs",
-                  "status": "passed"
-                },
-                {
-                  "name": "load_and_reload_a_multi_file_project",
-                  "status": "passed"
-                },
-                {
-                  "name": "multi_line_input_continues_until_the_block_closes",
-                  "status": "passed"
-                },
-                {
-                  "name": "type_kind_and_browse_outputs",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:43:40.780813+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "currentTests": null
           },
@@ -11940,9 +11911,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 33,
+          "verified": 34,
           "blocked": 5,
-          "running": 4,
+          "running": 3,
           "pending": 55,
           "recheck": 8
         },
@@ -13206,21 +13177,21 @@
           {
             "id": "stage3:bootstrap_pi",
             "title": "bootstrap_pi",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:39:35.228558+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:43:40.778891+00:00",
+              "exitCode": 0,
+              "logSha256": "8e401bc76089a4e44f48d761f1f82d5aab92e851a07ab8a0974c31d78c9b9f0e",
               "cases": [
                 {
                   "name": "dependent_functions_preserve_binding_scope_effects_and_application",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -19058,6 +19029,16 @@
         "auditPending": false
       },
       {
+        "title": "Current compiler: full Rust sweep",
+        "status": "running",
+        "phase": "repl",
+        "passed": 1,
+        "failed": 0,
+        "total": 236,
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "earlier": false
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -20095,9 +20076,9 @@
       },
       {
         "title": "Run the first frontend shard on the audited published Stage3",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "bootstrap_pi. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 12,
+        "passed": 13,
         "failed": 1,
         "total": 21,
         "unit": "original test targets",
@@ -20325,10 +20306,10 @@
       }
     ],
     "counts": {
-      "verified": 255,
+      "verified": 256,
       "blocked": 10,
       "running": 14,
-      "pending": 296,
+      "pending": 295,
       "recheck": 102
     },
     "total": 677,
@@ -20337,5 +20318,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:42:49.625616+00:00"
+  "updatedAt": "2026-11-08T02:43:51.941191+00:00"
 }
