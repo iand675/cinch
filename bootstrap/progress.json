@@ -506,7 +506,7 @@
   "candidatePublished": false,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "9/236 Rust targets and 0/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "9/236 Rust targets and 1/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -543,7 +543,7 @@
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "running",
+        "state": "pending",
         "detail": "Awaiting the independent Stage 3 audit.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage3-admission.json",
@@ -12011,11 +12011,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 0,
+          "verified": 1,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 104
+          "recheck": 103
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -13157,13 +13157,13 @@
           {
             "id": "stage3:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -13176,18 +13176,27 @@
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "a9447e8e16291411bf1c26133dbf04478e9849516a4b75e905e95491fdb53a1a",
+              "cases": [
+                {
+                  "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -18000,10 +18009,10 @@
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "passed": 4,
         "total": 5,
-        "status": "running",
+        "status": "waiting-independent-audit",
         "phase": "check the fixed point, compiler interface consumer and changed-source control",
         "failed": 0,
-        "auditPending": false,
+        "auditPending": true,
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage2-results.json"
       },
       {
@@ -20195,8 +20204,8 @@
       },
       {
         "title": "Run all 236 integrated Native groups",
-        "status": "waiting-worker",
-        "phase": "Waiting worker",
+        "status": "running",
+        "phase": "Bootstrap_effects",
         "passed": 31,
         "failed": 0,
         "total": 236,
@@ -20346,9 +20355,9 @@
       },
       {
         "title": "Rebuild with the expanded pinned object through Stage 3",
-        "status": "running",
-        "phase": "check the fixed point, compiler interface consumer and changed-source control",
-        "passed": 4,
+        "status": "passed",
+        "phase": "The Stage 2 and Stage 3 executables, IR and 46 compiler interfaces match. The interface consumer and changed-source controls passed.",
+        "passed": 5,
         "total": 5,
         "unit": "gates",
         "failed": 0,
@@ -20357,8 +20366,8 @@
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
-        "status": "checking-stage3-agreement",
-        "phase": "Waiting for Stage 3 fixed-point verification.",
+        "status": "waiting-shared-worker",
+        "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 34,
         "unit": "gates",
@@ -20369,8 +20378,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_load",
-        "passed": 0,
+        "phase": "bootstrap_library_object",
+        "passed": 1,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20508,11 +20517,11 @@
       }
     ],
     "counts": {
-      "verified": 295,
+      "verified": 296,
       "blocked": 0,
-      "running": 4,
-      "pending": 4,
-      "recheck": 403
+      "running": 3,
+      "pending": 5,
+      "recheck": 402
     },
     "total": 706,
     "acceptanceVerified": 2,
@@ -20520,5 +20529,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:19:38.483968+00:00"
+  "updatedAt": "2026-11-08T17:20:41.596010+00:00"
 }
