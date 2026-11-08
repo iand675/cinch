@@ -20961,8 +20961,8 @@
       {
         "title": "Run shared mutable cells through the rebuilt Cinch compiler",
         "status": "running",
-        "phase": "Building stage1.",
-        "passed": 2,
+        "phase": "Check.",
+        "passed": 3,
         "failed": 0,
         "total": 10,
         "unit": "gates",
@@ -20992,5 +20992,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:12:27.565721+00:00"
+  "updatedAt": "2026-11-08T09:13:30.382514+00:00"
 }
