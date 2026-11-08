@@ -20761,8 +20761,8 @@
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. integration (39 original tests)",
-        "passed": 16,
+        "phase": "Combined candidate, starting from the pinned seed. concurrency (19 original tests)",
+        "passed": 55,
         "total": 74,
         "failed": 0,
         "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
@@ -20804,5 +20804,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:04:36.509797+00:00"
+  "updatedAt": "2026-11-08T23:05:59.969308+00:00"
 }
