@@ -11860,10 +11860,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 14,
+          "verified": 15,
           "blocked": 2,
           "running": 4,
-          "pending": 74,
+          "pending": 73,
           "recheck": 11
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11871,17 +11871,17 @@
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "7 of 8 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:06:10.005649+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:08:14.375140+00:00",
+              "exitCode": 0,
+              "logSha256": "4d196ece71c6392323bf30076431032372a8b2c8124578f1178456b11459a2b4",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -11913,7 +11913,7 @@
                 },
                 {
                   "name": "unbounded_allocation_hits_the_named_cap",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12124,21 +12124,21 @@
           {
             "id": "stage3:bootstrap_array_float_bits",
             "title": "bootstrap_array_float_bits",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:36:20.823199+00:00",
-              "finishedAt": "2026-11-07T12:46:53.023588+00:00",
-              "exitCode": 0,
-              "logSha256": "de0bf641fe21e2d4f0a74c180253088b7678359b05dffbd11a47b0a2561ff16b",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:08:15.442138+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -12573,21 +12573,21 @@
           {
             "id": "stage3:bootstrap_guarded_association",
             "title": "bootstrap_guarded_association",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_association.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:04:51.721378+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:08:57.270038+00:00",
+              "exitCode": 0,
+              "logSha256": "7ff3732f671d6d0dbc9fe121ca91d3da8e32f21ecf24bfa7e1263afcd4cc7e1e",
               "cases": [
                 {
                   "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12668,13 +12668,13 @@
           {
             "id": "stage3:bootstrap_imported_preconditions",
             "title": "bootstrap_imported_preconditions",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_preconditions.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -18851,7 +18851,7 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "runtime-release-archive",
+        "phase": "clean-native-build",
         "passed": 0,
         "failed": 0,
         "total": 236,
@@ -19897,8 +19897,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_guarded_association. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 8,
+        "phase": "bootstrap_imported_preconditions. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 9,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19940,13 +19940,13 @@
       {
         "title": "Check byte lengths through checked total helper bodies",
         "status": "passed-total-byte-observations",
-        "phase": "different buffer cannot borrow fact",
+        "phase": "All six controls passed on development Stage1. The linked buffer-selection program ran without leaks.",
         "passed": 6,
         "failed": 0,
         "total": 6,
         "unit": "client cases",
         "source": "f1a7cafb94446072e233dcfe1ff32280c6efe87059c0141936dc2bca6b490a64",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-total-byte-observation-results.json"
       },
       {
         "title": "Check explicit library sources against their compiled object",
@@ -20126,10 +20126,10 @@
       }
     ],
     "counts": {
-      "verified": 19,
+      "verified": 20,
       "blocked": 7,
       "running": 14,
-      "pending": 316,
+      "pending": 315,
       "recheck": 319
     },
     "total": 675,
@@ -20138,5 +20138,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:08:12.589166+00:00"
+  "updatedAt": "2026-11-08T02:08:57.431224+00:00"
 }
