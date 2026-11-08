@@ -20717,8 +20717,8 @@
         "title": "Replay records, nominal types and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. replay the original bootstrap_nominals target with the combined Stage 1",
-        "passed": 18,
+        "phase": "Combined candidate, starting from the pinned seed. replay the original codata target with the combined Stage 1",
+        "passed": 19,
         "total": 20,
         "failed": 0,
         "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
@@ -20848,5 +20848,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:41:20.371288+00:00"
+  "updatedAt": "2026-11-08T23:42:43.705024+00:00"
 }
