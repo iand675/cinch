@@ -77,6 +77,14 @@ distinction from `Thunk`, closed pure deferral and single use. Combined
 codata execution and its fixed point have separate gates.
 See [the guarded Later audit](../bootstrap/current-schema10-abi7-guarded-later-stage1-results.json).
 
+An isolated Cinch Stage 1 passed 13 host inline primitive controls. The
+LLVM/assembly fixture retained both immediate-operand annotations and
+ran without leaks. The overflow intrinsic also ran without leaks. All ten
+original refusals named the required rule, and a memory operation hidden on
+an arithmetic line was refused. Cross-target selection, compiled primitive
+assumptions and a matching Stage 2 and Stage 3 have separate gates.
+See [the host primitive audit](../bootstrap/current-schema10-abi7-stage1-primitive-containment-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

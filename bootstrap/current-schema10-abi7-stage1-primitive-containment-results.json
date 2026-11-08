@@ -1,0 +1,159 @@
+{
+  "compiler_source_sha256": "d1313796d53f42bd0bdd9d9875f44a80f0d5dd3214cf5b8ec09cdd18b1a60bf7",
+  "full_goal_complete": false,
+  "native_source_sha256": "93f6ee889ef1e342b4ded3fe9d87ea44b5ee3f7b47889a6651819518c5a3643e",
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "original_target_sha256": "cb3ec8869b53772302f71180268f95621996e9043cfb0d0651a8a2a315fd4b4a",
+  "rows": [
+    {
+      "diagnostic": "",
+      "executable_sha256": "41045188e1d8e12fb25b7a0ce9e64b8a80e0549286e719061995d281fe6853da",
+      "execution_exit": 0,
+      "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "expected_attributes": true,
+      "expected_diagnostic": null,
+      "frontend_exit": 0,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "ir_sha256": "5c2f65b7d41827083b529d0bf3b48f032cb28e2d55517675211689a535e22fe5",
+      "leaked": false,
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "bodies",
+      "source_sha256": "6043941d4698036eda260563a7df1d990d8097f08fc9ba7e6c3d33b476dfcadb",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (no-escape): the call has no checked intrinsic or uses contract\n",
+      "diagnostics_sha256": "57aad254f39f30d22f41eea2ed42af8b158f8a627c46c9e60539b6e80e708278",
+      "expected_diagnostic": "no-escape",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "escape",
+      "source_sha256": "81bee01b87d02a995c616f07bd53304123ae8ddee8dfceb10fb870af7fa69af4",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (signature discipline): a fragment declares extra parameters or results\n",
+      "diagnostics_sha256": "41b357195b197446a99b11d9d57b01c65c4b94a2f0d43d38c258ab018927109f",
+      "expected_diagnostic": "signature discipline",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "extra-params",
+      "source_sha256": "1cfa3faeb207574260962c5e6f256425b9ac64e6b2249948d2036e432fe359f6",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (no-unwind): the inline body may unwind\n",
+      "diagnostics_sha256": "af9d8519c39dd6f0b38656a4beb4d676c23e502d06d2de6cafdf409f3c168df2",
+      "expected_diagnostic": "no-unwind",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "unwind",
+      "source_sha256": "4f387519c9435237fe2576f8a0eb1ff2b4605fc0b77971c2c3b780d67362c432",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (determinism of effects): this LLVM memory operation has no checked buffer contract\n",
+      "diagnostics_sha256": "44ce37c89c84d5b66451a3882fc7b57f6df54c0fac54cf630cc0edfb6f7f096c",
+      "expected_diagnostic": "determinism of effects",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "effects",
+      "source_sha256": "ede6df2907f869ddbbff6b43b115b55fd2c433e647e8412bbc30e4657ab3381e",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: clr target-IR family is reserved\n",
+      "diagnostics_sha256": "285f0dd91d2257a87184e988e4dc40586c0885a8c62aac916ec9b86bbc5190d3",
+      "expected_diagnostic": "reserved",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "clr",
+      "source_sha256": "3ab33725ad717d808ce08f469a6203826ed77aa828d28de5660f726332f4aa55",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: jvm target-IR family is reserved\n",
+      "diagnostics_sha256": "9cea25a6cc41dd03358f8f783d8e39d7b4d8285ef84c9e8a3f42c283fd3b9fd3",
+      "expected_diagnostic": "reserved",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "jvm",
+      "source_sha256": "2c72bf4443eb9a4a3497d1f7a1ddf2bfd7c5fe416e03e65fca50c8ad76d40e68",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:13:31: stale evidence: evidence derived at 11:11 is invalidated by the write at 12:17\n",
+      "diagnostics_sha256": "6a952287aa856e8b5bf8ef22f35030a49cd9444cc7d0c559dce2efcd03b793c4",
+      "expected_diagnostic": "stale evidence",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "io-prim",
+      "source_sha256": "b3bc2eae18c2820231709d73d8616d6d2313ba773b20cd7542d2eac9678e0cdc",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (determinism of effects): this LLVM memory operation has no checked buffer contract\n",
+      "diagnostics_sha256": "44ce37c89c84d5b66451a3882fc7b57f6df54c0fac54cf630cc0edfb6f7f096c",
+      "expected_diagnostic": "determinism of effects",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "unsafe-stores",
+      "source_sha256": "e32e214e641efd09c0b621c1bbeed69395432a624e0c22597918537c0a0d6a87",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: an assembly fragment must mark it `unsafe`\n",
+      "diagnostics_sha256": "a960f93358e9712ce139eafefe0ffe1e588a336fa905eb4ff98c316090adac7a",
+      "expected_diagnostic": "mark it `unsafe`",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "asm-trust-required",
+      "source_sha256": "c71a31ab8da17cfd434fa595d99577875bb60397c6f5ed7e65d1de4e8476df94",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: no LLVM baseline for arch x86_64\n",
+      "diagnostics_sha256": "9ea171be60256aaf9d2042fe2bffdd825c2bca728f4f308de5a5760e31e03f75",
+      "expected_diagnostic": "arch x86_64",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "pop-missing",
+      "source_sha256": "d5d3e0020b0441b6b3ca97439be2e5e5d8e479ef0dd719a098a16ab510f50274",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "executable_sha256": "5f77ab706f03c20f61156ec15dd33fc185a1b8be79b9b449d902dd5e7ee2f60a",
+      "execution_exit": 0,
+      "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "expected_attributes": true,
+      "expected_diagnostic": null,
+      "frontend_exit": 0,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "ir_sha256": "f3d54af81ea79436a0439ed13a94909f60e1cf828f90ffe79de60c7343e6c7d3",
+      "leaked": false,
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "intrinsic-overflow",
+      "source_sha256": "d382592d81992d55c73fdb361d53e875b87aebab61ec9244c5f3fb4d7a551293",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:3:3: containment (determinism of effects): this LLVM memory operation has no checked buffer contract\n",
+      "diagnostics_sha256": "44ce37c89c84d5b66451a3882fc7b57f6df54c0fac54cf630cc0edfb6f7f096c",
+      "expected_diagnostic": "determinism of effects",
+      "frontend_exit": 4,
+      "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "same-line-store",
+      "source_sha256": "b7f0178dab4d33707a8cd4a3fd42fac679850146956512b7a014b432989c1b7f",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "Thirteen host controls on one isolated Cinch Stage 1. Cross-target selection, checked primitive interface assumptions and a matching fixed point remain separate.",
+  "stage1_receipt_sha256": "905caa08f2131a543f7380818ede882ddc26b2afe040561e701cb2126a0ddb14",
+  "stage1_sha256": "888a3fe5f70033221133d1de60b2d14d3b97c8d4190d5e2c76fabf7d9179322b",
+  "status": "audited-stage1-host-primitive-containment",
+  "validator_state_sha256": "97e0fe327fa919056caa4f1edf020a8b7630659d874a6ba84353c2a61e978102"
+}
