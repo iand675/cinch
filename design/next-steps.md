@@ -61,6 +61,14 @@ a space and the flag-like words following `--`. Matching Stage3 coverage
 remains open.
 See [the argv audit](../bootstrap/current-schema10-compiled-argv-results.json).
 
+The refinement erasure candidate passed eight checks on development Stage1.
+Both original source cases and both additional runtime controls ran without
+leaks. Four invalid constructions were refused. The LLVM for refined and
+plain list construction agrees after renaming local values and labels.
+Returning a refined parameter through `unrefine` transfers the existing
+owned value. The combined compiler rebuild remains open.
+See [the refinement erasure audit](../bootstrap/current-schema10-refinement-erasure-results.json).
+
 
 The pinned
 library object preserves all 55 checked interfaces and includes

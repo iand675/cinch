@@ -1,0 +1,113 @@
+{
+  "compiler_modules": 46,
+  "compiler_sha256": "64e2a79a318687548eb91b49885eb2293f5e8a29abe8ff045a9c590ac69bf3aa",
+  "compiler_source_sha256": "06152a32142942c55ef51b918c2320c22162a2e796389aa88773abea25189f0d",
+  "compiler_stage": 1,
+  "exact_refusals": 4,
+  "full_goal_complete": false,
+  "identical_normalized_list_construction_ir": true,
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_sources": 2,
+  "original_test_file_sha256": "98ea192a35760921193df9f5554c6fa6951525021d70d600491033ed4d4d6e16",
+  "passed": 8,
+  "projection_return": "Returns arg0 directly. Drops arg1 once when present.",
+  "provider_interface_count": 55,
+  "provider_metadata_sha256": "6f9cbfe65d4e4893562dbd324633a144e40fc71ca9a1bb4958b46ab932163310",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "rows": [
+    {
+      "artifact_exit": 0,
+      "diagnostics": "",
+      "executable_sha256": "7eb493a3c9ef3e823d7c8750d0c0bef8f14a5a0521b5f18ff868a1eb6362d0a3",
+      "exit_code": 0,
+      "ir_sha256": "e40bd242b2c79cd2a5f6316a365b3d2bde25a22be3297a913053168e8bff6a71",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "direct-construction",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "53edcf51037326ca3cd24242f809eba546d452324e80bc8d9356f80c163ddc55",
+      "status": "passed",
+      "zero_leaks": true
+    },
+    {
+      "artifact_exit": 0,
+      "diagnostics": "",
+      "executable_sha256": "3b6888f1d477b41f64b946841677ef7cf4def1a67a46091b7bdbb85381732a51",
+      "exit_code": 0,
+      "ir_sha256": "7d6b2e9adb5adfc62f4cd1080aa57841a491458ae6a6c278727fcc1707fe5b62",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-erasure-source",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "46fc75c8b1bcde0c42831afcd6776b56a60f60ab479c06948537b24c15c561f0",
+      "status": "passed",
+      "zero_leaks": true
+    },
+    {
+      "artifact_exit": 0,
+      "diagnostics": "",
+      "erased_ir": true,
+      "executable_sha256": "baa76ce31549567bb72717a4dd0d759f83bf28063f6a9f151252fd8d2743a117",
+      "exit_code": 0,
+      "ir_sha256": "c3806e753874a7f9765b733c6599eead6687add4c929db337d2b42a3af1b571d",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emitted-erasure",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "3aa9f576860a9a817c23a4e7b6bbe5fe6cc678df3ee9ce95aed208bfc61f100f",
+      "status": "passed",
+      "zero_leaks": true
+    },
+    {
+      "artifact_exit": 0,
+      "diagnostics": "",
+      "executable_sha256": "82d8188ebbaf4ea203d19b2d6468b96dfebe7d3a37c72283cc54407880ea0e43",
+      "exit_code": 0,
+      "ir_sha256": "ecfd0060c4010a15d057568fc9ce05e6df643a79f55a834a9a4e290999254520",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "runtime-decision",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "fa38a095126a12690c7e94959fe11b74763a032acaf1bcf9bb50b70b5abc77a1",
+      "status": "passed",
+      "zero_leaks": true
+    },
+    {
+      "diagnostics": "bootstrap.check:4:41: type mismatch: expected 1, found 2 (index mismatch)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "wrong-static-witness",
+      "source_sha256": "35065df2dbc3ff4e3a414c5fef470e4d719145445b16d8f21626a86aae4e22ca",
+      "status": "passed"
+    },
+    {
+      "diagnostics": "bootstrap.check:4:18: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "false-static-number",
+      "source_sha256": "47286fe97f813bf5a85adb8b43e218df80ab38df085a39e8359f7c0d6e66953a",
+      "status": "passed"
+    },
+    {
+      "diagnostics": "bootstrap.check:4:37: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "false-static-list",
+      "source_sha256": "3ca7f721fbbc8fd488ebe0ab24a30391f07074c8b3fb979827371b78362bd4f3",
+      "status": "passed"
+    },
+    {
+      "diagnostics": "bootstrap.check:4:25: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "undecided-static-list",
+      "source_sha256": "b55f76d89a4f3f90a079a7e27adb722b63485f8cdbfb060111799bd324860bed",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "06d5da079e83947a5ac54643e383c0b5850e9b55ccf4472a1177e9889f524467",
+  "status": "audited-static-refinement-construction-and-erasure",
+  "zero_leak_runs": 4
+}
