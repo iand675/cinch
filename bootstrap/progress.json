@@ -20941,9 +20941,9 @@
       },
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
-        "status": "building-stage1",
-        "phase": "building stage1",
-        "passed": 1,
+        "status": "building-stage2",
+        "phase": "building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20983,5 +20983,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:07:16.401299+00:00"
+  "updatedAt": "2026-11-08T07:08:18.461860+00:00"
 }
