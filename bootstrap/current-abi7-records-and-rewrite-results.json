@@ -1,0 +1,206 @@
+{
+  "full_goal_complete": false,
+  "records": {
+    "checks": [
+      {
+        "log_sha256": "39fe20c6ead39283e7098322634ff7f4161ecbeff01af51a00724bacc30cbbd1",
+        "name": "native-record-contracts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "compiler_sha256": "cd101e13491340b3927286f9f68cb74ef7ab2e743df0a6aa451a3424760fe848",
+        "name": "stage1",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:5:5: an `erased` field is evidence: y needs a proposition\nbootstrap.check:5:5: ill-formed source dependent function\nbootstrap.check:4:10: ill-formed source dependent function\n",
+        "frontend_exit": 4,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "source-original-non-proposition",
+        "source_sha256": "f18b6a87feb9425ac393a7a766b5cba892144fe4cc4697e52338f405ad8b64a8",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "",
+        "execution_exit": 0,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "frontend_exit": 0,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "b9a53b78695ad0441839892e05f075f4687058c16bd3abb4216734535f32b48d",
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "source-original-erased-field",
+        "source_sha256": "4fa51075b89ca6e7bbcf9aeb907cc6763e4a71ed11df8ffe496c45c412e88be2",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "bootstrap.check:8:41: refl requires definitionally equal operands\nbootstrap.check:8:11: field projection needs a known record type\n",
+        "frontend_exit": 4,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "source-wrong-evidence",
+        "source_sha256": "ff764d3f29f29e65c090c138671cbc66921a18f6dcb1b3ad604c541d4e3ac107",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "",
+        "execution_exit": 17,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "frontend_exit": 0,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "3cc01d1fdbd38f1964746fecd61a5898d8ecf2a1695a673c1d9202c83c2cd93b",
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "source-construct-and-project",
+        "source_sha256": "731d12747d73c405feeb38ded1f17b7e343c5a5e081b2b5dea0ee2d6a9e9f035",
+        "status": "passed"
+      },
+      {
+        "diagnostic": "",
+        "execution_exit": 19,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "frontend_exit": 0,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "03027a0b0e7d9e8b51f45249b667e10e5666d259f32c6e4064ec07698d1f4027",
+        "link_exit": 0,
+        "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+        "name": "source-construct-and-match",
+        "source_sha256": "55eca7b4a887ec78756252e6e38d3c902ea4f27bccc16f89c2383587a060c1d2",
+        "status": "passed"
+      },
+      {
+        "interface_sha256": "495fc47e0a90917654d463e6421d9082f8b15fe9cbb81d6e8ca5d5ee523f25b9",
+        "metadata_sha256": "475ebf57d0f7c011c4ed3ad6ee4279c265027291a3ef247f6b11be24fe46dda9",
+        "name": "record-object",
+        "object_sha256": "4b09ecfd21b969c3fb67e7f8515a730e1598d1a5c796a4206b7c93b337720e91",
+        "provider_source_sha256": "c2188b73a085ed3afa4fe56a3375b49245bd3395696b13a5d473d2c1402d3980",
+        "status": "passed"
+      },
+      {
+        "constructor_runtime_arity": 2,
+        "erasure": [
+          false,
+          true,
+          false
+        ],
+        "field_order": [
+          "value",
+          "witness",
+          "marker"
+        ],
+        "name": "erased-record-contract",
+        "status": "passed"
+      },
+      {
+        "archive_sha256": "a448c5f2cb28fa000632070506d74238316ef98929389fc9eff8fc72c568a8c8",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "record-archive",
+        "status": "passed"
+      },
+      {
+        "execution_exit": 37,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "53d1d09276f7dd0d2730632f6b70f3ca6507b686e0f3d07812f911bc7fe282c6",
+        "name": "source-free-record-client",
+        "status": "passed"
+      },
+      {
+        "execution_exit": 29,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "68aad723338e35aafd68570d224813a9f5d11e05d613237e5a77c8f6ee161051",
+        "name": "projection-via-returned-record",
+        "status": "passed"
+      },
+      {
+        "diagnostic_sha256": "963015b68adf747c8037c3825bab3fe05f0d1a5a989025d6dfe62e38f190cdd5",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "private-record-field-refusal",
+        "status": "passed"
+      },
+      {
+        "execution_exit": 43,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "9a45e7866225090f913db44881b3bfb16e5ab56f3b01707d4da5d8d998b797b8",
+        "name": "source-free-erased-construction",
+        "status": "passed"
+      },
+      {
+        "execution_exit": 47,
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "047901817b4589506d3f8642f33c4980b53775d216b87c9408e2b87a2a7d9cb3",
+        "name": "source-free-erased-projection",
+        "status": "passed"
+      },
+      {
+        "diagnostic_sha256": "1e6e5eefef2c44870a540b984f3730e62c5674432d678c62bfbb6b180fb45aec",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "source-free-wrong-evidence",
+        "status": "passed"
+      },
+      {
+        "diagnostic_sha256": "41de7426438691232261bf94b263586b4ed7c630ee73ca8d060e829ee108beec",
+        "forged_interface_sha256": "a76f26a69784c6d8c980fbb5f1c3fdcbca5951ffdfd08a57e58eb29ec6242b12",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "forged-record-erasure",
+        "status": "passed"
+      },
+      {
+        "forged_interface_sha256": "3d375774f4ae37ae59eaaf294f3923c151a477628773b383962e043601913dcb",
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "malformed-record-labels",
+        "status": "passed"
+      }
+    ],
+    "codata_requires_selected_frontend_replay": true,
+    "compiler_sha256": "cd101e13491340b3927286f9f68cb74ef7ab2e743df0a6aa451a3424760fe848",
+    "compiler_source_sha256": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
+    "native_source_sha256": "e4ae12265f56bac6135cccdec868f48d08686611be4963cb56cf53776da8cce0",
+    "nominal_cases": 34,
+    "nominal_driver_sha256": "73b11c482b9b52cc6cc91a334c5979f51f04dc1676979ecf54a587bb37eb7741",
+    "nominal_invocation_sha256": "724d9096abad4797427f7c5106492aa6b4e8c9d33426a88e0c989a3ab97969df",
+    "nominal_log_sha256": "e70276e36661091548b78411ba1d6868672c0a276e9cc891ad835e8bbea4af7e",
+    "stage1_receipt_sha256": "206b979743d30dc5e950ddc65a3f487e7ce33ca18cd737312f69def78942d88d"
+  },
+  "rewrites": {
+    "compiler_sha256": "5f09676772e1501d5ac0e551935e9c29eb662ad0d4cb8efa136b53258b0517e5",
+    "compiler_source_sha256": "03e80a41769af7a78b00c1fcf78ab3e0a1aa24ee2e07cbf3552dfe1ac5f57fa1",
+    "declared_assumptions": [
+      "Algebra.Semigroup.assoc"
+    ],
+    "interface_sha256": "95f2b279f56a10819d2c382161c66d5ed10eebed35e50de1db4e86539de7f41f",
+    "invocation_receipts": [
+      {
+        "exit_code": 0,
+        "sha256": "8f113bc94f34cae7971547352a56e737a5c760cc51bb2678ccaa1bcec78a1fe3",
+        "test": "class_laws_state_the_equations"
+      },
+      {
+        "exit_code": 0,
+        "sha256": "ff2e80d985871892a1348c8d7f8f184ffc1f0bcc1128067a8f9efe185c0d9027",
+        "test": "rewrite_citing_a_law_by_identity_records_the_assumption"
+      },
+      {
+        "exit_code": 4,
+        "sha256": "e9d921c03fbb48e78ccecada740578d421c2cbd388b923456ca34f204702400f",
+        "test": "class_laws_state_the_equations"
+      },
+      {
+        "exit_code": 0,
+        "sha256": "fada81eaf41b648978d3fcb62720a2bffce3eb9f968d30fe111ffbce3ed13572",
+        "test": "rewrite_citing_a_law_by_identity_records_the_assumption"
+      }
+    ],
+    "law_log_sha256": "1704cd6442a5d4bf5d476bff3f38dd2488f8c2228550f79be7f02bf69ed64307",
+    "native_source_sha256": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+    "original_cases_failed": 3,
+    "original_cases_passed": 5,
+    "pending": [
+      "false equation diagnostic",
+      "typed sampled law assertion",
+      "proposition-valued signature method"
+    ],
+    "stage1_receipt_sha256": "a10cfb4fc35b4f5505b4630358a3779e629c60a9d0533f9c3785b0d111960070"
+  },
+  "schema": 1,
+  "status": "audited-scoped-stage1-regressions"
+}

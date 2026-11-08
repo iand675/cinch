@@ -126,6 +126,17 @@ required interface output. The receipt preserves both runs.
 The combined Stage 2 and Stage 3 rebuild remains separate.
 See [the original target audit](../bootstrap/current-schema10-abi7-combined-host-integration-results.json).
 
+A combined record Stage 1 passed all 18 record checks and the original
+34-case nominal type test. The latter checks dictionary diagnostic
+wording as well as acceptance and refusal behavior. Its separate
+codata target lacked selected compiler receipts and requires replay.
+The first typed rewrite Stage 1 passed five of eight original law
+tests. It accepted the shipped law equations and recorded the cited
+law identity in the checked interface. The false equation diagnostic,
+typed law observation assertion and proposition-valued signature method
+have separate gates.
+See [the Stage 1 audit](../bootstrap/current-abi7-records-and-rewrite-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
