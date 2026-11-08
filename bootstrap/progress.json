@@ -21094,17 +21094,30 @@
         "total": 3,
         "unit": "gates",
         "failed": 0,
-        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-object-parity-results.json"
       },
       {
         "title": "Replay Rust ownership and link its erased-arrow object from Cinch",
         "status": "passed",
-        "phase": "All Rust ownership tests passed and the separately linked Cinch client exited zero without leaks.",
+        "phase": "All 27 Rust ownership tests passed and the separately linked Cinch client exited zero without leaks.",
         "passed": 4,
         "total": 4,
         "unit": "gates",
         "failed": 0,
-        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-object-parity-results.json"
+      },
+      {
+        "title": "Replay the permanent library object regression",
+        "status": "running",
+        "phase": "run-exact-object-test",
+        "passed": 1,
+        "total": 2,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
       },
       {
         "title": "Rebuild the erased-arrow compiler through Stage 3",
@@ -21114,7 +21127,8 @@
         "total": 4,
         "unit": "gates",
         "failed": 0,
-        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
@@ -21124,7 +21138,8 @@
         "total": 34,
         "unit": "gates",
         "failed": 0,
-        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
@@ -21225,5 +21240,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:56:03.232155+00:00"
+  "updatedAt": "2026-11-08T15:56:46.754285+00:00"
 }
