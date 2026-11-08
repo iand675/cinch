@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "af3f1ef8870ae73a4ec7fc2a7202d0f01f912faa",
+  "commit": "90c0283c5bfc2b71427716ffe506538d1afc8908",
   "status": "Integrated ABI 7 verification",
   "stages": [
     {
@@ -464,7 +464,7 @@
     "version": 1,
     "target": {
       "compiler": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-      "native": "5002a273daf9a9ddd0ce923ffb272e5329e1b1091d9cf7379ba07d11ab06ba12"
+      "native": "d04ac86784a6cee08e6cdff148d4c1d78b427159f3d9b8d2216327e6ca61d2f0"
     },
     "acceptance": [
       {
@@ -20783,12 +20783,12 @@
         "title": "Verify Rust primitive clause order and the checked law observation",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. cinch-law-observation",
+        "phase": "All 17 Rust primitive and eight Rust law tests passed. The typed Box law observation also passed through the selected Cinch Stage 1.",
         "passed": 3,
         "total": 3,
         "failed": 0,
-        "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-        "evidence": null
+        "source": "d04ac86784a6cee08e6cdff148d4c1d78b427159f3d9b8d2216327e6ca61d2f0",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-rust-prim-clause-and-law-harness-results.json"
       },
       {
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
@@ -20848,5 +20848,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:26:15.386630+00:00"
+  "updatedAt": "2026-11-08T23:28:19.929823+00:00"
 }
