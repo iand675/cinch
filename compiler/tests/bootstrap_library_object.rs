@@ -322,7 +322,7 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
   import Data.Array
   import Data.Tensor
   import Data.Columnar
-  export make, peek, column, Box, wrap, unwrap
+  export make, peek, column, Box, wrap, unwrap, discard-word, mixed
   make :: Int -> Array Int
   make x = array-from-list [x]
   peek :: Tensor Int -> Array Nat -> Option Int
@@ -335,6 +335,10 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
   wrap n = Box n
   unwrap :: Box -> Int
   unwrap value = case value of Box n -> n
+  discard-word :: I64 %0 -> Int
+  discard-word _ = 7
+  mixed :: Int -> I64 %0 -> Int -> Int
+  mixed first _ last = first + last
   hidden :: Int -> Int
   hidden n = n
 "#);
@@ -359,6 +363,20 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
     let iface = cinch::interface::Iface::from_json(&std::fs::read_to_string(build.join("Library.cinchif")).unwrap()).unwrap();
     assert!(!iface.exports.values.iter().any(|v| v.name == "hidden"));
     for name in ["make", "peek", "column", "wrap", "unwrap"] { assert!(iface.exports.values.iter().any(|v| v.name == name)); }
+    let units = metadata.get("units").and_then(Json::as_arr).unwrap();
+    for (name, params) in [("discard-word", &[][..]), ("mixed", &["T"][..])] {
+        let exported = iface.exports.values.iter().find(|value| value.name == name).unwrap();
+        assert!(exported.scheme.contains("%0"), "{}", exported.scheme);
+        let symbol = format!("Library.{name}");
+        let unit = units.iter()
+            .find(|unit| unit.get("symbol").and_then(Json::as_str) == Some(symbol.as_str()))
+            .unwrap();
+        assert_eq!(unit.get("arity").and_then(Json::as_num), Some(params.len() as f64));
+        let physical: Vec<_> = unit.get("params").and_then(Json::as_arr).unwrap()
+            .iter().map(|param| param.as_str().unwrap()).collect();
+        assert_eq!(physical.as_slice(), params);
+        assert_eq!(unit.get("result").and_then(Json::as_str), Some("O"));
+    }
     let llvm = std::fs::read_to_string(&ir).unwrap();
     assert!(!llvm.contains("@llvm.global_ctors"), "dependency object must leave table registration to final consumer");
     for symbol in ["cinch_array_from_list", "cinch_tensor_get", "cinch_columnar_column"] { assert!(llvm.contains(symbol)); }
@@ -369,12 +387,19 @@ fn cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume() {
   import Library
   import Data.Array
   main :: Int
-  main = if array-length (make 42) == 1 && unwrap (wrap 184467440737095516160) == 184467440737095516160 then 0 else 1
+  main =
+    let erased-ok = discard-word (429865131 :: I64) == 7 && mixed 20 (829054163 :: I64) 22 == 42 in
+    if erased-ok && array-length (make 42) == 1 && unwrap (wrap 184467440737095516160) == 184467440737095516160 then 0 else 1
 "#).unwrap();
     let result = run(&compiler, &[&client, &client_ir], "--emit-ir", &final_manifest, &final_objects);
     assert!(result.status.success(), "{}", common::read_output(&dir, "client.ll.diagnostics"));
     std::fs::copy(&client, dir.join("successful.client.source")).unwrap();
     std::fs::copy(&client_ir, dir.join("successful.client.ll")).unwrap();
+    let client_llvm = std::fs::read_to_string(&client_ir).unwrap();
+    assert!(!client_llvm.contains("429865131"));
+    assert!(!client_llvm.contains("829054163"));
+    assert!(client_llvm.lines().any(|line|
+        line.contains("call i64 @__apply(i64 ") && line.contains(", i64 0, ptr ")));
     let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
     let executable = dir.join("client");
     let linked = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into())).arg(&client_ir).arg(&out).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(&executable).output().unwrap();
