@@ -20716,9 +20716,9 @@
       {
         "title": "Compile and consume record interfaces and objects",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. projection-via-returned-record",
-        "passed": 4,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. malformed-record-labels",
+        "passed": 7,
         "total": 7,
         "failed": 0,
         "source": "6ede6a5a0abecfc5d9107bb260a89f6a7029ba630b887871eaa5fc45352d805a",
@@ -20771,5 +20771,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:52:41.891338+00:00"
+  "updatedAt": "2026-11-08T21:53:44.356845+00:00"
 }
