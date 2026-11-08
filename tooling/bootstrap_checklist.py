@@ -35,6 +35,46 @@ def tooling_inputs(root):
             for path in (root / 'tooling').rglob('*')
             if path.is_file() and '__pycache__' not in path.parts}
 
+def editor_inputs(root):
+    ignored = {'target', '__pycache__', 'node_modules', '.DS_Store', '.generated'}
+    repo = root.resolve()
+    result = {}
+    for component in ('experiments/malleable-syntax', 'tooling/tree-sitter-cinch', 'tooling/editors'):
+        for directory, folders, files in os.walk(root / component, followlinks=True):
+            parent = Path(directory)
+            if not parent.resolve().is_relative_to(repo):
+                return {}
+            ancestors = {entry.resolve() for entry in (parent, *parent.parents)}
+            for name in folders[:]:
+                if (name in ignored or (parent == root / 'experiments/malleable-syntax/editor' and name.startswith('tree-sitter-'))
+                        or (parent / name).resolve() in ancestors):
+                    folders.remove(name)
+            for name in files:
+                if name not in ignored:
+                    path = parent / name
+                    if not path.resolve().is_relative_to(repo):
+                        return {}
+                    result[path.relative_to(root).as_posix()] = digest(path)
+    return result
+
+
+def published_editor_cases(root, receipt, proof, compiler, native, original):
+    scope = receipt.get('scope')
+    if (scope not in ('syntax-engine', 'complete-native-editor')
+            or proof.get('status') != 'passed-published-schema10-bootstrap-chain'
+            or receipt.get('compiler_source_sha256') != compiler or proof.get('compiler_source_sha256') != compiler
+            or receipt.get('native_source_sha256') != native or proof.get('native_source_sha256') != native
+            or receipt.get('editor_inputs') != editor_inputs(root)
+            or not matches_digest(root / 'tooling/verify_malleable.py', receipt.get('verifier_sha256'))):
+        return set()
+    provider = proof['stages'][-1]['inputs']['library_provider']['artifacts']
+    if receipt.get('compiler_sha256') != provider['cinch'] or receipt.get('runtime_archive_sha256') != provider['libcinchruntime.a']:
+        return set()
+    expected = {row['name'] for row in original if scope == 'complete-native-editor' or '(test_engine.' in row['name']}
+    cases = receipt.get('cases', [])
+    names = {row['name'] for row in cases if row['status'] == 'passed'}
+    return names if len(names) == len(cases) and names == expected else set()
+
 
 def link(path):
     return GITHUB + path
@@ -316,6 +356,24 @@ def build_checklist(root, cfg, previous=None):
         ('editor','Syntax and editor suite','syntax-editor.log','editor_tests',39)]:
         found = cases(aux_root/log_name)
         assert len(found) == auxiliary.get(total_key) == required, (id, len(found), auxiliary.get(total_key))
+        if id == 'editor':
+            editor_path = 'bootstrap/current-schema10-published-editor-results.json'
+            editor = read(root / editor_path)
+            passed = published_editor_cases(root, editor, published_audit, compiler, native, found)
+            if passed:
+                rows = []
+                for case in found:
+                    name = case['name']
+                    checked = name in passed
+                    rows.append(item(id+':'+name, name, 'verified' if checked else 'recheck',
+                        'Passed on the audited current editor inputs.' if checked else 'The matching full editor run is required.',
+                        'Run the original test on matching inputs with its required compiler role.',
+                        link(editor_path) if checked else link('bootstrap/current-record-indexed-auxiliary-results.json'),
+                        observed=dict(status='passed', source=compiler if checked else auxiliary.get('compiler_source_sha256'), cases=[])))
+                detail = ('All original editor checks passed with the audited Native compiler.' if len(passed) == required
+                          else 'The syntax engine passed on current inputs. Tree-sitter, LSP and Native examples await matching validation.')
+                suites.append(suite(id, title, 'tests', rows, detail))
+                continue
         core_run = core_runs.get(id)
         if id == 'tooling' and core_run and native_core.get('tooling_inputs') != tooling_inputs(root):
             core_run = None

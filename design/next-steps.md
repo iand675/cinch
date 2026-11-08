@@ -38,6 +38,10 @@ passed 45 tests. The original integration targets and the final Stage3
 suite remain separate.
 See [the Rust, runtime and tooling audit](../bootstrap/current-schema10-published-native-core-results.json).
 
+The current syntax engine passed all 20 of its original cases. The full
+39-case editor run also exercises Tree-sitter, LSP and compiled examples.
+See [the editor replay](../bootstrap/current-schema10-published-editor-results.json).
+
 The previous published compiler source (`45bbfe94`) also passed those four
 gates with its own pinned library. Its suite receipts apply to that snapshot.
 See [the previous fixed-point audit](../bootstrap/current-schema10-45bbfe94-bootstrap-results.json).
