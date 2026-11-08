@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_pipeline, bootstrap_proposition_types, bootstrap_refinement_closure",
-        "passed": 54,
+        "phase": "Bootstrap_pipeline, bootstrap_refinement_closure, bootstrap_refinement_constructors",
+        "passed": 55,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -21141,8 +21141,8 @@
       {
         "title": "Rebuild with the expanded pinned object through Stage 3",
         "status": "running",
-        "phase": "build Stage 2 with the audited Stage 1",
-        "passed": 2,
+        "phase": "build Stage 3 with the self-built Stage 2",
+        "passed": 3,
         "total": 5,
         "unit": "gates",
         "failed": 0,
@@ -21303,5 +21303,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:43:19.150801+00:00"
+  "updatedAt": "2026-11-08T16:44:22.090395+00:00"
 }
