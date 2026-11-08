@@ -11860,10 +11860,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 9,
+          "verified": 10,
           "blocked": 0,
           "running": 3,
-          "pending": 77,
+          "pending": 76,
           "recheck": 16
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -11991,6 +11991,14 @@
                 },
                 {
                   "name": "column_projection_returns_the_original_typed_buffers",
+                  "status": "passed"
+                },
+                {
+                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
                   "status": "running"
                 }
               ]
@@ -12346,21 +12354,21 @@
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:52:58.269609+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:57:11.615211+00:00",
+              "exitCode": 0,
+              "logSha256": "015d691d887305249ec2321b75dc164b65bb8a18c214b3822a14575f20d5d670",
               "cases": [
                 {
                   "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12441,18 +12449,23 @@
           {
             "id": "stage3:bootstrap_export_interfaces",
             "title": "bootstrap_export_interfaces",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_interfaces.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:57:13.695697+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_interfaces_preserve_private_nominals_and_defining_fixities",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -19832,8 +19845,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_decisions. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 6,
+        "phase": "bootstrap_export_interfaces. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 7,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19849,6 +19862,17 @@
         "unit": "original test targets",
         "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-45bbfe94-bootstrap-results.json"
+      },
+      {
+        "title": "Check nominal byte projections and the original Text.Regex client",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 9,
+        "unit": "checks",
+        "source": "bd389c846d04fb4498e1225bba6c086865fc1478820d7e8a9af71903e5c06d05",
+        "evidence": null
       },
       {
         "title": "Check byte lengths through checked total helper bodies",
@@ -20039,10 +20063,10 @@
       }
     ],
     "counts": {
-      "verified": 14,
+      "verified": 15,
       "blocked": 5,
       "running": 13,
-      "pending": 319,
+      "pending": 318,
       "recheck": 324
     },
     "total": 675,
@@ -20051,5 +20075,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:56:49.804349+00:00"
+  "updatedAt": "2026-11-08T01:57:32.562273+00:00"
 }
