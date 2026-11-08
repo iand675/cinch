@@ -866,12 +866,6 @@ module Bootstrap.Infer where
         other -> (MkLocalBinding name sc id level, st)
     other -> (MkLocalBinding name sc id level, st)
 
-  pattern-value :: CorePattern -> Option CoreTerm
-  pattern-value pattern = case pattern of
-    CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
-    CPAs sp ty id name inner -> Some (CLocal sp ty id name Nil)
-    CPInt sp ty text -> Some (CInt sp ty text)
-    other -> None
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
   bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
@@ -3468,20 +3462,26 @@ module Bootstrap.Infer where
     Cons d rest -> imported-families rest
   clause-rows :: List (List Pat, Expr) -> List (List Pat)
   clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> if body-covers body then Cons ps (clause-rows rest) else clause-rows rest
-  check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (List CorePattern, CoreTerm, Store)
-  check-equation classes kinds families env locals ps body expected st = check-equation-effects classes kinds families env locals ps body expected (URow UEnd) st
-  check-equation-effects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
-  check-equation-effects classes kinds families env locals ps body expected allowed st = case ps of
-    Nil -> case check-required classes kinds families env locals body expected st of
-      (rhs, ss) -> (Nil, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss)
+  check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (List CorePattern) -> List CorePattern -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
+  check-equation classes kinds families env locals earlier reversed ps body expected allowed st = case ps of
+    Nil -> let patterns = reverse reversed in
+      let bound = case earlier of
+            Nil -> env
+            Cons first rest -> prepend-proof-facts
+              (scoped-core-equation-facts (proof-context env st) (normalize-equation-prefix st earlier) (normalize-patterns st patterns)) env in
+      (case check-required classes kinds families bound locals body expected st of
+        (rhs, ss) -> (patterns, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss))
     Cons p rest -> case bind-arrow-pattern classes kinds families env locals p expected (include-effects (pat-span p) allowed (URow UEnd) st) of
-      (bound, pattern, row, result, checked) -> case check-equation-effects classes kinds families bound locals rest body result row checked of
-        (patterns, rhs, ss) -> (Cons pattern patterns, rhs, ss)
-  check-clauses :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> List (List Pat, Expr) -> Store -> (List CoreClause, Store)
-  check-clauses classes kinds families env locals ty cs st = case cs of
+      (bound, pattern, row, result, checked) -> check-equation classes kinds families bound locals earlier (Cons pattern reversed) rest body result row checked
+  normalize-equation-prefix :: Store -> List (List CorePattern) -> List (List CorePattern)
+  normalize-equation-prefix st earlier = case earlier of
+    Nil -> Nil
+    Cons first rest -> Cons (normalize-patterns st first) (normalize-equation-prefix st rest)
+  check-clauses :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> List (List CorePattern) -> List (List Pat, Expr) -> Store -> (List CoreClause, Store)
+  check-clauses classes kinds families env locals ty earlier cs st = case cs of
     Nil -> (Nil, st)
-    Cons (ps, body) rest -> case check-equation classes kinds families env locals ps body ty (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
-      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty rest sr of
+    Cons (ps, body) rest -> case check-equation classes kinds families env locals earlier Nil ps body ty (URow UEnd) (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
+      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
         (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
   bind-value-parameters :: List Quant -> List (Nat, UType) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   bind-value-parameters params pairs env st = case params of
@@ -3515,7 +3515,7 @@ module Bootstrap.Infer where
           let locals = annotation-locals <> opened-locals (scheme-params (checked-scheme b)) pairs in
           let (value-env, value-store) = bind-value-parameters (scheme-params (checked-scheme b)) pairs (bind-annotation-values annotation-locals env) ss in
           let (bound, givens, sg) = bind-requirements sp requirements value-env value-store in
-          let (clauses, checked) = check-clauses classes kinds families bound locals ty cs sg in
+          let (clauses, checked) = check-clauses classes kinds families bound locals ty Nil cs sg in
           let count = case cs of Nil -> 0; Cons (ps, body) rest -> list-length ps in
           let types = domains ty in
           let same-arity = clauses-full-arity cs count && count <= list-length types in
@@ -3967,13 +3967,13 @@ module Bootstrap.Infer where
                     let done = restore-level level checked-right in
                     if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
                       report-finite-law-samples sp name families env sampler dictionary givens
-                        (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
+                        (normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
             (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked))
 
-  law-normalize-patterns :: Store -> List CorePattern -> List CorePattern
-  law-normalize-patterns st patterns = case patterns of
+  normalize-patterns :: Store -> List CorePattern -> List CorePattern
+  normalize-patterns st patterns = case patterns of
     Nil -> Nil
-    Cons p rest -> Cons (map-pattern-types (normalize st) p) (law-normalize-patterns st rest)
+    Cons p rest -> Cons (map-pattern-types (normalize st) p) (normalize-patterns st rest)
 
   unchecked-law :: String -> String
   unchecked-law reason = string-concat-all ["not checked (", reason, ")"]

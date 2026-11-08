@@ -39,6 +39,7 @@ module Bootstrap.Core where
   export scoped-numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
   export scoped-refinement-predicate
+  export scoped-core-equation-facts, extend-equation-prefix, pattern-value
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export term-children
@@ -940,12 +941,14 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
-  seal-clauses bodies guards st clauses = case clauses of
+  seal-clauses :: ProofScope -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses scope st earlier clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
+      let gamma = proof-patterns patterns scope in
+      let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
+      Cons (MkCoreClause s patterns checked) (seal-clauses scope st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -958,7 +961,10 @@ module Bootstrap.Core where
     None -> seal-definition-with-checked-contracts empty-body-bindings guards st definition
   seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
-    MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st clauses)
+    MkCoreDefinition s name sc openings givens private clauses ->
+      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
+      MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses scope st Nil clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
@@ -1716,6 +1722,31 @@ module Bootstrap.Core where
       other -> Nil
   case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
   case-rest-facts gamma facts value pattern body = scoped-core-case-rest-facts gamma facts value pattern body <> facts
+  -- A failed earlier equation refutes a column only if every other
+  -- pattern always matches and the equation has no fallible guard.
+  extend-equation-prefix :: List CorePattern -> CoreTerm -> List (List CorePattern) -> List (List CorePattern)
+  extend-equation-prefix patterns body earlier = case body of
+    CRequire sp ty inner -> extend-equation-prefix patterns inner earlier
+    CError sp -> earlier
+    other -> if core-alternative-covers body then Cons patterns earlier else earlier
+  single-refutable-column :: List CorePattern -> List CorePattern -> Option (CorePattern, CorePattern) -> Option (CorePattern, CorePattern)
+  single-refutable-column before current found = case (before, current) of
+    (Nil, Nil) -> found
+    (Cons old earlier, Cons new later) ->
+      if irrefutable-case-pattern (pattern-type old) old then single-refutable-column earlier later found
+      else (case found of
+        None -> single-refutable-column earlier later (Some (old, new))
+        Some pair -> None)
+    other -> None
+  scoped-core-equation-facts :: ProofScope -> List (List CorePattern) -> List CorePattern -> List Proposition
+  scoped-core-equation-facts gamma earlier patterns = case earlier of
+    Nil -> Nil
+    Cons first rest ->
+      (case single-refutable-column first patterns None of
+        Some (prior, current) -> (case pattern-value current of
+          Some value -> scoped-core-case-facts gamma Nil value prior False
+          None -> Nil)
+        None -> Nil) <> scoped-core-equation-facts gamma rest patterns
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
   branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
     Some p -> Cons p facts
@@ -2208,6 +2239,12 @@ module Bootstrap.Core where
     other -> False)
   pattern-type :: CorePattern -> UType
   pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
+  pattern-value :: CorePattern -> Option CoreTerm
+  pattern-value pattern = case pattern of
+    CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
+    CPAs sp ty id name inner -> Some (CLocal sp ty id name Nil)
+    CPInt sp ty text -> Some (CInt sp ty text)
+    other -> None
   pattern-index :: CorePattern -> Option UType
   pattern-index pattern = case pattern of
     CPVar s ty id name -> Some (UIndex ty (IRigid id name 0))
@@ -2261,11 +2298,15 @@ module Bootstrap.Core where
     Some checked -> proof-contract-clauses-checked checked guards values expected clauses
     None -> False
   proof-contract-clauses-checked :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
-  proof-contract-clauses-checked bodies guards values expected clauses = case clauses of
+  proof-contract-clauses-checked bodies guards values expected clauses =
+    proof-equations (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
+  proof-equations :: ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
+  proof-equations scope expected earlier clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
-      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)))) Nil result body
-      None -> False) && proof-contract-clauses-checked bodies guards values expected rest
+      Some result -> let gamma = proof-patterns patterns scope in
+        proof-expected gamma (scoped-core-equation-facts gamma earlier patterns) result body
+      None -> False) && proof-equations scope expected (extend-equation-prefix patterns body earlier) rest
 
   selected-method-function :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option TotalFunction
   selected-method-function gamma method first second = case method of
