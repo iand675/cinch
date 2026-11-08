@@ -21103,7 +21103,7 @@
         "unit": "gates",
         "failed": 0,
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-keyed-ordering-fixture-replay-results.json"
       },
       {
         "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
@@ -21114,7 +21114,7 @@
         "unit": "gates",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-rust-harness-compile-results.json"
       },
       {
         "title": "Replay the permanent library object regression",
@@ -21163,7 +21163,7 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "clean-native-build",
+        "phase": "2 of 5 startup checks passed. clean-native-build",
         "passed": 0,
         "total": 236,
         "unit": "gates",
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:34:17.703416+00:00"
+  "updatedAt": "2026-11-08T16:35:41.412367+00:00"
 }
