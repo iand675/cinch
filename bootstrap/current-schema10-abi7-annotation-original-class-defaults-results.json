@@ -1,0 +1,73 @@
+{
+  "adapted_test_sha256": "693286edf0a7c82274c2409c3ccc551015fe899f2e581cfb1689139f6679934c",
+  "annotation_controls": 11,
+  "baseline_revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "compiler_sha256": "3cddcc447da3d7a4a6995f5a14c2bdc8e62cee326603baa96ef03a05b75f50cb",
+  "compiler_source_sha256": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131",
+  "exit_code": 0,
+  "full_goal_complete": false,
+  "harness_sha256": "e07815e4241093bdf09eaef41db84957c2ee487612c5be346100159b0bcc3d66",
+  "inherited_default_exit_code": 42,
+  "invocation_receipts": {
+    "11150-0.json": "23b1ed7b3409d8f192d70217a2b3a2b2a8456979f254aa389142a99c38dedca1",
+    "11150-1.json": "4bc47704e9473ffda2230706e017de5be2ca645737594407abb383576fc1bf8c",
+    "11150-10.json": "efd8ab1fa6062bcb1bdf4a9b02f5a402e9723504d502506a6dc46f8876b8e4ff",
+    "11150-11.json": "efafdcbba950abed8ee0a6e4af87d37a175402435628ea34794e02d015915f06",
+    "11150-12.json": "d511900b1b54c177e0852c63775d420c346dc05d1f5b9ec4648e2288c7671dd3",
+    "11150-13.json": "feef50c49cf671986c46445d9601da4081d28685c48ffff27e08fe0b38dcebaf",
+    "11150-14.json": "eff333bbd3da8ac86f28f8f0d89a1428820d5a20c09ea8129a2b1a875e96c088",
+    "11150-15.json": "2be4d8e92468fa57d88275b885638f38fc27905f32b2c0e18cfd78e83931c72e",
+    "11150-16.json": "31576e61f886ef2a2f97d262291b9969272ff07db1a461e7b865c2da57502eef",
+    "11150-17.json": "d371cfa9dcff8fc63c57a6a699f4c13ef7b62111c77969d3077ce584aa4dee3c",
+    "11150-18.json": "7b4e5cb4a558df46616d784b24e9b1efb96a9f50c3d2f0d6a5e783d58606f2f1",
+    "11150-2.json": "f26e1cdbdbf13635e548bc3c2a73dd28d7e5ee2323e4aecb50274efe13350708",
+    "11150-3.json": "3e16dc7bea2de61ad6c1c74c97f4ce64944cc1690dcd7beaa0f817eccced1bce",
+    "11150-4.json": "e7b0e638395157dbb3af91d233fff72bc61dbd47c18023f30dfff1f82cd81555",
+    "11150-5.json": "5e603a85576cf1fc602f7c4889f6bf6017683879aa29af12ebd03c9a39e48eff",
+    "11150-6.json": "37e459b40b1cbc4d1c400107875ae86a7bbaa196e26426e35f4f97dcec45c1a9",
+    "11150-7.json": "38c247cbac6f0a70d6a2e85021f2e992934183774b2836a9a4bc7fe4d51bdac2",
+    "11150-8.json": "4378f75275756037b8183c80c96c4320bb33b748e5a2c566694d1430fd2f19b4",
+    "11150-9.json": "58a6cc66f9cb4bdffb674708bcf7782e9a4fd5dabb06035be09cb5d100d88ffc"
+  },
+  "log_sha256": "9bfa86b982d8e10647189426315de429ea7400a4ec0144c4a0a5e1792d720d17",
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "original_test_sha256": "6e41294a03a7a03ff2cde0da8eada8a894979eb1923585e871c2942046f81058",
+  "rows": [
+    {
+      "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+      "status": "passed"
+    },
+    {
+      "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+      "status": "passed"
+    },
+    {
+      "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+      "status": "passed"
+    },
+    {
+      "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+      "status": "passed"
+    },
+    {
+      "name": "an_omitted_method_without_a_default_is_still_refused",
+      "status": "passed"
+    },
+    {
+      "name": "annotations_keep_definition_and_default_parameter_identities",
+      "status": "passed"
+    },
+    {
+      "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "All seven original class-default tests through the isolated Stage 1 annotation candidate. The combined revision and published Stage 3 have separate gates.",
+  "stage1_receipt_sha256": "10df9a6754347aa408e6479705f7a07587e060b19b6e50a29410af812f70cc7d",
+  "status": "passed-all-original-class-defaults-on-annotation-stage1",
+  "total_groups": 7,
+  "wrapper_sha256": "adc366b9acee92d9899379e314f511f9f1a126d94155493c880392bb761b1985",
+  "zero_leak_runs": 3
+}

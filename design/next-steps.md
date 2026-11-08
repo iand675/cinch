@@ -26,6 +26,12 @@ their specified refusal diagnostics. The combined compiler and provider
 have a separate fixed-point gate.
 See [the scoped repair audit](../bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json).
 
+The isolated annotation compiler then passed all seven original class-default
+tests. Its complete replay includes the eleven annotation checks and the
+inherited default that returns 42. The combined compiler still has its own
+Stage 3 replay.
+See [the whole class-default target audit](../bootstrap/current-schema10-abi7-annotation-original-class-defaults-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
