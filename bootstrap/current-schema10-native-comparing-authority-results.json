@@ -1,0 +1,44 @@
+{
+  "baseline_compiler_sha256": "1479dfdd96288d817d400c1a09e3d3c3c7f20ff528dca889a8e726ff17d90ea5",
+  "baseline_probe_sha256": "6eeefef7f719cfda2218593b8b9c98a73d6fb56cb40baba639b154a1baddcab3",
+  "baseline_rows": [
+    {
+      "exit_code": 0,
+      "name": "ordinary"
+    },
+    {
+      "exit_code": 0,
+      "name": "opaque-order"
+    }
+  ],
+  "compiler_sha256": "c0ee92b4a2509ad4c392fd704f2e5d19ca092e187e22e07df41431a8e9a02ead",
+  "full_goal_complete": false,
+  "native_source_sha256": "0a5c28600c2bee15e21f95641a5eca96f3a5a2d131a2e195ff8b1f8dd88d42d3",
+  "published_source_revision": "e826ae3c88212f56fd944d55d10a0acbba65bb99",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "c793b4e3642a1aa1980c5fdf6b15e4064064eac1ace49c0c3adc00569c20b880",
+      "name": "complete-case-evidence",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "525cc0caf6bcef6618f8431adebeaafd35960e5de1800cf9977820c593fa0962",
+      "name": "package-unit-tests",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "4d01838e4f4d461c2abe0e2e73b1c9b1e6dd17ed132e4634198ff4521e4ab545",
+      "name": "package-manifest-tests",
+      "status": "passed",
+      "tests": 6
+    }
+  ],
+  "status": "passed-ordering-and-package-gates-on-current-main",
+  "test_source_sha256": "4c443c90c5a6549f0d0a4b9733f95e93113a5770019679c23490dbaf614b0a60",
+  "tested_revision": "4fabd6e4345c5b1530c550f2958ce3dccfe334ed"
+}
