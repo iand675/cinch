@@ -241,7 +241,10 @@ def build_checklist(root, cfg, previous=None):
             observed=observed(old, full.get('compiler_source_sha256'), Path(cfg['native']).parent) if old and old.get('status') != 'pending' else observed(earlier_native.get(name), earlier_full.get('compiler_source_sha256'), Path(cfg.get('previousNative',cfg['native'])).parent),
             currentTests=current.get('tests') if current else None))
 
-    published_front = published_stage3_shard(cfg.get('schema10PublishedFrontendShard'), published_audit, compiler, native)
+    published_front = {}
+    shard_paths = cfg.get('schema10PublishedFrontendShards') or [cfg.get('schema10PublishedFrontendShard')]
+    for path in shard_paths:
+        published_front.update(published_stage3_shard(path, published_audit, compiler, native))
     front_rows = []
     for name in front_names:
         old = old_front.get(name)
