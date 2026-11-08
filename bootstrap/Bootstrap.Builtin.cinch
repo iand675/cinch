@@ -3,12 +3,12 @@
 -- creation and decision evidence here, before checker elaboration.
 module Bootstrap.Builtin where
 
-  import Bootstrap.Ast (Decl, DExternal)
+  import Bootstrap.Ast (Decl, DExternal, DData, MkTypeParam, TName, TInfix, TApp, TArg, TArgsEnd, TFun, TBound, TBoundsEnd)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -52,8 +52,9 @@ module Bootstrap.Builtin where
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("delay", "b.delay"), ("force", "b.force")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
-    , ("refl", "b.refl")
+    , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Proof.search", "b.Proof.search")
     ]
 
   entry :: String -> String -> String -> Bool -> Decl
@@ -96,6 +97,17 @@ module Bootstrap.Builtin where
   task-rule :: String -> String -> Int -> Bool -> Decl
   task-rule name operation arity variadic = DExternal (Span 0 0 1 1) (string-concat "b." name) "builtin-syntax" None
     (JObj "name" (JStr name) (JObj "operation" (JStr operation) (JObj "arity" (JNum arity) (JObj "variadic" (JBool variadic) (JObj "runtime_abi" (JNum runtime-abi-int) (JObj "first_class" (JBool False) JObjEnd))))))
+  -- The checked data path retains the index and erases the bound field.
+  finite-index-declaration :: Decl
+  finite-index-declaration =
+    let sp = Span 0 0 1 1 in
+    let nat = TName sp "Nat" in
+    let bound = TInfix sp "<" (TName sp "i") (TName sp "n") in
+    let result = TApp sp (TName sp "b.Fin") (TArg sp (TName sp "n") (TArgsEnd sp)) in
+    DData sp "b.Fin" [MkTypeParam sp "n" (Some nat) False]
+      [("b.Fin", TFun sp (TBound sp "i" nat (TBoundsEnd sp))
+        (TFun sp (TBound sp "bound" bound (TBoundsEnd sp)) result))]
+
   builtin-declarations :: List Decl
   builtin-declarations =
     [ entry "newIO" "NewIO" "forall (r :: Region). Unit -> Io r" True
@@ -110,7 +122,10 @@ module Bootstrap.Builtin where
     , task-rule "copyOut" "CopyOut" 1 False
     , task-rule "mutBorrow" "MutBorrow" 1 False
     , task-rule "refSet" "RefSet" 2 False
+    , task-rule "delay" "Delay" 1 False
+    , task-rule "force" "Force" 1 False
     , decision-rule
+    , task-rule "Proof.search" "ProofSearch" 1 False
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
     ]
@@ -180,3 +195,13 @@ module Bootstrap.Builtin where
     else if operation == 18 then "cinch_columnar_child"
     else if operation == 19 then "cinch_columnar_array"
     else ""
+
+  builtin-syntax-metadata :: String -> Option Json
+  builtin-syntax-metadata name = find-builtin-syntax name builtin-declarations
+  find-builtin-syntax :: String -> List Decl -> Option Json
+  find-builtin-syntax name declarations = case declarations of
+    Nil -> None
+    Cons (DExternal sp symbol category syntax metadata) rest ->
+      if string-compare name symbol == 0 && string-compare category "builtin-syntax" == 0 then Some metadata
+      else find-builtin-syntax name rest
+    Cons other rest -> find-builtin-syntax name rest

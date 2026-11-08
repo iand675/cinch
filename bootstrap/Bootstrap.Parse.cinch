@@ -2275,10 +2275,21 @@ module Bootstrap.Parse where
       Cons t rest2 -> case lt-token t of
         TPunct p ->
           if string-compare p "->" == 0 then arrow-after lhs rest2 src
+          else if usage-marker p then case rest2 of
+            Cons arrow tail -> if is-punct-t (lt-token arrow) "->" then
+              case arrow-after lhs tail src of
+                POk ty remaining -> POk (TUsageArrow (type-expr-span ty) p ty) remaining
+                PBad -> PBad
+              else PBad
+            Nil -> PBad
           else POk lhs rest
         _ -> POk lhs rest
       Nil -> POk lhs rest
     PBad -> PBad
+
+  usage-marker :: String -> Bool
+  usage-marker name = string-compare name "%0" == 0 || string-compare name "%1" == 0
+    || string-compare name "%aff" == 0 || string-compare name "%many" == 0
 
   arrow-after :: TypeExpr -> List LToken -> Bytes -> Ps TypeExpr
   arrow-after lhs toks src = case toks of

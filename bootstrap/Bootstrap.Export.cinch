@@ -90,6 +90,7 @@ module Bootstrap.Export where
     UApp a b -> type-measures a <> type-measures b
     UFun a b -> type-measures a <> type-measures b
     UFunEff a row b -> type-measures a <> type-measures row <> type-measures b
+    UUsageArrow usage arrow -> type-measures arrow
     UProofFun a row b -> type-measures a <> type-measures row <> type-measures b
     URow labels -> type-measures labels
     URowJoin a b -> type-measures a <> type-measures b
@@ -451,6 +452,7 @@ module Bootstrap.Export where
   plain-method ty = case ty of
     UFun a b -> plain-method b
     UFunEff a row b -> plain-method b
+    UUsageArrow usage arrow -> plain-method arrow
     UPi id name domain row result -> plain-method result
     URequire predicates body -> False
     UProofFun predicate row result -> False

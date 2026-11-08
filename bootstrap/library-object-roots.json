@@ -748,6 +748,10 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.List.is-empty"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.List.iterate"
     },
     {
@@ -769,6 +773,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.partition"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.reverse"
     },
     {
       "classes": "T",

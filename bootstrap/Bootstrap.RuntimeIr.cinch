@@ -242,7 +242,7 @@ module Bootstrap.RuntimeIr where
     Some place -> Some 1
     None -> case borrowed-carrier (base ty) of
       Some carrier -> word-class context carrier
-      None -> value-word-class context ty
+      None -> case thunk-parts (base ty) of Some parts -> Some 1; None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -253,6 +253,7 @@ module Bootstrap.RuntimeIr where
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
       UFunEff domain row result -> Some 1
+      UUsageArrow usage arrow -> Some 1
       UProofFun predicate row result -> Some 1
       UPi id name domain row result -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
@@ -480,6 +481,9 @@ module Bootstrap.RuntimeIr where
   constructor-shape :: RuntimeContext -> UType -> UType -> Bool
   constructor-shape context result ty = case ty of
     UFun domain more -> word-type context domain && constructor-shape context result more
+    UPi id name domain (URow UEnd) more -> word-type context domain && constructor-shape context result more
+    UProofFun predicate (URow UEnd) more -> valid-type predicate && kind-equal (type-kind predicate) KProp
+      && constructor-shape context result more
     other -> same-data-result ty result
   same-data-result :: UType -> UType -> Bool
   same-data-result first second = case (first, second) of
@@ -602,14 +606,17 @@ module Bootstrap.RuntimeIr where
   arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
   arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); CApplyEff sp ty row f x -> arguments f (Cons x more); other -> more
   function-type :: RuntimeContext -> UType -> Bool
-  function-type datas ty = case base ty of
-    UFun domain result -> word-type datas domain && function-type datas result
-    UFunEff domain row result -> word-type datas domain && function-type datas result
-    UProofFun predicate row result -> kind-equal (type-kind predicate) KProp && valid-type predicate && function-type datas result
-    UPi id name domain row result -> word-type datas domain && function-type datas result
-    other -> word-type datas ty
+  function-type datas ty =
+    let function = base ty in
+    let erased-domain = erased-value-arrow function in
+    case arrow-shape function of
+      UFun domain result -> (erased-domain || word-type datas domain) && function-type datas result
+      UFunEff domain row result -> (erased-domain || word-type datas domain) && function-type datas result
+      UProofFun predicate row result -> kind-equal (type-kind predicate) KProp && valid-type predicate && function-type datas result
+      UPi id name domain row result -> (erased-domain || word-type datas domain) && function-type datas result
+      other -> word-type datas ty
   arity :: UType -> Nat
-  arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
+  arity ty = case arrow-shape ty of UFun domain result -> 1 + arity result; other -> 0
   -- Word-level workers share code by representation class. Concrete numeric
   -- semantics stay on checked Core; a TObj parameter is never assumed Int.
   scheme-supported :: RuntimeContext -> Scheme -> Bool
@@ -682,6 +689,7 @@ module Bootstrap.RuntimeIr where
   handler-pattern-id pattern = case pattern of
     CPVar sp ty id name -> id
     CPProof sp ty id name -> id
+    CPErasedValue sp ty id name -> id
     CPAs sp ty id name nested -> handler-largest id (handler-pattern-id nested)
     CPConstructor sp ty name args scheme fields -> handler-pattern-id fields
     CPTuple sp ty fields -> handler-pattern-id fields
@@ -735,7 +743,7 @@ module Bootstrap.RuntimeIr where
   handler-apply :: Span -> CoreTerm -> List CoreTerm -> Option CoreTerm
   handler-apply sp fun values = case values of
     Nil -> Some fun
-    Cons first rest -> case core-type fun of
+    Cons first rest -> case arrow-shape (core-type fun) of
       UFun input result -> handler-apply sp (CApply sp result fun first) rest
       UFunEff input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
       UPi id name input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
@@ -784,7 +792,10 @@ module Bootstrap.RuntimeIr where
           Ok (lowered, after) -> Ok (CWith sp output given word lowered, after)
           Err message -> Err message) cursor
         CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
-        CPrimitive sp ty operation fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
+        CPrimitive sp ty operation fields -> if same operation "thunk-force" && (case fields of
+          CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
+          other -> True) then Err "handled effect needs a direct checked operation call"
+          else handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
         CDecision sp ty predicate test -> handler-cps context sp test (\value fresh -> handler-bind sp (CDecision sp ty predicate value) next fresh) cursor
         CProved sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CProved sp ty evidence value) fresh) cursor
         CRefine sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefine sp ty evidence value) fresh) cursor
@@ -871,8 +882,15 @@ module Bootstrap.RuntimeIr where
     CDischarge sp ty evidence body -> expression definitions locals w body
     CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
     CErasedApply sp ty row f witness -> case f of
-      CUse at function name role actuals -> if decision-word-type ty && same role "constructor" && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w else erased-application definitions locals w f
-      other -> erased-application definitions locals w f
+      CUse at function name role actuals ->
+        if same role "constructor" then
+          if decision-word-type ty && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w
+          else expression definitions locals w f
+        else erased-application definitions locals w f
+      other -> (case head f of
+        CUse at function name role actuals -> if same role "constructor" then expression definitions locals w f
+          else erased-application definitions locals w f
+        other -> erased-application definitions locals w f)
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
@@ -1022,21 +1040,18 @@ module Bootstrap.RuntimeIr where
   runtime-prefix :: List CorePattern -> List CorePattern
   runtime-prefix parameters = case parameters of
     Nil -> Nil
-    Cons (CPProof sp predicate id name) rest -> Nil
-    Cons first rest -> Cons first (runtime-prefix rest)
+    Cons first rest -> if erased-pattern first then Nil else Cons first (runtime-prefix rest)
   runtime-parameters :: List CorePattern -> List CorePattern
   runtime-parameters parameters = case parameters of
     Nil -> Nil
-    Cons (CPProof sp predicate id name) rest -> runtime-parameters rest
-    Cons first rest -> Cons first (runtime-parameters rest)
-  -- Each proof application advances one stage, passing zero runtime words.
-  -- Preserve all equations until the last stage, so patterns following a
-  -- proof binder still dispatch together rather than committing early.
+    Cons first rest -> if erased-pattern first then runtime-parameters rest else Cons first (runtime-parameters rest)
+  -- An erased application advances one stage with zero runtime words.
+  -- Preserve all equations until the last stage, so later computational
+  -- patterns still dispatch together.
   proof-stage-arities :: List CorePattern -> Nat -> List Nat
   proof-stage-arities parameters count = case parameters of
     Nil -> [count]
-    Cons (CPProof sp predicate id name) rest -> Cons count (proof-stage-arities rest count)
-    Cons first rest -> proof-stage-arities rest (count + 1)
+    Cons first rest -> if erased-pattern first then Cons count (proof-stage-arities rest count) else proof-stage-arities rest (count + 1)
   proof-stage-name :: String -> Nat -> String
   proof-stage-name name rung = if rung == 0 then name else cat [name, ".$proof.", nat-to-string rung]
   take-types :: Nat -> List UType -> List UType
@@ -1333,7 +1348,7 @@ module Bootstrap.RuntimeIr where
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
   external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
-  external-shape count ty params = if count == 0 then Some (params, ty) else case base ty of
+  external-shape count ty params = if count == 0 then Some (params, ty) else case arrow-shape (base ty) of
     UFun domain result -> external-shape (count - 1) result (params <> [domain])
     UFunEff domain row result -> external-shape (count - 1) result (params <> [domain])
     UPi id name domain row result -> external-shape (count - 1) result (params <> [domain])
@@ -1528,6 +1543,7 @@ module Bootstrap.RuntimeIr where
         None -> Nil) else Nil
     CApply sp ty first second -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen second)
     CApplyEff sp ty row first second -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen second)
+    CErasedApply sp ty row f witness -> term-value-dependencies w owner key seen f
     CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
     CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
     CScope sp ty region evidence callback -> term-value-dependencies w owner key seen callback
@@ -1802,6 +1818,7 @@ module Bootstrap.RuntimeIr where
   pattern-binds id pattern = case pattern of
     CPVar sp ty key name -> id == key
     CPProof sp ty key name -> id == key
+    CPErasedValue sp ty key name -> id == key
     CPAs sp ty key name inner -> id == key || pattern-binds id inner
     CPTuple sp ty fields -> pattern-binds id fields
     CPConstructor sp ty name actuals sc fields -> pattern-binds id fields
@@ -1830,7 +1847,7 @@ module Bootstrap.RuntimeIr where
     CGuard sp ty guard body -> term-uses id guard || term-uses id body
     CArgument sp first rest -> term-uses id first || term-uses id rest
     CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
-    other -> index-term-uses id (term-children term)
+    other -> index-term-uses id (runtime-term-children term)
   index-term-uses :: Nat -> List CoreTerm -> Bool
   index-term-uses id terms = case terms of Nil -> False; Cons first rest -> term-uses id first || index-term-uses id rest
   evidence-uses :: String -> CoreEvidence -> Bool
@@ -1847,6 +1864,7 @@ module Bootstrap.RuntimeIr where
     CMethod sp ty symbol owner slot actuals evidence -> evidences-use name evidence
     CApply sp ty first second -> given-uses name first || given-uses name second
     CApplyEff sp ty row first second -> given-uses name first || given-uses name second
+    CErasedApply sp ty row f witness -> given-uses name f
     CLambda sp ty pattern body -> given-uses name body
     CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
     CScope sp ty region evidence callback -> evidence-uses name evidence || given-uses name callback
@@ -1916,7 +1934,7 @@ module Bootstrap.RuntimeIr where
   lambda :: List CoreDefinition -> List Local -> Writer -> Span -> CorePattern -> CoreTerm -> (Writer, String)
   lambda definitions locals w sp parameter body =
     let saved = captures-from parameter body locals locals in
-    let parameters = case parameter of CPProof at predicate id name -> Nil; other -> [pattern-type parameter] in
+    let parameters = if erased-pattern parameter then Nil else [pattern-type parameter] in
     case class-vector (writer-context w) (capture-types saved <> parameters) of
       None -> unsupported w sp "lambda parameters need known runtime representations"
       Some classes -> let (named, name) = fresh w ".lambda" in
@@ -2130,6 +2148,7 @@ module Bootstrap.RuntimeIr where
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
     CPDone end -> (w, Nil)
+    CPField sp (CPProof at predicate id name) rest -> match-fields rest pointer index failed w
     CPField sp first rest ->
       let (one, slot) = fresh w "%ptr" in
       let (two, value) = fresh one "%v" in
@@ -2180,6 +2199,9 @@ module Bootstrap.RuntimeIr where
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
+      else if same op "thunk-delay" then expression definitions locals w input
+      else if same op "thunk-force" then (case expression definitions locals w input of
+        (ready, closure-word) -> apply-one ready closure-word "0")
       else if same op "mut-borrow" then (case expression definitions locals w input of
         (ready, value) -> let (planned, descriptor) = request-layout sp [input] ready in allocate planned descriptor [value])
       else if same op "negate" && named (core-type input) "Int" then
@@ -2248,8 +2270,7 @@ module Bootstrap.RuntimeIr where
   match-parameters :: List CorePattern -> Nat -> String -> Writer -> (Writer, List Local)
   match-parameters patterns index failed w = case patterns of
     Nil -> (w, Nil)
-    Cons (CPProof sp predicate id name) rest -> match-parameters rest index failed w
-    Cons first rest -> case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
+    Cons first rest -> if erased-pattern first then match-parameters rest index failed w else case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
       (matched, bindings) -> case match-parameters rest (index + 1) failed matched of
         (done, more) -> (done, bindings <> more)
   take-parameter-root :: String -> List Local -> Option (List Local)
@@ -2344,15 +2365,14 @@ module Bootstrap.RuntimeIr where
     if not (word-type (writer-context scoped) (core-type body)) then refuse scoped (Span 0 0 1 1) "lambda result needs a checked runtime representation" else
       let types = capture-types saved in
       let offset = list-length types in
-      case parameter of
-        CPProof at predicate id display ->
-          let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
-          (case expression definitions (captured-bindings saved 0) started body of
-            (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret i64 ", result])) "}")
-        other ->
-          let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
-          let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
-          line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+      if erased-pattern parameter then
+        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters offset 0)), ") {"])) "entry:" in
+        (case expression definitions (captured-bindings saved 0) started body of
+          (done, result) -> line (line (drop-locals (capture-roots types 0) done) (cat ["  ret i64 ", result])) "}")
+      else
+        let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
+        let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
+        line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
@@ -2392,6 +2412,7 @@ module Bootstrap.RuntimeIr where
   entry mode =
     let invocation = (if mode == 0 then cat ["  %result = call i64 ", symbol "main", "()\n"]
       else if mode == 1 then cat ["  %result = call i64 ", symbol "main", "(i64 0)\n"]
+      else if mode == 3 then cat ["  %function = call i64 ", symbol "main", "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
       else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
     cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
     "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch_drop(i64 %result)\n  ret i64 %exit\n}\n",
@@ -2402,13 +2423,15 @@ module Bootstrap.RuntimeIr where
   entry-mode :: CoreDefinition -> Option Nat
   entry-mode d = if not (entry-parameters (scheme-params (core-scheme d))) || list-length (core-givens d) > 0 then None else
     if named (scheme-body (core-scheme d)) "Int" && list-length (definition-parameters d) == 0 then Some 0 else
-      let ty = base (scheme-body (core-scheme d)) in
+      let function = base (scheme-body (core-scheme d)) in
+      let ty = arrow-shape function in
       let valid = (case ty of
         UFun domain result -> named domain "Unit" && named result "Int"
         UFunEff domain row result -> named domain "Unit" && named result "Int"
         UPi id name domain row result -> named domain "Unit" && named result "Int"
         other -> False) in
-      if valid then (if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None) else None
+      if not valid then None else if erased-value-arrow function then Some 3
+      else if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil)
   prefix-cells :: Nat -> List Nat -> List (Nat, Nat)

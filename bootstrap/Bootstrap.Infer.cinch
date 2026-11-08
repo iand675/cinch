@@ -13,6 +13,8 @@ module Bootstrap.Infer where
   import Bootstrap.Proof (Proposition, PNegate)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
+  import Text.Scan (string-words)
+  import Data.Bytes (bytes-len)
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Global
@@ -21,7 +23,7 @@ module Bootstrap.Infer where
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, intrinsic-contract, array-plan, array-type-name)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -182,6 +184,7 @@ module Bootstrap.Infer where
     TForall s qs body -> True
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
+    TUsageArrow s usage arrow -> True
     TBound s name carrier rest -> True
     TInfix s op a b -> True
     TApp s f xs -> predicate-syntax ty || needs-type f || needs-type xs
@@ -526,6 +529,7 @@ module Bootstrap.Infer where
     TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
+    TUsageArrow s usage arrow -> check-usage-arrow s usage (convert external kinds locals arrow st)
     TRow s labels tail -> convert-row kinds locals ty st
     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
@@ -871,10 +875,10 @@ module Bootstrap.Infer where
     other -> (MkLocalBinding name sc id level, st)
 
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
-  bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
+  bind-arrow-pattern classes kinds families env locals pat expected st = case arrow-shape (normalize st expected) of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
       (bound, pattern, checked) -> (bound, pattern, effects, result, checked)
-    UPi id name domain effects result -> case bind-pattern classes kinds families env locals pat domain st of
+    UPi id name domain effects result -> case bind-arrow-value-pattern classes kinds families env locals pat expected domain st of
       (bound, pattern, checked) -> if pi-dependent (normalize checked expected) then
         (case pattern-value pattern of
           Some actual -> case reify-argument (pat-span pat) bound actual checked of
@@ -883,8 +887,23 @@ module Bootstrap.Infer where
           None -> (bound, pattern, UError, UError, add-error (pat-span pat) "dependent pattern needs a checked argument value" checked))
         else (bound, pattern, effects, result, checked)
     other -> case arrow-parts (pat-span pat) expected st of
-      (domain, row, result, checked) -> case bind-pattern classes kinds families env locals pat domain checked of
+      (domain, row, result, checked) -> case bind-arrow-value-pattern classes kinds families env locals pat expected domain checked of
         (bound, pattern, done) -> (bound, pattern, row, result, done)
+
+  bind-arrow-value-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-arrow-value-pattern classes kinds families env locals pat function domain st =
+    if erased-value-arrow (normalize st function) then bind-erased-value-pattern kinds env locals pat domain st
+    else bind-pattern classes kinds families env locals pat domain st
+  bind-erased-value-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-erased-value-pattern kinds env locals pat domain st = case pat of
+    PVar sp name -> erased-value-binding env sp name domain st
+    PWild sp -> erased-value-binding env sp "#erased-argument" domain st
+    PAnn sp inner annotation -> case convert False kinds (value-locals env locals) annotation st of
+      (ty, checked) -> bind-erased-value-pattern kinds env locals inner domain (unify sp domain ty (expect-type sp ty checked))
+    other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "multiplicity %0: an erased argument needs a variable or wildcard pattern" st)
+  erased-value-binding :: List CheckedBinding -> Span -> String -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  erased-value-binding env sp name domain st = case fresh-id st of
+    (id, fresh) -> (Cons (MkLocalBinding name (mono domain) id (store-level fresh)) env, CPErasedValue sp domain id name, fresh)
 
   local-types :: List (String, UType) -> List UType
   local-types locals = case locals of Nil -> Nil; Cons (name, ty) rest -> Cons ty (local-types rest)
@@ -901,6 +920,12 @@ module Bootstrap.Infer where
       (effects, sr) -> case convert external kinds locals result sr of
         (out, done) -> let ty = UProofFun predicate effects out in
           (ty, if valid-type ty then done else add-error sp "ill-formed source erased arrow" done)
+  check-usage-arrow :: Span -> String -> (UType, Store) -> (UType, Store)
+  check-usage-arrow sp marker converted = case converted of
+    (arrow, checked) -> case parse-arrow-usage marker of
+      None -> bad sp "unknown arrow multiplicity" checked
+      Some usage -> let ty = UUsageArrow usage arrow in
+        if valid-type ty then (ty, checked) else bad sp "a multiplicity needs a computational arrow" checked
   convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-arrow external kinds locals sp argument row result st = case argument of
     TBound s name carrier (TBoundsEnd end) -> case convert-domain external kinds locals carrier st of
@@ -997,6 +1022,7 @@ module Bootstrap.Infer where
         max-arity direct (constructor-arity-arguments kinds locals params sought (known-head-kind kinds locals params actual) arguments)
     TFun sp a b -> max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b)
     TFunEff sp a row b -> max-arity (constructor-arity-in kinds locals params sought 0 row) (max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b))
+    TUsageArrow s usage arrow -> constructor-arity-in kinds locals params sought 0 arrow
     TUsing sp bounds body -> max-arity (constructor-arity-in kinds locals params sought 0 bounds) (constructor-arity-in kinds locals params sought 0 body)
     TBound sp name annotation rest -> max-arity (constructor-arity-in kinds locals params sought 0 annotation) (constructor-arity-in kinds locals params sought 0 rest)
     TArg sp first rest -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-in kinds locals params sought 0 rest)
@@ -1020,6 +1046,7 @@ module Bootstrap.Infer where
     TRow sp labels tail -> row-parameter-names labels <> (case tail of None -> Nil; Some name -> [name])
     TFun sp a b -> row-parameter-names a <> row-parameter-names b
     TFunEff sp a row b -> row-parameter-names a <> row-parameter-names row <> row-parameter-names b
+    TUsageArrow s usage arrow -> row-parameter-names arrow
     TApp sp f xs -> row-parameter-names f <> row-parameter-names xs
     TArg sp first rest -> row-parameter-names first <> row-parameter-names rest
     TTuple sp fields -> row-parameter-names fields
@@ -1095,6 +1122,7 @@ module Bootstrap.Infer where
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
     TFunEff s a row b -> region-names a <> region-names row <> region-names b
+    TUsageArrow s usage arrow -> region-names arrow
     TRow s labels tail -> region-names labels
     TUsing s bounds body -> region-names bounds <> region-names body
     TBound s name app rest -> region-names app <> region-names rest
@@ -1105,6 +1133,7 @@ module Bootstrap.Infer where
   latent-regions ty = case ty of
     TFun s a b -> latent-regions a <> latent-regions b
     TFunEff s a row b -> latent-regions a <> region-names row <> latent-regions b
+    TUsageArrow s usage arrow -> latent-regions arrow
     TUsing s bounds body -> latent-regions body
     TApp s f xs -> latent-regions f <> latent-regions xs
     TArg s x rest -> latent-regions x <> latent-regions rest
@@ -1664,9 +1693,9 @@ module Bootstrap.Infer where
   builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor"]
 
   result-type :: UType -> UType
-  result-type ty = case ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
+  result-type ty = case arrow-shape ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
   domains :: UType -> List UType
-  domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
+  domains ty = case arrow-shape ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
   root-name :: UType -> Option String
   root-name ty = case ty of UCon name k -> Some name; URefineFormer name ids body -> Some name; UApp f x -> root-name f; other -> None
   occurs-owner :: String -> UType -> Bool
@@ -1676,6 +1705,7 @@ module Bootstrap.Infer where
     UPi id binder a row b -> occurs-owner name a || occurs-owner name row || occurs-owner name b
     UFun a b -> occurs-owner name a || occurs-owner name b
     UFunEff a row b -> occurs-owner name a || occurs-owner name b
+    UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
     UArg x rest -> occurs-owner name x || occurs-owner name rest
@@ -1685,6 +1715,7 @@ module Bootstrap.Infer where
     UPi id name a row b -> not (occurs-owner owner a) && positive owner b
     UFun a b -> not (occurs-owner owner a) && positive owner b
     UFunEff a row b -> not (occurs-owner owner a) && positive owner b
+    UUsageArrow usage arrow -> positive owner arrow
     UProofFun predicate row result -> not (occurs-owner owner predicate || occurs-owner owner row) && positive owner result
     UApp f x -> if occurs-owner owner ty then (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False) else True
     UTuple xs -> positive owner xs
@@ -1830,7 +1861,7 @@ module Bootstrap.Infer where
   -- contract with explicit source-binder aliases. This keeps direct self
   -- method dependencies visible to strict dictionary initialization.
   source-default-call :: String -> UType -> Nat -> Expr -> (List Pat, Expr)
-  source-default-call symbol ty next call = case ty of
+  source-default-call symbol ty next call = case arrow-shape ty of
     URequire predicates body -> source-default-call symbol body next call
     UFun domain result -> source-default-call-argument symbol result next call
     UFunEff domain row result -> source-default-call-argument symbol result next call
@@ -1843,7 +1874,7 @@ module Bootstrap.Infer where
     case source-default-call symbol result (next + 1) (EApp zero call (EVar zero name)) of
       (more, body) -> (Cons (PVar zero name) more, body)
   default-arrow-result :: Nat -> UType -> UType
-  default-arrow-result count ty = if count == 0 then ty else case ty of
+  default-arrow-result count ty = if count == 0 then ty else case arrow-shape ty of
     URequire predicate body -> default-arrow-result count body
     UFun domain result -> default-arrow-result (count - 1) result
     UFunEff domain row result -> default-arrow-result (count - 1) result
@@ -2052,6 +2083,7 @@ module Bootstrap.Infer where
     TArg sp first rest -> TArg sp (qualify-foreign-type declarations first) (qualify-foreign-type declarations rest)
     TFun sp domain result -> TFun sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations result)
     TFunEff sp domain row result -> TFunEff sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations row) (qualify-foreign-type declarations result)
+    TUsageArrow s usage arrow -> TUsageArrow s usage (qualify-foreign-type declarations arrow)
     TForall sp params body -> TForall sp params (qualify-foreign-type declarations body)
     TRow sp labels tail -> TRow sp (qualify-foreign-type declarations labels) tail
     other -> syntax
@@ -2134,15 +2166,10 @@ module Bootstrap.Infer where
       && scheme-arity sc == 1 && scheme-runtime-arity sc == 0 then add-binding sp name sc "constructor" env st
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
-  kernel-syntax-metadata :: String -> List Decl -> Option Json
-  kernel-syntax-metadata name declarations = case declarations of
-    Nil -> None
-    Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
-    Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
-    case kernel-syntax-metadata name builtin-declarations of
+    case builtin-syntax-metadata name of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
         (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel predicate syntax" st))
         else (env, add-error sp "decide syntax disagrees with the kernel predicate contract" st)
@@ -2150,7 +2177,7 @@ module Bootstrap.Infer where
   -- Projection consumes an actual checked refinement. The source spelling
   -- never grants authority to an ordinary local or imported function.
   register-ownership-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-ownership-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+  register-ownership-syntax sp name metadata env st = case builtin-syntax-metadata name of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
       (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel ownership syntax" st))
       else (env, add-error sp "ownership syntax disagrees with its owned kernel contract" st)
@@ -2194,10 +2221,26 @@ module Bootstrap.Infer where
             (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at cell-term (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
           other -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
     other -> term-error sp "refSet takes a Mut borrow and a value" st
+  thunk-syntax-operation :: List CheckedBinding -> Expr -> Option String
+  thunk-syntax-operation env head = case head of
+    EVar sp name -> if has name ["b.delay", "b.force"] then
+      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some name else None; other -> None)
+      else None
+    other -> None
+  infer-thunk :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Store -> (CoreTerm, Store)
+  infer-thunk classes kinds families env locals sp operation input st = case fresh-meta KRow st of
+    (row, fresh) -> case fresh-meta KType fresh of
+      (result, ready) -> if same operation "b.delay" then
+        (case check classes kinds families env locals input (UFunEff (primitive-type "Unit") row result) ready of
+          (value, checked) -> (CPrimitive sp (thunk-type row result) "thunk-delay" (CArgument sp value (CArgumentsEnd sp)), checked))
+        else case infer classes kinds families env locals input ready of
+          (value, checked) -> let expected = thunk-type row result in
+            let applied = unify (expr-span input) (core-type value) expected checked in
+            (CPrimitive sp result "thunk-force" (CArgument sp value (CArgumentsEnd sp)), applied)
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-task-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+  register-task-syntax sp name metadata env st = case builtin-syntax-metadata name of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
       (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel task syntax" st))
       else (env, add-error sp "task syntax disagrees with its owned kernel contract" st)
@@ -2214,7 +2257,7 @@ module Bootstrap.Infer where
     (case decision-constructor-scheme name of
       Some expected -> checked-kernel-cache sp syntax expected classes kinds st
       None -> add-error sp "unknown cached kernel constructor type" st)
-    else case kernel-syntax-metadata name builtin-declarations of
+    else case builtin-syntax-metadata name of
       Some metadata -> (case field "scheme" metadata of
         JStr text -> (case parse-scheme name (string-to-bytes text) of
           Parsed ty Nil -> (case make-scheme False classes kinds Nil ty st of
@@ -2431,12 +2474,21 @@ module Bootstrap.Infer where
     EApp sp function argument -> decision-call-name function
     EAnn sp value annotation -> decision-call-name value
     other -> None
+  decision-copy-out :: List CheckedBinding -> Expr -> Bool
+  decision-copy-out env function = case projection-syntax-head env function of
+    Some operation -> same operation "b.copyOut"
+    None -> False
   decision-hint :: List CheckedBinding -> Expr -> Option UType
   decision-hint env expression = case expression of
     EVar sp name -> (case lookup-binding name env of Some binding -> let carrier = predicate-base-carrier (scheme-body (checked-scheme binding)) in if integer-carrier carrier then Some carrier else None; None -> None)
     EAnn sp value (TName at name) -> if primitive name && integer-carrier (primitive-type name) then Some (primitive-type name) else decision-hint env value
     EBin sp operation left right -> (case decision-hint env left of Some carrier -> Some carrier; None -> decision-hint env right)
     ENeg sp input -> decision-hint env input
+    EApp sp function (EVar at name) | decision-copy-out env function -> (case lookup-binding name env of
+      Some binding -> (case borrowed-carrier (scheme-body (checked-scheme binding)) of
+        Some carrier -> if integer-carrier carrier then Some carrier else None
+        None -> None)
+      None -> None)
     EApp sp function input -> (case decision-call-name function of
       None -> None
       Some name -> case lookup-binding name env of
@@ -2469,7 +2521,7 @@ module Bootstrap.Infer where
       other -> term-error sp "decision operands need actual scoped numeric values" st)
     EApp sp function input -> (case decision-call-name function of
       None -> term-error sp "decision calls need checked pure total body authority" st
-      Some name -> if not (byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
+      Some name -> if not (decision-copy-out env function || byte-length-binding name kinds || (case context-total-observation name kinds of Some binding -> True; None -> False)) then term-error sp "decision calls need checked pure total body authority" st else
         (case infer classes kinds families env locals syntax st of
           (value, checked) -> let projected = project-comparison sp value checked in (projected, unify sp carrier (core-type projected) checked)))
     other -> term-error (expr-span syntax) "decision operands need checked pure total reification" st
@@ -2616,13 +2668,15 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> case ownership-syntax-arguments "b.refSet" env expr of
-      Some args -> infer-ref-set classes kinds families env locals s args st
-      None -> case projection-syntax-head env f of
-        Some operation -> infer-projection classes kinds families env locals s operation x st
-        None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
-          (case infer classes kinds families env locals f st of
-            (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
+    EApp s f x -> case thunk-syntax-operation env f of
+      Some operation -> infer-thunk classes kinds families env locals s operation x st
+      None -> case ownership-syntax-arguments "b.refSet" env expr of
+        Some args -> infer-ref-set classes kinds families env locals s args st
+        None -> case projection-syntax-head env f of
+          Some operation -> infer-projection classes kinds families env locals s operation x st
+          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+            (case infer classes kinds families env locals f st of
+              (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
@@ -2730,7 +2784,7 @@ module Bootstrap.Infer where
           URefine id name carrier predicate -> let base = unify sp carrier expected st in
             if list-length (store-errors base) == list-length (store-errors st) then base else st
           other -> st))
-    Cons argument rest -> case normalize st ty of
+    Cons argument rest -> case arrow-shape (normalize st ty) of
       UPi id name domain row result -> hint-independent-result (Cons id binders) sp result rest expected st
       UProofFun predicate row result -> hint-independent-result binders sp result rest expected st
       URequire predicates result -> st
@@ -2753,9 +2807,11 @@ module Bootstrap.Infer where
       Some args -> infer-mutable-borrow classes kinds families env locals sp args expected st
       None -> if projection-syntax-spine env expr || (case ownership-syntax-arguments "b.refSet" env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
         (case application-spine expr Nil of
-          (head, args) -> case infer classes kinds families env locals head st of
-            (fun, opened) -> apply-spine classes kinds families env locals fun args
-              (hint-application-result sp (core-type fun) args expected opened))
+          (head, args) -> case thunk-syntax-operation env head of
+            Some operation -> infer classes kinds families env locals expr st
+            None -> case infer classes kinds families env locals head st of
+              (fun, opened) -> apply-spine classes kinds families env locals fun args
+                (hint-application-result sp (core-type fun) args expected opened))
     other -> infer classes kinds families env locals expr st
   comparison-predicate :: UType -> Bool
   -- Only comparisons and their conjunctions widen to a carrier. Structural
@@ -2900,6 +2956,7 @@ module Bootstrap.Infer where
     UApp f x -> UApp (relocate-local-index binding new-level f) (relocate-local-index binding new-level x)
     UFun a b -> UFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
     UFunEff a row b -> UFunEff (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
+    UUsageArrow usage arrow -> UUsageArrow usage (relocate-local-index binding new-level arrow)
     UProofFun a row b -> UProofFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
     URow labels -> URow (relocate-local-index binding new-level labels)
     URowJoin a b -> URowJoin (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
@@ -2986,7 +3043,7 @@ module Bootstrap.Infer where
   function-type :: UType -> UType -> UType -> UType
   function-type a row b = case row of URow UEnd -> UFun a b; other -> UFunEff a row b
   arrow-parts :: Span -> UType -> Store -> (UType, UType, UType, Store)
-  arrow-parts sp ty st = case normalize st ty of
+  arrow-parts sp ty st = case arrow-shape (normalize st ty) of
     UPi id name a row b -> if pi-dependent (normalize st ty) then (UError, UError, UError, add-error sp "dependent arrow needs an actual argument witness" st) else (a, row, b, st)
     UFun a b -> (a, URow UEnd, b, st)
     UFunEff a row b -> (a, row, b, st)
@@ -3010,24 +3067,37 @@ module Bootstrap.Infer where
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-open-argument classes kinds families original locals sp fun arg st =
-    let env = proof-env-after-term original fun st in case normalize st (core-type fun) of
-    UProofFun predicate effects result -> case (fun, arg) of
-      -- Transparent constructors are synthesized with a scoped proof
-      -- lambda. A direct decide must check the same predicate, and the
-      -- payload must independently establish it before erasing the decision.
-      (CApply at ty (CLambda source outer (CPVar binder domain id name)
-        (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
-          (CRefineProof construct refined reference body))) value,
-       EApp decision head input) | decision-syntax-head env head ->
-        (case check classes kinds families env locals arg (decision-type predicate) st of
-          (checked-decision, checked) -> introduce-refinement env sp result value checked)
-      other -> case erased-argument sp env arg predicate st of
-        (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
-    UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
-      (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
-    other -> case arrow-parts sp (core-type fun) st of
-      (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
-        (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value sf checked
+    let env = proof-env-after-term original fun st in
+    let function = normalize st (core-type fun) in
+    if erased-value-arrow function then
+      (case erased-argument-domain (arrow-shape function) of
+        Some domain -> (case check classes kinds families env locals arg domain st of
+          (value, checked) -> apply-runtime-argument classes sp env fun value checked)
+        None -> term-error sp "malformed erased value arrow" st)
+    else case arrow-shape function of
+      UProofFun predicate effects result -> case (fun, arg) of
+        -- Transparent constructors are synthesized with a scoped proof
+        -- lambda. A direct decide must check the same predicate, and the
+        -- payload must independently establish it before erasing the decision.
+        (CApply at ty (CLambda source outer (CPVar binder domain id name)
+          (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
+            (CRefineProof construct refined reference body))) value,
+         EApp decision head input) | decision-syntax-head env head ->
+          (case check classes kinds families env locals arg (decision-type predicate) st of
+            (checked-decision, checked) -> introduce-refinement env sp result value checked)
+        other -> case erased-argument sp env arg predicate st of
+          (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
+      UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
+        (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
+      other -> case arrow-parts sp (core-type fun) st of
+        (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
+          (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value sf checked
+  erased-argument-domain :: UType -> Option UType
+  erased-argument-domain arrow = case arrow of
+    UFun domain result -> Some domain
+    UFunEff domain row result -> Some domain
+    UPi id name domain row result -> Some domain
+    other -> None
   -- Instantiating a generic consumer with an argument's private witness
   -- must not put that witness in the preceding function binding's type.
   -- Bind the function at its independent scheme first, then instantiate
@@ -3046,7 +3116,7 @@ module Bootstrap.Infer where
           let binding = MkLocalBinding name scheme id (store-level fresh) in
           let bound = proof-let-env env binding id scheme rhs fresh in
           case lookup-value sp name bound fresh of
-            (local, opened) -> case (case normalize opened (core-type local) of
+            (local, opened) -> case (case arrow-shape (normalize opened (core-type local)) of
               UPi index display domain effects result -> (domain, opened)
               other -> case arrow-parts sp (core-type local) opened of (domain, effects, result, shaped) -> (domain, shaped)) of
               (domain, shaped) -> case check classes kinds families bound locals arg domain shaped of
@@ -3066,7 +3136,40 @@ module Bootstrap.Infer where
           let predicate = scheme-body sc in
           (CProofRefl at predicate, unify sp predicate expected st)
         other -> term-error sp "erased argument needs a scoped proof reference" st)
+    EApp at (EVar name symbol) argument -> if same symbol "b.Proof.search" then
+      (case lookup-binding symbol env of
+        Some (MkSyntaxBinding owned) -> if same owned symbol then search-proof at env expected argument st
+          else term-error at "unowned proof tactic" st
+        other -> term-error at "unowned proof tactic" st)
+      else term-error sp "erased argument needs a scoped total proof term" st
     other -> term-error sp "erased argument needs a scoped total proof term" st
+  tactic-steps-valid :: List String -> Bool
+  tactic-steps-valid steps = case steps of
+    Nil -> True
+    Cons step rest -> has step ["assumption", "linear"] && tactic-steps-valid rest
+  try-proof-tactics :: Span -> ProofScope -> List Proposition -> UType -> List String -> Option CoreTerm
+  try-proof-tactics at scope facts goal steps = case steps of
+    Nil -> None
+    Cons first rest ->
+      let assumption = same first "assumption" in
+      case prove-erased-goal scope facts goal assumption of
+        Some evidence -> Some (CProofSearch at goal assumption evidence)
+        None -> try-proof-tactics at scope facts goal rest
+  search-proof :: Span -> List CheckedBinding -> UType -> Expr -> Store -> (CoreTerm, Store)
+  search-proof at env expected argument st = case argument of
+    ELitStr sp plan -> if bytes-len (string-to-bytes plan) > 128 then term-error at "tactic plan exceeds 128 bytes" st else
+      let steps = string-words plan in
+      if list-length steps == 0 || list-length steps > 8 || not (tactic-steps-valid steps) then
+        term-error at "tactic plan needs 1–8 steps: assumption or linear" st
+      else let goal = normalize st expected in
+        let gamma = proof-context env st in
+        case try-proof-tactics at gamma (proof-facts env) goal steps of
+          Some witness -> (witness, st)
+          None -> case stale-proof-message env st (\prior ->
+            case try-proof-tactics at gamma prior goal steps of Some witness -> True; None -> False) of
+              Some message -> term-error at message st
+              None -> term-error at (string-concat-all ["tactic plan `", plan, "` could not prove `", type-text goal, "`"]) st
+    other -> term-error at "Proof.search expects one literal tactic plan" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
   source-effect :: UType -> List CoreEffect -> Option CoreEffect
@@ -3104,6 +3207,7 @@ module Bootstrap.Infer where
   source-handler-lambda-type expected pats row = case pats of
     Nil -> expected
     Cons p rest -> case expected of
+      UUsageArrow usage arrow -> UUsageArrow usage (source-handler-lambda-type arrow pats row)
       UFun a b -> source-handler-arrow a (URow UEnd) b rest row
       UFunEff a effects b -> source-handler-arrow a effects b rest row
       UPi id name a effects b -> UPi id name a (case rest of Nil -> row; other -> URow UEnd) (source-handler-lambda-type b rest row)
@@ -3328,6 +3432,10 @@ module Bootstrap.Infer where
   bind-constructor classes kinds families env locals sp ps ty expected st = case ps of
     PArgsEnd s -> (env, CPDone s, unify sp ty expected st)
     PArg s p rest -> case normalize st ty of
+      UPi id name domain row result -> case bind-arrow-pattern classes kinds families env locals p ty st of
+        (bound, pattern, effects, out, checked) ->
+          case bind-constructor classes kinds families bound locals sp rest out expected (include-effects s effects (URow UEnd) checked) of
+            (final, patterns, done) -> (final, CPField s pattern patterns, done)
       UProofFun predicate row result -> case bind-proof-pattern kinds env locals p predicate (include-effects s row (URow UEnd) st) of
         (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest result expected sb of
           (final, patterns, done) -> (final, CPField s pattern patterns, done)
@@ -4927,6 +5035,7 @@ module Bootstrap.Infer where
   convert-contracted external kinds locals bounds syntax st = case syntax of
     TFun s domain result -> convert-contracted-arrow external kinds locals bounds s domain None result st
     TFunEff s domain row result -> convert-contracted-arrow external kinds locals bounds s domain (Some row) result st
+    TUsageArrow s usage arrow -> check-usage-arrow s usage (convert-contracted external kinds locals bounds arrow st)
     other -> case convert external kinds locals syntax st of
       (body, sb) -> case convert-proof-bounds external kinds locals bounds sb of
         (UEnd, done) -> (body, done)
@@ -5099,6 +5208,7 @@ module Bootstrap.Infer where
     URequire predicates result -> conditional-erasure result
     UFun domain result -> UFun domain (conditional-erasure result)
     UFunEff domain row result -> UFunEff domain row (conditional-erasure result)
+    UUsageArrow usage arrow -> UUsageArrow usage (conditional-erasure arrow)
     UPi id name domain row result -> let output = conditional-erasure result in
       if contains-meta id (type-free-bound output) then UPi id name domain row output else function-type domain row output
     other -> ty
@@ -5107,6 +5217,7 @@ module Bootstrap.Infer where
     URequire (UArg first rest) result -> True
     UFun domain result -> conditional-precondition result
     UFunEff domain row result -> conditional-precondition result
+    UUsageArrow usage arrow -> conditional-precondition arrow
     UPi id name domain row result -> conditional-precondition result
     other -> False
   closed-conditional-scheme :: Scheme -> Bool
@@ -5199,16 +5310,18 @@ module Bootstrap.Infer where
   -- around the call. The actual result is checked while its witnesses
   -- remain in scope; no symbolic equation for an opaque call is invented.
   apply-scoped-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-scoped-argument classes sp env fun value st = case value of
-    CLet source ty id display sc rhs body -> case fresh-id st of
-      (function-id, next) ->
-        let name = "#argument-function" in
-        let scheme = mono (core-type fun) in
-        let binding = MkLocalBinding name scheme function-id (store-level next) in
-        let bound = proof-let-env env binding function-id scheme fun next in
-        case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
-          (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
-    other -> apply-checked-runtime classes sp env fun value st
+  apply-scoped-argument classes sp env fun value st =
+    if erased-value-arrow (normalize st (core-type fun)) then apply-checked-erased-value classes sp env fun value st
+    else case value of
+      CLet source ty id display sc rhs body -> case fresh-id st of
+        (function-id, next) ->
+          let name = "#argument-function" in
+          let scheme = mono (core-type fun) in
+          let binding = MkLocalBinding name scheme function-id (store-level next) in
+          let bound = proof-let-env env binding function-id scheme fun next in
+          case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
+            (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
+      other -> apply-checked-runtime classes sp env fun value st
   apply-argument-lets :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-argument-lets classes sp env fun value st = case value of
     CLet source ty id display sc rhs body ->
@@ -5219,13 +5332,31 @@ module Bootstrap.Infer where
         (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
     other -> apply-checked-runtime classes sp env fun value st
   apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-checked-runtime classes sp env fun value st = case normalize st (core-type fun) of
-    UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
-      if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
-      else discharge-call classes sp env (applied-core sp result effects fun value) checked
-    other -> case arrow-parts sp (core-type fun) st of
-      (domain, row, result, shaped) -> discharge-call classes sp env (applied-core sp result (normalize shaped row) fun value) (unify sp domain (core-type value) shaped)
+  apply-checked-runtime classes sp env fun value st =
+    let function = normalize st (core-type fun) in
+    if erased-value-arrow function then apply-checked-erased-value classes sp env fun value st
+    else case arrow-shape function of
+      UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
+        if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
+        else discharge-call classes sp env (applied-core sp result effects fun value) checked
+      other -> case arrow-parts sp (core-type fun) st of
+        (domain, row, result, shaped) -> discharge-call classes sp env (applied-core sp result (normalize shaped row) fun value) (unify sp domain (core-type value) shaped)
 
+
+  apply-checked-erased-value :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-checked-erased-value classes sp env fun value st =
+    let witness = map-term-types (normalize st) value in
+    let function = normalize st (core-type fun) in
+    if not (erasable-value-argument witness) then term-error sp "multiplicity %0: an erased argument cannot perform effects or writes" st
+    else case arrow-shape function of
+      UPi id name domain row result ->
+        let matched = unify sp domain (core-type value) st in
+        if not (pi-dependent function) then discharge-call classes sp env (CErasedApply sp result row fun value) matched
+        else (case reify-argument sp env witness matched of
+          (index, checked) -> case open-pi sp function index checked of
+            (out, effects, done) -> discharge-call classes sp env (CErasedApply sp out effects fun value) done)
+      other -> case arrow-parts sp function st of
+        (domain, row, result, checked) -> discharge-call classes sp env (CErasedApply sp result row fun value) (unify sp domain (core-type value) checked)
 
   check-conditional-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
   check-conditional-refinements sp rows seen st = case rows of

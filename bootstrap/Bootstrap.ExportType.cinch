@@ -47,7 +47,7 @@ module Bootstrap.ExportType where
       (case decode rest 0 False Nil of Ok value -> if string-length value > 0 then Ok value else Err "empty imported defining identity"; Err error -> Err error)
       else if char-code dot == 46 && char-code prefix == 109 then
         (case split-owner rest Nil of Err error -> Err error; Ok (owner, member) -> Ok (string-concat-all [owner, ".", member]))
-      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"
+      else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Fin" then Ok "Fin" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"
       else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
     other -> Ok name
 
@@ -263,6 +263,17 @@ module Bootstrap.ExportType where
       Some (UCon name KType) -> same name "Int" || same name "Nat"
       other -> False
     other -> True
+  usage-arrow-prefix :: Bool -> Bool -> List (Nat, String) -> Nat -> ArrowUsage -> UType -> Option (List (Result String String), List (Nat, String), UType)
+  usage-arrow-prefix display positions scope position usage arrow =
+    let operator = string-concat-all [" ", arrow-usage-text usage, " ->"] in
+    case arrow of
+      UFun domain result -> Some ([Ok "(", type-in-style display scope domain, Ok operator, Ok " "], scope, result)
+      UFunEff domain row result -> Some ([Ok "(", type-in-style display scope domain, Ok operator, row-in scope row, Ok " "], scope, result)
+      UPi id name domain row result ->
+        let binder = if positions then fresh-scoped-name (fresh-name "arg" position) scope else argument-name name scope in
+        let bound = Cons (id, binder) scope in
+        Some ([Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ")", Ok operator, row-in bound row, Ok " "], bound, result)
+      other -> None
   type-in :: List (Nat, String) -> UType -> Result String String
   type-in scope ty = type-in-style False scope ty
   type-in-style :: Bool -> List (Nat, String) -> UType -> Result String String
@@ -296,10 +307,17 @@ module Bootstrap.ExportType where
     URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
     UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
       join [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " ", type-in-style display bound result, Ok ")"]
-    UApp f x -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
-      join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
+    UApp f x -> case thunk-parts ty of
+      Some (row, result) -> case row-in scope row of
+        Err error -> Err error
+        Ok effects -> join [Ok "(Thunk ", Ok (if same effects "" then "{}" else effects), Ok " ", type-in-style display scope result, Ok ")"]
+      None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
+        join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
     UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
     UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
+    UUsageArrow usage arrow -> case usage-arrow-prefix display False scope 0 usage arrow of
+      Some (prefix, bound, result) -> join (prefix <> [type-in-style display bound result, Ok ")"])
+      None -> Err "malformed usage-annotated arrow in interface"
     UProofFun predicate row result -> if valid-type ty then
       join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
       else Err "malformed erased proof arrow in interface"
@@ -338,6 +356,9 @@ module Bootstrap.ExportType where
       with-result [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " "] (result-in display positions bound (position + 1) result)
     UFun domain result -> with-result [Ok "(", type-in-style display scope domain, Ok " -> "] (result-in display positions scope (position + 1) result)
     UFunEff domain row result -> with-result [Ok "(", type-in-style display scope domain, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
+    UUsageArrow usage arrow -> case usage-arrow-prefix display positions scope position usage arrow of
+      Some (prefix, bound, result) -> with-result prefix (result-in display positions bound (position + 1) result)
+      None -> Err "malformed usage-annotated arrow in interface"
     UProofFun predicate row result -> if valid-type ty then
       with-result [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " "] (result-in display positions scope (position + 1) result)
       else Err "malformed erased proof arrow in interface"
@@ -345,6 +366,7 @@ module Bootstrap.ExportType where
       UPi id name a row b -> Err "early dependent precondition cannot be moved across an argument"
       UFun a b -> Err "early precondition cannot be moved across an argument"
       UFunEff a row b -> Err "early effectful precondition cannot be moved across an argument"
+      UUsageArrow usage arrow -> Err "early precondition cannot be moved across a usage-annotated argument"
       UProofFun predicate row result -> Err "early erased-proof precondition cannot be moved across an argument"
       other -> (case (separated-style display scope ", " predicates, result-in display positions scope position body) of
         (Ok conditions, Ok (value, rest)) -> Ok (value, Cons conditions rest)
@@ -412,6 +434,7 @@ module Bootstrap.ExportType where
     UPi id name domain row result -> has-preconditions result
     UFun domain result -> has-preconditions result
     UFunEff domain row result -> has-preconditions result
+    UUsageArrow usage arrow -> has-preconditions arrow
     UProofFun predicate row result -> has-preconditions result
     URequire predicates body -> True
     other -> False

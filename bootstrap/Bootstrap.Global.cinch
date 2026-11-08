@@ -274,6 +274,7 @@ module Bootstrap.Global where
   pattern-locals globals locals pattern = case pattern of
     CPVar sp ty id name -> bind-local id (mono ty) locals
     CPProof sp ty id name -> bind-local id (mono ty) locals
+    CPErasedValue sp ty id name -> bind-local id (mono ty) locals
     CPAs sp ty id name inner -> case bind-local id (mono ty) locals of Some bound -> pattern-locals globals bound inner; None -> None
     CPConstructor sp ty name actuals constructor fields -> if constructor-reference globals name actuals constructor then pattern-locals globals locals fields else None
     CPTuple sp ty fields -> pattern-locals globals locals fields
@@ -293,6 +294,7 @@ module Bootstrap.Global where
     CLocal sp ty id name actuals -> local-reference locals ty id actuals
     CProofRef sp predicate id name -> kind-equal (type-kind predicate) KProp && local-reference locals predicate id Nil
     CProofRefl sp predicate -> reflexive-equality predicate
+    CProofSearch sp predicate assumption evidence -> valid-type predicate && kind-equal (type-kind predicate) KProp
     CDecision sp ty predicate condition -> term-references globals locals givens condition
     CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
     CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x

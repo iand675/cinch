@@ -106,6 +106,19 @@ module Main where
         , not (scoped-proof-reference gamma unequal (CProofRefl sp equality))
         , not (scoped-proof-reference gamma comparison (CProofRefl sp comparison))
         , not (pure (CProofRefl sp equality))
+        , (let greater = UIndex int (IInteger 6) in
+           let goal = UCompare "<" value greater in
+           let fact = PCompare Less (AInteger 5) (AInteger 6) in
+           case prove-erased-goal gamma [fact] goal True of
+             Some certificate ->
+               let searched = CProofSearch sp goal True certificate in
+               scoped-erased-witness gamma [fact] goal searched
+               && not (scoped-erased-witness gamma Nil goal searched)
+               && not (scoped-erased-witness gamma [fact] (UCompare "<" greater value) searched)
+               && not (scoped-erased-witness gamma [fact] (UCompare "<" greater value)
+                 (CProofSearch sp (UCompare "<" greater value) False certificate))
+               && not (pure searched)
+             None -> False)
         , not (pure (CApply sp int (CUse sp pure-arrow "accept" "external" Nil) (ref h)))
         , pure (CErasedApply sp int empty-row (CUse sp pure-arrow "accept" "external" Nil) (ref h))
         , guarded (nonce + 10)

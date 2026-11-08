@@ -293,6 +293,7 @@ module Bootstrap.BodyContract where
     UApp a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UFun a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UFunEff a row b -> body-type-authorized bindings a && body-type-authorized bindings row && body-type-authorized bindings b
+    UUsageArrow usage arrow -> body-type-authorized bindings arrow
     UProofFun a row b -> body-type-authorized bindings a && body-type-authorized bindings row && body-type-authorized bindings b
     URow labels -> body-type-authorized bindings labels
     URowJoin a b -> body-type-authorized bindings a && body-type-authorized bindings b

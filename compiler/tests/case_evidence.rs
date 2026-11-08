@@ -362,6 +362,15 @@ fn obligations_the_condition_does_not_imply_are_refused() {
         &["is evidence of `a < b`, not of `b < a`"],
     );
     // A rebinding of the name inside the branch is another value.
+    // The staged checker prints the obligation after substituting that value.
+    let shadowed_obligation = if common::external_frontend::configured()
+        .expect("valid test frontend configuration")
+        .is_some()
+    {
+        "the obligation `9 < 5` needs"
+    } else {
+        "the obligation `x < 5` needs"
+    };
     expect_err(
         "shadowed-name",
         &program(
@@ -371,7 +380,7 @@ fn obligations_the_condition_does_not_imply_are_refused() {
 "#,
             "0",
         ),
-        &["the obligation `x < 5` needs"],
+        &[shadowed_obligation],
     );
     // A `Bool` the checker cannot read as a predicate gives no evidence.
     expect_err(
