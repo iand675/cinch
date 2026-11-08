@@ -33,7 +33,7 @@ module Bootstrap.Type where
   export store-law-scope, with-law-scope
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
-  export generalize-with, generalize-application-with, abstract-metas
+  export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
   export number-literal-carrier, number-literal-valid, number-literal-error, float-literal-bits
@@ -1000,12 +1000,22 @@ module Bootstrap.Type where
         else add-error sp "malformed closed effect row" st
       other -> mismatch sp a b st
     URowJoin first second -> if valid-type a && valid-type b && kind-equal (type-kind b) KRow then
-      include-effects sp b a (include-effects sp a b st)
+      unify-open-rows sp a b st
       else add-error sp "malformed open effect row" st
     UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
     UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
     UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
     other -> mismatch sp a b st
+
+  -- Equal explicit labels can share a tail. Try that equation before
+  -- inclusion, which requires the tail identities to be known already.
+  unify-open-rows :: Span -> UType -> UType -> Store -> Store
+  unify-open-rows sp a b st = case (a, b) of
+    (URowJoin (URow left) tail, URowJoin (URow right) other-tail) ->
+      let trial = unify sp tail other-tail (unify sp (URow left) (URow right) st) in
+      if list-length (store-errors trial) == list-length (store-errors st) then trial
+      else include-effects sp b a (include-effects sp a b st)
+    other -> include-effects sp b a (include-effects sp a b st)
 
   -- Closed rows are sets, including when region variables later coincide.
   -- Search is transactional: a rejected label match cannot leave region
@@ -1126,40 +1136,64 @@ module Bootstrap.Type where
 
   mapped :: Nat -> List (Nat, UType) -> Option UType
   mapped id pairs = case pairs of Nil -> None; Cons (n, ty) rest -> if id == n then Some ty else mapped id rest
+  data TypeSubstitution where
+    ReplaceBound :: TypeSubstitution
+    ReplaceMeta :: TypeSubstitution
+    ReplaceRigid :: TypeSubstitution
+
   substitute :: List (Nat, UType) -> UType -> UType
-  substitute pairs ty = case ty of
+  substitute pairs ty = transform-type ReplaceBound pairs ty
+  replace-metas :: List (Nat, UType) -> UType -> UType
+  replace-metas pairs ty = transform-type ReplaceMeta pairs ty
+  -- The rigid opening of a term annotation has only non-value parameters.
+  substitute-rigid-types :: List (Nat, UType) -> UType -> UType
+  substitute-rigid-types pairs ty = transform-type ReplaceRigid pairs ty
+
+  transform-type :: TypeSubstitution -> List (Nat, UType) -> UType -> UType
+  transform-type mode pairs ty = case ty of
     UPropLit value -> UPropLit value
-    UCompare relation left right -> UCompare relation (substitute pairs left) (substitute pairs right)
-    UPropAnd left right -> UPropAnd (substitute pairs left) (substitute pairs right)
-    UPropOr left right -> UPropOr (substitute pairs left) (substitute pairs right)
-    UPropNot body -> UPropNot (substitute pairs body)
-    UPropNonZero body -> UPropNonZero (substitute pairs body)
-    UPropNotNull body -> UPropNotNull (substitute pairs body)
-    UPropNonZeroPending body -> normalize-pending-nonzero (substitute pairs body)
-    URequire predicates body -> URequire (substitute pairs predicates) (substitute pairs body)
-    URefine id name carrier predicate -> substitute-refinement False pairs id name carrier predicate
-    UIndexForget value -> UIndexForget (substitute pairs value)
-    UIndexByteLength value -> UIndexByteLength (substitute pairs value)
-    UIndexBorrowRead value -> UIndexBorrowRead (substitute pairs value)
-    UIndexList element fields -> UIndexList (substitute pairs element) (substitute pairs fields)
-    UIndexCall function args -> UIndexCall function (substitute pairs args)
-    UIndexPromote value -> UIndexPromote (substitute pairs value)
-    UIndexMath op left right -> make-index-math op (substitute pairs left) (substitute pairs right)
-    UPi id name domain row result -> substitute-pi False pairs id name domain row result
-    UIndex carrier value -> substitute-value-index False pairs (substitute pairs carrier) value
-    UBound id name k -> case mapped id pairs of Some replacement -> replacement; None -> UBound id name (map-kind-types (substitute pairs) k)
-    UCon name k -> UCon name (map-kind-types (substitute pairs) k)
-    URigid id name level k -> URigid id name level (map-kind-types (substitute pairs) k)
-    UMeta id k -> UMeta id (map-kind-types (substitute pairs) k)
-    UApp f x -> type-application (substitute pairs f) (substitute pairs x)
-    UFun a b -> UFun (substitute pairs a) (substitute pairs b)
-    UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
-    UUsageArrow usage arrow -> UUsageArrow usage (substitute pairs arrow)
-    UProofFun a row b -> UProofFun (substitute pairs a) (substitute pairs row) (substitute pairs b)
-    URow labels -> URow (substitute pairs labels)
-    URowJoin a b -> union-effects (substitute pairs a) (substitute pairs b)
-    UTuple xs -> UTuple (substitute pairs xs)
-    UArg x rest -> UArg (substitute pairs x) (substitute pairs rest)
+    UCompare relation left right -> UCompare relation (transform-type mode pairs left) (transform-type mode pairs right)
+    UPropAnd left right -> UPropAnd (transform-type mode pairs left) (transform-type mode pairs right)
+    UPropOr left right -> UPropOr (transform-type mode pairs left) (transform-type mode pairs right)
+    UPropNot body -> UPropNot (transform-type mode pairs body)
+    UPropNonZero body -> UPropNonZero (transform-type mode pairs body)
+    UPropNotNull body -> UPropNotNull (transform-type mode pairs body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (transform-type mode pairs body)
+    URequire predicates body -> URequire (transform-type mode pairs predicates) (transform-type mode pairs body)
+    URefine id name carrier predicate -> substitute-refinement mode pairs id name carrier predicate
+    UIndexForget value -> UIndexForget (transform-type mode pairs value)
+    UIndexByteLength value -> UIndexByteLength (transform-type mode pairs value)
+    UIndexBorrowRead value -> UIndexBorrowRead (transform-type mode pairs value)
+    UIndexList element fields -> UIndexList (transform-type mode pairs element) (transform-type mode pairs fields)
+    UIndexCall function args -> UIndexCall function (transform-type mode pairs args)
+    UIndexPromote value -> UIndexPromote (transform-type mode pairs value)
+    UIndexMath op left right -> make-index-math op (transform-type mode pairs left) (transform-type mode pairs right)
+    UPi id name domain row result -> substitute-pi mode pairs id name domain row result
+    UIndex carrier value ->
+      let changed = transform-type mode pairs carrier in
+      (case mode of
+        ReplaceBound -> substitute-value-index False pairs changed value
+        ReplaceMeta -> substitute-value-index True pairs changed value
+        ReplaceRigid -> UIndex changed value)
+    UBound id name k -> case (case mode of ReplaceBound -> mapped id pairs; other -> None) of
+      Some replacement -> replacement
+      None -> UBound id name (map-kind-types (transform-type mode pairs) k)
+    UCon name k -> UCon name (map-kind-types (transform-type mode pairs) k)
+    URigid id name level k -> case (case mode of ReplaceRigid -> mapped id pairs; other -> None) of
+      Some replacement -> replacement
+      None -> URigid id name level (map-kind-types (transform-type mode pairs) k)
+    UMeta id k -> case (case mode of ReplaceMeta -> mapped id pairs; other -> None) of
+      Some replacement -> replacement
+      None -> UMeta id (map-kind-types (transform-type mode pairs) k)
+    UApp f x -> type-application (transform-type mode pairs f) (transform-type mode pairs x)
+    UFun a b -> UFun (transform-type mode pairs a) (transform-type mode pairs b)
+    UFunEff a row b -> UFunEff (transform-type mode pairs a) (transform-type mode pairs row) (transform-type mode pairs b)
+    UUsageArrow usage arrow -> UUsageArrow usage (transform-type mode pairs arrow)
+    UProofFun a row b -> UProofFun (transform-type mode pairs a) (transform-type mode pairs row) (transform-type mode pairs b)
+    URow labels -> URow (transform-type mode pairs labels)
+    URowJoin a b -> union-effects (transform-type mode pairs a) (transform-type mode pairs b)
+    UTuple xs -> UTuple (transform-type mode pairs xs)
+    UArg x rest -> UArg (transform-type mode pairs x) (transform-type mode pairs rest)
     other -> ty
   substitute-bound :: List (Nat, UType) -> UType -> UType
   substitute-bound pairs ty = substitute pairs ty
@@ -1186,41 +1220,6 @@ module Bootstrap.Type where
   open-qualified rigid sc st = case instantiate-params rigid (scheme-params sc) st of
     (pairs, next-store) -> (substitute pairs (scheme-body sc), map-requirements (substitute pairs) (scheme-requirements sc), pairs, next-store)
 
-  replace-metas :: List (Nat, UType) -> UType -> UType
-  replace-metas pairs ty = case ty of
-    UPropLit value -> UPropLit value
-    UCompare relation left right -> UCompare relation (replace-metas pairs left) (replace-metas pairs right)
-    UPropAnd left right -> UPropAnd (replace-metas pairs left) (replace-metas pairs right)
-    UPropOr left right -> UPropOr (replace-metas pairs left) (replace-metas pairs right)
-    UPropNot body -> UPropNot (replace-metas pairs body)
-    UPropNonZero body -> UPropNonZero (replace-metas pairs body)
-    UPropNotNull body -> UPropNotNull (replace-metas pairs body)
-    UPropNonZeroPending body -> normalize-pending-nonzero (replace-metas pairs body)
-    URequire predicates body -> URequire (replace-metas pairs predicates) (replace-metas pairs body)
-    URefine id name carrier predicate -> substitute-refinement True pairs id name carrier predicate
-    UIndexForget value -> UIndexForget (replace-metas pairs value)
-    UIndexByteLength value -> UIndexByteLength (replace-metas pairs value)
-    UIndexBorrowRead value -> UIndexBorrowRead (replace-metas pairs value)
-    UIndexList element fields -> UIndexList (replace-metas pairs element) (replace-metas pairs fields)
-    UIndexCall function args -> UIndexCall function (replace-metas pairs args)
-    UIndexPromote value -> UIndexPromote (replace-metas pairs value)
-    UIndexMath op left right -> make-index-math op (replace-metas pairs left) (replace-metas pairs right)
-    UPi id name domain row result -> substitute-pi True pairs id name domain row result
-    UIndex carrier value -> substitute-value-index True pairs (replace-metas pairs carrier) value
-    UMeta id k -> case mapped id pairs of Some replacement -> replacement; None -> UMeta id (map-kind-types (replace-metas pairs) k)
-    UCon name k -> UCon name (map-kind-types (replace-metas pairs) k)
-    UBound id name k -> UBound id name (map-kind-types (replace-metas pairs) k)
-    URigid id name level k -> URigid id name level (map-kind-types (replace-metas pairs) k)
-    UApp f x -> type-application (replace-metas pairs f) (replace-metas pairs x)
-    UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
-    UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
-    UUsageArrow usage arrow -> UUsageArrow usage (replace-metas pairs arrow)
-    UProofFun a row b -> UProofFun (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
-    URow labels -> URow (replace-metas pairs labels)
-    URowJoin a b -> union-effects (replace-metas pairs a) (replace-metas pairs b)
-    UTuple xs -> UTuple (replace-metas pairs xs)
-    UArg x rest -> UArg (replace-metas pairs x) (replace-metas pairs rest)
-    other -> ty
   generalized :: Bool -> Nat -> List Nat -> List Nat -> Nat -> Store -> (List Quant, List (Nat, UType))
   generalized current level blocked ids next st = case ids of
     Nil -> (Nil, Nil)
@@ -1717,11 +1716,9 @@ module Bootstrap.Type where
   pair-all-ids pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> merge-ids [id] (merge-ids (type-all-ids ty) (pair-all-ids rest))
   pair-free-bound :: List (Nat, UType) -> List Nat
   pair-free-bound pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> merge-ids (type-free-bound ty) (pair-free-bound rest)
-  transform-type :: Bool -> List (Nat, UType) -> UType -> UType
-  transform-type metas pairs ty = if metas then replace-metas pairs ty else substitute pairs ty
-  substitute-pi :: Bool -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType -> UType
-  substitute-pi metas pairs id name domain row result =
-    let kept = if metas then pairs else without-type-pair id pairs in
+  substitute-pi :: TypeSubstitution -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType -> UType
+  substitute-pi mode pairs id name domain row result =
+    let kept = case mode of ReplaceBound -> without-type-pair id pairs; other -> pairs in
     let fresh = largest-id (merge-ids (type-all-ids (UPi id name domain row result)) (pair-all-ids pairs)) + 1 in
     let captures = contains-id id (pair-free-bound kept) in
     -- The renaming witness uses the original domain. Its annotation is
@@ -1729,15 +1726,15 @@ module Bootstrap.Type where
     let witness = UBound fresh name (value-kind domain) in
     let scoped-row = if captures then substitute [(id, witness)] row else row in
     let scoped-result = if captures then substitute [(id, witness)] result else result in
-    UPi (if captures then fresh else id) name (transform-type metas pairs domain)
-      (transform-type metas kept scoped-row) (transform-type metas kept scoped-result)
+    UPi (if captures then fresh else id) name (transform-type mode pairs domain)
+      (transform-type mode kept scoped-row) (transform-type mode kept scoped-result)
 
   -- Reuse the checked binder machinery without identifying refinements
   -- with functions. The encoding is private and never an exported type.
   refinement-pi :: Nat -> String -> UType -> UType -> UType
   refinement-pi id name carrier predicate = UPi id name carrier (URow UEnd) (URequire (UArg predicate UEnd) carrier)
-  substitute-refinement :: Bool -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType
-  substitute-refinement metas pairs id name carrier predicate = case substitute-pi metas pairs id name carrier (URow UEnd) predicate of
+  substitute-refinement :: TypeSubstitution -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType
+  substitute-refinement mode pairs id name carrier predicate = case substitute-pi mode pairs id name carrier (URow UEnd) predicate of
     UPi fresh display domain row condition -> URefine fresh display domain condition
     other -> UError
   -- Opening produces the predicate to prove about an actual checked index.

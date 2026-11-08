@@ -32,8 +32,9 @@ enum Frame {
     /// An explicit `(`, `[` or `{` shielding enclosing layout. The flag
     /// marks the `(` of a capability supply clause `with (...)`: 1 while
     /// the group is open, 2 once it binds names (`x = e` at its top
-    /// level), whose closing `)` arms the supply `in` (see
-    /// `supply_close_pending`). A parenthesized expression after `with`
+    /// level), whose closing `)` arms the supply `in`. Flag 3 marks an
+    /// explicit `let { ... }`, whose closing brace also arms its `in`.
+    /// A parenthesized expression after `with`
     /// (the `narrow` cast's evidence) is not a supply and keeps the
     /// surrounding `let` block's `in`.
     Delim(Delim, u8),
@@ -55,12 +56,9 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
     // clause `with (...)`; a `with` followed by anything else introduces a
     // handler operand and opens nothing.
     let mut with_paren_pending = false;
-    // Armed when the `)` closing a supply clause's `(` arrives: the next
-    // token, if it is `in`, is the supply's closing `in` (it closes no let
-    // block and emits no virtual braces). Any other next token clears the
-    // marker, so a lexically distinct supply `in` token also passes through
-    // harmlessly.
-    let mut supply_close_pending = false;
+    // A closed supply clause or explicit let group can take the immediately
+    // following `in` without closing an enclosing implicit block.
+    let mut explicit_in_pending = false;
 
     for tok in tokens {
         let span = tok.span;
@@ -69,7 +67,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
 
         let with_group_open =
             std::mem::replace(&mut with_paren_pending, false) && tok.tok == Tok::LParen;
-        let supply_in = std::mem::replace(&mut supply_close_pending, false);
+        let explicit_in = std::mem::replace(&mut explicit_in_pending, false);
 
         if let Some((_, is_let)) = pending.take() {
             if tok.tok == Tok::Eof {
@@ -78,7 +76,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
             } else if tok.tok == Tok::LBrace {
                 // An explicit `{` supplies the block verbatim.
                 out.push(tok);
-                stack.push(Frame::Delim(Delim::Brace, 0));
+                stack.push(Frame::Delim(Delim::Brace, if is_let { 3 } else { 0 }));
                 prev = Some(span);
                 continue;
             } else {
@@ -118,24 +116,22 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                     Tok::RBracket => Delim::Bracket,
                     _ => Delim::Brace,
                 };
-                let (got, was_with_group) = match stack.pop() {
+                let (got, delimiter_flag) = match stack.pop() {
                     Some(Frame::Delim(d, w)) => (d, w),
                     _ => return Err(Error::at(span, "mismatched closing delimiter")),
                 };
                 if got != want {
                     return Err(Error::at(span, "mismatched closing delimiter"));
                 }
-                if was_with_group == 2 {
-                    // The next token, if `in`, is the supply clause's own.
-                    supply_close_pending = true;
+                if matches!(delimiter_flag, 2 | 3) {
+                    explicit_in_pending = true;
                 }
                 out.push(tok);
                 prev = Some(span);
                 continue;
             }
-            Tok::In if supply_in => {
-                // A capability supply clause `with (...)` closes itself: no
-                // virtual braces, no `let` block involved.
+            Tok::In if explicit_in => {
+                // The corresponding delimiter already closed the block.
                 out.push(tok);
                 prev = Some(span);
                 continue;
@@ -547,6 +543,17 @@ mod tests {
     fn in_must_not_cross_an_explicit_delimiter() {
         let e = layout_err("let x = (1 in 2)").expect("error");
         assert!(e.message.contains("must not cross"), "{e}");
+    }
+
+    #[test]
+    fn explicit_let_in_preserves_the_enclosing_implicit_let() {
+        let tokens = kinds("let x = let { y = 1 } in y in x");
+        let closes = tokens
+            .windows(2)
+            .filter(|pair| pair[0] == Tok::RBrace && pair[1] == Tok::In)
+            .count();
+        assert_eq!(closes, 2);
+        assert!(layout_err("let { x = 1 } y in x").is_some());
     }
 
     #[test]

@@ -20,7 +20,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
-  import Bootstrap.RuntimeIr (emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
+  import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
   import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
@@ -212,7 +212,9 @@ module Bootstrap.Pipeline where
     Ok expanded -> retain-resolved-source (resolve expanded)
   retain-resolved-source :: (Program, List Diagnostic) -> Result (List Diagnostic) CheckedProgram
   retain-resolved-source result = case result of
-    (resolved, Nil) -> check-and-retain resolved
+    (resolved, Nil) -> case check-and-retain resolved of
+      Ok checked -> check-runtime-entry checked
+      Err errors -> Err errors
     (resolved, errors) -> Err errors
   overlay-interface :: String -> List LoadedInterface -> Option LoadedInterface
   overlay-interface name interfaces = case interfaces of

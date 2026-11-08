@@ -1,4 +1,176 @@
 {
+  "fixed_point": {
+    "changed_source": {
+      "compiler_sha256": "db13e23ff4321b21712c419e404bbf362680f5864468e8d00016abf793a5d583",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "4c081a5ec2f96911a8c78e56430efb380ba28a1a9400ce4daa8049a7154e5603"
+    },
+    "changed_source_rebuilt": true,
+    "consumer": {
+      "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+      "manifest_sha256": "0dd2fc2cdef11604383f4344d05eeff88eee61bd49530f8d92244a0f3714f177",
+      "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+      "status": "passed"
+    },
+    "gates_passed": 14,
+    "smoke_tests": 12,
+    "smokes": {
+      "stage0": {
+        "fib": {
+          "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "precedence": {
+          "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+        },
+        "refusal": {
+          "compile.log": "0ce503af8911663aee207eb1dc3a94ab55af7bceef3488ca3c5f69528624a0f4"
+        }
+      },
+      "stage1": {
+        "fib": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "precedence": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "refusal": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "program.ll.diagnostics": "b698294553190462cdca3e4b6cef0939809d4f510c780ceb825d08ebeac903e0"
+        }
+      },
+      "stage2": {
+        "fib": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "precedence": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "refusal": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "program.ll.diagnostics": "b698294553190462cdca3e4b6cef0939809d4f510c780ceb825d08ebeac903e0"
+        }
+      },
+      "stage3": {
+        "fib": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "precedence": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "refusal": {
+          "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "program.ll.diagnostics": "b698294553190462cdca3e4b6cef0939809d4f510c780ceb825d08ebeac903e0"
+        }
+      }
+    },
+    "stage_results": [
+      {
+        "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+        "name": "stage0",
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "a8d959a0bb94454bfa10bafa5c495766ccda1e72a9df87950dfcad459ff6820a",
+        "name": "stage1",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:11:9: non-exhaustive patterns: constructor Circle is not covered by an unguarded row; add an unguarded final row (Main.cinch:10:9)\n",
+        "exit_code": 4,
+        "name": "guarded-constructor",
+        "source_sha256": "5da52597457cc7163d42a578818b6bba89ef0d54f222ce5a7375687eb155f4df",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:11:9: non-exhaustive patterns: constructor Square is not covered by an unguarded row; add an unguarded final row (Main.cinch:10:9)\n",
+        "exit_code": 4,
+        "name": "mixed-missing-constructor",
+        "source_sha256": "42b192f74d583c5ba25315a06244263395262b269e1e66fc568f39abedf5de52",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:11:12: non-exhaustive patterns: a scrutinee value is not covered by an unguarded row; add an unguarded final row (Main.cinch:10:12)\n",
+        "exit_code": 4,
+        "name": "nonliteral-true-guard",
+        "source_sha256": "40aa5bbe3493ebaeb8e6272f9fc4b45033b3e0c5ca666b998e12ab6d6dc10384",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:5:3: main must have type Int or Unit ->{e} Int, without external evidence (Main.cinch:4:3)\n",
+        "exit_code": 4,
+        "name": "wrong-bool-main",
+        "source_sha256": "27ff241cfce155e3dce695998b7647786a289b016f8e83e40e0495601bcb5751",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:4:1: main must have type Int or Unit ->{e} Int, without external evidence (Main.cinch:3:1)\n",
+        "exit_code": 4,
+        "name": "wrong-nat-main",
+        "source_sha256": "c4837e3b3835a44fa66b9f80097b649c07b4a20a9ce457ec9f148f06b0d2631f",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "name": "literal-pattern-order",
+        "run_exit": 0,
+        "source_sha256": "7e7b62f6b8d7afe779eeccbcb6b13b8586055cc4cbb14dbf4826a2a4dece6c78",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:9:11: a task forwarding helper must be fully applied in its source compilation\n",
+        "exit_code": 4,
+        "name": "first-class-source-forwarder",
+        "source_sha256": "4d7af82c5875681fe0c554f645dbf31315cef8daf15c1c6fc866256267009d05",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:9:11: spawn must be applied directly to check the task callback\n",
+        "exit_code": 4,
+        "name": "first-class-spawn",
+        "source_sha256": "098337c6d35bdf30e142d1d097e1ff7261009227d973358aee51d5be7ef9b75d",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "link_exit": 0,
+        "name": "exact-forall-shadow",
+        "run_exit": 42,
+        "source_sha256": "1e9d744ed278ee048e50a917a8469ccfa624930101f62fb9bc0a99e13243430f",
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+        "name": "stage2",
+        "stage_receipt_sha256": "7e41b989ad1a4779f82194d9ac95430498f4b1b4a7cd43fe53becf077bce0364",
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+        "name": "stage3",
+        "stage_receipt_sha256": "ff0ecb595bcb1e78738d311e8dddab8b82e0e63b8cd9bf40af7dacb20a066ff6",
+        "status": "passed"
+      },
+      {
+        "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+        "interfaces": 46,
+        "llvm_sha256": "3e15d629ef814a62fb4215baac497c43c18dd8ac586a8b81a3fa56f5416901fb",
+        "name": "fixed-point",
+        "status": "passed"
+      }
+    ],
+    "standalone_consumer": true
+  },
   "full_goal_complete": false,
   "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
   "rust": {

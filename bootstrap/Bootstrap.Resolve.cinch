@@ -320,7 +320,16 @@ module Bootstrap.Resolve where
   type-name :: List Binding -> List String -> String -> String
   type-name visible locals name = if has-name name locals then name else case lookup-binding name visible of
     None -> name
-    Some b -> binding-symbol b
+    Some b -> if has-name (annotation-type-local name) locals then name else binding-symbol b
+
+  -- A term annotation can shadow a type name while the same spelling
+  -- still resolves to a value in its body.
+  annotation-type-local :: String -> String
+  annotation-type-local name = string-concat "#type:" name
+  annotation-type-locals :: TypeExpr -> List String
+  annotation-type-locals ty = case ty of
+    TForall sp binders body -> map annotation-type-local (bound-names binders)
+    other -> Nil
 
   bound-names :: TypeExpr -> List String
   bound-names t = case t of
@@ -628,7 +637,7 @@ module Bootstrap.Resolve where
     EGuarded s guard body -> case rename-branch-value visible locals guard of
       (condition, errors) -> case rename-expr visible locals body of
         (rhs, more) -> (EGuarded s condition rhs, errors <> more)
-    EAnn s x ty -> case rename-expr visible locals x of
+    EAnn s x ty -> case rename-expr visible (annotation-type-locals ty <> locals) x of
       (renamed, errors) -> (EAnn s renamed (rename-type visible locals ty), errors)
     EArg s first rest -> case rename-expr visible locals first of
       (a, errors) -> case rename-expr visible locals rest of

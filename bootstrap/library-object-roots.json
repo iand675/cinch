@@ -1157,6 +1157,10 @@
     {
       "classes": "TTT",
       "symbol": "Function.Combinators.uncurry"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.sum-list"
     }
   ]
 }

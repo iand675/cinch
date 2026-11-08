@@ -1,0 +1,138 @@
+{
+  "cinch": {
+    "compiler_source_sha256": "841aeafb95ecbd7535810a63bc35f457eb23b5e34dbcf19891914a6c0f1cadb6",
+    "driver_sha256": "5d588823c38f513d9307841cff8bee77b086f1295b7f4f0b1b8c04a3a9032c9a",
+    "fixture_sha256": {
+      "18": "b39fe9732b483bf6ea357668c704560c346b3fcef247eaf28e8a0a215fc15f15",
+      "19": "b9638c81307ba8fb623e9c4b6f36927533ef941e1a89781900981e70e74ec167",
+      "20": "83b5b39e113502f494ded4233a8a40503f921b017ea1f9e3652f864364886746",
+      "21": "cec29b0e4412f3fe97e6431f54dcf236b88a28ee14ffa2fc542d25eef6015c4e",
+      "concurrency": "fb43858628c0902a8fc68f35386d7298749c4b3ed5fdda687e0695e7cb21383f"
+    },
+    "rows": [
+      {
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "name": "compile",
+        "status": "passed"
+      },
+      {
+        "executable_sha256": "248690956c33811799bf9c2b25246f2e639d16cf3ac834a88f4f914bb67cb6bf",
+        "exit_code": 0,
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "syntax-and-scopes",
+        "status": "passed"
+      }
+    ],
+    "seed_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265"
+  },
+  "full_goal_complete": false,
+  "rust": {
+    "baseline_source_sha256": "9dd2b45de58652076a5732ef609b6ebfe22ad590cc521c179a2acf096860dc57",
+    "layout_source_sha256": "f3a04e7e95f54ee83f2141cc24099b516d4f54842f09888a111fbc8c20e17ceb",
+    "native_source_sha256": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834",
+    "target": {
+      "cases": [
+        {
+          "name": "layout::tests::closing_delimiter_closes_inner_implicit_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::do_block_with_let_statement_closes_by_indentation",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::empty_block_after_where_at_eof",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::eof_closes_all_implicit_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::equal_indent_separates_lower_indent_closes",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::explicit_braces_supply_the_block_verbatim",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::explicit_delimiters_shield_enclosing_layout",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::explicit_let_in_preserves_the_enclosing_implicit_let",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::greater_indent_continues_the_item",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::handler_with_operand_does_not_take_the_lets_in",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::implicit_block_must_indent_farther",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_let_block_across_lines",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_let_block_on_one_line",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_nested_blocks_above_let",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_must_not_cross_an_explicit_delimiter",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_without_let_block_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::inserted_tokens_are_marked_virtual",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::mismatched_delimiter_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::nested_blocks_close_on_outdent",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::nested_supply_clauses_match_in_order",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::tabs_rejected_by_the_lexer_before_layout",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::with_clause_and_let_interleave_by_nesting",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::with_clause_in_passes_through",
+          "status": "passed"
+        }
+      ],
+      "exit_code": 0,
+      "log_sha256": "6576b29c2b6463cd7af2c9ac7035999dc198583b7d48bb736bbbc48385e60843",
+      "name": "layout",
+      "status": "passed"
+    }
+  },
+  "schema": 1,
+  "scope": "All 23 Native layout unit tests passed. A separate Cinch parser and resolver probe checked five original memo sources, eight scope and explicit-layout controls, and the two original tuple diagnostics. The Cinch probe did not execute memo programs.",
+  "status": "audited-explicit-let-layout-and-memo-syntax"
+}

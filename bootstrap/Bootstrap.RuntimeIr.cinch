@@ -21,7 +21,7 @@ module Bootstrap.RuntimeIr where
   import Text.Lex (Span)
   import Data.Json
 
-  export emit-runtime-program, emit-runtime-program-with-object
+  export emit-runtime-program, emit-runtime-program-with-object, check-runtime-entry
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export runtime-library-default-roots, emit-runtime-library-object-with-object
 
@@ -2432,6 +2432,14 @@ module Bootstrap.RuntimeIr where
         other -> False) in
       if not valid then None else if erased-value-arrow function then Some 3
       else if list-length (definition-parameters d) == 1 then Some 1 else if list-length (definition-parameters d) == 0 then Some 2 else None
+  check-runtime-entry :: CheckedProgram -> Result (List Diagnostic) CheckedProgram
+  check-runtime-entry checked = case definition "main" (elaboration-core (checked-elaboration checked)) of
+    None -> Ok checked
+    Some d -> case entry-mode d of
+      Some mode -> Ok checked
+      None -> case d of
+        MkCoreDefinition sp name scheme openings givens private clauses ->
+          Err [MkDiagnostic "bootstrap.check" sp "main must have type Int or Unit ->{e} Int, without external evidence"]
   empty-writer :: ProgramInfo -> Writer
   empty-writer info = Writer 0 builder-new builder-new Nil (object-layouts (program-object info)) (RuntimeContext info Nil Nil Nil Nil)
   prefix-cells :: Nat -> List Nat -> List (Nat, Nat)

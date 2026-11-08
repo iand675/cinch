@@ -396,7 +396,7 @@ module Bootstrap.Typing where
   map-task-types :: List (Nat, UType) -> List UType -> List UType
   map-task-types pairs types = case types of Nil -> Nil; Cons ty rest -> Cons (substitute-bound pairs ty) (map-task-types pairs rest)
   data TaskLocal where
-    TaskLocal :: Nat -> UType -> List UType -> Bool -> TaskLocal
+    TaskLocal :: Nat -> UType -> List UType -> Bool -> Bool -> TaskLocal
   data TaskTrace where
     TaskTrace :: Option (Span, String) -> List UType -> Bool -> TaskTrace
   task-trace-error :: TaskTrace -> Option (Span, String)
@@ -414,21 +414,32 @@ module Bootstrap.Typing where
   task-drop-error :: Span -> Option (Span, String)
   task-drop-error sp = Some (sp, "task handle must be joined exactly once")
   task-local :: Nat -> List TaskLocal -> Option TaskLocal
-  task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared) rest -> if id == key then Some (TaskLocal key ty regions shared) else task-local id rest
+  task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared owned) rest -> if id == key then Some (TaskLocal key ty regions shared owned) else task-local id rest
   task-pattern-ids :: CorePattern -> List Nat
   task-pattern-ids p = case p of CPVar sp ty id name -> [id]; CPProof sp ty id name -> [id]; CPErasedValue sp ty id name -> [id]; CPAs sp ty id name inner -> Cons id (task-pattern-ids inner); CPConstructor sp ty name actuals constructor fields -> task-pattern-ids fields; CPTuple sp ty fields -> task-pattern-ids fields; CPField sp first rest -> task-pattern-ids first <> task-pattern-ids rest; other -> Nil
   task-id-present :: Nat -> List Nat -> Bool
   task-id-present id ids = case ids of Nil -> False; Cons key rest -> id == key || task-id-present id rest
-  task-pattern-env :: CorePattern -> List UType -> Bool -> List TaskLocal -> List TaskLocal
-  task-pattern-env p regions shared env = case p of
-    CPVar sp ty id name -> Cons (TaskLocal id ty regions shared) env
+  task-pattern-env :: CorePattern -> List UType -> Bool -> Bool -> List TaskLocal -> List TaskLocal
+  task-pattern-env p regions shared owned env = case p of
+    CPVar sp ty id name -> Cons (TaskLocal id ty regions shared owned) env
     CPProof sp ty id name -> env
     CPErasedValue sp ty id name -> env
-    CPAs sp ty id name inner -> Cons (TaskLocal id ty regions shared) (task-pattern-env inner regions shared env)
-    CPConstructor sp ty name actuals constructor fields -> task-pattern-env fields regions shared env
-    CPTuple sp ty fields -> task-pattern-env fields regions shared env
-    CPField sp first rest -> task-pattern-env rest regions shared (task-pattern-env first regions shared env)
+    CPAs sp ty id name inner -> Cons (TaskLocal id ty regions shared (owned && (case inner of CPWild at carrier -> True; other -> False)))
+      (task-pattern-env inner regions shared False env)
+    CPConstructor sp ty name actuals constructor fields -> task-pattern-env fields regions shared False env
+    CPTuple sp ty fields -> task-pattern-env fields regions shared False env
+    CPField sp first rest -> task-pattern-env rest regions shared False (task-pattern-env first regions shared False env)
     other -> env
+  transfer-parameter :: UType -> Bool
+  transfer-parameter function = case function of UUsageArrow UsageOne arrow -> True; UUsageArrow UsageAffine arrow -> True; other -> False
+  transferable-local :: List TaskLocal -> Nat -> Bool
+  transferable-local env id = case task-local id env of
+    Some (TaskLocal key ty regions shared owned) -> owned || affine-thunk ty
+    None -> False
+  transferred-alias :: List TaskLocal -> CoreTerm -> Bool
+  transferred-alias env term = case term of
+    CLocal sp ty id name Nil -> transferable-local env id
+    other -> False
   task-regions :: UType -> List UType
   task-regions ty = case task-base ty of
     URigid id name level KRegion -> [ty]
@@ -476,13 +487,13 @@ module Bootstrap.Typing where
   task-free-regions :: List TaskLocal -> List (Nat, UType) -> List UType
   task-free-regions env free = case free of
     Nil -> Nil
-    Cons (id, ty) rest -> task-regions ty <> (case task-local id env of Some (TaskLocal key declared regions shared) -> regions; None -> Nil) <> task-free-regions env rest
+    Cons (id, ty) rest -> task-regions ty <> (case task-local id env of Some (TaskLocal key declared regions shared owned) -> regions; None -> Nil) <> task-free-regions env rest
   task-free-sharing :: TypingContext -> List (Nat, UType) -> Bool
   task-free-sharing context free = case free of Nil -> True; Cons (id, ty) rest -> (task-handle-type ty || task-shareable context Nil 64 ty) && task-free-sharing context rest
   task-free-scopes :: List TaskLocal -> List (Nat, UType) -> Bool
   task-free-scopes env free = case free of
     Nil -> True
-    Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of Some (TaskLocal key declared regions shared) -> (case regions of Nil -> True; other -> False); None -> True) && task-free-scopes env rest
+    Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of Some (TaskLocal key declared regions shared owned) -> (case regions of Nil -> True; other -> False); None -> True) && task-free-scopes env rest
   -- The bounds describe the least and most uses on the reachable paths.
   -- None marks a use captured by a closure with unknown invocation count.
   use-count-sequence :: Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
@@ -492,12 +503,14 @@ module Bootstrap.Typing where
     (Some (left-low, left-high), Some (right-low, right-high)) ->
       Some (if left-low < right-low then left-low else right-low, if left-high > right-high then left-high else right-high)
     other -> None
-  -- Effects can stop before their one-shot continuation. Count that path
-  -- too when checking multiplicities. The task trace has its own rules for
-  -- transferring captures to an independently running callback.
+  -- An effect operation may drop its continuation. Kernel spawn instead
+  -- transfers its closure and returns a task handle before it continues.
   use-count-after :: Bool -> CoreTerm -> Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
-  use-count-after interrupted first uses next = use-count-sequence uses
-    (if interrupted && not (effects-fit (core-effects first) empty-row) then use-count-choice (Some (0, 0)) next else next)
+  use-count-after interrupted first uses next =
+    let before = (case first of
+      CSpawn sp ty token callback -> union-effects (core-effects token) (core-effects callback)
+      other -> core-effects first) in
+    use-count-sequence uses (if interrupted && not (effects-fit before empty-row) then use-count-choice (Some (0, 0)) next else next)
   use-count-list :: Bool -> Nat -> List CoreTerm -> Option (Nat, Nat)
   use-count-list interrupted id terms = case terms of
     Nil -> Some (0, 0)
@@ -515,8 +528,7 @@ module Bootstrap.Typing where
     CCase sp ty value alts -> use-count-after interrupted value (use-count interrupted id value) (use-count-alternatives interrupted id alts)
     CScope sp ty region evidence callback -> use-count-once interrupted id callback
     CSpawn sp ty token callback ->
-      let uses = use-count-once interrupted id callback in
-      use-count-after interrupted token (use-count interrupted id token) (if interrupted then use-count-choice (Some (0, 0)) uses else uses)
+      use-count-after interrupted token (use-count interrupted id token) (use-count-once interrupted id callback)
     CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
     other -> use-count-list interrupted id (runtime-term-children term)
   use-pattern-total :: CorePattern -> Bool
@@ -600,7 +612,12 @@ module Bootstrap.Typing where
   pattern-usage-error context sp function pattern body = case function of
     UUsageArrow usage arrow -> if pattern-usage-allowed context function pattern body then None else
       let site = case pattern of CPVar at ty id name -> at; CPErasedValue at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
-      Some (site, usage-message usage)
+      let count = pattern-use-count pattern body in
+      let detail = if use-count-fits usage count then "" else (case count of
+        Some (low, high) -> if low == high then string-concat-all [" (used ", nat-to-string high, " time(s))"]
+          else string-concat-all [" (used ", nat-to-string low, " to ", nat-to-string high, " time(s))"]
+        None -> "") in
+      Some (site, string-concat (usage-message usage) detail)
     other -> None
   -- Before a guard commits to this equation, a later equation can still
   -- receive the same argument. An owned argument cannot move on that path.
@@ -746,12 +763,40 @@ module Bootstrap.Typing where
   task-global-trace context env scopes sp ty term evidence =
     let required = require-task (not (task-reference-forwarder context term)) sp "a task forwarding helper must be fully applied in its source compilation" in
     task-result-trace context ty (task-traces-merge (TaskTrace required (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
+  task-type-holds-mut :: UType -> Bool
+  task-type-holds-mut ty = let base = task-base ty in case mutable-borrow base of
+    Some borrow -> True
+    None -> (case base of
+      UApp f x -> task-type-holds-mut f || task-type-holds-mut x
+      UFun a b -> task-type-holds-mut a || task-type-holds-mut b
+      UFunEff a row b -> task-type-holds-mut a || task-type-holds-mut b
+      UUsageArrow usage arrow -> task-type-holds-mut arrow
+      UPi id name a row b -> task-type-holds-mut a || task-type-holds-mut b
+      UTuple fields -> task-type-holds-mut fields
+      UArg first rest -> task-type-holds-mut first || task-type-holds-mut rest
+      other -> False)
+  task-types-hold-mut :: List UType -> Bool
+  task-types-hold-mut types = case types of Nil -> False; Cons ty rest -> task-type-holds-mut ty || task-types-hold-mut rest
+  task-free-holds-mut :: List (Nat, UType) -> Bool
+  task-free-holds-mut free = case free of Nil -> False; Cons (id, ty) rest -> task-type-holds-mut ty || task-free-holds-mut rest
+  -- A non-shareable value can move into the direct, one-shot task body
+  -- only when its source binder has its own checked usage obligation.
+  task-free-transfer :: TypingContext -> List TaskLocal -> CoreTerm -> List (Nat, UType) -> Bool
+  task-free-transfer context env body free = case free of
+    Nil -> True
+    Cons (id, ty) rest ->
+      (task-handle-type ty || task-shareable context Nil 64 ty || (transferable-local env id &&
+        (case use-count False id body of Some (low, high) -> high == 1; None -> False)))
+      && task-free-transfer context env body rest
   task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace
   task-callable context env scopes spawning site callback = case callback of
     CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
-      let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
-      let valid-capture = not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)) in
-      let capture-error = require-task valid-capture sp "a task capture crosses the task boundary without shareable evidence" in
+      let inside = task-trace context (task-pattern-env p Nil False (transfer-parameter ty) env) scopes True body in
+      let captured-evidence = task-free-evidence Nil body in
+      let capture-error = (if not spawning then None else
+        if task-free-holds-mut free || task-types-hold-mut captured-evidence then Some (sp, "an exclusive `Mut` borrow cannot cross a task boundary")
+        else require-task (task-free-transfer context env body free && task-types-property context True Nil 64 captured-evidence)
+          sp "a task capture crosses the task boundary without shareable evidence") in
       let task-failure = first-task-error (task-pattern-use-error p body) (first-task-error (task-trace-error inside) capture-error) in
       let failure = first-task-error (pattern-usage-error context sp ty p body) task-failure in
       TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
@@ -765,7 +810,7 @@ module Bootstrap.Typing where
     if task-handle-type (core-type term) && not consuming then
       TaskTrace (task-use-error (case term of CLocal sp ty id name actuals -> sp; CSpawn sp ty token body -> sp; other -> Span 0 0 1 1)) Nil False
     else case term of
-      CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared) -> TaskTrace None regions shared; None -> TaskTrace None Nil False)
+      CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared owned) -> TaskTrace None regions shared; None -> TaskTrace None Nil False)
       CScope sp ty region evidence callback -> let inside = task-callable context env (Cons region scopes) False sp callback in
         let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a scoped capture leaves its `withScope`" in
         let failure = first-task-error (task-trace-error inside) escape in
@@ -779,13 +824,13 @@ module Bootstrap.Typing where
           TaskTrace (Some (sp, string-concat "copyOut requires structural Copy evidence for " (type-text ty))) Nil False
         else task-result-trace context ty checked
       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
-        let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
+        let inside = task-trace context (task-pattern-env p Nil False (transfer-parameter ty) env) scopes True body in
         let escape = require-task (task-free-scopes env free) sp "region escape: a closure captures a value from a structured scope" in
         let task-failure = first-task-error (task-pattern-use-error p body) (first-task-error escape (task-trace-error inside)) in
         let failure = first-task-error (pattern-usage-error context sp ty p body) task-failure in
         TaskTrace failure (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
       CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
-        let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
+        let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value) (transferred-alias env rhs)) env) scopes consuming body in
         let failure = first-task-error (task-bound-error sp id (scheme-body sc) body) (first-task-error (task-trace-error value) (task-trace-error result)) in
         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
       CApply sp ty f x -> task-call-trace context env scopes sp ty f x
@@ -826,7 +871,7 @@ module Bootstrap.Typing where
   task-alternatives-trace context env scopes consuming input alts = case alts of
     CAlternativesEnd sp -> TaskTrace None Nil True
     CAlternative sp p body rest ->
-      let inside = task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body in
+      let inside = task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) False env) scopes consuming body in
       let failure = first-task-error (task-pattern-use-error p body) (task-trace-error inside) in
       task-traces-merge (TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)) (task-alternatives-trace context env scopes consuming input rest)
     other -> TaskTrace (Some (Span 0 0 1 1, "malformed task case alternatives")) Nil False
@@ -841,26 +886,44 @@ module Bootstrap.Typing where
     other -> task-code-list context (term-children term))
   task-code-list :: TypingContext -> List CoreTerm -> Bool
   task-code-list context terms = case terms of Nil -> False; Cons first rest -> task-code-present context first || task-code-list context rest
-  task-pattern-error :: TypingContext -> List TaskLocal -> Span -> List CorePattern -> CoreTerm -> Option (Span, String)
-  task-pattern-error context env sp patterns body = case patterns of
+  task-transfer-patterns :: UType -> List CorePattern -> List Nat
+  task-transfer-patterns function patterns = case patterns of
+    Nil -> Nil
+    Cons p rest ->
+      let owned = if transfer-parameter function then (case p of
+        CPVar sp ty id name -> [id]
+        CPAs sp ty id name (CPWild at carrier) -> [id]
+        other -> Nil) else Nil in
+      owned <> (case pattern-result function p of Some next -> task-transfer-patterns next rest; None -> Nil)
+  task-pattern-transfers :: List Nat -> CorePattern -> Bool
+  task-pattern-transfers owned p = case p of
+    CPVar sp ty id name -> task-id-present id owned
+    CPAs sp ty id name (CPWild at carrier) -> task-id-present id owned
+    other -> False
+  task-pattern-error :: TypingContext -> List TaskLocal -> List Nat -> List CorePattern -> CoreTerm -> Option (Span, String)
+  task-pattern-error context env owned patterns body = case patterns of
     Nil -> task-trace-error (task-trace context env Nil True body)
-    Cons p rest -> first-task-error (task-pattern-use-error p body) (task-pattern-error context (task-pattern-env p Nil False env) sp rest body)
+    Cons p rest -> first-task-error (task-pattern-use-error p body)
+      (task-pattern-error context (task-pattern-env p Nil False (task-pattern-transfers owned p) env) owned rest body)
   task-definition-safe :: TypingContext -> CoreDefinition -> Bool
   task-definition-safe context d = case task-definition-error context d of None -> True; Some error -> False
   task-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
   task-definition-error context d =
     let declared = scheme-body (core-scheme d) in
+    let annotated = has-annotated-parameter declared in
+    let opened = if annotated then substitute-bound (core-openings d) declared else UError in
     let clauses = core-clauses d in
-    case (if has-annotated-parameter declared then usage-equations-error context (substitute-bound (core-openings d) declared) clauses else None) of
+    case (if annotated then usage-equations-error context opened clauses else None) of
       Some error -> Some error
       None -> if context-task-forwarder context (core-name d) && task-source-forwarder d then None
-        else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) clauses
-  task-clauses-error :: TypingContext -> List CorePattern -> List CoreClause -> Option (Span, String)
-  task-clauses-error context prefix clauses = case clauses of
+        else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) opened clauses
+  task-clauses-error :: TypingContext -> List CorePattern -> UType -> List CoreClause -> Option (Span, String)
+  task-clauses-error context prefix declared clauses = case clauses of
     Nil -> None
     Cons (MkCoreClause sp patterns body) rest -> let bound = prefix <> patterns in
-      let failure = if task-code-present context body || task-patterns-present bound then task-pattern-error context Nil sp bound body else None in
-      case failure of Some error -> failure; None -> task-clauses-error context prefix rest
+      let failure = (if task-code-present context body || task-patterns-present bound then
+        task-pattern-error context Nil (task-transfer-patterns declared patterns) bound body else None) in
+      case failure of Some error -> failure; None -> task-clauses-error context prefix declared rest
   task-patterns-present :: List CorePattern -> Bool
   task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || task-patterns-present rest
   checked-spawn :: UType -> CoreTerm -> CoreTerm -> Bool

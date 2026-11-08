@@ -24,6 +24,7 @@ module Main where
   positive =
     [ string-concat identity-source "  main :: Int\n  main = if identity True then identity 0 else 1\n"
     , "module Main where\n  main :: Int\n  main = let local = \\x -> x in if local True then local 0 else 1\n"
+    , "module Main where\n  a :: Bool\n  a = True\n  main :: Int\n  main = let local = ((\\x -> if a then (x :: a) else x) :: forall a. a -> a) in if local True then local 0 else 1\n"
     , string-concat sequence-source "  map-seq :: forall a b. (a -> b) -> Seq a -> Seq b\n  map-seq f End = End\n  map-seq f (Link x xs) = Link (f x) (map-seq f xs)\n  size :: forall a. Seq a -> Int\n  size xs = case xs of End -> 0; Link x rest -> 1 + size rest\n  main :: Int\n  main = size (map-seq (\\x -> x + 1) (Link 1 End))\n"
     , "module Main where\n  data Wrap (f :: Type -> Type) a where\n    Wrap :: f a -> Wrap f a\n  unwrap :: forall (f :: Type -> Type) a. Wrap f a -> f a\n  unwrap (Wrap x) = x\n  main :: Int\n  main = 0\n"
     , "module Main where\n  identity :: forall {a :: Type}. a -> a\n  identity x = (x :: a)\n  main :: Int\n  main = identity 0\n"
@@ -57,6 +58,7 @@ module Main where
     , ("module Main where\n  bad :: forall a. a -> Int\n  bad x = x\n  main :: Int\n  main = 0\n", "type mismatch")
     , (string-concat identity-source "  main :: Int\n  main = let bad = \\f -> f f in 0\n", "infinite type")
     , (string-concat identity-source "  main :: Int\n  main = (\\f -> if f True then f 0 else 0) (\\x -> x)\n", "type mismatch")
+    , ("module Main where\n  main :: Int\n  main = let local = ((\\x -> True) :: forall a. a -> a) in if local True then 0 else 1\n", "type mismatch")
     , ("module Main where\n  data Box a where\n    Box :: a -> Box a\n  bad :: Box Int Int -> Int\n  bad x = 0\n  main :: Int\n  main = 0\n", "too many arguments")
     , ("module Main where\n  bad :: forall (f :: Type -> Type). f -> Int\n  bad x = 0\n  main :: Int\n  main = 0\n", "must have kind Type")
     , ("module Main where\n  data Box a where\n    Box :: a -> Box Bool\n  main :: Int\n  main = 0\n", "type mismatch")

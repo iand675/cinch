@@ -2,13 +2,14 @@
 
 ## Integrated ABI 7 acceptance
 
-Stage 0 through Stage 3 rebuilt on the published ABI 7 candidate. Stage 2
-and Stage 3 match on the executable, LLVM IR and 46 compiler interfaces.
-The 55 base interfaces, separate consumer and changed-source control passed.
-The full matching suites remain open.
-See [the integrated bootstrap audit](../bootstrap/current-schema10-abi7-integrated-erased-bootstrap-results.json).
+The current Cinch source rebuilt from Stage 0 through Stage 3. Stage 2 and
+Stage 3 agree on the executable, LLVM IR and all 46 compiler interfaces.
+The 55 base interfaces, 12 smoke tests, separate interface consumer and
+changed-source rebuild passed. The full matching suites remain open.
+See [the combined bootstrap audit](../bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json)
+and [the preceding fixed point](../bootstrap/current-schema10-abi7-integrated-erased-bootstrap-results.json).
 
-The exact Stage 3 extra suites passed 11 of 19 concurrency, 6 of 7 class
+The preceding Stage 3 extra suites passed 11 of 19 concurrency, 6 of 7 class
 default, 1 of 8 law, 2 of 2 fixity, 1 of 5 guard coverage, 0 of 10 codata and
 18 of 39 integration cases. The host primitive probe stopped in namespace
 resolution in its positive case and ten refusal cases. The retained
@@ -43,10 +44,7 @@ all five original guard-coverage cases. Both original strict and guarded
 combined Stage 3 checks have separate gates.
 See [the Stage 1 concurrency and guard audit](../bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
-The combined frontend and provider candidate reached Stage 3. The
-Stage 2 and Stage 3 executables, LLVM IR and 46 compiler interfaces agree.
-The complete fixed-point gate includes the independent consumer and
-changed-source rebuild. A separate Stage 1 passed the original
+A separate Stage 1 passed the original
 shared-reference and task-scope escape cases plus five focused borrow
 checks. The strict `where` Stage 1 passed 26 of 39 original integration
 tests, eight more than the published Stage 3, and all five guard tests.
@@ -59,6 +57,13 @@ around `Ref g Bytes` and preserves a transfer containing `Ref g Nat`.
 All 20 concurrency and 27 ownership tests passed on this Rust source.
 The full Rust sweep has a separate source identity.
 See [the Rust task transfer audit](../bootstrap/current-native-task-transfer-reference-results.json).
+
+The Rust lexer preserves the `in` after an explicit `let` block. All 23
+Native layout tests passed. The separate Cinch parser and namespace probe
+passed all five original memo sources, explicit layout, lexical scope and
+both tuple-arity diagnostics. Checked memo semantics and runtime lowering
+are in a separate candidate.
+See [the layout and syntax audit](../bootstrap/current-abi7-explicit-let-layout-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55

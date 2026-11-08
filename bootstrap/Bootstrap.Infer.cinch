@@ -1077,6 +1077,46 @@ module Bootstrap.Infer where
       (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
         (local, checked) -> scheme-body-from external classes kinds (implicit-row-regions (inherited <> local) (latent-regions body)) body checked
     other -> scheme-body-from external classes kinds (case inherited of Nil -> implicit-row-regions Nil (latent-regions ty); more -> inherited) ty st
+
+  term-annotation-parameters :: List Quant -> Bool
+  term-annotation-parameters params = case params of
+    Nil -> True
+    Cons q rest -> case quant-kind q of
+      KValue payload -> False
+      KProp -> False
+      other -> term-annotation-parameters rest
+  unbound-annotation-regions :: List (String, UType) -> List String -> List String
+  unbound-annotation-regions locals regions = case regions of
+    Nil -> Nil
+    Cons name rest -> case lookup-type-local name locals of
+      Some local -> unbound-annotation-regions locals rest
+      None -> Cons name (unbound-annotation-regions locals rest)
+  -- Validate every instantiation under fresh rigids. Only after checking
+  -- may the caller choose the representation and the concrete types.
+  infer-forall-annotation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> TypeExpr -> TypeExpr -> Store -> (CoreTerm, Store)
+  infer-forall-annotation classes kinds families env locals sp expression binders body st =
+    let visible = value-locals env locals in
+    let explicit = region-parameters (forall-params-of binders) (region-names body) in
+    case parameters False kinds visible (inferred-forall-parameters kinds visible explicit body) 0 Nil st of
+      (declared, parsed) -> let params = implicit-row-regions declared (unbound-annotation-regions visible (latent-regions body)) in
+        if not (quantifiers-ok binders && term-annotation-parameters params) then
+          term-error sp "quantified term annotation needs ordinary type, region or effect parameters" parsed
+        else case convert False kinds (quant-locals params <> visible) body parsed of
+          (ty, converted) -> let scheme = MkScheme params ty in
+            case open-scheme True scheme (enter-level (expect-type sp ty converted)) of
+              (expected, rigids, opened) ->
+                case check classes kinds families env (opened-locals params rigids <> locals) expression expected opened of
+                  (value, checked) ->
+                    case open-scheme False scheme (restore-level (store-level st) checked) of
+                      (actual, actuals, ready) ->
+                        let replacements = annotation-substitution rigids actuals in
+                        (map-term-types (\t -> substitute-rigid-types replacements (normalize checked t)) value, ready)
+  annotation-substitution :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
+  annotation-substitution rigids actuals = case (rigids, actuals) of
+    (Cons (key, URigid id name level kind) more, Cons (other, ty) rest) ->
+      Cons (id, ty) (annotation-substitution more rest)
+    other -> Nil
+
   scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   scheme-body-from external classes kinds qs ty st = case ty of
     TUsing s bounds body -> if external then (mono UError, add-error s "imported using context needs a defining signature contract" st)
@@ -2322,7 +2362,9 @@ module Bootstrap.Infer where
             Some write -> term-error sp (stale-evidence-message origin write) ss)
           MkCheckedBinding name sc role | same role "closed-proof" ->
             term-error sp "a proof definition can only be used as erased evidence" ss
-          MkSyntaxBinding symbol -> term-error sp "kernel syntax is not a first-class function" ss
+          MkSyntaxBinding symbol -> if same symbol "b.spawn" then
+            term-error sp "spawn must be applied directly to check the task callback" ss
+            else term-error sp "kernel syntax is not a first-class function" ss
           MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
           MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
           MkLocalBinding source sc id level -> case requirements of
@@ -2693,10 +2735,11 @@ module Bootstrap.Infer where
             (b, sb) -> (CIf s ty c a b, sb)
     ECase s value alts -> case infer classes kinds families env locals value st of
       (scrut, sv) -> case fresh-meta KType sv of
-        (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
+        (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-match-coverage s families env (core-type scrut) alts so) of
           (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
+    EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
     EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
     ENeg s value -> case check classes kinds families env locals value (primitive-type "Int") st of
@@ -2724,7 +2767,7 @@ module Bootstrap.Infer where
         (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
           (b, sb) -> (CIf s expected c a b, sb)
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
@@ -2836,7 +2879,7 @@ module Bootstrap.Infer where
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
@@ -3547,9 +3590,10 @@ module Bootstrap.Infer where
       ECon at name (EArgsEnd end) -> same name "True"
       other -> False
     other -> True
-  alternative-rows :: Expr -> List (List Pat)
-  alternative-rows alts = case alts of
-    EAlt s p body rest -> if body-covers body then Cons (Cons p Nil) (alternative-rows rest) else alternative-rows rest
+  alternative-rows :: Bool -> Expr -> List (List Pat)
+  alternative-rows include-guards alts = case alts of
+    EAlt s p body rest -> let more = alternative-rows include-guards rest in
+      if include-guards || body-covers body then Cons [p] more else more
     other -> Nil
 
   -- A constructor-specializing coverage matrix. Nonliteral guards never
@@ -3662,6 +3706,61 @@ module Bootstrap.Infer where
   ensure-coverage :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Store
   ensure-coverage sp families env tys rows st = if covers families env tys rows st then st else add-error sp "non-exhaustive patterns" st
 
+  -- The unguarded matrix decides coverage. Use the original rows only to
+  -- name a path through that failed matrix, including guarded literals.
+  coverage-literal :: List (List Pat) -> Option String
+  coverage-literal rows = case rows of
+    Nil -> None
+    Cons (Cons p tail) rest -> (case strip-pattern p of
+      PLitInt sp text -> Some text
+      PLitStr sp text -> Some (string-concat-all ["\"", text, "\""])
+      PLitChar sp text -> Some (string-concat-all ["'", text, "'"])
+      other -> coverage-literal rest)
+    Cons Nil rest -> coverage-literal rest
+  uncovered-coverage :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> List (List Pat) -> String -> Store -> String
+  uncovered-coverage families env tys covered original hint st = case tys of
+    Nil -> hint
+    Cons ty tail -> if only-defaults original then
+      uncovered-coverage families env tail (defaults covered) (defaults original) hint st
+      else (case (case normalize st ty of UMeta id KType -> coverage-pattern-head env ty original st; actual -> (actual, st)) of
+        (head, shaped) -> (case normalize shaped head of
+          UTuple fields -> let count = list-length (spine-list fields) in
+            uncovered-coverage families env (spine-list fields <> tail) (tuple-rows count covered) (tuple-rows count original) hint shaped
+          other -> case root-name other of
+            Some name -> (case family-ctors name families of
+              Some constructors -> uncovered-constructor families env head tail covered original hint constructors shaped
+              None -> uncovered-default families env tail covered original hint shaped)
+            None -> uncovered-default families env tail covered original hint shaped))
+  uncovered-default :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> List (List Pat) -> String -> Store -> String
+  uncovered-default families env tail covered original hint st =
+    let witness = (case coverage-literal original of Some text -> string-concat "a value other than " text; None -> hint) in
+    uncovered-coverage families env tail (defaults covered) (defaults original) witness st
+  uncovered-constructor :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> List (List Pat) -> String -> List String -> Store -> String
+  uncovered-constructor families env ty tail covered original hint constructors st = case constructors of
+    Nil -> hint
+    Cons name rest -> case lookup-binding name env of
+      None -> hint
+      Some binding -> case instantiate (checked-scheme binding) st of
+        (ctor, opened) -> if coverage-index-apart (normalize opened (result-type ctor)) (normalize opened ty) then
+          uncovered-constructor families env ty tail covered original hint rest st
+          else let ready = unify zero (result-type ctor) ty opened in
+            let arity = scheme-arity (checked-scheme binding) in
+            let rows = specialize name arity covered in
+            let types = domains ctor <> tail in
+            if covers families env types rows ready then uncovered-constructor families env ty tail covered original hint rest st
+            else let display = diagnostic-member-name name in
+              let witness = if has display ["True", "False"] && same-type (normalize ready ty) (primitive-type "Bool") then display else string-concat "constructor " display in
+              (case rows of Nil -> witness; other -> uncovered-coverage families env types rows (specialize name arity original) witness ready)
+  coverage-refusal :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> List (List Pat) -> String -> Store -> Store
+  coverage-refusal sp families env tys covered original hint st =
+    add-error sp (string-concat-all ["non-exhaustive patterns: ", uncovered-coverage families env tys covered original hint st,
+      " is not covered by an unguarded row; add an unguarded final row"]) st
+  ensure-match-coverage :: Span -> List (String, List String) -> List CheckedBinding -> UType -> Expr -> Store -> Store
+  ensure-match-coverage sp families env ty alternatives st =
+    let rows = alternative-rows False alternatives in
+    if covers families env [ty] rows st then st else
+      coverage-refusal sp families env [ty] rows (alternative-rows True alternatives) "a scrutinee value" st
+
   families-of :: List Decl -> List (String, List String)
   families-of ds = case ds of Nil -> Nil; Cons (DData s name ps cs) rest -> Cons (name, ctor-names cs) (families-of rest); Cons d rest -> families-of rest
   ctor-names :: List (String, TypeExpr) -> List String
@@ -3679,8 +3778,16 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons (DExternal s name category scheme metadata) rest -> external-families (resolved-nominals metadata) <> imported-families rest
     Cons d rest -> imported-families rest
-  clause-rows :: List (List Pat, Expr) -> List (List Pat)
-  clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> if body-covers body then Cons ps (clause-rows rest) else clause-rows rest
+  clause-rows :: Bool -> List (List Pat, Expr) -> List (List Pat)
+  clause-rows include-guards cs = case cs of
+    Nil -> Nil
+    Cons (ps, body) rest -> let more = clause-rows include-guards rest in
+      if include-guards || body-covers body then Cons ps more else more
+  ensure-equation-coverage :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat, Expr) -> Store -> Store
+  ensure-equation-coverage sp families env types clauses st =
+    let rows = clause-rows False clauses in
+    if covers families env types rows st then st else
+      coverage-refusal sp families env types rows (clause-rows True clauses) "an argument combination" st
   check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (List CorePattern) -> List CorePattern -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
   check-equation classes kinds families env locals earlier reversed ps body expected allowed st = case ps of
     Nil -> let patterns = reverse reversed in
@@ -3740,7 +3847,7 @@ module Bootstrap.Infer where
           let same-arity = clauses-full-arity cs count && count <= list-length types in
           let covered = case cs of
                 Nil -> add-error sp "a function declaration has no clauses" checked
-                other -> if same-arity then ensure-coverage sp families env (take-types count types) (clause-rows cs) (check-overlap cs Nil checked)
+                other -> if same-arity then ensure-equation-coverage sp families env (take-types count types) cs (check-overlap cs Nil checked)
                   else add-error sp "function clauses disagree with their declared arity" checked in
           (Some (MkCoreDefinition sp name (checked-scheme b) pairs givens Nil clauses), restore-level level covered)
   take-types :: Nat -> List UType -> List UType
@@ -3749,9 +3856,6 @@ module Bootstrap.Infer where
   pat-covers first second = if wildcard first then True else case (strip-pattern first, strip-pattern second) of
     (PCon s name args, PCon t other xs) -> same name other && row-covers (pats-of args) (pats-of xs)
     (PTuple s args, PTuple t xs) -> row-covers (pats-of args) (pats-of xs)
-    (PLitInt s a, PLitInt t b) -> (case (index-number a, index-number b) of (Some x, Some y) -> x == y; other -> False)
-    (PLitStr s a, PLitStr t b) -> same a b
-    (PLitChar s a, PLitChar t b) -> same a b
     other -> False
   row-covers :: List Pat -> List Pat -> Bool
   row-covers first second = case (first, second) of

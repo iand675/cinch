@@ -184,9 +184,7 @@ module Bootstrap.Export where
     else if same (checked-role binding) "function" || same (checked-role binding) "value" || same (checked-role binding) "intrinsic" || same (checked-role binding) "instance" || same (checked-role binding) "implicit-instance" then
       let scheme = checked-scheme binding in
       let arity = interface-value-arity scheme in
-      if task-forwarder-type (scheme-body scheme) && (case default-definition symbol (elaboration-core typed) of Some definition -> task-source-forwarder definition; None -> False) then
-        Err (string-concat "a task forwarding helper requires a portable checked transfer contract to be exported: " name)
-      else if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
+      if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
         (Ok identity, Ok JNull, Ok spelling) -> opaque-value-row name symbol binding
         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
@@ -747,11 +745,36 @@ module Bootstrap.Export where
           (Err error, other) -> Err (string-concat-all [name, ": ", error])
           (other, Err error) -> Err (string-concat-all [name, ": ", error])
       other -> export-loop typed interfaces source produced rest
+  -- A direct task forwarder is callable from source. Its transfer
+  -- obligations cannot travel through this interface schema.
+  source-only-task-forwarders :: List CoreDefinition -> List String
+  source-only-task-forwarders definitions = case definitions of
+    Nil -> Nil
+    Cons definition rest ->
+      if task-forwarder-type (scheme-body (core-scheme definition)) && task-source-forwarder definition then
+        Cons (core-name definition) (source-only-task-forwarders rest)
+      else source-only-task-forwarders rest
+  source-only-symbol :: String -> List String -> Bool
+  source-only-symbol symbol names = case names of
+    Nil -> False
+    Cons name rest -> same symbol name || source-only-symbol symbol rest
+  interface-export-surface :: List String -> Json -> Json
+  interface-export-surface source-only rows = case rows of
+    JArr row rest -> if source-only-symbol (text (field "symbol" row)) source-only then interface-export-surface source-only rest
+      else JArr row (interface-export-surface source-only rest)
+    other -> rows
+  interface-contexts :: List String -> List Json -> List Json
+  interface-contexts source-only contexts = case source-only of
+    Nil -> contexts
+    other -> (case contexts of
+      Nil -> Nil
+      Cons context rest ->
+        Cons (set-field "exports" (interface-export-surface source-only (field "exports" context)) context) (interface-contexts source-only rest))
   export-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> Result String (List (String, Json))
   export-interfaces checked interfaces source = let typed = checked-elaboration checked in
     case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) (elaboration-bindings typed) of
       Some message -> Err message
-      None -> export-loop typed interfaces source Nil (elaboration-contexts typed)
+      None -> export-loop typed interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
   retained-intrinsic :: String -> String -> List Json -> Bool
   retained-intrinsic name identity rows = case rows of
     Nil -> False
