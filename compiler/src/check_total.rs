@@ -625,7 +625,11 @@ impl Checker {
         }).collect()
     }
 
-    fn interface_keyed_ordering(&self, value: &ValueInfo) -> Option<crate::interface::KeyedOrderingBody> {
+    fn interface_keyed_ordering(
+        &self,
+        value: &ValueInfo,
+        resolved: &crate::interface::ResolvedScheme,
+    ) -> Option<crate::interface::KeyedOrderingBody> {
         let scheme = &value.scheme;
         let [input, key] = scheme.params.as_slice() else { return None };
         let [(_, order)] = scheme.ctx.as_slice() else { return None };
@@ -642,9 +646,12 @@ impl Checker {
         let (domain, codomain) = ordering_arrow(project)?;
         let (first, rest) = ordering_arrow(rest)?;
         let (second, result) = ordering_arrow(rest)?;
-        let ordinal = self.qualified_types.get(&("Data.Ordering".into(), "Ordering".into()))?;
+        // The embedded Ordering type can have a short internal key. The
+        // portable declaration and the checked branch constructors carry its
+        // real nominal identity.
         if domain != &input || codomain != &key || first != &input || second != &input
-            || !matches!(result, Ty::Adt(identity, args) if identity == &self.type_key(ordinal) && args.is_empty())
+            || !matches!(result, Ty::Adt(_, args) if args.is_empty())
+            || !resolved.nominals.iter().any(|nominal| nominal.kind == "data" && nominal.identity == "Data.Ordering.Ordering")
         {
             return None;
         }
