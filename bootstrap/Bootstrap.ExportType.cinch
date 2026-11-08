@@ -277,6 +277,8 @@ module Bootstrap.ExportType where
     UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
     UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]
     UPropNonZero value -> join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+    UPropNonZeroPending value -> if valid-type ty then join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+      else Err "cannot export an invalid NonZero proposition"
     UPropNotNull value -> join [Ok "(NotNull ", type-in-style display scope value, Ok ")"]
     URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
     URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
