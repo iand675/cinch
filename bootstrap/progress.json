@@ -11860,28 +11860,28 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 12,
+          "verified": 14,
           "blocked": 2,
           "running": 4,
-          "pending": 75,
-          "recheck": 12
+          "pending": 74,
+          "recheck": 11
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:59:16.374477+00:00",
-              "finishedAt": "2026-11-07T12:01:56.859028+00:00",
-              "exitCode": 101,
-              "logSha256": "87f09ad8950429a4f7b713815f36a5199859ead4dc45dcc8c687ca94d217d892",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:06:10.005649+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -11897,23 +11897,7 @@
                 },
                 {
                   "name": "interned_symbols_are_counted_immortal_once_per_name",
-                  "status": "passed"
-                },
-                {
-                  "name": "normal_program_is_quiet_under_the_guarded_cap",
-                  "status": "failed"
-                },
-                {
-                  "name": "stats_line_counts_list_cells_only_when_asked",
-                  "status": "failed"
-                },
-                {
-                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
-                  "status": "failed"
-                },
-                {
-                  "name": "unbounded_allocation_hits_the_named_cap",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -12319,21 +12303,21 @@
           {
             "id": "stage3:bootstrap_conditional_methods",
             "title": "bootstrap_conditional_methods",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_conditional_methods.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:55:55.638208+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:06:38.838653+00:00",
+              "exitCode": 0,
+              "logSha256": "371a3949473265f066e02afd2dab39cc6725ee6df11452e37d3d13e2a1615d95",
               "cases": [
                 {
                   "name": "compiled_cinch_selects_checked_conditional_methods_with_call_proofs",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12419,18 +12403,23 @@
           {
             "id": "stage3:bootstrap_effect_types",
             "title": "bootstrap_effect_types",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:06:39.675183+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13897,21 +13886,21 @@
           {
             "id": "stage3:interface_nominals",
             "title": "interface_nominals",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:05:57.308336+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:06:08.998086+00:00",
+              "exitCode": 0,
+              "logSha256": "4741728ad7964ab3f108882aa978b03ceeb0b1a367658ac375e42d34dafe64f7",
               "cases": [
                 {
                   "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -19925,8 +19914,8 @@
       {
         "title": "Check byte lengths through checked total helper bodies",
         "status": "running",
-        "phase": "checked total buffer selection",
-        "passed": 0,
+        "phase": "effectful buffer selection has no observation authority",
+        "passed": 2,
         "failed": 0,
         "total": 6,
         "unit": "client cases",
@@ -20111,11 +20100,11 @@
       }
     ],
     "counts": {
-      "verified": 17,
+      "verified": 19,
       "blocked": 7,
       "running": 14,
-      "pending": 317,
-      "recheck": 320
+      "pending": 316,
+      "recheck": 319
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20123,5 +20112,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:06:08.899747+00:00"
+  "updatedAt": "2026-11-08T02:07:10.687569+00:00"
 }
