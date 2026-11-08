@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "43 of 236 complete groups passed; 1 running, 2 failed and 190 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "44 of 236 complete groups passed; 1 running, 2 failed and 189 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "43 of 236 complete groups passed; 1 running, 2 failed and 190 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "44 of 236 complete groups passed; 1 running, 2 failed and 189 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 43,
+          "verified": 44,
           "blocked": 2,
           "running": 1,
-          "pending": 190,
+          "pending": 189,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1961,21 +1961,21 @@
           {
             "id": "native:bootstrap_instance_resolution",
             "title": "bootstrap_instance_resolution",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_instance_resolution.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T07:10:37.639887+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T07:12:45.505127+00:00",
+              "exitCode": 0,
+              "logSha256": "261a6fb8fabbfd354b091da82fc8c4695d507ad3e1bf4713edfb12c8fb5c16f1",
               "cases": [
                 {
                   "name": "instance_factories_preserve_scope_coherence_and_actual_method_semantics",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1984,27 +1984,18 @@
           {
             "id": "native:bootstrap_interface",
             "title": "bootstrap_interface",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:53:10.911381+00:00",
-              "finishedAt": "2026-11-06T18:53:18.362279+00:00",
-              "exitCode": 0,
-              "logSha256": "bea63a32a977a93ef0ebe0b32ea714b2ed2400f8bab045146a295b910a7992ea",
-              "cases": [
-                {
-                  "name": "sha256_is_sha256",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_interface_reader_answers_a_real_artifact",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:12:45.508200+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "currentTests": null
           },
@@ -19633,8 +19624,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_instance_resolution",
-        "passed": 43,
+        "phase": "bootstrap_interface",
+        "passed": 44,
         "failed": 2,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20961,8 +20952,8 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-worker",
-        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "status": "waiting-disk-space",
+        "phase": "Waiting disk space. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
         "passed": 3,
         "failed": 0,
         "total": 9,
@@ -20971,10 +20962,10 @@
       }
     ],
     "counts": {
-      "verified": 401,
+      "verified": 402,
       "blocked": 13,
       "running": 11,
-      "pending": 197,
+      "pending": 196,
       "recheck": 58
     },
     "total": 680,
@@ -20983,5 +20974,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:11:23.236001+00:00"
+  "updatedAt": "2026-11-08T07:12:45.753533+00:00"
 }
