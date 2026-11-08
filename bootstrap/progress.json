@@ -20581,8 +20581,8 @@
         "title": "Type-check memo groups, effects and task capture in Cinch",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked memo scopes",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. 20",
+        "passed": 3,
         "total": 12,
         "failed": 0,
         "source": "56d8fcb7b99a75b0d7819bb1b8af2b2b936240a2b9012134d42ada2f3af8d9b3",
@@ -20624,5 +20624,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:54:21.833479+00:00"
+  "updatedAt": "2026-11-08T19:55:24.350725+00:00"
 }
