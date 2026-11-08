@@ -475,7 +475,9 @@
       "state": "running"
     }
   ],
-  "blockers": [],
+  "blockers": [
+    "concurrency"
+  ],
   "milestones": [
     {
       "detail": "All four stages, exact compiler/interface comparisons, actual API consumption and changed-source rebuilding pass on the same frozen snapshot.",
@@ -581,6 +583,14 @@
       }
     ],
     "gaps": [
+      {
+        "id": "gap:integrated-candidate",
+        "title": "Failures on the integrated candidate",
+        "state": "blocked",
+        "detail": "concurrency",
+        "doneWhen": "Repair and replay the failed current-candidate checks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+      },
       {
         "id": "gap:prelude",
         "title": "Check interface hashes when rebuilding library source",
@@ -17786,9 +17796,9 @@
         "total": 8,
         "counts": {
           "verified": 0,
-          "blocked": 0,
+          "blocked": 1,
           "running": 1,
-          "pending": 7,
+          "pending": 6,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17796,8 +17806,8 @@
           {
             "id": "additional:class_defaults",
             "title": "class_defaults / actual Cinch frontend",
-            "state": "pending",
-            "detail": "7 original tests. Queued for a shared worker.",
+            "state": "running",
+            "detail": "7 original tests. Running on the matching Stage 3.",
             "doneWhen": "Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "observed": {
@@ -17839,8 +17849,8 @@
           {
             "id": "additional:concurrency",
             "title": "concurrency",
-            "state": "running",
-            "detail": "19 original tests. Running on the matching Stage 3.",
+            "state": "blocked",
+            "detail": "11/19 passed on this candidate. a_linear_capture_transfers_into_a_task_exactly_once, a_mut_borrow_capture_is_rejected, a_thread_shared_memo_cell_is_rejected, an_affine_thunk_moves_into_a_task_by_transfer, double_capture_of_a_linear_value_is_rejected, ref_and_copy_captures_are_accepted, source_task_forwarders_check_actual_captures, task_handles_cannot_escape_their_scope",
             "doneWhen": "Run the complete original target through matching Stage3, including original runtime, I/O, foreign fixture and exact refusal reasons.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "observed": {
@@ -20488,16 +20498,16 @@
     ],
     "counts": {
       "verified": 313,
-      "blocked": 0,
+      "blocked": 2,
       "running": 3,
-      "pending": 9,
+      "pending": 8,
       "recheck": 385
     },
-    "total": 710,
+    "total": 711,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:38:32.853104+00:00"
+  "updatedAt": "2026-11-08T17:40:56.526051+00:00"
 }
