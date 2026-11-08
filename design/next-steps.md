@@ -17,6 +17,15 @@ integration diagnostics request one additional provider root,
 fixtures. The current fixed point predates that wider integration demand.
 See [the original case results and checked object requests](../bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json).
 
+The expanded pinned object linked both original tagged List clients and
+each ran without leaks. All 55 library interface identities were preserved.
+Isolated Stage 1 builds passed the five task-capture controls and four
+quantified annotation controls. Forwarder interface omission passed for
+both direct and renamed exports. Two first-class-use cases still require
+their specified refusal diagnostics. The combined compiler and provider
+have a separate fixed-point gate.
+See [the scoped repair audit](../bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

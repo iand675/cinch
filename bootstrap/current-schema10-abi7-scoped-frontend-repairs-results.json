@@ -1,0 +1,283 @@
+{
+  "baseline_revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "full_goal_complete": false,
+  "isolated_stage1": {
+    "quantified_annotation": {
+      "compiler_source_sha256": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131",
+      "failed": 0,
+      "passed": 5,
+      "rows": [
+        {
+          "compiler_sha256": "3cddcc447da3d7a4a6995f5a14c2bdc8e62cee326603baa96ef03a05b75f50cb",
+          "name": "stage1",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected_diagnostic": null,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "leaked": false,
+          "link_exit": 0,
+          "name": "original-lexical-shadow",
+          "run_exit": 42,
+          "source_sha256": "1e9d744ed278ee048e50a917a8469ccfa624930101f62fb9bc0a99e13243430f",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected_diagnostic": null,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "leaked": false,
+          "link_exit": 0,
+          "name": "separate-term-namespace",
+          "run_exit": 0,
+          "source_sha256": "93f8a48190f2b3618b6393f87e430e9324f5062efd6b2eb1ed341ad8ac8ce2ba",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:3:30: type mismatch: expected a, found Bool\n",
+          "exit_code": 4,
+          "expected_diagnostic": "type mismatch",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "reject-concrete-implementation",
+          "source_sha256": "453d4a37dbf6f91a135c540ee60aea07d200e3feaf8ef6bf4462ddd00f369485",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:3:30: a quantified type variable escapes its scope\n",
+          "exit_code": 4,
+          "expected_diagnostic": "escapes",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "reject-captured-skolem",
+          "source_sha256": "10c4c16392a6c06522ccc5211202e0ca2d74016642fd5f9a120cc4c569e0caaa",
+          "status": "passed"
+        }
+      ],
+      "stage1_receipt_sha256": "10df9a6754347aa408e6479705f7a07587e060b19b6e50a29410af812f70cc7d",
+      "stage1_sha256": "3cddcc447da3d7a4a6995f5a14c2bdc8e62cee326603baa96ef03a05b75f50cb",
+      "validator_state_sha256": "153e6a57e59e91fb8bd150e8bdcff4ec8e5ee8d205c2b7cfa6396263ce7c0f1e"
+    },
+    "source_only_forwarder": {
+      "compiler_source_sha256": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d",
+      "failed": 2,
+      "passed": 5,
+      "rows": [
+        {
+          "compiler_sha256": "590bb235f844b13ad8377ab9a8209f4aacfec6ee99107ea4a416dc90bf47fdfd",
+          "name": "stage1",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:4:19: a task capture crosses the task boundary without shareable evidence\n",
+          "exit_code": 4,
+          "expected_diagnostic": "without shareable evidence",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "mode": "check",
+          "name": "forwarded-bytes-capture",
+          "source_sha256": "a4833dab9adae08967971d6d9854f0397157bbccfdbaf24cc34c2c6d65618a67",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "leaked": false,
+          "link_exit": 0,
+          "mode": "emit-ir",
+          "name": "forwarded-closed-callback",
+          "run_exit": 0,
+          "source_sha256": "03fecc4092c826bf9a0067a61fb677807dbba72bb79ce0d9e8f9bbd44e502969",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "interfaces": {
+            "Main": {
+              "abi_symbols": [
+                "main",
+                "work"
+              ],
+              "sha256": "9531cfcf16b5f5555f5c6bb7de3d26cac4b52ecb7d06f3b7dc4e38eddb784c75",
+              "values": [
+                "main",
+                "work"
+              ]
+            }
+          },
+          "mode": "emit-interfaces",
+          "name": "source-forwarder-interface",
+          "source_sha256": "e3826799080011e177bb3f76da71600cd34ca06b9a3ebd362fb7129b655363c5",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "interfaces": {
+            "Facade": {
+              "abi_symbols": [],
+              "sha256": "a57da8cc8cd352761733a3dc50999cfd0002d9064d49ed2590a740bb761523ce",
+              "values": []
+            },
+            "Provider": {
+              "abi_symbols": [
+                "work"
+              ],
+              "sha256": "118308d014f4ad23688604982eb0662a1cfc53879ba42ae4caa196a7c193c872",
+              "values": [
+                "work"
+              ]
+            }
+          },
+          "mode": "emit-interfaces",
+          "name": "explicit-forwarder-and-rename",
+          "source_sha256": "9b2cffa763d82736f0138ab9c8705d8bd8cc966032d98329b89744ef63514c70",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:9:11: effect inclusion needs resolved rows\nbootstrap.check:9:11: effect inclusion needs resolved rows\n",
+          "exit_code": 4,
+          "expected_diagnostic": "must be fully applied",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "mode": "check",
+          "name": "first-class-source-forwarder",
+          "source_sha256": "4d7af82c5875681fe0c554f645dbf31315cef8daf15c1c6fc866256267009d05",
+          "status": "failed"
+        },
+        {
+          "diagnostics": "bootstrap.check:9:11: kernel syntax is not a first-class function\n",
+          "exit_code": 4,
+          "expected_diagnostic": "spawn must be applied directly",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "mode": "check",
+          "name": "first-class-spawn",
+          "source_sha256": "098337c6d35bdf30e142d1d097e1ff7261009227d973358aee51d5be7ef9b75d",
+          "status": "failed"
+        }
+      ],
+      "stage1_receipt_sha256": "f693932cfb6f46066fecedeb14d4c70377055bd87f249684040775bc3f59bbb2",
+      "stage1_sha256": "590bb235f844b13ad8377ab9a8209f4aacfec6ee99107ea4a416dc90bf47fdfd",
+      "validator_state_sha256": "1478ae856d49b16583e3358d34cd6981e67817f730e0c8a952b2481feae89988"
+    },
+    "task_capture": {
+      "compiler_source_sha256": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10",
+      "failed": 0,
+      "passed": 6,
+      "rows": [
+        {
+          "compiler_sha256": "f7898e95e6342434ad16aebd6ea58315ed8edb414dae215f3895ee9f6be841e3",
+          "name": "stage1",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected_diagnostic": null,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "leaked": false,
+          "link_exit": 0,
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "run_exit": 0,
+          "source_sha256": "db88af1b651938f8528d5f8cd31d910702e283977b36a4d3ab2e57ae3fd092e3",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:7:8: multiplicity %1: the argument must be used exactly once on every path (used 2 time(s))\n",
+          "exit_code": 4,
+          "expected_diagnostic": "used 2 time(s)",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "source_sha256": "12defc33136ec0f404b18638dc649e9f6bbb70ca76aca3ba0a2f76392299a1f8",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "",
+          "exit_code": 0,
+          "expected_diagnostic": null,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "leaked": false,
+          "link_exit": 0,
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "run_exit": 0,
+          "source_sha256": "a9e05b0c5291f976178a33738fbc79e1a799805a3295f03722b9b66df34bacf0",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:8:20: an exclusive `Mut` borrow cannot cross a task boundary\n",
+          "exit_code": 4,
+          "expected_diagnostic": "exclusive `Mut` borrow cannot cross a task boundary",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "a_mut_borrow_capture_is_rejected",
+          "source_sha256": "82058baaf561cdfbae3b1f856a034b1106eebed54ec997210793274423a810d2",
+          "status": "passed"
+        },
+        {
+          "diagnostics": "bootstrap.check:5:20: a task capture crosses the task boundary without shareable evidence\n",
+          "exit_code": 4,
+          "expected_diagnostic": "without shareable evidence",
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "source_sha256": "4e234b9d7b4c872f94a4e59b6fd192403ef3a57461115761434e443823ff2eac",
+          "status": "passed"
+        }
+      ],
+      "stage1_receipt_sha256": "39f37a06b3cfed4a54d2d80c8a15673809282d8601a09fe59d795fc33c0819d1",
+      "stage1_sha256": "f7898e95e6342434ad16aebd6ea58315ed8edb414dae215f3895ee9f6be841e3",
+      "validator_state_sha256": "1e41eb1bd5825ddaf6aac896a945ccb7bc16e4943a068857278d8e810d0d2726"
+    }
+  },
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "provider": {
+    "prior_object_sha256": "348928ce40fb112754d51e4bb14c0e05a54b760663d1212aa2408c944474dcc7",
+    "roots_requested": {
+      "dictionaries": [],
+      "methods": [],
+      "schema": 1,
+      "units": [
+        {
+          "classes": "T",
+          "symbol": "Data.List.sum-list"
+        }
+      ]
+    },
+    "rows": [
+      {
+        "added_units": [
+          "Data.List.sum-list.lam3@T",
+          "Data.List.sum-list@T"
+        ],
+        "metadata_sha256": "f3037ec891d63f6aa4209096417096aaeb9d43434579815d1b2df0bb66c1a0ff",
+        "name": "expanded-provider",
+        "object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+        "roots_sha256": "44e0a20bb8ec7b040c10b4fc3d3dc98f79f99d2083e606b8a35e344142aa005a",
+        "status": "passed",
+        "unchanged_interfaces": 55
+      },
+      {
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "84c056afcb6aed363b6dc1e4cf8ec255e78445575538a9423f483874fb50ea0f",
+        "leaks": 0,
+        "name": "list_literals_and_list_patterns",
+        "source_sha256": "c86171f4349ca135b4883911b76c97616a178dafeb6278d0d2778ad1f1bcf4d9",
+        "status": "passed"
+      },
+      {
+        "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "ir_sha256": "ed94c1ea224b3abf76b780258633776be48fca6f6c983b04e9130840eb949c0a",
+        "leaks": 0,
+        "name": "prelude_sum_list_generic",
+        "source_sha256": "7d236815c68421ec42b2254ac8264bc67ed2b73e67c5cff540d84ae11580bf5c",
+        "status": "passed"
+      }
+    ],
+    "validator_state_sha256": "2155f5ad7eda298a584fe02c10266ffc57981a7b752d650f864beef0748db22b"
+  },
+  "schema": 1,
+  "scope": "Independent isolated Stage 1 binaries and two original Stage 3 clients using the expanded provider. The combined source, complete test groups and fresh fixed point have separate gates.",
+  "status": "audited-isolated-stage1-repairs-and-batched-provider-clients"
+}
