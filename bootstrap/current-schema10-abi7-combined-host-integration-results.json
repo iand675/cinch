@@ -1,0 +1,358 @@
+{
+  "compiler_sha256": "d90ac5affdbc73c52b468b68612611afd2f2fba04cab88d1cdba65ac5d90fe68",
+  "compiler_source_sha256": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
+  "full_goal_complete": false,
+  "manifest_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
+  "native_source_sha256": "c229180e228ea35ce9e6b4b489244d9600c6ee4ac10bf80cb6a1396d1996a67c",
+  "schema": 1,
+  "scope": "Combined Stage 1 with host primitives, guarded codata, memo and erased records. Concurrency, Stage 3 and complete suites have separate gates.",
+  "stage1_receipt_sha256": "4f4ee5e6665f6e8626c95fdc3592fe96e2c70cd3669b6996272bd8b667034289",
+  "status": "audited-combined-stage1-original-integration",
+  "targets": {
+    "codata": {
+      "exit_code": 0,
+      "harness_sha256": "bf7e3328933aba7c13ca3a2d9ac678d8f1e277999c2a6a0406c700c3814b97b1",
+      "invocation_receipts": {
+        "37083-0.json": "9342b0a14f3111e062c57aa9a91574796c5678a8abee7de89da250c11f2e8b3a",
+        "37083-1.json": "8a5db0597ee8229d0c83d05cc19f7d0233dd82346eb7033c222bbd10fa64815d",
+        "37083-10.json": "d33beec77ea9d271941ed40b0bd8a79c4c5c9a41a9bd5dc05752fb8bd1df5182",
+        "37083-11.json": "85d9b0cc7f20959009cea3a0f66b14fe1dcd81b70c2e37ebfa0ab523d874fdb4",
+        "37083-12.json": "b1c4a4fe6da506e3899e21f6a034241389a1e29304230880f2fce6885115c1cf",
+        "37083-13.json": "d266a2d835af1d02f4419edbc9f7f6506a5a7d5684034e117a4ca94533637d08",
+        "37083-14.json": "0ff1452c8e971e4899e8b4d59f779a7de248acfd9107f058f4a2c5c7c007820b",
+        "37083-15.json": "8cca6c5388a654fb58a7c1c91d10fe9dd259928949e632745b0d7b733b54cca0",
+        "37083-16.json": "51e111908ec85f90a4514c206609292e4f7a274268020bb63931d8f075b80555",
+        "37083-17.json": "2a9894ec55d1e0d6843aafc56d8f5d67571871ce799d22744a2f8ec184e828d9",
+        "37083-18.json": "e290d66324eb26b5f1aadb225915862ed65e72471e79e68412412deb4a7061d9",
+        "37083-19.json": "e640858033ddec98d4c4a6f1e3ca87d9ca4e12570363a1d8847fa43dacb4678a",
+        "37083-2.json": "5771906893bcca42bf773c244a02d10bd8c838c459099412058a74149a825fad",
+        "37083-20.json": "cfd4a029b5597d830f707a4ef1db15b119be3c5a954a3396063b42f97885c4f1",
+        "37083-21.json": "6b965c0c261e78d96b380abfd74b58b0937a8c8ac4279c4e354ad2811d38e8d7",
+        "37083-3.json": "ba38e2280a4f020835a87f1a240f711e0a6c3ee4eaa40aa43c12d0e4b78fdfd6",
+        "37083-4.json": "7424e96a2ea8267527b972208400a1c772e2c9e1dfb881b2f950b689481e4e49",
+        "37083-5.json": "ca9c04da71384195548196fc28ef1bacf6c75804f8593ea2238f6ecdd3126777",
+        "37083-6.json": "72be17a2e26f2614f68938e61f5f57f6f0cf33d7bb82edff2ce4d7bc490e144a",
+        "37083-7.json": "991db635b5325a00409a39a447714e0513ff9e07c94fa5b14ce38821fab11203",
+        "37083-8.json": "0d4923e00be2c695a10890bcad9ef2d2427eca6ca36bd431338d17ae55631e6f",
+        "37083-9.json": "a45e6e43952f99c24c0eda5ea7ce66fca2f6d68e1fd9084c528114b6d5bfa5d3"
+      },
+      "log_sha256": "7e1003ef1a2d263875320aadce64c507c9d5ca23ac94a2bb11ad5acbc095fb19",
+      "name": "codata",
+      "tests": [
+        {
+          "name": "acceptance_example_04_productive_stream_checks",
+          "status": "passed"
+        },
+        {
+          "name": "codata_is_observed_not_destructured",
+          "status": "passed"
+        },
+        {
+          "name": "codata_keeps_thunk_and_memo_discipline",
+          "status": "passed"
+        },
+        {
+          "name": "corec_needs_an_observation_layer_per_step",
+          "status": "passed"
+        },
+        {
+          "name": "corec_stream_observes_head_and_tail",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_and_force_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "later_is_not_interchangeable_with_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "later_must_not_be_an_unrestricted_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "unproductive_corec_is_rejected_naming_the_call",
+          "status": "passed"
+        },
+        {
+          "name": "unrestricted_filter_loses_productivity",
+          "status": "passed"
+        }
+      ]
+    },
+    "guard_coverage": {
+      "exit_code": 0,
+      "harness_sha256": "7864f6acb70aa091a5d1ec6e3d3fde8e004393637f456b61339eb81728959092",
+      "invocation_receipts": {
+        "21311-0.json": "b5ec50b1e68322e7cc8a1775ab03b34855508601d92e5452b3960519a254235c",
+        "21311-1.json": "dd68f9a071a9ba385f8d18a74b4cb5341064fc3ef00f697838431940fa281be5",
+        "21311-10.json": "84f851f71871deea05ac68c3364885fa270acd520235b9fa59d6879f26d5beed",
+        "21311-11.json": "5a79897199fd412ded55f05670b6ee6f1e2a536b4ed0f9bfc1dc66fa7ca41a86",
+        "21311-12.json": "cb909b6c8aafc79b7dc7de9a390cd6b3e2b76504491ae0dcbd329212cdef0dbf",
+        "21311-13.json": "fc5397589e99861af5ed4cd5bcd5f1d068ffee9fab19179af0e9f1516a5023ce",
+        "21311-14.json": "b1fffb966b928cd10e86a48580fde9f10cc3a8c716e1cbee2b1c348c8d2535cd",
+        "21311-15.json": "488fd4c163233ff150ea173778575615751c49afd388a512454a1e66ee880f7b",
+        "21311-16.json": "1460759230b635b328400ce3eb2b2c88ede48267012841821969c872f80afa1b",
+        "21311-17.json": "c2045b11c40aecaf957e77a5f910979d817e09e6fb37a6e26117d41638902d77",
+        "21311-18.json": "afee90b919faeb6940b24f0cd7677c13208e55349369cbf5f7b4332fba61e51f",
+        "21311-19.json": "bbae35825f6e314056ee27d8e8c0910ab0d2b3b77aa1f39041f1805003b2d173",
+        "21311-2.json": "4601d77dfbede90ab6b4f4cf201f905262bb2b9a66483898d4f85e37c108bf35",
+        "21311-20.json": "f5ae398ae8bd885f9beb3abf82e7dcde4dee3967492ac6b73a53cced17256053",
+        "21311-21.json": "03d7e0f4bc853167bc41193e96e3ce6586aaf51e11d07ed787c6b633194ab2c1",
+        "21311-3.json": "60470d5e0987845c5db8a253250cfe051bcafb18b87443791c35c9933d0e72ad",
+        "21311-4.json": "1a896643163f115805508b9e09b425840715e53f7743c73ee6b8d39721e4e1ed",
+        "21311-5.json": "ebb19820eb61d47910a6ce200b7a01dfbbcfb518c352d320ee8c8994771824a5",
+        "21311-6.json": "f406eddd206f27ce1242e33c8939e458a2c10d329da8060469a4698659f198a6",
+        "21311-7.json": "f0f812bf3eb53d9150bdf42de13857f5b978bec07efd03f606a346f342e9e678",
+        "21311-8.json": "5e37f1eb26b2e953aea80ecc6fd3355b7c284ed7e072e6ea366945ab3dc65d6c",
+        "21311-9.json": "082ff1d2ddcba20f7c16568708912a82c9e537cf7e5acee8be85ee9c9631cedb"
+      },
+      "log_sha256": "55f194de6e54703dc409e8cfdaf45a97bbe5c959348f67368466f6cac32c1261",
+      "name": "guard_coverage",
+      "tests": [
+        {
+          "name": "all_guarded_match_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+          "status": "passed"
+        },
+        {
+          "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+          "status": "passed"
+        },
+        {
+          "name": "true_guard_counts_as_unguarded",
+          "status": "passed"
+        },
+        {
+          "name": "unguarded_final_row_compiles_and_runs_every_row",
+          "status": "passed"
+        }
+      ]
+    },
+    "integration": {
+      "exit_code": 0,
+      "harness_sha256": "25a8e8e8af910a891adc2208c4c98728b90faee85da27e390ab2156cf41af788",
+      "invocation_receipts": {
+        "62001-0.json": "d0bf772c300846198f60e84496258ca67b633001ee51f8a7f4f0aaad90f77536",
+        "62001-1.json": "0e2d1a2a07c0f5fb128629c41789509da235439b0bb4ad4d591c9842eb0b0e86",
+        "62001-10.json": "a1e8d5ef0cc33b2c1c9e3227df22ac8cdfd5375fd127db267c5444ce69dadc30",
+        "62001-11.json": "6b67deff5d9a4a20946f9dbc42c1cba0f905aee308786cdd8fd2acd03267cd0a",
+        "62001-12.json": "5ae0f218575f51c7b8d5ff84b822025868f89a525aadc56d9a81a136efb1fa0e",
+        "62001-13.json": "95e645a2c6ebf8151c29244f5c573b12f80d92d2971c58e3af335a43a837306c",
+        "62001-14.json": "863aaf814c7b49703d58662c46efbb7dc77ba2c7ecafcd474eeff329b8491f63",
+        "62001-15.json": "40f55484603502386fb7fb6315379cc3fad1a15b9799be8a6e0db7963f388317",
+        "62001-16.json": "a6e575ec49eda061d160316e5798b4ea74c54d2376c2061164af9c2e71af0461",
+        "62001-17.json": "f33d04a6c58ee37b5f2b13510e748ea7b4fb29134570cd102c5be090616f8b28",
+        "62001-18.json": "9258c6851d2c00e1b244d9536fd00697b4f32ddc3acd4d3cb64ba1fed81d99d7",
+        "62001-19.json": "1f79a3cd4d486d5cdd582207d2c0cd189651775141f9b4f504c46a18ffb20615",
+        "62001-2.json": "07be2093cb96398e2361bb03b1c0d7140eb5ca0afa617dee21a061cad8fc3e4b",
+        "62001-20.json": "f3e30edebd8958b88e45e844788e08b8366902cc522d70086a867afb25a550ab",
+        "62001-21.json": "aa43fb2690d680289d87101bed55755858119fb8d0c1240d68048cef278c95a9",
+        "62001-22.json": "eec2c4d29ac308bba976ae25b78cab05151ed0abf3a8403667ca6ce5f684b138",
+        "62001-23.json": "bd9c2149c322733fa01cac02d3900034bf5db35645db6508db1faaadf06f17e8",
+        "62001-24.json": "be7d23cf930a0cf96453c7175e4bdaf724e11cc260571ba9aa1215fd7005634c",
+        "62001-25.json": "aaedcea3687e9f06e011cb66d1790e0786e828c2ce7c3ec78ffc191476aaa25a",
+        "62001-26.json": "343ecd706fee956845af408dbdc01f648883467868027c25dc7f0fa8bbabb40c",
+        "62001-27.json": "9da5e18d91ac31c6de7afa6fda68e7f4f123ba58d32f78c7800fa57e751bec24",
+        "62001-28.json": "803718b2784309700bd57a3724e9bb8189edd7320d4a9d00fbf9ad8378d560f0",
+        "62001-29.json": "8f93a2bbefbb5b12c9430b9db3e20ed9b832f0d97c52d9ae0e9275d3e493982f",
+        "62001-3.json": "6f2c0b0eabef89f83f1a55eca238a2d3df3cd3c17495219bc547206ebc872a46",
+        "62001-30.json": "d1580f3c9f400ebf8a37bfac2c3ebabb2c3fee4bc9fe893b940ce1e8d2b7e5d8",
+        "62001-31.json": "0723deb095f7a5c425eb654cde54fcce8674e8468a809b2f8c20f00a47f3dba5",
+        "62001-32.json": "816cfb1c91d21ed9e481f7c8ba20346823b512f3f77539e8da4fa908060499e4",
+        "62001-33.json": "221917342d2fd06afcd52dfea3bdcada8ce3377d45960cf7abec5c02517279e6",
+        "62001-34.json": "8ff41c4812d380200dea6af936ffa5461a3271cdf77f422d8fd3ac656f62b04c",
+        "62001-35.json": "c5dac6e84021fa09dc7acb6ca34521dc01c376a4f8414d7628f034f4a41183d4",
+        "62001-36.json": "2d09243cfac399a59aa674432a953fa73c8734b230b173312e67fae76982e8ab",
+        "62001-37.json": "8a85b766e18c785beb07915be7563fc5487d7df7a20a4f9f028a69c2c625a023",
+        "62001-38.json": "045156cc8c4e53665a439ce2050bec806a54fd3d3a1a4d6baa8656eac8e9dd14",
+        "62001-39.json": "83c9bc446ef56ed102df2ceaeb5f933dbe366952becd09b1cc6608c4bfe18969",
+        "62001-4.json": "a8470ed1cabae883e9f957eb7847a03e476b88e155f65c4249f3d1601d867221",
+        "62001-40.json": "ee08df918928fdbdf9594cac46bd130f4324ea019fc4bf60d70f7b59c5d0ea4e",
+        "62001-41.json": "a0ff3679e94fe5d9ae91d29a3ce196f44b36b18a1996b8ca831661b62fcbe5f8",
+        "62001-42.json": "5d9cdb24c05cc458ba2be2567e1fe274561d3b57de1ed3cf07b5c30e8278ae6d",
+        "62001-43.json": "f1d39cd01fb5dd52f36a7bff24bb866555a31a0ae36d8d3205749c56bc11feff",
+        "62001-44.json": "ea6404535088b379c7b07cf6dd133c2072209df2eee3b14da0f4e745b4d5f506",
+        "62001-45.json": "a10b2d64d3985b3f9a39d1d40a00ccd78159bd150cb5d9e1f7928c1177849dbc",
+        "62001-46.json": "c71ba2acab4b8207b9f1156dc1d67feb70b43c27ec6511a840b0fbcdb58da4d7",
+        "62001-47.json": "7fc427cb117f00720b4c8b07097626428a29586c07098f0e9175bc7dc5610326",
+        "62001-48.json": "ca135ce34402ded76b928666d5eebc60e44334ff6b22d5196075be2ff2029d85",
+        "62001-49.json": "325ccd33c3e0c8bc0315a9ac589a415372b7ebcc6ea9a9a065299bce88c2767b",
+        "62001-5.json": "2879a4b7e512e875ebd24b95452a1b2434c22d949a3c2812818c820eda63fff4",
+        "62001-50.json": "d4a877dab045ef0b6687d883f02f7d245cb2ead1bc15569627fbb46fe6257f36",
+        "62001-51.json": "88f3f27629339f4aab81b00af53e092a8ac176da6d6612fafcd0efd7eeb53b6c",
+        "62001-52.json": "c563a64b4bccc011f968c368252636a973c05cb39d832595d21f54161b9bc2f6",
+        "62001-53.json": "53c2198a34f55d03d539995adc924b2a69e2b96eb31fd9b4c34b0af9c4767f78",
+        "62001-6.json": "6ff0c35819a85c6f8a3f9fd75f7779d055b524d365105f1b195deba52265523a",
+        "62001-7.json": "d2fc8925c405126bff2e1ca4787528e7736d88eb42dec01c7082e741de5bdc4c",
+        "62001-8.json": "5037e6de2d53346ae2dd416898a8dbe323e31b89b7c685263ee2aa774e5054a1",
+        "62001-9.json": "a394725d32de1fbc3b20ead6f5ee2087b1879bd6cb47285fc2a81de42a15a8b3"
+      },
+      "log_sha256": "3a8cfa98dfc492a28070545673eb3802b312b310afad0c24858ee02e1105bc8d",
+      "name": "integration",
+      "tests": [
+        {
+          "name": "arithmetic_through_class_methods",
+          "status": "passed"
+        },
+        {
+          "name": "case_guards_fall_through_to_later_rows",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_from_another_type_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_patterns_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "custom_class_custom_operator_custom_instance",
+          "status": "passed"
+        },
+        {
+          "name": "duplicate_binders_in_one_pattern_are_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "effect_rows_are_typed_and_honest",
+          "status": "passed"
+        },
+        {
+          "name": "generic_constraint_and_partial_application",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_on_boxed_result_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_with_covered_patterns_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "integer_match_without_catch_all_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "lambdas_capture_and_prelude_folds",
+          "status": "passed"
+        },
+        {
+          "name": "library_modules_check_without_an_entry_point",
+          "status": "passed"
+        },
+        {
+          "name": "list_literals_and_list_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "literal_patterns_fall_through_in_source_order",
+          "status": "passed"
+        },
+        {
+          "name": "local_let_polymorphism",
+          "status": "passed"
+        },
+        {
+          "name": "memo_bindings_demand_on_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_cells_with_signatures_and_shared_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_black_hole_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_mutual_demand_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "nested_constructor_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "nested_patterns_keep_source_order_fall_through",
+          "status": "passed"
+        },
+        {
+          "name": "prelude_sum_list_generic",
+          "status": "passed"
+        },
+        {
+          "name": "record_rejections",
+          "status": "passed"
+        },
+        {
+          "name": "records_construction_projection_and_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "recursion_negation_and_bool_operators",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_missing_instance",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_non_exhaustive_match",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_type_mismatch",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_undeclared_operator",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_unknown_name",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_wrong_main_type",
+          "status": "passed"
+        },
+        {
+          "name": "surface_and_or_short_circuit",
+          "status": "passed"
+        },
+        {
+          "name": "thunks_delay_and_force",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_arity_mismatch_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_let_destructuring_and_types",
+          "status": "passed"
+        },
+        {
+          "name": "tuples_through_functions",
+          "status": "passed"
+        },
+        {
+          "name": "where_clauses_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "wrong_main_type_still_rejected",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "wrapper_sha256": "c966b0b5ebb5d2ee3758b0d8f94582bae866a47f46c539063fff81aac747f05a"
+}

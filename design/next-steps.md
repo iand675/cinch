@@ -111,6 +111,12 @@ All 18 Rust interface codec tests and 52 tooling tests passed. The Cinch
 object transport replay remains a separate gate.
 See [the schema reader audit](../bootstrap/current-schema10-abi7-record-schema-results.json).
 
+The combined Stage 1 with codata, memo, host primitives and erased
+records passed all 39 original integration tests, five guard coverage
+tests and ten codata tests. Concurrency is running on the same build.
+The combined Stage 2 and Stage 3 rebuild remains separate.
+See [the original target audit](../bootstrap/current-schema10-abi7-combined-host-integration-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
