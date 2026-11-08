@@ -21121,9 +21121,9 @@
       },
       {
         "title": "Replay the proof and visibility batch with checked borrow reads in decisions",
-        "status": "waiting-worker",
-        "phase": "Waiting-worker",
-        "passed": 0,
+        "status": "running",
+        "phase": "Proof",
+        "passed": 1,
         "failed": 0,
         "total": 7,
         "unit": "cases",
@@ -21228,5 +21228,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:20:53.414806+00:00"
+  "updatedAt": "2026-11-08T14:21:56.473689+00:00"
 }
