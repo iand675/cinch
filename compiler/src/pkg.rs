@@ -13,7 +13,7 @@
 //! installed release is placed under `vendor/`, which the source loader indexes
 //! recursively.
 
-use crate::driver::{driver_opts, DriverOptions, Mode};
+use crate::driver::{driver_opts, package_execution_path, read_package_execution, DriverOptions, Mode};
 use crate::{Error, Result};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -103,7 +103,7 @@ fn report(installed: &Installed) {
     }
     println!("  source: {}", installed.source_dir.display());
     println!("  object: {}", installed.object.display());
-    println!("  abi: {}", installed.abi.display());
+    println!("  execution interface: {}", installed.abi.display());
     println!("  interfaces: {}", installed.interfaces.display());
 }
 
@@ -799,9 +799,9 @@ fn existing_materialization(project: &Path, name: &str, identity: &str) -> Optio
         .join(package)
         .join(version);
     let object = source_dir.join("package.o");
-    let abi = source_dir.join("package.abi.json");
+    let abi = package_execution_path(&object);
     let interfaces = source_dir.join("build");
-    if !object.exists() || !abi.exists() || !interfaces.exists() {
+    if !object.is_file() || !interfaces.is_dir() || read_package_execution(&object).is_err() {
         return None;
     }
     Some(Installed {
@@ -1307,9 +1307,9 @@ fn existing_install(project: &Path, name: &str, version: &str) -> Result<Install
         .join(package)
         .join(version);
     let object = source_dir.join("package.o");
-    let abi = source_dir.join("package.abi.json");
+    let abi = package_execution_path(&object);
     let interfaces = source_dir.join("build");
-    if !object.exists() || !abi.exists() || !interfaces.exists() {
+    if !object.is_file() || !interfaces.is_dir() || read_package_execution(&object).is_err() {
         return Err(Error::plain(format!(
             "{name}@{version} is already in the dependency resolution but its artifacts are missing; remove vendor/{namespace}/{package} and retry"
         )));
@@ -1770,7 +1770,7 @@ fn materialize(
     // A synthetic library root imports every package module. It lives at the
     // project root so dependency modules vendored beside the project resolve
     // through the same recursive source index the project uses. `emit-object`
-    // checks the package and writes its native object plus ABI manifest.
+    // checks the package and writes its native object and execution interface.
     let entry = project.join(".cinch-package-root.cinch");
     let mut source_text = String::from("module CinchPackageRoot where\n");
     for module in &module_names {
@@ -1779,7 +1779,7 @@ fn materialize(
     std::fs::write(&entry, source_text)
         .map_err(|e| Error::plain(format!("{}: {e}", entry.display())))?;
     let object = source_dir.join("package.o");
-    let abi = source_dir.join("package.abi.json");
+    let abi = package_execution_path(&object);
     let options = DriverOptions {
         emit_modules: module_names.clone(),
         ..DriverOptions::default()
@@ -1809,7 +1809,6 @@ fn materialize(
         ));
     }
 
-    write_package_execution(&source_dir, &module_names, &object, &abi)?;
     update_lock(
         project,
         name,
@@ -1831,41 +1830,6 @@ fn materialize(
         abi,
         interfaces,
     })
-}
-
-/// Write the package-level `.cinchif` consumed by JIT and native object
-/// admission. It carries the full physical ABI (units, layouts, object hash,
-/// interfaces) plus the modules it defines, so a consumer does not need the
-/// separate `package.abi.json` name.
-fn write_package_execution(
-    source_dir: &Path,
-    modules: &[String],
-    object: &Path,
-    abi: &Path,
-) -> Result<()> {
-    let abi_bytes =
-        std::fs::read(abi).map_err(|e| Error::plain(format!("{}: {e}", abi.display())))?;
-    let mut execution: Value = serde_json::from_slice(&abi_bytes)
-        .map_err(|e| Error::plain(format!("{}: {e}", abi.display())))?;
-    let fields = execution
-        .as_object_mut()
-        .ok_or_else(|| Error::plain("package ABI must be a JSON object"))?;
-    fields.insert("kind".into(), json!("package-execution"));
-    fields.insert("modules".into(), json!(modules));
-    fields.insert(
-        "object".into(),
-        json!(object
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_else(|| "package.o".into())),
-    );
-    let build = source_dir.join("build");
-    std::fs::create_dir_all(&build)
-        .map_err(|e| Error::plain(format!("{}: {e}", build.display())))?;
-    let path = build.join("package.cinchif");
-    std::fs::write(&path, canonical(&execution)?)
-        .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-    Ok(())
 }
 
 fn validate_name(name: &str) -> Result<()> {
@@ -2287,14 +2251,16 @@ fn verify(project: &Path) -> Result<Verified> {
                 .and_then(Value::as_str)
                 .ok_or_else(|| Error::plain(format!("{name} lock entry has no object")))?,
         );
-        let abi_path = object.with_extension("abi.json");
+        let abi_path = package_execution_path(&object);
         let object_bytes = std::fs::read(&object)
             .map_err(|e| Error::plain(format!("{}: {e}", object.display())))?;
-        let abi: Value = serde_json::from_slice(
-            &std::fs::read(&abi_path)
-                .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?,
-        )
-        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+        let abi = read_package_execution(&object)?;
+        if abi.get("modules") != Some(&json!(manifest_modules(&manifest, name)?)) {
+            return Err(Error::plain(format!(
+                "{}: package execution modules differ from .cinchpkg",
+                abi_path.display()
+            )));
+        }
         let expected = abi
             .get("object_content_hash")
             .and_then(Value::as_str)
@@ -2333,34 +2299,6 @@ fn verify(project: &Path) -> Result<Verified> {
                     "{} names module {}, expected {module_name}",
                     iface_path.display(),
                     iface.module
-                )));
-            }
-        }
-        let execution_path = interfaces.join("package.cinchif");
-        if execution_path.exists() {
-            let bytes = std::fs::read(&execution_path)
-                .map_err(|e| Error::plain(format!("{}: {e}", execution_path.display())))?;
-            let execution: Value = serde_json::from_slice(&bytes)
-                .map_err(|e| Error::plain(format!("{}: {e}", execution_path.display())))?;
-            if execution.get("kind").and_then(Value::as_str) != Some("package-execution") {
-                return Err(Error::plain(format!(
-                    "{}: not a package execution interface",
-                    execution_path.display()
-                )));
-            }
-            let execution_hash = execution
-                .get("object_content_hash")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    Error::plain(format!(
-                        "{}: no object_content_hash",
-                        execution_path.display()
-                    ))
-                })?;
-            if execution_hash != expected {
-                return Err(Error::plain(format!(
-                    "{}: object hash does not match package.abi.json",
-                    execution_path.display()
                 )));
             }
         }
@@ -2605,7 +2543,8 @@ mod tests {
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
         assert!(installed.interfaces.join("Library.cinchif").exists());
-        assert!(installed.interfaces.join("package.cinchif").exists());
+        assert_eq!(installed.abi, installed.interfaces.join("package.cinchif"));
+        assert!(!installed.object.with_extension("abi.json").exists());
         let abi: Value =
             serde_json::from_slice(&std::fs::read(&installed.abi).expect("package ABI"))
                 .expect("package ABI JSON");
@@ -2636,6 +2575,11 @@ mod tests {
         )
         .expect("project imports the installed package");
         assert_eq!(verify(&dir).expect("verify lock").packages, 1);
+        let old_sidecar = installed.object.with_extension("abi.json");
+        std::fs::rename(&installed.abi, &old_sidecar).expect("move execution interface aside");
+        let error = verify(&dir).err().expect("verification requires package.cinchif");
+        assert!(error.to_string().contains("package.cinchif"), "{error}");
+        std::fs::rename(&old_sidecar, &installed.abi).expect("restore execution interface");
         let slsa = verify_slsa(&dir).expect("verify slsa");
         assert_eq!(slsa.packages, 1);
         assert!(slsa.provenance_levels[0].contains("SLSA_BUILD_LEVEL_1"));
@@ -3195,6 +3139,11 @@ mod tests {
         let status = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
             .expect("native build with package objects");
         assert_eq!(status, 8);
+        let old_sidecar = top.object.with_extension("abi.json");
+        std::fs::rename(&top.abi, &old_sidecar).expect("move execution interface aside");
+        let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
+            .expect_err("native package linking requires package.cinchif");
+        assert!(error.to_string().contains("package.cinchif"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
     }
 }
