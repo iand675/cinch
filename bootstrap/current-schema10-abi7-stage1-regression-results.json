@@ -1,0 +1,40 @@
+{
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "log_sha256": "9ef0823403c7b7e24276ca86ecac71705a9d97c4a95d6f3f4afe1772a6b4e161",
+      "name": "alloc_accounting",
+      "stage1_invocations": 11,
+      "stage1_tests": 8
+    },
+    {
+      "log_sha256": "151a4733e1617f7c07e17918be39fb642bc8f30d62c221d78dcf0359a3229973",
+      "name": "bootstrap_body_bindings",
+      "stage1_invocations": 2,
+      "stage1_tests": 2
+    },
+    {
+      "log_sha256": "8ea8ea76ea13c225bc425146fa790dcccdeefd4f17611e18c4f89c9d3614dbe4",
+      "name": "bootstrap_decisions",
+      "stage1_invocations": 1,
+      "stage1_tests": 1
+    },
+    {
+      "focused_receipt_sha256": "d7f08dc9cada51ac37a6f2b473441efbbba440650325cc68a71a0067918fb9cc",
+      "initial_stage1_log_sha256": "d14a90526ed0f7bae859cd0874309f879ac8c83d452937895585ed75671ec663",
+      "name": "case_evidence",
+      "native_revised_log_sha256": "3d1374df51b8d373201169340db9b952e337cf221a8fff1d97670505160c222b",
+      "native_revised_tests": 18,
+      "stage1_focused_tests": 1,
+      "stage1_negative_checks": 8,
+      "stage1_unchanged_tests": 17
+    }
+  ],
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "d19ee65db04b7f0d9a22c5e44753245e162e8133",
+  "schema": 1,
+  "scope": "Four historical regression targets passed the repaired Stage 1 controls. Case evidence combines 17 unchanged passing cases with a focused pass of the revised refusal test. The complete revised Native target passed. The full Stage 3 replay remains separate.",
+  "stage1_compiler_sha256": "d4acd7c20f7557b04cb87ad7b1fe2068d06fe9dcf638ca00506fac2b6c2cdc3c",
+  "status": "audited-repaired-stage1-historical-regressions"
+}
