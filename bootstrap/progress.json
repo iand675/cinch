@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_refinement_constructors, bootstrap_refinement_core, bootstrap_refinement_types",
-        "passed": 57,
+        "phase": "Bootstrap_refinement_constructors, bootstrap_refinement_types, bootstrap_resolve",
+        "passed": 58,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -21162,8 +21162,8 @@
       },
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
-        "status": "waiting-stage3",
-        "phase": "Waiting for the independent Stage 2 and Stage 3 audit.",
+        "status": "waiting-stage3-artifacts",
+        "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 105,
         "unit": "gates",
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:52:13.877792+00:00"
+  "updatedAt": "2026-11-08T16:53:57.057715+00:00"
 }
