@@ -12005,9 +12005,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 80,
+          "verified": 81,
           "blocked": 6,
-          "running": 2,
+          "running": 1,
           "pending": 13,
           "recheck": 4
         },
@@ -12740,6 +12740,10 @@
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
                   "status": "running"
                 }
               ]
@@ -14289,21 +14293,25 @@
           {
             "id": "stage3:folded_literal_ownership",
             "title": "folded_literal_ownership",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/folded_literal_ownership.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:14:52.633341+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:15:31.531722+00:00",
+              "exitCode": 0,
+              "logSha256": "a59849a14450e6796dc57a7b39236f5a61e49615bdd525c62768466c0f2723c3",
               "cases": [
                 {
                   "name": "folded_integer_lists_reclaim_small_and_bignum_tagged_heads",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "folded_object_lists_keep_constructor_instantiations_and_reclaim_their_fields",
+                  "status": "passed"
                 }
               ]
             },
@@ -20639,9 +20647,9 @@
       },
       {
         "title": "Run the first frontend shard on the audited published Stage3",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "folded_literal_ownership. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 19,
+        "passed": 20,
         "failed": 1,
         "total": 21,
         "unit": "original test targets",
@@ -20869,9 +20877,9 @@
       }
     ],
     "counts": {
-      "verified": 364,
+      "verified": 365,
       "blocked": 12,
-      "running": 13,
+      "running": 12,
       "pending": 232,
       "recheck": 59
     },
@@ -20881,5 +20889,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:15:10.444863+00:00"
+  "updatedAt": "2026-11-08T05:16:12.780370+00:00"
 }
