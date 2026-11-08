@@ -949,6 +949,8 @@ module Bootstrap.Check where
     DImport s path mods alias members args -> fail s "module imports need interface resolution, which is not supported in this rung"
     DExport s text items -> Nil
     DRecord s n params fields -> fail s "record declarations are not supported in this rung"
+    DCodata s n params observations -> fail s "codata declarations require checked observations"
+    DCorec s body -> fail s "a corec declaration requires guarded recursion checking"
     DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
     DProof s body -> fail s "a proof declaration requires erased checking"

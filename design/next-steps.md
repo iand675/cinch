@@ -93,10 +93,10 @@ The combined codata and memo Stage 1 passed all ten original codata tests
 and two eager-recursion refusals. Both executable controls ran without leaks.
 The unchanged stream example checked, and ordinary construction and pattern
 matching were refused on codata. Stage 2 and Stage 3 match on executable bytes, LLVM IR and all
-46 compiler interfaces. The smoke tests and the separate interface consumer
-passed. The changed-source rebuild is still running. Checked codata observation
-interfaces remain a separate gate.
-See [the Stage 3 audit](../bootstrap/current-schema10-abi7-codata-stage3-results.json).
+46 compiler interfaces. The smoke tests, interface consumer and changed-source
+rebuild passed. Checked codata observation interfaces and the complete suites
+remain open.
+See [the codata fixed-point audit](../bootstrap/current-schema10-abi7-codata-fixed-point-results.json).
 See [the codata audit](../bootstrap/current-schema10-abi7-stage1-codata-results.json).
 
 Rust and Python now require unique nonempty compiled record field labels

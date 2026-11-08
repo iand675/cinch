@@ -21,6 +21,7 @@ module Bootstrap.Type where
   export core-list-type, core-list-element
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
+  export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
   export lazy-kind, lazy-type, lazy-parts
   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
   export type-free-bound
@@ -154,6 +155,33 @@ module Bootstrap.Type where
   thunk-parts ty = case ty of
     UApp (UApp (UCon name kind) row) result -> if same-tag name "Thunk" && kind-equal kind thunk-kind then Some (row, result) else None
     other -> None
+  later-kind :: Kind
+  later-kind = KFun KType KType
+  later-type :: UType -> UType
+  later-type result = UApp (UCon "Later" later-kind) result
+  later-parts :: UType -> Option UType
+  later-parts ty = case ty of
+    UApp (UCon name kind) result -> if same-tag name "Later" && kind-equal kind later-kind then Some result else None
+    other -> None
+  -- Forcing a guarded value uses the same closure ABI, with a pure row.
+  deferral-parts :: UType -> Option (UType, UType)
+  deferral-parts ty = case later-parts ty of
+    Some result -> Some (URow UEnd, result)
+    None -> thunk-parts ty
+  later-domain :: UType -> Bool
+  later-domain ty = case later-parts ty of Some carrier -> True; None -> False
+  later-unrestricted :: ArrowUsage -> UType -> Bool
+  later-unrestricted usage arrow = case usage of
+    UsageMany -> (case arrow of
+      UFun domain result -> later-domain domain
+      UFunEff domain row result -> later-domain domain
+      UPi id name domain row result -> later-domain domain
+      other -> False)
+    other -> False
+  distinct-deferrals :: UType -> UType -> Bool
+  distinct-deferrals first second = case later-parts first of
+    Some result -> (case thunk-parts second of Some parts -> True; None -> False)
+    None -> (case (thunk-parts first, later-parts second) of (Some parts, Some result) -> True; other -> False)
 
   lazy-kind :: Kind
   lazy-kind = KFun KRow (KFun KRegion (KFun KType KType))
@@ -706,7 +734,7 @@ module Bootstrap.Type where
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
-    UUsageArrow usage arrow -> computational-arrow arrow && valid-type arrow
+    UUsageArrow usage arrow -> computational-arrow arrow && not (later-unrestricted usage arrow) && valid-type arrow
     UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
     URow labels -> valid-effects labels
     URowJoin a b -> valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow
@@ -980,13 +1008,15 @@ module Bootstrap.Type where
     UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
-    UApp f x -> case (refinement-view a, refinement-view b) of
-      (URefine id name carrier predicate, URefine key other input condition) -> unify sp (URefine id name carrier predicate) (URefine key other input condition) st
-      other -> case b of
-        UApp g y -> unify sp x y (unify sp f g st)
-        UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
-        UFunEff domain effects result -> unify-pure-arrow-application sp a (UFun domain result) effects st
-        other -> mismatch sp a b st
+    UApp f x -> if distinct-deferrals a b then
+      add-error sp (string-concat (mismatch-message a b) " (Later and Thunk are distinct types)") st
+      else (case (refinement-view a, refinement-view b) of
+        (URefine id name carrier predicate, URefine key other input condition) -> unify sp (URefine id name carrier predicate) (URefine key other input condition) st
+        other -> case b of
+          UApp g y -> unify sp x y (unify sp f g st)
+          UFun domain result -> unify sp x result (unify sp f (UApp arrow-constructor domain) st)
+          UFunEff domain effects result -> unify-pure-arrow-application sp a (UFun domain result) effects st
+          other -> mismatch sp a b st)
     UFun x y -> case b of
       UPi id name domain row result -> unify-pi sp (function-pi a) b st
       UFun u v -> unify sp y v (unify sp x u st)

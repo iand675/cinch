@@ -243,7 +243,7 @@ module Bootstrap.RuntimeIr where
     Some place -> Some 1
     None -> case borrowed-carrier (base ty) of
       Some carrier -> word-class context carrier
-      None -> case (thunk-parts (base ty), lazy-parts (base ty)) of
+      None -> case (deferral-parts (base ty), lazy-parts (base ty)) of
         (None, None) -> value-word-class context ty
         other -> Some 1
   handler-word-type :: UType -> Bool
@@ -798,7 +798,7 @@ module Bootstrap.RuntimeIr where
           Err message -> Err message) cursor
         CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
         CPrimitive sp ty operation fields -> if same operation "thunk-force" && (case fields of
-          CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
+          CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
           other -> True) then Err "handled effect needs a direct checked operation call"
           else handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
         CDecision sp ty predicate test -> handler-cps context sp test (\value fresh -> handler-bind sp (CDecision sp ty predicate value) next fresh) cursor

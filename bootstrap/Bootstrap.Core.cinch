@@ -595,7 +595,7 @@ module Bootstrap.Core where
   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
 
   ownership-type-kinds :: List (String, Kind)
-  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind), ("Lazy", lazy-kind)]
+  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind), ("Lazy", lazy-kind), ("Later", later-kind)]
   thunk-function-parts :: UType -> Option (UType, UType)
   thunk-function-parts ty = case ty of
     UFun (UCon name KType) result -> if string-compare name "Unit" == 0 then Some (URow UEnd, result) else None
@@ -757,7 +757,7 @@ module Bootstrap.Core where
     CTuple s ty fields -> core-effects fields
     CPrimitive s ty name args -> if string-compare name "thunk-force" == 0 then
       (case args of
-        CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
+        CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
         other -> UError)
       else if string-compare name "memo-demand" == 0 then
         (case args of

@@ -18,7 +18,7 @@ module Bootstrap.Infer where
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Global
-  import Bootstrap.Contracts (declaration-references)
+  import Bootstrap.Contracts (declaration-references, expr-references)
   import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name)
@@ -201,6 +201,7 @@ module Bootstrap.Infer where
       DSig s name ty -> needs-type ty
       DClass s name ps members -> True
       DRecord s name ps fields -> True
+      DCodata s name ps observations -> True
       DOpaque s name params kind -> True
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
@@ -515,7 +516,7 @@ module Bootstrap.Infer where
       None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
         else if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
-        else if has name ["Ref", "Mut", "Thunk", "Lazy"] then
+        else if has name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then
           (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
@@ -526,7 +527,8 @@ module Bootstrap.Infer where
       convert-predicate external kinds locals ty st
     TApp s head args -> case source-type-application head args of
       (function, actuals) -> case convert-type-head external kinds locals function st of
-        (h, sh) -> convert-args external kinds locals s h actuals sh
+        (h, sh) -> if later-arguments-valid h actuals then convert-args external kinds locals s h actuals sh
+          else bad s "Later must be applied to exactly one type and takes no effect row" sh
     TTuple s args -> case convert-spine external kinds locals args st of (xs, sx) -> (UTuple xs, sx)
     TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
@@ -537,6 +539,12 @@ module Bootstrap.Infer where
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
     TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
     other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
+  later-arguments-valid :: UType -> TypeExpr -> Bool
+  later-arguments-valid head arguments = case head of
+    UCon name kind -> if same name "Later" && kind-equal kind later-kind then
+      (case arguments of TArg sp (TRow at labels tail) rest -> False; TArg sp argument (TArgsEnd end) -> True; other -> False)
+      else True
+    other -> True
   unqualified-name :: String -> Bool
   unqualified-name name = no-qualifier (unpack name)
   no-qualifier :: List Char -> Bool
@@ -943,7 +951,8 @@ module Bootstrap.Infer where
     (arrow, checked) -> case parse-arrow-usage marker of
       None -> bad sp "unknown arrow multiplicity" checked
       Some usage -> let ty = UUsageArrow usage arrow in
-        if valid-type ty then (ty, checked) else bad sp "a multiplicity needs a computational arrow" checked
+        if later-unrestricted usage arrow then bad sp "Later requires at most one use: %many would give it unrestricted-thunk semantics" checked
+        else if valid-type ty then (ty, checked) else bad sp "a multiplicity needs a computational arrow" checked
   convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-arrow external kinds locals sp argument row result st = case argument of
     TBound s name carrier (TBoundsEnd end) -> case convert-domain external kinds locals carrier st of
@@ -1321,6 +1330,7 @@ module Bootstrap.Infer where
       -- kind. Keep the defining labels as separate source provenance.
       DRecord s name ps fields -> collect-kinds rest (context-add-alias d kinds)
         (duplicate-names s (record-labels fields) Nil st)
+      DCodata s name ps observations -> collect-kinds rest (context-add-alias d kinds) st
       DSource s name metadata -> (case field "record_scope" metadata of
         JArr first more -> collect-kinds rest (context-add-alias d kinds) st
         other -> collect-kinds rest kinds st)
@@ -1780,7 +1790,11 @@ module Bootstrap.Infer where
     UFunEff a row b -> not (occurs-owner owner a) && positive owner b
     UUsageArrow usage arrow -> positive owner arrow
     UProofFun predicate row result -> not (occurs-owner owner predicate || occurs-owner owner row) && positive owner result
-    UApp f x -> if occurs-owner owner ty then (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False) else True
+    UApp f x -> if occurs-owner owner ty then
+      (case deferral-parts ty of
+        Some (row, result) -> not (occurs-owner owner row) && positive owner result
+        None -> (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False))
+      else True
     UTuple xs -> positive owner xs
     UArg x rest -> positive owner x && positive owner rest
     other -> True
@@ -2043,6 +2057,7 @@ module Bootstrap.Infer where
       DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case register-ctors kinds owner qs cs env sq of (e, se) -> register rows classes kinds rest e se
       DRecord s owner ps fields -> register rows classes kinds rest env st
+      DCodata s owner ps observations -> register rows classes kinds rest env st
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
         (e, se) -> register rows classes kinds rest e se
       DExternal s name category (Some ty) metadata ->
@@ -2300,9 +2315,19 @@ module Bootstrap.Infer where
         (case check classes kinds families env locals input (UFunEff (primitive-type "Unit") row result) ready of
           (value, checked) -> (CPrimitive sp (thunk-type row result) "thunk-delay" (CArgument sp value (CArgumentsEnd sp)), checked))
         else case infer classes kinds families env locals input ready of
-          (value, checked) -> let expected = thunk-type row result in
-            let applied = unify (expr-span input) (core-type value) expected checked in
-            (CPrimitive sp result "thunk-force" (CArgument sp value (CArgumentsEnd sp)), applied)
+          (value, checked) -> case later-parts (normalize checked (core-type value)) of
+            Some carrier -> (CPrimitive sp carrier "thunk-force" (CArgument sp value (CArgumentsEnd sp)), checked)
+            None -> let expected = thunk-type row result in
+              let applied = unify (expr-span input) (core-type value) expected checked in
+              (CPrimitive sp result "thunk-force" (CArgument sp value (CArgumentsEnd sp)), applied)
+  check-later-delay :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-later-delay classes kinds families env locals sp input carrier st = case fresh-meta KRow st of
+    (row, opened) -> case check classes kinds families env locals input (UFunEff (primitive-type "Unit") row carrier) opened of
+      (callback, checked) ->
+        let pure = unify sp row (URow UEnd) checked in
+        if list-length (store-errors pure) > list-length (store-errors checked) then
+          term-error sp "a `delay` building a `Later` must be pure" checked
+        else (CPrimitive sp (later-type carrier) "thunk-delay" (CArgument sp callback (CArgumentsEnd sp)), pure)
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -2722,7 +2747,9 @@ module Bootstrap.Infer where
     Some binding -> lookup-value sp name env st
     None -> case find-refinement name (context-aliases kinds) of
       Some declaration -> refinement-constructor sp kinds name st
-      None -> lookup-value sp name env st
+      None -> if codata-name name (context-aliases kinds) then
+        term-error sp "a codata value must use its observed construction form" st
+        else lookup-value sp name env st
 
   infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer classes kinds families env locals expr st = case expr of
@@ -2887,7 +2914,9 @@ module Bootstrap.Infer where
       None -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
         (case application-spine expr Nil of
           (head, args) -> case thunk-syntax-operation env head of
-            Some operation -> infer classes kinds families env locals expr st
+            Some operation -> (case (later-parts (normalize st expected), args) of
+              (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
+              other -> infer classes kinds families env locals expr st)
             None -> case infer classes kinds families env locals head st of
               (fun, opened) -> apply-spine classes kinds families env locals fun args
                 (hint-application-result sp (core-type fun) args expected opened))
@@ -3686,7 +3715,12 @@ module Bootstrap.Infer where
               None -> case bind-constructor classes kinds families env locals s args ty expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
                 (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
         else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
-      None -> (env, CPWild s UError, add-error s (string-concat "unknown constructor: " name) st)
+      None -> if codata-name name (context-aliases kinds) then
+        (env, CPWild s UError, add-error s "a codata value is observed, not destructured: use .field projection" st)
+        else (env, CPWild s UError, add-error s (string-concat "unknown constructor: " name) st)
+    PRecord s name fields -> if codata-name name (context-aliases kinds) then
+      (env, CPWild s UError, add-error s "a codata value is observed, not destructured: use .field projection" st)
+      else (env, CPWild s UError, add-error s "record pattern has no defining field contract" st)
     PUnmodeled s message -> (env, CPWild s UError, add-error s message st)
     other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "pattern needs further elaboration" st)
   foreign-constructor-family :: List (String, List String) -> UType -> UType -> Option String
@@ -4834,8 +4868,12 @@ module Bootstrap.Infer where
   elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies enable label m =
     let original = module-decls m in
-    let ds = if record-definitions-present original then record-declarations original original else original in
-    let contracts = check-imported-refinements ds Nil (empty-store label) in
+    let has-codata = codata-present original in
+    let declarations = if has-codata then unwrap-corec-declarations original else original in
+    let ds = if record-definitions-present declarations then record-declarations declarations declarations else declarations in
+    let initial = empty-store label in
+    let guarded = if has-codata then check-codata-bodies original (codata-call-graph original) original initial else initial in
+    let contracts = check-imported-refinements ds Nil guarded in
     let start = data-order ds (data-names ds) Nil contracts in
     let (source-kinds, source-store) = collect-kinds ds primitive-kinds start in
     let rows = class-rows ds in
@@ -4884,15 +4922,204 @@ module Bootstrap.Infer where
   -- field values are bound in written order before layout-order assembly.
   record-labels :: List (String, TypeExpr) -> List String
   record-labels fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons name (record-labels rest)
-  record-definition :: String -> List Decl -> Option Decl
+  data RecordShape where
+    RecordShape :: Bool -> String -> List (String, TypeExpr) -> RecordShape
+  record-definition :: String -> List Decl -> Option RecordShape
   record-definition name ds = case ds of
     Nil -> None
-    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (DRecord sp actual params fields) else record-definition name rest
+    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (RecordShape False actual fields) else record-definition name rest
+    Cons (DCodata sp actual params fields) rest -> if same name actual then Some (RecordShape True actual fields) else record-definition name rest
     Cons other rest -> record-definition name rest
+  codata-name :: String -> List Decl -> Bool
+  codata-name name ds = case record-definition name ds of Some (RecordShape observed owner fields) -> observed; None -> False
+  unwrap-corec :: Decl -> Decl
+  unwrap-corec declaration = case declaration of DCorec sp body -> body; other -> declaration
+  unwrap-corec-declarations :: List Decl -> List Decl
+  unwrap-corec-declarations ds = case ds of Nil -> Nil; Cons declaration rest -> Cons (unwrap-corec declaration) (unwrap-corec-declarations rest)
+  codata-present :: List Decl -> Bool
+  codata-present ds = case ds of
+    Nil -> False
+    Cons (DCodata sp owner params fields) rest -> True
+    Cons (DCorec sp body) rest -> True
+    Cons other rest -> codata-present rest
+  corec-marked :: String -> List Decl -> Bool
+  corec-marked name ds = case ds of
+    Nil -> False
+    Cons (DCorec sp body) rest -> (case decl-name body of Some marked -> same marked name; None -> False) || corec-marked name rest
+    Cons other rest -> corec-marked name rest
+  codata-return :: TypeExpr -> Bool -> (Option String, Bool)
+  codata-return syntax diverges = case syntax of
+    TForall sp params body -> codata-return body diverges
+    TUsing sp constraints body -> codata-return body diverges
+    TUsageArrow sp usage arrow -> codata-return arrow diverges
+    TFun sp input body -> codata-return body False
+    TFunEff sp input row body -> codata-return body (case row of TRow at labels tail -> has "Diverge" (type-names labels); other -> False)
+    TName sp name -> (Some name, diverges)
+    TApp sp head arguments -> codata-return head diverges
+    other -> (None, diverges)
+  declared-codata-return :: String -> List Decl -> (Option String, Bool)
+  declared-codata-return name ds = case ds of
+    Nil -> (None, False)
+    Cons declaration rest -> case unwrap-corec declaration of
+      DSig sp symbol ty -> if same symbol name then codata-return ty False else declared-codata-return name rest
+      other -> declared-codata-return name rest
+  codata-call-graph :: List Decl -> List (String, List String)
+  codata-call-graph ds = case ds of
+    Nil -> Nil
+    Cons declaration rest -> case unwrap-corec declaration of
+      DFun sp name clauses -> Cons (name, declaration-references [declaration]) (codata-call-graph rest)
+      other -> codata-call-graph rest
+  codata-calls :: String -> List (String, List String) -> List String
+  codata-calls name graph = case graph of
+    Nil -> Nil
+    Cons (symbol, refs) rest -> if same symbol name then refs <> codata-calls name rest else codata-calls name rest
+  codata-reaches :: String -> List String -> List String -> List (String, List String) -> Bool
+  codata-reaches destination pending seen graph = case pending of
+    Nil -> False
+    Cons name rest -> same name destination ||
+      (if has name seen then codata-reaches destination rest seen graph
+       else codata-reaches destination (codata-calls name graph <> rest) (Cons name seen) graph)
+  codata-component :: String -> List (String, List String) -> List (String, List String) -> List String
+  codata-component name graph candidates = case candidates of
+    Nil -> Nil
+    Cons (other, refs) rest -> let more = codata-component name graph rest in
+      if codata-reaches name refs [other] graph && codata-reaches other (codata-calls name graph) [name] graph then Cons other more else more
+  constructs-observations :: String -> Expr -> Bool
+  constructs-observations owner expression = case expression of
+    ERecord sp name fields -> same owner name
+    EAnn sp body annotation -> constructs-observations owner body
+    ELet sp bindings body -> constructs-observations owner body
+    ELocalGroup sp bindings body -> constructs-observations owner body
+    EIf sp condition yes no -> constructs-observations owner yes && constructs-observations owner no
+    ECase sp value (EAlt at pattern body rest) -> constructs-observations owner body && constructs-observation-alternatives owner rest
+    EGuarded sp guard body -> constructs-observations owner body
+    other -> False
+  constructs-observation-alternatives :: String -> Expr -> Bool
+  constructs-observation-alternatives owner alternatives = case alternatives of
+    EAltsEnd sp -> True
+    EAlt sp pattern body rest -> constructs-observations owner body && constructs-observation-alternatives owner rest
+    other -> False
+  data ObservationPosition where
+    StrictObservationPosition :: ObservationPosition
+    ObservationBody :: ObservationPosition
+    DeferredObservation :: ObservationPosition
+    GuardedObservation :: ObservationPosition
+  data GuardFlow where
+    NoGuardFlow :: GuardFlow
+    CodataResultFlow :: String -> GuardFlow
+    LaterResultFlow :: GuardFlow
+  is-later-flow :: GuardFlow -> Bool
+  is-later-flow flow = case flow of LaterResultFlow -> True; other -> False
+  is-codata-flow :: String -> GuardFlow -> Bool
+  is-codata-flow name flow = case flow of CodataResultFlow owner -> same name owner; other -> False
+  recursive-call-allowed :: Bool -> Bool -> ObservationPosition -> Bool
+  recursive-call-allowed productive diverges position = case position of
+    GuardedObservation -> True
+    DeferredObservation -> not productive
+    ObservationBody -> False
+    StrictObservationPosition -> not productive && diverges
+  first-recursive-reference :: List String -> List String -> Option String
+  first-recursive-reference group refs = case refs of
+    Nil -> None
+    Cons name rest -> if has name group then Some name else first-recursive-reference group rest
+  later-observation :: String -> List (String, TypeExpr) -> Bool
+  later-observation label fields = case fields of
+    Nil -> False
+    Cons (name, ty) rest -> if same name label then
+      (case ty of TApp sp (TName at head) (TArg arg carrier (TArgsEnd end)) -> same head "Later"; other -> False)
+      else later-observation label rest
+  -- Only the result path of an observation can supply its Later guard.
+  -- Scrutinees, strict bindings, and arguments of arbitrary calls evaluate
+  -- before the guard is returned.
+  guarded-recursive-reference :: List Decl -> List String -> Bool -> Bool -> ObservationPosition -> GuardFlow -> Expr -> Option (Span, String)
+  guarded-recursive-reference declarations group productive diverges position flow expression =
+    let nested = guarded-recursive-reference declarations group productive diverges position in
+    let eager = nested NoGuardFlow in
+    case expression of
+      ERecord sp name values -> (case position of
+        GuardedObservation -> None
+        other -> (case record-definition name declarations of
+          Some (RecordShape True owner fields) -> guarded-observation-fields declarations group productive diverges (is-codata-flow owner flow) fields values
+          other -> eager values))
+      ERecordField sp name value rest -> first-guard-error (eager value) (eager rest)
+      EApp sp (EVar at name) (ELam site patterns body) | same name "b.delay" -> (case position of
+        GuardedObservation -> None
+        other -> guarded-recursive-reference declarations group productive diverges
+          (if is-later-flow flow then GuardedObservation else DeferredObservation) NoGuardFlow body)
+      EApp sp first second -> first-guard-error (eager first) (eager second)
+      EAnn sp body annotation -> nested flow body
+      EIf sp condition yes no -> first-guard-error (eager condition) (first-guard-error (nested flow yes) (nested flow no))
+      ECase sp value alternatives -> first-guard-error (eager value) (nested flow alternatives)
+      EAlt sp pattern body rest -> first-guard-error (nested flow body) (nested flow rest)
+      ELet sp bindings body -> first-guard-error (eager bindings) (nested flow body)
+      ELocalGroup sp bindings body -> first-guard-error (eager bindings) (nested flow body)
+      ELocalSignature sp name ty rest -> eager rest
+      ELocalStrict sp pattern value rest -> first-guard-error (eager value) (eager rest)
+      ELocalMemo sp name value rest -> first-guard-error (eager value) (eager rest)
+      EBinding sp name rhs rest -> first-guard-error (eager rhs) (eager rest)
+      EGuarded sp condition body -> first-guard-error (eager condition) (nested flow body)
+      EArg sp first rest -> first-guard-error (eager first) (eager rest)
+      ECon sp name arguments -> eager arguments
+      EProject sp body label -> eager body
+      ETuple sp fields -> eager fields
+      EList sp fields -> eager fields
+      EBin sp operation left right -> first-guard-error (eager left) (eager right)
+      ENeg sp value -> eager value
+      ELam sp patterns body -> eager body
+      EForall sp names body -> nested flow body
+      EUsing sp bounds body -> nested flow body
+      EBind sp name rhs -> eager rhs
+      EDo sp statements -> eager statements
+      EWith sp bindings body -> first-guard-error (eager bindings) (nested flow body)
+      EHandle sp body handler-value -> first-guard-error (eager body) (eager handler-value)
+      EHandler sp label clauses -> eager clauses
+      EHandlerClause sp name patterns continuation body rest -> first-guard-error (eager body) (eager rest)
+      ESplice sp body -> eager body
+      other -> if recursive-call-allowed productive diverges position then None else case first-recursive-reference group (expr-references expression) of
+        Some name -> Some (expr-span expression, name)
+        None -> None
+  first-guard-error :: Option (Span, String) -> Option (Span, String) -> Option (Span, String)
+  first-guard-error first second = case first of Some error -> first; None -> second
+  guarded-observation-fields :: List Decl -> List String -> Bool -> Bool -> Bool -> List (String, TypeExpr) -> Expr -> Option (Span, String)
+  guarded-observation-fields declarations group productive diverges result fields values = case values of
+    ERecordField sp label value rest -> first-guard-error
+      (guarded-recursive-reference declarations group productive diverges ObservationBody
+        (if result && later-observation label fields then LaterResultFlow else NoGuardFlow) value)
+      (guarded-observation-fields declarations group productive diverges result fields rest)
+    other -> None
+  checked-codata-clauses :: List Decl -> List String -> Bool -> Bool -> String -> List (List Pat, Expr) -> Store -> Store
+  checked-codata-clauses declarations group productive diverges owner clauses st = case clauses of
+    Nil -> st
+    Cons (patterns, body) rest -> let checked = (case guarded-recursive-reference declarations group productive diverges StrictObservationPosition (CodataResultFlow owner) body of
+        Some (sp, name) -> add-error sp ("unguarded recursive call to `" <> diagnostic-member-name name <>
+          (if productive then "`: a corec definition must use delay in a Later observation"
+           else "`: declare Diverge to reflect the loss of productivity or delay the recursive observation")) st
+        None -> if productive && not (constructs-observations owner body) then
+          add-error (expr-span body) "a corec body must build its codata type at every step" st else st) in
+      checked-codata-clauses declarations group productive diverges owner rest checked
+  check-codata-bodies :: List Decl -> List (String, List String) -> List Decl -> Store -> Store
+  check-codata-bodies declarations graph pending st = case pending of
+    Nil -> st
+    Cons declaration rest -> let checked = (case unwrap-corec declaration of
+        DFun sp name clauses -> let productive = corec-marked name declarations in
+          (case declared-codata-return name declarations of
+            (Some owner, diverges) -> if codata-name owner declarations then
+              checked-codata-clauses declarations (codata-component name graph graph) productive diverges owner clauses st
+              else if productive then add-error sp "a corec definition must return codata" st else st
+            (None, diverges) -> if productive then add-error sp "a corec definition needs a codata result signature" st else st)
+        other -> st) in
+      check-codata-bodies declarations graph rest checked
+  record-storage-name :: Bool -> String -> String
+  record-storage-name observed owner = if observed then "#codata:" <> owner else owner
+  observation-storage-fields :: Span -> List (String, TypeExpr) -> List (String, TypeExpr)
+  observation-storage-fields sp fields = case fields of
+    Nil -> Nil
+    Cons (name, ty) rest -> Cons (name, TFun sp (TName sp "Unit") ty) (observation-storage-fields sp rest)
   record-definitions-present :: List Decl -> Bool
   record-definitions-present ds = case ds of
     Nil -> False
     Cons (DRecord sp name params fields) rest -> True
+    Cons (DCodata sp name params fields) rest -> True
     Cons other rest -> record-definitions-present rest
   record-result :: Span -> String -> List TypeParam -> TypeExpr
   record-result sp name params = case params of
@@ -4908,6 +5135,9 @@ module Bootstrap.Infer where
     Cons declaration rest -> let more = record-declarations all rest in
       case declaration of
         DRecord sp name params fields -> Cons (DData sp name params [(name, record-constructor sp fields (record-result sp name params))]) (Cons declaration more)
+        DCodata sp name params fields ->
+          Cons (DData sp name params [(record-storage-name True name, record-constructor sp (observation-storage-fields sp fields) (record-result sp name params))])
+            (Cons declaration more)
         DFun sp name clauses -> Cons (DFun sp name (record-clauses all clauses)) more
         DInstance sp flag name params head members -> Cons (DInstance sp flag name params head (decl-spine sp (record-declarations all (decls-of members)))) more
         other -> Cons declaration more
@@ -4946,7 +5176,8 @@ module Bootstrap.Infer where
   record-pattern :: List Decl -> Pat -> Pat
   record-pattern all pattern = case pattern of
     PRecord sp name fields -> (case (record-definition name all, record-pattern-fields fields) of
-      (Some (DRecord at owner params declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-pattern-labels values) Nil then
+      (Some (RecordShape True owner declared), Some values) -> pattern
+      (Some (RecordShape False owner declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-pattern-labels values) Nil then
         PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)) else PUnmodeled sp "missing, duplicate or unknown record pattern field"
       other -> PUnmodeled sp "record pattern has no defining field contract")
     PCon sp name fields -> PCon sp name (record-pattern all fields)
@@ -4967,7 +5198,7 @@ module Bootstrap.Infer where
   record-expression :: List Decl -> Expr -> Expr
   record-expression all expression = case expression of
     ERecord sp name fields -> (case (record-definition name all, record-expression-fields fields) of
-      (Some (DRecord at owner params declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil then
+      (Some (RecordShape observed owner declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil then
         ERecord sp name (record-value-expressions all sp values)
         else EUnmodeled sp "missing, duplicate or unknown record construction field"
       other -> EUnmodeled sp "record construction has no defining field contract")
@@ -5023,13 +5254,19 @@ module Bootstrap.Infer where
     Nil -> result
     Cons (id, name, sc, value) rest -> let body = record-initializer-lets sp rest result in
       CLet sp (core-type body) id name sc value body
+  delayed-observations :: List (String, Expr) -> List (String, Expr)
+  delayed-observations fields = case fields of
+    Nil -> Nil
+    Cons (label, value) rest -> let sp = expr-span value in
+      Cons (label, ELam sp [PWild sp] value) (delayed-observations rest)
   infer-record-construction :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-record-construction classes kinds families env locals sp name fields wanted st = case (record-definition name (context-aliases kinds), record-expression-fields fields) of
-    (Some (DRecord at owner params declared), Some values) -> if not (list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil) then term-error sp "missing, duplicate or unknown record construction field" st else
-      (case lookup-expression-value sp kinds name env st of
+    (Some (RecordShape observed owner declared), Some values) -> if not (list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil) then term-error sp "missing, duplicate or unknown record construction field" st else
+      (case lookup-expression-value sp kinds (record-storage-name observed owner) env st of
         (constructor, opened) -> let ready = case wanted of None -> opened; Some expected -> unify sp (result-type (core-type constructor)) expected opened in
           (case record-typed-fields declared (domains (core-type constructor)) of
-            Some types -> (case record-initializers classes kinds families env locals types values ready of
+            Some types -> let initializers = if observed then delayed-observations values else values in
+              (case record-initializers classes kinds families env locals types initializers ready of
               (bound, bindings, prepared) -> (case apply-spine classes kinds families bound locals constructor (record-value-arguments sp declared) prepared of
                 (result, done) -> (record-initializer-lets sp bindings result, done)))
             None -> term-error sp "record constructor fields disagree with the checked declaration" ready))
@@ -5052,7 +5289,7 @@ module Bootstrap.Infer where
   record-field-candidates label visible declarations = case visible of
     Nil -> Nil
     Cons name rest -> (case record-definition name declarations of
-      Some (DRecord sp owner params fields) -> if has label (record-labels fields) then Cons owner (record-field-candidates label rest declarations) else record-field-candidates label rest declarations
+      Some (RecordShape observed owner fields) -> if has label (record-labels fields) then Cons owner (record-field-candidates label rest declarations) else record-field-candidates label rest declarations
       other -> record-field-candidates label rest declarations)
   -- Match Native: a known receiver chooses its declaring record. An
   -- unknown receiver may use exactly one visible declaring record, never
@@ -5060,7 +5297,7 @@ module Bootstrap.Infer where
   hint-record-receiver :: Span -> String -> UType -> TypeContext -> List CheckedBinding -> Store -> Store
   hint-record-receiver sp label receiver kinds env st = case normalize st receiver of
     UMeta id KType -> (case record-field-candidates label (record-scope-at sp (context-aliases kinds)) (context-aliases kinds) of
-      Cons owner Nil -> (case lookup-expression-value sp kinds owner env st of
+      Cons owner Nil -> (case lookup-expression-value sp kinds (record-storage-name (codata-name owner (context-aliases kinds)) owner) env st of
         (constructor, checked) -> unify sp receiver (result-type (core-type constructor)) checked)
       Nil -> add-error sp ("unknown record field " <> label) st
       other -> add-error sp ("ambiguous record field " <> label <> ": annotate the operand") st)
@@ -5070,10 +5307,15 @@ module Bootstrap.Infer where
     (scrutinee, inferred) -> let checked = hint-record-receiver sp label (core-type scrutinee) kinds env inferred in
       (case root-name (normalize checked (core-type scrutinee)) of
       Some owner -> (case record-definition owner (context-aliases kinds) of
-        Some (DRecord at name params fields) -> if has label (record-labels fields) then
-          (case bind-pattern classes kinds families env locals (PCon sp owner (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
+        Some (RecordShape observed name fields) -> if has label (record-labels fields) then
+          (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name observed owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
             (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
-              (selected, done) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done)))
+              (selected, done) -> (case (observed, thunk-function-parts (normalize done (core-type selected))) of
+                (True, Some (row, result)) ->
+                  let observed = CApply sp result selected (CUnit sp (primitive-type "Unit")) in
+                  (CCase sp result scrutinee (CAlternative sp pattern observed (CAlternativesEnd sp)), done)
+                (True, None) -> term-error sp "codata observation needs its checked closure" done
+                (False, parts) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done))))
           else term-error sp ("unknown record field " <> label) checked
         other -> term-error sp "field projection needs the checked defining record contract" checked)
       None -> term-error sp "field projection needs a known record type" checked)

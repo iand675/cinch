@@ -410,9 +410,11 @@ module Bootstrap.Ast where
     DImport :: Span -> String -> List String -> Option String -> List (String, Option String) -> List Expr -> Decl
     DExport :: Span -> String -> List ExportItem -> Decl
     DRecord :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
+    DCodata :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
     DProof :: Span -> Decl -> Decl
+    DCorec :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
     DGenerate :: Span -> Decl -> Decl
     DStageEmit :: Span -> Decl -> Decl
@@ -450,9 +452,11 @@ module Bootstrap.Ast where
     DImport s path mods alias members args -> s
     DExport s text items -> s
     DRecord s n params fields -> s
+    DCodata s n params observations -> s
     DEffect s n params ops -> s
     DForeign s direction conv symbol foreign-name t -> s
     DProof s body -> s
+    DCorec s body -> s
     DStage s body -> s
     DGenerate s actions -> s
     DStageEmit s template -> s
@@ -480,12 +484,14 @@ module Bootstrap.Ast where
     DImport s path mods alias members args -> Some path
     DExport s text items -> None
     DRecord s n params fields -> Some n
+    DCodata s n params observations -> Some n
     DEffect s n params ops -> Some n
     DForeign s direction conv symbol foreign-name t -> Some foreign-name
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnmodeled s text -> None
     DProof s body -> decl-name body
+    DCorec s body -> decl-name body
     DStage s body -> None
     DGenerate s actions -> None
     DStageEmit s template -> None
@@ -688,12 +694,14 @@ module Bootstrap.Ast where
     DImport s path mods alias members args -> exprs-unmodeled args
     DExport s text items -> 0
     DRecord s n params fields -> params-unmodeled params + ctors-unmodeled fields
+    DCodata s n params observations -> params-unmodeled params + ctors-unmodeled observations
     DEffect s n params ops -> params-unmodeled params + ctors-unmodeled ops
     DForeign s direction conv symbol foreign-name t -> type-unmodeled-count t
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
+    DCorec s body -> decl-unmodeled-count body
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template

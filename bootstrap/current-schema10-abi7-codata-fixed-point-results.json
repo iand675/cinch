@@ -1,0 +1,105 @@
+{
+  "changed_source": {
+    "compiler_sha256": "45400f63af530569751abade7ae76e9186b585c5686c6b8fcce84389e26ce639",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "dc224a5d16dfc99b0cccf172a441765b427d72fc9e23466a4555a0b568c19c89"
+  },
+  "compiler_interfaces": 46,
+  "compiler_source_sha256": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+  "full_goal_complete": false,
+  "library_interfaces": 55,
+  "library_object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+  "llvm_sha256": "fbd314bbd6cd15d6a1ef4508c02043bb53dccbd6235686ddf75e5167ee2c6de5",
+  "native_source_sha256": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+  "published_native_source_sha256": "5e3f85a7cef141eed39dfcc97551d23f174ff59817c1e751d299e53a13a71d2b",
+  "runtime_abi": 7,
+  "schema": 1,
+  "scope": "Exact codata and memo compiler sources. Stage 2 and Stage 3, all smokes and the independent consumer pass. The changed-source rebuild passed. The complete suites, observation interface transport and frontend parity remain separate gates.",
+  "scoped_stage1_sha256": "f69405496537b1a15b3cd76b519fb7e9d4b26b1ef0bc904149455d68128fdef4",
+  "smoke_tests": {
+    "stage0/fib": {
+      "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "stage0/precedence": {
+      "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "stage0/refusal": {
+      "compile.log": "5898dcd49ffe625b81f517306c944d2dbda750c91ec59667e30121970a03d051"
+    },
+    "stage1/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage1/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage1/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    },
+    "stage2/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage2/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage2/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    },
+    "stage3/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage3/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage3/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    }
+  },
+  "stage3_sha256": "b02475210f4b982e3986f940fe809fa25a8d1d5e2d6a4c879a54c538b89c8584",
+  "stage_results": [
+    {
+      "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+      "name": "stage0",
+      "stage_receipt_sha256": "07b0173c9ee3cfdcf4f752edc267474a3e8c1efbc2b04e61cda14496f4c00cef",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "732b9ceb8e34733c79779f8e658e70787cbade396a32eabd6a95dabf21a4c450",
+      "name": "stage1",
+      "stage_receipt_sha256": "49f32928ab46552d7330468baa5fddf29dd6738253e65c53ccb01b967c69c8c2",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "b02475210f4b982e3986f940fe809fa25a8d1d5e2d6a4c879a54c538b89c8584",
+      "llvm_sha256": "fbd314bbd6cd15d6a1ef4508c02043bb53dccbd6235686ddf75e5167ee2c6de5",
+      "name": "stage2",
+      "stage_receipt_sha256": "650bd8e7bf2ea3759f7e03c189ed798379c21a6dc58cbf02d0e9772e0eabb8d8",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "b02475210f4b982e3986f940fe809fa25a8d1d5e2d6a4c879a54c538b89c8584",
+      "llvm_sha256": "fbd314bbd6cd15d6a1ef4508c02043bb53dccbd6235686ddf75e5167ee2c6de5",
+      "name": "stage3",
+      "stage_receipt_sha256": "d3facf8d70fa4cf3a43e2e4536620ee099f7235025241e0efcb684612893a677",
+      "status": "passed"
+    }
+  ],
+  "standalone_consumer": {
+    "compiler_sha256": "b02475210f4b982e3986f940fe809fa25a8d1d5e2d6a4c879a54c538b89c8584",
+    "manifest_sha256": "7b038ab317b0a4efff3d4cefc7ee789e67c75b77e85f30044db21670fdf488db",
+    "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+    "status": "passed"
+  },
+  "status": "audited-codata-fixed-point",
+  "validation_sha256": "31e825ce4ae103b34375670aff45f60d46e46336485f5219032659c167cd78e7"
+}

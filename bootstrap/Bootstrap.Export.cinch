@@ -4,7 +4,7 @@ module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
+  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -790,6 +790,7 @@ module Bootstrap.Export where
     Cons declaration rest -> case declaration of
       DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts || (case find-binding name bindings of Some binding -> (case checked-foreign-plan binding of Some plan -> True; None -> False); None -> False) then unsupported-declarations rest contexts bindings else Some "foreign assumption interface production is incomplete"
       DRecord sp name parameters fields -> Some "record interface production is incomplete"
+      DCodata sp name parameters observations -> Some "codata interface production needs its checked observation contract"
       -- A private effect grants no public type/operation names. If a public
       -- scheme mentions it, nominal export still refuses the absent contract.
       other -> unsupported-declarations rest contexts bindings

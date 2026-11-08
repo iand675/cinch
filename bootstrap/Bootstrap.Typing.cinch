@@ -203,9 +203,11 @@ module Bootstrap.Typing where
     CArgumentsEnd sp -> type-is "Bool" ty && has name ["decision-true", "decision-false"]
     CArgument sp first (CArgumentsEnd end) ->
       if same name "thunk-delay" then (case thunk-function-parts (core-type first) of
-        Some (row, result) -> equal-type ty (thunk-type row result)
+        Some (row, result) -> (case later-parts ty of
+          Some carrier -> equal-type carrier result && equal-type row (URow UEnd)
+          None -> equal-type ty (thunk-type row result))
         None -> False)
-      else if same name "thunk-force" then (case thunk-parts (core-type first) of
+      else if same name "thunk-force" then (case deferral-parts (core-type first) of
         Some (row, result) -> equal-type ty result
         None -> False)
       else same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
@@ -650,7 +652,7 @@ module Bootstrap.Typing where
       let detail = if use-count-fits usage count then "" else (case count of
         Some (low, high) -> if low == high then string-concat-all [" (used ", nat-to-string high, " time(s))"]
           else string-concat-all [" (used ", nat-to-string low, " to ", nat-to-string high, " time(s))"]
-        None -> "") in
+        None -> " (captured by a closure that can use it unboundedly)") in
       Some (site, string-concat (usage-message usage) detail)
     other -> None
   -- Before a guard commits to this equation, a later equation can still
@@ -714,7 +716,7 @@ module Bootstrap.Typing where
         Some error -> Some error
         None -> usage-equations-error context function rest
   affine-thunk :: UType -> Bool
-  affine-thunk ty = case thunk-parts (task-base ty) of Some parts -> True; None -> False
+  affine-thunk ty = case deferral-parts (task-base ty) of Some parts -> True; None -> False
   thunk-use-error :: Span -> Option (Span, String)
   thunk-use-error sp = Some (sp, "multiplicity %aff: a thunk must be used at most once")
   task-bound-error :: Span -> Nat -> UType -> CoreTerm -> Option (Span, String)
@@ -989,7 +991,7 @@ module Bootstrap.Typing where
         task-pattern-error context Nil (task-transfer-patterns declared patterns) bound body else None) in
       case failure of Some error -> failure; None -> task-clauses-error context prefix declared rest
   task-patterns-present :: List CorePattern -> Bool
-  task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || task-patterns-present rest
+  task-patterns-present patterns = case patterns of Nil -> False; Cons p rest -> task-scoped-type (pattern-type p) || affine-thunk (pattern-type p) || task-patterns-present rest
   checked-spawn :: UType -> CoreTerm -> CoreTerm -> Bool
   checked-spawn expected token body = case (scope-parameters (core-type token), task-body-parts (core-type body)) of
     (Some (owner, region), Some (error, value, row)) -> equal-type expected (task-type region error value)

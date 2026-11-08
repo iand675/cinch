@@ -755,13 +755,15 @@ module Bootstrap.Parse where
     else if string-compare w "data" == 0 then parse-data toks src fix
     else if string-compare w "type" == 0 then parse-refinement toks src
     else if string-compare w "opaque" == 0 then parse-opaque toks src
-    else if string-compare w "record" == 0 then parse-record toks src fix
+    else if string-compare w "record" == 0 then parse-field-declaration DRecord toks src
+    else if string-compare w "codata" == 0 then parse-field-declaration DCodata toks src
     else if string-compare w "effect" == 0 then parse-effect toks src fix
     else if string-compare w "foreign" == 0 then parse-foreign toks src
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
     else if string-compare w "stage" == 0 then parse-marked-decl DStage toks src fix
     else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
+    else if string-compare w "corec" == 0 then parse-marked-decl DCorec toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
     else if string-compare w "infix" == 0 then parse-fixity toks
     else if string-compare w "infixl" == 0 then parse-fixity toks
@@ -1242,20 +1244,17 @@ module Bootstrap.Parse where
       PBad -> PBad
     Nil -> PBad
 
-  parse-record :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
-  parse-record toks src fix = case toks of
-    Cons t rest ->
-      if is-word-t (lt-token t) "record" then
-        case parse-ctor-name rest of
-          POk name rest1 -> case parse-params rest1 src Nil of
-            POk params rest2 -> case expect-word-t rest2 "where" of
-              POk _ rest3 -> case parse-fields rest3 src of
-                POk fields rest4 -> POk (DRecord (sp-of t) name params fields) rest4
-                PBad -> PBad
-              PBad -> PBad
+  parse-field-declaration :: (Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl) -> List LToken -> Bytes -> Ps Decl
+  parse-field-declaration declaration toks src = case toks of
+    Cons t rest -> case parse-ctor-name rest of
+      POk name rest1 -> case parse-params rest1 src Nil of
+        POk params rest2 -> case expect-word-t rest2 "where" of
+          POk _ rest3 -> case parse-fields rest3 src of
+            POk fields rest4 -> POk (declaration (sp-of t) name params fields) rest4
             PBad -> PBad
           PBad -> PBad
-      else PBad
+        PBad -> PBad
+      PBad -> PBad
     Nil -> PBad
 
   parse-effect :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl

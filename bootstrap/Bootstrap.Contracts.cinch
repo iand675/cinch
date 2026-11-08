@@ -15,7 +15,7 @@ module Bootstrap.Contracts where
   import Algebra.Semigroup
 
   export interface-headers, interface-declarations, public-global
-  export materialize-externals, declaration-references, imported-class-references
+  export materialize-externals, declaration-references, expr-references, imported-class-references
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -297,6 +297,7 @@ module Bootstrap.Contracts where
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
     DProof sp body -> declaration-reference body
+    DCorec sp body -> declaration-reference body
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty
     DLaw s name syntax -> law-references syntax
@@ -305,6 +306,7 @@ module Bootstrap.Contracts where
     DOpaque s name params kind -> param-references params <> type-references kind
     DData s name params ctors -> param-references params <> ctor-references ctors
     DRecord s name params fields -> param-references params <> ctor-references fields
+    DCodata s name params observations -> param-references params <> ctor-references observations
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)

@@ -758,14 +758,18 @@ module Bootstrap.Resolve where
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
     DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
-      else if has-name name ["Ref", "Mut", "Thunk", "Lazy"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
-      else if has-name name ["Ref", "Mut", "Thunk", "Lazy"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
+    DCodata s name params observations -> if opaque-name-reserved name then
+      (Nil, fail s "a builtin type cannot be redefined as codata")
+      else ([DCodata s (global-name home name) (rename-params visible Nil params)
+        (rename-record-fields visible (parameter-names params) observations)], Nil)
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
@@ -790,6 +794,9 @@ module Bootstrap.Resolve where
     DProof s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DProof s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
+    DCorec s body -> case rename-decl home visible declarations body of
+      ([checked], errors) -> ([DCorec s checked], errors)
+      (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
@@ -952,6 +959,7 @@ module Bootstrap.Resolve where
   declared-record-symbols home declarations = case declarations of
     Nil -> Nil
     Cons (DRecord sp name params fields) rest -> Cons (global-name home name) (declared-record-symbols home rest)
+    Cons (DCodata sp name params observations) rest -> Cons (global-name home name) (declared-record-symbols home rest)
     Cons other rest -> declared-record-symbols home rest
   visible-record-symbols :: List Binding -> List String -> List String
   visible-record-symbols bindings records = case records of
