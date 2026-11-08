@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_argument_scopes, bootstrap_boolean_branches, bootstrap_buffer_aliases",
-        "passed": 9,
+        "phase": "Bootstrap_boolean_branches, bootstrap_buffer_aliases, bootstrap_byte_observations",
+        "passed": 10,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21121,9 +21121,9 @@
       },
       {
         "title": "Replay the proof and visibility batch with checked borrow reads in decisions",
-        "status": "running",
+        "status": "passed-original-proof-and-visibility-controls",
         "phase": "Proof",
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
         "total": 7,
         "unit": "cases",
@@ -21228,5 +21228,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:22:59.549027+00:00"
+  "updatedAt": "2026-11-08T14:24:02.817848+00:00"
 }
