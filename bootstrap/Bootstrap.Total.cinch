@@ -12,12 +12,14 @@ module Bootstrap.Total where
   export total-decimal-value, total-function-closure
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
   export source-total-projection, total-source-projection, read-total-function
+  export read-keyed-ordering, keyed-ordering-slots
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
     MkSourceProjection :: String -> String -> Json -> TotalFunction
+    MkKeyedOrdering :: String -> Nat -> Nat -> TotalFunction
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -171,14 +173,23 @@ module Bootstrap.Total where
   read-total-function :: Json -> String -> Option TotalFunction
   read-total-function doc name = if fields ["source_projection"] doc then read-source-projection name (field "source_projection" doc) else
     case check-total-graph doc of Some graph -> total-function graph name; None -> None
+  -- A keyed body only describes control flow over its caller's dictionary.
+  -- It cannot enter the first-order evaluator or a symbolic value index.
+  read-keyed-ordering :: String -> Json -> Option TotalFunction
+  read-keyed-ordering name doc = if string-length name == 0 || not (fields ["less_slot", "greater_slot"] doc) then None else
+    case (field "less_slot" doc, field "greater_slot" doc) of
+      (JNum less, JNum greater) -> if less >= 0 && greater >= 0 && less /= greater then Some (MkKeyedOrdering name (nat-from-int less) (nat-from-int greater)) else None
+      other -> None
+  keyed-ordering-slots :: TotalFunction -> Option (Nat, Nat)
+  keyed-ordering-slots function = case function of MkKeyedOrdering name less greater -> Some (less, greater); other -> None
   total-source-projection :: TotalFunction -> Bool
   total-source-projection function = case function of MkSourceProjection name domain steps -> True; other -> False
   total-identity :: TotalFunction -> String
-  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain steps -> name
+  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain steps -> name; MkKeyedOrdering name less greater -> name
   function-row :: TotalFunction -> Json
   function-row function = case function of
     MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
-    MkSourceProjection name domain steps -> JNull
+    other -> JNull
   total-parameters :: TotalFunction -> List String
   total-parameters function = case function of
     MkSourceProjection name domain steps -> [domain]
@@ -189,6 +200,7 @@ module Bootstrap.Total where
   total-function-document function = case function of
     MkTotalFunction graph name -> total-document graph
     MkSourceProjection name domain steps -> JObj "source_projection" (JObj "domain" (JStr domain) (JObj "fields" steps JObjEnd)) JObjEnd
+    MkKeyedOrdering name less greater -> JObj "keyed_ordering" (JObj "less_slot" (JNum (nat-to-int less)) (JObj "greater_slot" (JNum (nat-to-int greater)) JObjEnd)) JObjEnd
   closure-rows :: List String -> Json -> Json
   closure-rows names rows = case rows of
     JArr row rest -> if has (text (field "identity" row)) names then JArr row (closure-rows names rest) else closure-rows names rest
@@ -251,7 +263,7 @@ module Bootstrap.Total where
     MkTotalFunction (MkTotalGraph doc) name -> (case literal-results (field "definitions" doc) (unknown-domains (total-parameters function)) (total-body function) 4096 of
       (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
       other -> None)
-    MkSourceProjection name domain steps -> None
+    other -> None
 
   total-owned-rows :: Json -> List String -> Bool
   total-owned-rows rows reachable = case rows of
@@ -271,7 +283,13 @@ module Bootstrap.Total where
     JArrEnd -> True
     other -> False
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
-  total-functions-compatible first second = case (total-source-projection first, total-source-projection second) of
+  total-functions-compatible first second = case (first, second) of
+    (MkKeyedOrdering name less greater, MkKeyedOrdering other small large) -> not (same name other) || (less == small && greater == large)
+    (MkKeyedOrdering name less greater, other) -> projection-compatible first second
+    (other, MkKeyedOrdering name less greater) -> projection-compatible second first
+    other -> graph-views-compatible first second
+  graph-views-compatible :: TotalFunction -> TotalFunction -> Bool
+  graph-views-compatible first second = case (total-source-projection first, total-source-projection second) of
     (False, False) -> compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))
     (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
     (True, False) -> projection-compatible first second

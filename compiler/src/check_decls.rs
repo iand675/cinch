@@ -16418,6 +16418,7 @@ impl Checker {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),
+                            keyed_ordering: resolved.as_ref().and_then(|_| self.interface_keyed_ordering(v)),
                             scheme,
                             resolved,
                             symbol: format!("{}.{}", d.module, d.name),

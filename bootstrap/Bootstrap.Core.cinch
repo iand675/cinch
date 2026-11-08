@@ -1662,12 +1662,63 @@ module Bootstrap.Core where
           Some fact -> [fact]
           None -> Nil)
         else Nil
+    CPConstructor sp ty name Nil constructor (CPDone end) | contract-equal ty ordering-result ->
+      ordering-case-facts gamma facts value ty constructor name positive
     CPConstructor sp ty name actuals constructor fields -> case-list-shape gamma facts value ty name constructor fields positive
     CPInt sp ty text -> if not (contract-equal ty (core-type value)) then Nil else
       (case (core-arithmetic gamma facts value, core-arithmetic gamma facts (CInt sp ty text)) of
         (Some actual, Some literal) -> [PCompare (if positive then Equal else Unequal) actual literal]
         other -> Nil)
     other -> Nil
+  ordering-result :: UType
+  ordering-result = UCon (interface-global "Data.Ordering.Ordering") KType
+  ordering-row-comparison :: String -> Option Comparison
+  ordering-row-comparison name =
+    if string-compare name (interface-global "Data.Ordering.LT") == 0 then Some Less
+    else if string-compare name (interface-global "Data.Ordering.EQ") == 0 then Some Equal
+    else if string-compare name (interface-global "Data.Ordering.GT") == 0 then Some Greater
+    else None
+  ordering-case-facts :: ProofScope -> List Proposition -> CoreTerm -> UType -> UType -> String -> Bool -> List Proposition
+  ordering-case-facts gamma facts value ty constructor name positive =
+    if not (contract-equal ty ordering-result && contract-equal constructor ordering-result && contract-equal (core-type value) ordering-result) then Nil else
+      case ordering-row-comparison name of
+        Some comparison -> (case ordering-operands gamma facts value of
+          Some (left, right) -> let fact = PCompare comparison left right in [if positive then fact else PNegate fact]
+          None -> Nil)
+        None -> Nil
+  -- The helper describes only control flow. Both numerical method bodies
+  -- must belong to the same dictionary selected in this actual call.
+  ordering-slot-proves :: ProofScope -> String -> Nat -> UType -> UType -> String -> Bool
+  ordering-slot-proves gamma dictionary slot key factory relation = case selected-method-body dictionary slot (scope-bodies gamma) of
+    Some binding -> ordering-method-matches dictionary slot key factory binding && (case total-numeric-comparison (binding-function binding) of
+      Some actual -> string-compare actual relation == 0
+      None -> False)
+    None -> False
+  ordering-key-reading :: ProofScope -> List Proposition -> Span -> UType -> CoreTerm -> CoreTerm -> Option Arithmetic
+  ordering-key-reading gamma facts sp result key input = case key of
+    CLambda at ty (CPVar binder domain id name) (CLocal use actual same-id display Nil) ->
+      if id == same-id && contract-equal domain result && contract-equal actual result then core-arithmetic gamma facts input else None
+    other -> core-arithmetic gamma facts (CApply sp result key input)
+  ordering-operands :: ProofScope -> List Proposition -> CoreTerm -> Option (Arithmetic, Arithmetic)
+  ordering-operands gamma facts term = case term of
+    CApply sp result (CApply at next (CApply ap rest (CQualifiedUse source function name role [input, key] [CEInstance evidence factory dictionary Nil (CEArgumentsEnd end)]) project) first) second ->
+      case body-binding name (scope-bodies gamma) of
+        Some binding -> (case keyed-ordering-slots (binding-function binding) of
+          Some (less, greater) ->
+            if not (string-compare role "external" == 0 && string-compare (binding-role binding) role == 0
+                && valid-type input && integer-carrier key && contract-equal result ordering-result
+                && contract-equal function (UFun (UFun input key) (UFun input (UFun input result)))
+                && contract-equal (core-type project) (UFun input key)
+                && contract-equal (core-type first) input && contract-equal (core-type second) input
+                && contract-equal (core-effects project) (URow UEnd)
+                && ordering-slot-proves gamma dictionary less key factory "<"
+                && ordering-slot-proves gamma dictionary greater key factory ">") then None else
+              (case (ordering-key-reading gamma facts sp key project first, ordering-key-reading gamma facts sp key project second) of
+                (Some a, Some b) -> Some (a, b)
+                other -> None)
+          None -> None)
+        None -> None
+    other -> None
   case-value-alias :: ProofScope -> List Proposition -> CoreTerm -> UType -> Nat -> List Proposition
   case-value-alias gamma facts value ty id = if not (contract-equal ty (core-type value)) then Nil else
     if integer-carrier ty then

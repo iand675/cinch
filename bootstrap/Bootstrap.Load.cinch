@@ -440,6 +440,11 @@ module Bootstrap.Load where
         Some function -> list-length (total-parameters function) == number (field "arity" row) && total-graph-for-roots graph [text (field "symbol" row)]
         None -> False)
       None -> False)))
+  keyed-ordering-valid :: Json -> Bool
+  keyed-ordering-valid row = if not (has-field "keyed_ordering" row) then True else
+    case (field "total_body" row, field "resolved" row, field "arity" row) of
+      (JNull, JObj key value rest, JNum 4) -> (case read-keyed-ordering (text (field "symbol" row)) (field "keyed_ordering" row) of Some function -> True; None -> False)
+      other -> False
   values-valid :: Json -> List String -> Bool
   values-valid values seen = case values of
     JArr v rest ->
@@ -447,7 +452,7 @@ module Bootstrap.Load where
       string-length name > 0 && not (member name seen)
       && string-length (text (field "symbol" v)) > 0
       && string-length (text (field "scheme" v)) > 0
-      && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v
+      && resolved-entry-valid v && measure-bodies-valid (resolved-measures v) && value-body-valid v && keyed-ordering-valid v
       && nat-p (field "arity" v) && values-valid rest (Cons name seen)
     JArrEnd -> True
     other -> False
@@ -811,11 +816,36 @@ module Bootstrap.Load where
       other -> True) && instance-body-owners-valid rest owner all
     JArrEnd -> True
     other -> False
+  ordering-slot-present :: Nat -> Json -> Bool
+  ordering-slot-present slot rows = case rows of
+    JArr row rest -> number (field "slot" row) == slot || ordering-slot-present slot rest
+    other -> False
+  ordering-owner-valid :: String -> Json -> List String -> List LoadedInterface -> Bool
+  ordering-owner-valid identity row reachable all =
+    let owner = body-node-owner identity all "" in
+    member owner reachable && member "Relation.Ord" reachable &&
+    (case (find-interface owner all, find-interface "Relation.Ord" all, read-keyed-ordering identity (field "keyed_ordering" row)) of
+      (Some provider, Some classes, Some body) -> (case (loaded-entry provider "value" identity, loaded-entry classes "signature" "Relation.Ord.Ord", keyed-ordering-slots body) of
+        (Some defining, Some declaration, Some (less, greater)) ->
+          bytes-compare (canonical-bytes (field "keyed_ordering" defining)) (canonical-bytes (field "keyed_ordering" row)) == 0
+          && bytes-compare (canonical-bytes (field "resolved" defining)) (canonical-bytes (field "resolved" row)) == 0
+          && ordering-slot-present less (field "methods" declaration) && ordering-slot-present greater (field "methods" declaration)
+        other -> False)
+      other -> False)
+  ordering-owners-valid :: Json -> List String -> List LoadedInterface -> Bool
+  ordering-owners-valid rows reachable all = case rows of
+    JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable all)
+      && ordering-owners-valid rest reachable all
+    other -> True
   verify-body-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
   verify-body-set remaining all seen = case remaining of
     Nil -> Ok ()
-    Cons i rest -> if not (instance-body-owners-valid (field "instances" (field "exports" (loaded-contract i))) (loaded-module i) all) then Err "method body is not owned by its declaring dictionary module"
-      else (case verify-body-declarations (interface-body-declarations i) (reachable-modules [loaded-module i] all Nil) all seen of
+    Cons i rest ->
+      let exports = field "exports" (loaded-contract i) in
+      let reachable = reachable-modules [loaded-module i] all Nil in
+      if not (instance-body-owners-valid (field "instances" exports) (loaded-module i) all) then Err "method body is not owned by its declaring dictionary module"
+      else if not (ordering-owners-valid (field "values" exports) reachable all) then Err "keyed ordering body disagrees with its defining value or dictionary contract"
+      else (case verify-body-declarations (interface-body-declarations i) reachable all seen of
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
       Ok checked -> verify-body-set rest all checked)
 

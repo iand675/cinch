@@ -139,6 +139,22 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
                 }
             }
         }
+        for value in &f.exports.values {
+            let Some(ordering) = value.keyed_ordering else { continue };
+            let owner = by_module.keys().filter(|module| value.symbol.starts_with(&format!("{module}.")))
+                .max_by_key(|module| module.len()).copied();
+            let defining = owner.filter(|owner| reachable.contains(owner))
+                .and_then(|owner| by_module.get(owner))
+                .and_then(|interface| interface.exports.values.iter().find(|row| row.symbol == value.symbol));
+            let ordinal = by_module.get("Relation.Ord").filter(|_| reachable.contains("Relation.Ord"))
+                .and_then(|interface| interface.exports.signatures.iter().find(|row| row.identity == "Relation.Ord.Ord"));
+            if !defining.is_some_and(|row| row.keyed_ordering == Some(ordering) && row.resolved == value.resolved)
+                || !ordinal.is_some_and(|signature| [ordering.less_slot, ordering.greater_slot].iter()
+                    .all(|slot| signature.methods.iter().any(|method| method.slot == *slot)))
+            {
+                return Err(CoherenceError(format!("invalid defining keyed ordering body: {}", value.symbol)));
+            }
+        }
         for signature in &f.exports.signatures {
             let (owner, _) = signature.identity.rsplit_once('.').ok_or_else(||
                 CoherenceError(format!("signature {} has no defining module", signature.identity)))?;
@@ -209,6 +225,7 @@ pub struct ValueExport {
     /// Closed executable semantics for this exact symbol; full declaration
     /// association and any result refinements must be checked by the consumer.
     pub total_body: Option<crate::total::CheckedGraph>,
+    pub keyed_ordering: Option<KeyedOrderingBody>,
     /// Canonical rendering of the scheme (quantifiers, `using` context,
     /// type with effect rows).
     pub scheme: String,
@@ -216,6 +233,14 @@ pub struct ValueExport {
     pub symbol: String,
     /// Function arrows plus dictionary and implicit value parameters.
     pub arity: u64,
+}
+
+/// A checked three-way body selects these two methods from its sole Ord
+/// argument, applying each to the keys of its two ordinary operands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct KeyedOrderingBody {
+    pub less_slot: u64,
+    pub greater_slot: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -727,14 +752,21 @@ impl Iface {
             (
                 "values",
                 JsonValue::arr(&values, |v| {
-                    JsonValue::obj([
-                        ("name", (&v.name).into()),
-                        ("scheme", (&v.scheme).into()),
-                        ("resolved", resolved_scheme_json(v.resolved.as_ref())),
-                        ("symbol", (&v.symbol).into()),
-                        ("arity", v.arity.into()),
-                        ("total_body", v.total_body.as_ref().map_or(JsonValue::Null, |graph| parse_json(&graph.to_json()).expect("checked total graph JSON"))),
-                    ])
+                    let mut row = BTreeMap::from([
+                        ("name".to_string(), (&v.name).into()),
+                        ("scheme".to_string(), (&v.scheme).into()),
+                        ("resolved".to_string(), resolved_scheme_json(v.resolved.as_ref())),
+                        ("symbol".to_string(), (&v.symbol).into()),
+                        ("arity".to_string(), v.arity.into()),
+                        ("total_body".to_string(), v.total_body.as_ref().map_or(JsonValue::Null, |graph| parse_json(&graph.to_json()).expect("checked total graph JSON"))),
+                    ]);
+                    if let Some(ordering) = v.keyed_ordering {
+                        row.insert("keyed_ordering".into(), JsonValue::obj([
+                            ("less_slot", ordering.less_slot.into()),
+                            ("greater_slot", ordering.greater_slot.into()),
+                        ]));
+                    }
+                    JsonValue::Obj(row)
                 }),
             ),
             (
@@ -1066,6 +1098,7 @@ impl Iface {
                 symbol: field_str(o, "symbol")?,
                 arity: field_num(o, "arity")?,
                 total_body: field_total_body(o)?,
+                keyed_ordering: field_keyed_ordering(o)?,
             };
             values.push(value);
         }
@@ -1709,6 +1742,20 @@ fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<V
     Ok(bodies)
 }
 
+fn field_keyed_ordering(o: &BTreeMap<String, JsonValue>) -> Result<Option<KeyedOrderingBody>, ParseError> {
+    let Some(body) = o.get("keyed_ordering") else { return Ok(None) };
+    let body = body.as_object()?;
+    let less_slot = field_num(body, "less_slot")?;
+    let greater_slot = field_num(body, "greater_slot")?;
+    if body.len() != 2 || less_slot == greater_slot || field_num(o, "arity")? != 4
+        || !matches!(o.get("total_body"), Some(JsonValue::Null))
+        || field_resolved_scheme(o)?.is_none()
+    {
+        return Err(ParseError("invalid keyed ordering value body".into()));
+    }
+    Ok(Some(KeyedOrderingBody { less_slot, greater_slot }))
+}
+
 fn field_total_body(o: &BTreeMap<String, JsonValue>) -> Result<Option<crate::total::CheckedGraph>, ParseError> {
     let value = o.get("total_body").ok_or_else(|| ParseError("missing value total_body".into()))?;
     if matches!(value, JsonValue::Null) { return Ok(None) }
@@ -2173,6 +2220,7 @@ mod tests {
         });
         f.exports.values.push(ValueExport {
             total_body: None,
+            keyed_ordering: None,
             name: "main".into(),
             scheme: "Int".into(),
             resolved: None,
@@ -2181,6 +2229,7 @@ mod tests {
         });
         f.exports.values.push(ValueExport {
             total_body: None,
+            keyed_ordering: None,
             name: "plus".into(),
             scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
             resolved: None,

@@ -1549,15 +1549,23 @@ module Bootstrap.Infer where
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
     None -> (case context of MkTypeContext kinds aliases active observers effects source-classes -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-total-metadata sp name native metadata classes kinds st = case field "total_body" metadata of
+  collect-total-metadata sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
+    JNull -> collect-closed-body sp name native metadata classes kinds st
+    doc -> (case read-keyed-ordering native doc of
+      Some function -> collect-defining-body sp name native metadata classes kinds function st
+      None -> (kinds, add-error sp "invalid defining keyed ordering body" st))
+  collect-defining-body :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> TotalFunction -> Store -> (TypeContext, Store)
+  collect-defining-body sp name native metadata classes kinds function st = case imported-scheme sp classes kinds (TName sp "Int") metadata st of
+    (sc, checked) -> (case check-body-binding name native "external" sc function of
+      Some binding -> context-add-total sp binding kinds checked
+      None -> (kinds, add-error sp "executable body disagrees with its complete defining declaration" checked))
+  collect-closed-body :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-closed-body sp name native metadata classes kinds st = case field "total_body" metadata of
     JNull -> (kinds, st)
     doc -> (case check-total-graph doc of
       Some graph -> if not (total-graph-for-roots graph [native]) then (kinds, add-error sp "total body contains unrelated definitions" st)
         else (case total-function graph native of
-          Some function -> (case imported-scheme sp classes kinds (TName sp "Int") metadata st of
-            (sc, checked) -> (case check-body-binding name native "external" sc function of
-              Some binding -> context-add-total sp binding kinds checked
-              None -> (kinds, add-error sp "total body disagrees with its complete defining declaration" checked)))
+          Some function -> collect-defining-body sp name native metadata classes kinds function st
           None -> (kinds, add-error sp "total body has no actual defining value identity" st))
       None -> (kinds, add-error sp "invalid defining total body graph" st))
   collect-private-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
@@ -1573,8 +1581,8 @@ module Bootstrap.Infer where
     Nil -> (kinds, st)
     Cons (DExternal sp name category syntax metadata) rest ->
       (case collect-private-measures sp (resolved-measures metadata) classes kinds st of
-        (with-private, checked) -> (case field "total_body" metadata of
-          JNull -> collect-body-contracts rest classes with-private checked
+        (with-private, checked) -> (case (field "total_body" metadata, field "keyed_ordering" metadata) of
+          (JNull, JNull) -> collect-body-contracts rest classes with-private checked
           doc -> if not (same category "value") then (kinds, add-error sp "total bodies require actual external value declarations" checked)
             else (case field "symbol" metadata of
               JStr native -> (case collect-total-metadata sp name native metadata classes with-private checked of

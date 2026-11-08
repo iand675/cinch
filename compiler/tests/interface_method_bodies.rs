@@ -42,6 +42,31 @@ fn standard_numeric_methods_export_their_own_exact_closed_roots() {
 }
 
 #[test]
+fn keyed_ordering_evidence_is_exported_from_the_actual_body() {
+    let interfaces = interfaces(r#"
+module Owner where
+  import Relation.Ord (Ord)
+  import Data.Ordering (Ordering, GT)
+  export constant
+  constant :: forall a b. using (ord :: Ord b) => (a -> b) -> a -> a -> Ordering
+  constant key x y = GT
+"#);
+    let ordinal = interfaces.iter().find(|interface| interface.module == "Relation.Ord").unwrap();
+    let helper = ordinal.exports.values.iter().find(|value| value.name == "comparing").unwrap();
+    let body = helper.keyed_ordering.expect("derive the two actual method slots");
+    assert_eq!((body.less_slot, body.greater_slot), (0, 2));
+    assert!(owner(&interfaces).exports.values[0].keyed_ordering.is_none());
+    assert_eq!(Iface::from_json(&ordinal.to_json()).unwrap().to_json(), ordinal.to_json());
+    verify_chain(&interfaces).expect("the defining method slots belong to the checked closure");
+
+    let mut forged = interfaces.clone();
+    let ordinal = forged.iter_mut().find(|interface| interface.module == "Relation.Ord").unwrap();
+    let helper = ordinal.exports.values.iter_mut().find(|value| value.name == "comparing").unwrap();
+    helper.keyed_ordering.as_mut().unwrap().less_slot = body.greater_slot;
+    assert!(Iface::from_json(&ordinal.to_json()).is_err());
+}
+
+#[test]
 fn standard_monoid_default_transports_the_checked_owner_clauses() {
     let interfaces = interfaces("module Main where\n  import Algebra.Monoid\n  main :: Int\n  main = 0\n");
     let monoid = interfaces.iter().find(|interface| interface.module == "Algebra.Monoid").unwrap();
