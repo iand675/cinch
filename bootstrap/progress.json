@@ -19985,9 +19985,9 @@
       {
         "title": "Check direct refinement construction and erased LLVM",
         "status": "running",
-        "phase": "original-erasure-source",
-        "passed": 1,
-        "failed": 0,
+        "phase": "runtime-decision",
+        "passed": 2,
+        "failed": 1,
         "total": 8,
         "unit": "client cases",
         "source": "35af4d86f3c48e09c0f8ae1340187cff552a510b303e63c48b7c7eb03ca66c86"
@@ -20071,5 +20071,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:50:23.545820+00:00"
+  "updatedAt": "2026-11-08T00:51:25.453561+00:00"
 }
