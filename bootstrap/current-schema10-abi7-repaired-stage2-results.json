@@ -1,0 +1,18 @@
+{
+  "builder_sha256": "d4acd7c20f7557b04cb87ad7b1fe2068d06fe9dcf638ca00506fac2b6c2cdc3c",
+  "compiler_interfaces": 46,
+  "compiler_ir_bytes": 38358128,
+  "compiler_ir_sha256": "40a8a335a9eda97970e519e364bf79c7fd0423214f1b8e3e5ffa9d851564da9c",
+  "compiler_sha256": "593d1158766b8c64bf9362d306dd43b50187694fd0d028084c61aec98696b314",
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "evidence_scope": "Repaired Stage 1 generated Stage 2 from the 46-module source bundle with checked ABI 7 library interfaces and objects. LLVM emitted with empty diagnostics, clang linked the executable, and its startup check ran with zero leaks. Stage 3 agreement and full suites remain separate.",
+  "full_goal_complete": false,
+  "library_interfaces": 55,
+  "link_report_sha256": "08cd71a972cc526243069f33fd114d87a62535cba45d17831a378a67bddb0ebf",
+  "log_sha256": "52361baba7cab90226df36f58d4485d08ecd6baeef3a3409744f94d56ca0c622",
+  "native_provider_source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e",
+  "revision": "50bd7d8b2300cf374c5c91d90a176254b80a628e",
+  "schema": 1,
+  "stage_receipt_sha256": "245200c74978d3beb0935beb9830a273b34f360ab17103640c44d2cb12d49108",
+  "status": "audited-abi7-stage2-build"
+}
