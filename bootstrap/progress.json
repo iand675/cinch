@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "11/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "15/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -797,28 +797,28 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 11,
+          "verified": 15,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 224
+          "recheck": 220
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
           {
             "id": "native:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:21:32.237711+00:00",
-              "finishedAt": "2026-11-08T03:21:54.977063+00:00",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:04:56.791042+00:00",
+              "finishedAt": "2026-11-08T18:05:23.285433+00:00",
               "exitCode": 0,
-              "logSha256": "b49d3520caacedccc6db046e9ecdec07fb4db2b7e9dd0b490bfddf911418bc36",
+              "logSha256": "8d030330c8403113b4ae2eb9d66d695a80de5d262ad338045eda688d719d4045",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -854,22 +854,22 @@
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 8
           },
           {
             "id": "native:argv",
             "title": "argv",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:21:55.499245+00:00",
-              "finishedAt": "2026-11-08T03:22:11.658822+00:00",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:05:23.889677+00:00",
+              "finishedAt": "2026-11-08T18:05:43.190647+00:00",
               "exitCode": 0,
-              "logSha256": "81e82561f87e567dd2d19700f0efe01d3ceb53106ff2906ea55392b676697ab2",
+              "logSha256": "8ed97babab4415ed184423166ba239076714bfa529f0ba8a9312c3025277e20e",
               "cases": [
                 {
                   "name": "a_program_reads_its_own_command_line",
@@ -885,22 +885,22 @@
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 3
           },
           {
             "id": "native:arrays",
             "title": "arrays",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:22:12.125791+00:00",
-              "finishedAt": "2026-11-08T03:30:25.256504+00:00",
-              "exitCode": 0,
-              "logSha256": "3f94d23eb47df0e01c9aa5fc482ffda0ef6a5458737b1102b40bb484991dc68d",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:05:43.200159+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -924,43 +924,7 @@
                 },
                 {
                   "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
-                  "status": "passed"
-                },
-                {
-                  "name": "column_projection_returns_the_original_typed_buffers",
-                  "status": "passed"
-                },
-                {
-                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
-                  "status": "passed"
-                },
-                {
-                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
-                  "status": "passed"
-                },
-                {
-                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
-                  "status": "passed"
-                },
-                {
-                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
-                  "status": "passed"
-                },
-                {
-                  "name": "packed_scalars_roundtrip_through_generic_operations",
-                  "status": "passed"
-                },
-                {
-                  "name": "packed_word_storage_resolves_width_from_the_target",
-                  "status": "passed"
-                },
-                {
-                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -1084,20 +1048,20 @@
           {
             "id": "native:bin-cinch",
             "title": "bin-cinch",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/Cargo.toml",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:21:54.979823+00:00",
-              "finishedAt": "2026-11-08T03:21:55.496623+00:00",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:05:23.294220+00:00",
+              "finishedAt": "2026-11-08T18:05:23.881849+00:00",
               "exitCode": 0,
-              "logSha256": "3cdb3e229ac3684769afab23d3c494038af3f51e93617ce06885a143566e5d89",
+              "logSha256": "7f93c8204c3b94468b59d2c9335d45b31aa1a4582f5eb82a3e2054034684d789",
               "cases": []
             },
-            "currentTests": null
+            "currentTests": 0
           },
           {
             "id": "native:bootstrap_abstract_nonzero_methods",
@@ -5189,17 +5153,17 @@
           {
             "id": "native:laws",
             "title": "laws",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/laws.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T18:04:44.189229+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T18:04:56.783875+00:00",
+              "exitCode": 0,
+              "logSha256": "77bfb5d847ec1bf1bd64009770942e1e6797a99cba57eb3e8e8418819cb342e8",
               "cases": [
                 {
                   "name": "checked_class_laws_travel_with_the_defining_interfaces",
@@ -5231,11 +5195,11 @@
                 },
                 {
                   "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 8
           },
           {
             "id": "native:letrec",
@@ -20341,8 +20305,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "laws",
-        "passed": 11,
+        "phase": "arrays",
+        "passed": 15,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20436,11 +20400,11 @@
       }
     ],
     "counts": {
-      "verified": 354,
+      "verified": 358,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 344
+      "recheck": 340
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20448,5 +20412,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:04:54.912945+00:00"
+  "updatedAt": "2026-11-08T18:05:57.576049+00:00"
 }
