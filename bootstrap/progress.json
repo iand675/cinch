@@ -20721,7 +20721,7 @@
         "passed": 1,
         "total": 8,
         "failed": 1,
-        "source": "1e45838521fffaabffc68e66cd7b1215e2142bcceee6058d6abe2144c5bfc5c6",
+        "source": "4a58c50c6f3e170ad0013080454adc6ad2e0f19131d89559c4e46c2fb13d04ee",
         "evidence": null
       },
       {
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:54:34.072647+00:00"
+  "updatedAt": "2026-11-08T22:57:18.101942+00:00"
 }
