@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "49 of 236 complete groups passed; 1 running, 2 failed and 184 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "50 of 236 complete groups passed; 1 running, 2 failed and 183 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "49 of 236 complete groups passed; 1 running, 2 failed and 184 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "50 of 236 complete groups passed; 1 running, 2 failed and 183 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 49,
+          "verified": 50,
           "blocked": 2,
           "running": 1,
-          "pending": 184,
+          "pending": 183,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2115,21 +2115,21 @@
           {
             "id": "native:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T07:39:40.233813+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T07:54:40.970817+00:00",
+              "exitCode": 0,
+              "logSha256": "a472d0c928bb34a4c78faa8425bf4dda6e05bfff1b1a0e9f09da12e4655a1dfb",
               "cases": [
                 {
                   "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2138,17 +2138,17 @@
           {
             "id": "native:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:45:37.488703+00:00",
-              "finishedAt": "2026-11-06T19:46:44.026335+00:00",
-              "exitCode": 0,
-              "logSha256": "d443408ae5a8fc10c3368c8dca8c8f6ca32ced8afe593ea0f9f1e6564ebea3a5",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:54:40.973724+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
@@ -2156,7 +2156,7 @@
                 },
                 {
                   "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_library_object",
-        "passed": 49,
+        "phase": "bootstrap_load",
+        "passed": 50,
         "failed": 2,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20876,8 +20876,8 @@
       },
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
-        "status": "checking-fixed-point-and-source-change",
-        "phase": "Stage2 and Stage3 agree on the executable, LLVM IR and all 46 interfaces. The changed-source build is running. The independent audit follows it.",
+        "status": "passed-chain-awaiting-independent-audit",
+        "phase": "passed chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -20906,8 +20906,8 @@
       },
       {
         "title": "Replay the body and decision fixtures with their checked data context",
-        "status": "waiting-worker",
-        "phase": "waiting worker",
+        "status": "running",
+        "phase": "running",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -20917,8 +20917,8 @@
       {
         "title": "Compile and execute lexical effect handlers",
         "status": "running",
-        "phase": "Building-stage1. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
-        "passed": 0,
+        "phase": "Compile. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
+        "passed": 1,
         "failed": 0,
         "total": 6,
         "unit": "gates",
@@ -20946,8 +20946,8 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-disk-space",
-        "phase": "Waiting disk space. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
         "passed": 3,
         "failed": 0,
         "total": 9,
@@ -20956,10 +20956,10 @@
       }
     ],
     "counts": {
-      "verified": 359,
+      "verified": 360,
       "blocked": 13,
       "running": 11,
-      "pending": 191,
+      "pending": 190,
       "recheck": 101
     },
     "total": 675,
@@ -20968,5 +20968,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:54:14.195961+00:00"
+  "updatedAt": "2026-11-08T07:55:16.627104+00:00"
 }
