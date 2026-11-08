@@ -670,27 +670,33 @@ module Bootstrap.Infer where
       (Some (UPi id name domain row result), Some input) -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some (predicate-base-carrier result) else None
       other -> None)
     other -> None
-  convert-byte-operand :: TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
-  convert-byte-operand kinds locals sp argument st = case argument of
+  convert-byte-operand :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  convert-byte-operand external kinds locals sp argument st = case argument of
     TName at binding -> case lookup-local binding locals of
       Some value -> predicate-index-value sp (primitive-type "Bytes") value st
       None -> bad sp "byte observation input has no checked local identity" st
-    TApp at (TName called name) (TArg arg input (TArgsEnd end)) -> (case context-identity-observation name kinds of
-      Some sc -> (case open-scheme False sc st of
+    TApp at (TName called name) arguments -> (case (lookup-local name locals, context-identity-observation name kinds, arguments) of
+      (None, Some sc, TArg arg input (TArgsEnd end)) -> (case open-scheme False sc st of
         (function, pairs, opened) -> case function of
-          UFun domain result -> case convert-byte-operand kinds locals sp input opened of
+          UFun domain result -> case convert-byte-operand external kinds locals sp input opened of
             (value, checked) -> (value, unify sp result (primitive-type "Bytes") (unify sp domain (primitive-type "Bytes") checked))
           other -> bad sp "byte observation helper needs its checked pure identity type" opened)
-      None -> (case known-observation-input-type locals argument of
-        Some carrier -> let checked = unify sp (predicate-base-carrier carrier) (primitive-type "Bytes") st in
-          if list-length (store-errors checked) > list-length (store-errors st) then (UError, checked)
-          else bad sp "byte observation input needs checked pure total reification" checked
-        None -> bad sp "byte observation input needs checked pure total reification" st))
+      (None, identity, args) -> (case context-total-observation name kinds of
+        Some binding -> (case convert-total-call external kinds locals called name args st of
+          (value, checked) -> predicate-index-value sp (primitive-type "Bytes") value checked)
+        None -> reject-byte-application locals sp argument st)
+      other -> reject-byte-application locals sp argument st)
     other -> bad sp "byte observation input needs checked pure total reification" st
-  convert-byte-length :: TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
-  convert-byte-length kinds locals sp name argument st =
+  reject-byte-application :: List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  reject-byte-application locals sp argument st = case known-observation-input-type locals argument of
+    Some carrier -> let checked = unify sp (predicate-base-carrier carrier) (primitive-type "Bytes") st in
+      if list-length (store-errors checked) > list-length (store-errors st) then (UError, checked)
+      else bad sp "byte observation input needs checked pure total reification" checked
+    None -> bad sp "byte observation input needs checked pure total reification" st
+  convert-byte-length :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
+  convert-byte-length external kinds locals sp name argument st =
     if not (byte-length-binding name kinds) then bad sp "index expression needs checked scope, purity and totality" st
-    else case convert-byte-operand kinds locals sp argument st of
+    else case convert-byte-operand external kinds locals sp argument st of
       (input, checked) -> checked-typed-source-index sp (UIndexByteLength input) checked
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
   convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
@@ -707,7 +713,7 @@ module Bootstrap.Infer where
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length kinds locals sp name input st of
+      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
         (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
       other -> (case convert-total-call external kinds locals sp name arguments st of
         (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked)))
@@ -4664,7 +4670,7 @@ module Bootstrap.Infer where
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length kinds locals sp name input st of
+      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
         (value, checked) -> predicate-index-value sp carrier value checked)
       other -> (case convert-total-call external kinds locals sp name arguments st of
         (value, checked) -> predicate-index-value sp carrier value checked))

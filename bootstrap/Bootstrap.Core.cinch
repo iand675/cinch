@@ -1513,18 +1513,19 @@ module Bootstrap.Core where
   byte-length-variable id = AVariable (string-concat "#bytes-length:" (nat-to-string id))
   byte-length-function :: UType -> UType -> String -> String -> Bool
   byte-length-function result function symbol role = string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False)
-  byte-observation-id :: ProofScope -> UType -> Option Nat
-  byte-observation-id gamma value = if not (typed-index-admissible (UIndexByteLength value)) then None else case value of
+  byte-observation-reading :: ProofScope -> UType -> Option Arithmetic
+  byte-observation-reading gamma value = if not (typed-index-admissible (UIndexByteLength value)) then None else case value of
     UIndex carrier (IRigid id name level) -> case proof-local id gamma of
       Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
-        Some value -> byte-observation-id (scope-without-value id gamma) value
-        None -> Some id
+        Some value -> byte-observation-reading (scope-without-value id gamma) value
+        None -> Some (byte-length-variable id)
       None -> None
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
-        Some value -> byte-observation-id (scope-without-value id gamma) (UIndexForget value)
-        None -> Some id
+        Some value -> byte-observation-reading (scope-without-value id gamma) (UIndexForget value)
+        None -> Some (byte-length-variable id)
       None -> None
+    UIndexCall function arguments -> total-value-call-key gamma value "Bytes"
     other -> None
 
   core-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
@@ -1534,7 +1535,7 @@ module Bootstrap.Core where
     CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
-        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> None); None -> None)
+        (case actual-index gamma facts input of Some value -> byte-observation-reading gamma value; None -> None)
       else None
     CRefine s ty evidence body -> if certified-refinement gamma facts ty evidence body then core-arithmetic gamma facts body else None
     CRefineProof s ty witness body -> if scoped-refinement-proof gamma facts ty witness body then core-arithmetic gamma facts body else None
@@ -1968,7 +1969,7 @@ module Bootstrap.Core where
   typed-index-arithmetic :: ProofScope -> UType -> Option Arithmetic
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
     UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma (total-parameters function) args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
-    UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
+    UIndexByteLength input -> byte-observation-reading gamma input
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if contract-equal carrier declared && (case refinement-view carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
@@ -2065,7 +2066,7 @@ module Bootstrap.Core where
     CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
-        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (UIndexByteLength value); None -> None); None -> None)
+        (case actual-index gamma facts input of Some value -> (case byte-observation-reading gamma value of Some reading -> Some (UIndexByteLength value); None -> None); None -> None)
       else None
     CForget s ty body -> if forgotten gamma facts ty body then (case body of
       CRefine at refined evidence actual -> actual-index gamma facts actual
@@ -2281,7 +2282,7 @@ module Bootstrap.Core where
     other -> None
   total-argument-key :: ProofScope -> String -> UType -> Option Arithmetic
   total-argument-key gamma sort value = if not (typed-index-admissible value && kind-equal (type-kind value) (value-kind (UCon sort KType))) then None else
-    if string-compare sort "Bytes" == 0 then (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> total-value-call-key gamma value sort)
+    if string-compare sort "Bytes" == 0 then byte-observation-reading gamma value
     else if string-compare sort "Bool" == 0 then (case value of
       UIndex carrier (IRigid id name level) -> (case proof-local id gamma of Some declared -> if contract-equal carrier declared then Some (AVariable (string-concat "#total-bool:" (nat-to-string id))) else None; None -> None)
       other -> total-value-call-key gamma value sort)
