@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "4 of 236 complete groups passed; 1 running, 0 failed and 231 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "5 of 236 complete groups passed; 1 running, 0 failed and 230 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "4 of 236 complete groups passed; 1 running, 0 failed and 231 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "5 of 236 complete groups passed; 1 running, 0 failed and 230 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 4,
+          "verified": 5,
           "blocked": 0,
           "running": 1,
-          "pending": 231,
+          "pending": 230,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2403,17 +2403,17 @@
           {
             "id": "native:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:08:28.524316+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:21:06.306886+00:00",
+              "exitCode": 0,
+              "logSha256": "50dd39365e0b9b085c5e517800809ff44e461296a0b23b1d4fbc2d3b592db719",
               "cases": [
                 {
                   "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
@@ -2421,7 +2421,7 @@
                 },
                 {
                   "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -5206,37 +5206,21 @@
           {
             "id": "native:laws",
             "title": "laws",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/laws.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T13:53:07.132542+00:00",
-              "finishedAt": "2026-11-06T13:53:16.759944+00:00",
-              "exitCode": 0,
-              "logSha256": "bd7a0a095fd6eec1d06acbdeb74ef1584b880aca25097040322f96a6a530250c",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:21:18.920795+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
-                  "name": "class_laws_state_the_equations",
-                  "status": "passed"
-                },
-                {
-                  "name": "law_abiding_instance_passes_sample_wise",
-                  "status": "passed"
-                },
-                {
-                  "name": "law_breaking_instance_is_rejected_naming_the_law",
-                  "status": "passed"
-                },
-                {
-                  "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
-                  "status": "passed"
-                },
-                {
-                  "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
-                  "status": "passed"
+                  "name": "checked_class_laws_travel_with_the_defining_interfaces",
+                  "status": "running"
                 }
               ]
             },
@@ -19223,8 +19207,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_pipeline",
-        "passed": 4,
+        "phase": "laws",
+        "passed": 5,
         "failed": 0,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20498,10 +20482,10 @@
       }
     ],
     "counts": {
-      "verified": 312,
+      "verified": 313,
       "blocked": 11,
       "running": 14,
-      "pending": 281,
+      "pending": 280,
       "recheck": 62
     },
     "total": 680,
@@ -20510,5 +20494,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:15:37.835116+00:00"
+  "updatedAt": "2026-11-08T03:21:21.605026+00:00"
 }
