@@ -20031,8 +20031,8 @@
       },
       {
         "title": "Transfer the owned parameter through erased unrefine",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules with ownership transfer for erased refinement projections",
         "passed": 0,
         "failed": 0,
         "total": 8,
@@ -20041,9 +20041,9 @@
       },
       {
         "title": "Run the original argv suite through the real Cinch CLI",
-        "status": "running",
+        "status": "passed-native-and-cinch-cli-argv",
         "phase": "selected-argv",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 2,
         "unit": "frontend replays",
@@ -20128,5 +20128,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:02:09.450028+00:00"
+  "updatedAt": "2026-11-08T01:03:11.361299+00:00"
 }
