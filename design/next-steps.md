@@ -18,6 +18,13 @@ audit checked all 55 library interfaces, the separate interface client and
 the changed-source rebuild. The complete matching test suite remains open.
 See [the published fixed-point audit](../bootstrap/current-schema10-published-bootstrap-results.json).
 
+The combined development source (`b3e6f3d7`) also reached a verified fixed
+point. Stage2 and Stage3 agree on the executable, LLVM IR and all 46
+compiler interfaces. The independent audit checked the 55 library
+interfaces, the separate client and the changed-source rebuild. This
+candidate still needs its matching complete suites.
+See [the combined candidate audit](../bootstrap/current-schema10-integrated-compiled-clients-bootstrap-results.json).
+
 The previous published compiler source (`45bbfe94`) also passed those four
 gates with its own pinned library. Its suite receipts apply to that snapshot.
 See [the previous fixed-point audit](../bootstrap/current-schema10-45bbfe94-bootstrap-results.json).
