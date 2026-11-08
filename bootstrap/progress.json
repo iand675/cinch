@@ -20994,8 +20994,8 @@
       {
         "title": "Run the complete ABI 7 Native suite",
         "status": "running",
-        "phase": "Lib.",
-        "passed": 0,
+        "phase": "Repl.",
+        "passed": 1,
         "failed": 0,
         "total": 236,
         "unit": "targets",
@@ -21036,5 +21036,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:56:26.684539+00:00"
+  "updatedAt": "2026-11-08T09:57:29.351754+00:00"
 }
