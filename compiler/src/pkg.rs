@@ -1344,6 +1344,15 @@ mod tests {
             Requirement::from_dependency(&json!({"version": "0.1.0"})).expect("exact requirement");
         assert!(exact.matches("0.1.0"));
         assert!(!exact.matches("0.1.1"));
+        let constraints = vec![
+            Requirement::Range(">=0.1.0".to_string()),
+            Requirement::Range("<0.2.0".to_string()),
+        ];
+        let versions = vec!["0.1.0".to_string(), "0.2.0".to_string()];
+        assert_eq!(
+            select_version("alice/base", &constraints, &versions).expect("intersection"),
+            "0.1.0"
+        );
     }
 
     #[test]
