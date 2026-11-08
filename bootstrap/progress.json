@@ -21106,6 +21106,17 @@
         "evidence": null
       },
       {
+        "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
+        "passed": 0,
+        "total": 2,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
+      },
+      {
         "title": "Replay the permanent library object regression",
         "status": "passed",
         "phase": "The original library object target passed with physical %0 signature and erased LLVM checks.",
@@ -21125,7 +21136,7 @@
         "unit": "gates",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-list-provider-results.json"
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
@@ -21237,5 +21248,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:19:03.750265+00:00"
+  "updatedAt": "2026-11-08T16:20:46.894186+00:00"
 }
