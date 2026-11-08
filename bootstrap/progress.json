@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "44 of 236 complete groups passed; 1 running, 2 failed and 189 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "45 of 236 complete groups passed; 1 running, 2 failed and 188 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "44 of 236 complete groups passed; 1 running, 2 failed and 189 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "45 of 236 complete groups passed; 1 running, 2 failed and 188 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 44,
+          "verified": 45,
           "blocked": 2,
           "running": 1,
-          "pending": 189,
+          "pending": 188,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1984,39 +1984,48 @@
           {
             "id": "native:bootstrap_interface",
             "title": "bootstrap_interface",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T07:12:45.508200+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "finishedAt": "2026-11-08T07:12:53.404288+00:00",
+              "exitCode": 0,
+              "logSha256": "3fd9db032f2ff2a82f5a50fe4035c49724e3b26f69f1f4c669961ef7acb67fe6",
+              "cases": [
+                {
+                  "name": "sha256_is_sha256",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_interface_reader_answers_a_real_artifact",
+                  "status": "passed"
+                }
+              ]
             },
             "currentTests": null
           },
           {
             "id": "native:bootstrap_intrinsics",
             "title": "bootstrap_intrinsics",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_intrinsics.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:53:18.371255+00:00",
-              "finishedAt": "2026-11-06T19:00:22.049794+00:00",
-              "exitCode": 0,
-              "logSha256": "2ea33df1f0a7ad81d5b5c062d4315c83491dbfa1290bd2db7ec4f6fc4d28b03b",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:12:53.407212+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "runtime_intrinsics_check_their_contract_and_retain_canonical_symbols",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19624,8 +19633,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_interface",
-        "passed": 44,
+        "phase": "bootstrap_intrinsics",
+        "passed": 45,
         "failed": 2,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20952,8 +20961,8 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-disk-space",
-        "phase": "Waiting disk space. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
         "passed": 3,
         "failed": 0,
         "total": 9,
@@ -20962,10 +20971,10 @@
       }
     ],
     "counts": {
-      "verified": 402,
+      "verified": 403,
       "blocked": 13,
       "running": 11,
-      "pending": 196,
+      "pending": 195,
       "recheck": 58
     },
     "total": 680,
@@ -20974,5 +20983,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:12:45.753533+00:00"
+  "updatedAt": "2026-11-08T07:13:47.785368+00:00"
 }
