@@ -1,0 +1,175 @@
+{
+  "cases": [
+    {
+      "name": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
+      "status": "passed"
+    },
+    {
+      "name": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
+      "status": "passed"
+    }
+  ],
+  "compiler_sha256": "810d41f4036b8ce29e34a772c9b72b5c6c364608300692e6453b57e8f384b9f2",
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "evidence_scope": "All 39 original editor and syntax tests passed using the ABI 7 Native compiler built from the integrated compiler inputs.",
+  "full_goal_complete": false,
+  "log_sha256": "81cdbdcf3e47a895f80676b3974953d180445da6b21955db1c177a798c5f66a1",
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "723cce50ca27c388b23132aaa6c44cd8b9609785",
+  "runner_receipt_sha256": "2326e82e6964dc104dd4e5e21ed53efc979cbac8115afebc114e1d00ab312b02",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "00d1c51b78a86c6603f95abc03fae9350036e9226abf2a85c751fbc836f293da",
+  "skipped": 0,
+  "source_snapshot_sha256": "3b4370de80290e7d0f6348aaa48347c4e8d81b1f2b1d1fa83865234d34dcc0f7",
+  "status": "audited-abi7-native-editor",
+  "tests": 39,
+  "verifier_sha256": "3bbcc36c7a7f7680a8fd70a74181b20393652df38fe5060200acba0ce2f26cf6"
+}
