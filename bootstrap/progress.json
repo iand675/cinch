@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_boolean_branches, bootstrap_buffer_aliases, bootstrap_byte_observations",
-        "passed": 10,
+        "phase": "Bootstrap_buffer_aliases, bootstrap_byte_observations, bootstrap_check",
+        "passed": 11,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21117,17 +21117,19 @@
         "failed": 1,
         "total": 7,
         "unit": "cases",
-        "source": "a56061fac0128a681e2d048d74aeb7c1effda54747cb550c4f843177153a506f"
+        "source": "a56061fac0128a681e2d048d74aeb7c1effda54747cb550c4f843177153a506f",
+        "evidence": null
       },
       {
         "title": "Replay the proof and visibility batch with checked borrow reads in decisions",
         "status": "passed-original-proof-and-visibility-controls",
-        "phase": "Proof",
+        "phase": "All seven original cases passed, including the stale-evidence diagnostic.",
         "passed": 7,
         "failed": 0,
         "total": 7,
         "unit": "cases",
-        "source": "6d797b96d350588a1126291bb99f03612699c63bf6e5adde3959b3bdd20e133c"
+        "source": "6d797b96d350588a1126291bb99f03612699c63bf6e5adde3959b3bdd20e133c",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-proof-and-visibility-results.json"
       },
       {
         "title": "Check the staged arrow multiplicity representation",
@@ -21138,6 +21140,26 @@
         "total": 1,
         "unit": "probe",
         "source": "db93012a7d13f7665421e74166558be76dd0a2b284f9a562f3e224c941e49e29"
+      },
+      {
+        "title": "Check ownership along Core evaluation paths",
+        "status": "passed",
+        "phase": "Nine path checks passed for branches, guard fallthrough, effect interruption, erasure, and Share.",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "unit": "probe",
+        "source": "8e876d8b98d5157bb0ab23d8dfd0cb847e805ba153a23fae2e6ff739a1996967"
+      },
+      {
+        "title": "Replay thunk semantics and the original proof cases together",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "passed": 0,
+        "failed": 0,
+        "total": 15,
+        "unit": "cases",
+        "source": "1184ab8b3b8472cbad506cfb40307452c3afc098e15b68de14b1d7dcbaf7bd4a"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21228,5 +21250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:24:02.817848+00:00"
+  "updatedAt": "2026-11-08T14:27:47.559993+00:00"
 }
