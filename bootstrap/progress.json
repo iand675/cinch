@@ -17945,7 +17945,7 @@
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "clean-native-build",
+        "phase": "integration",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20672,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:23:43.386503+00:00"
+  "updatedAt": "2026-11-08T20:25:26.814614+00:00"
 }
