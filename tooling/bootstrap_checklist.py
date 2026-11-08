@@ -81,6 +81,72 @@ def suite(id, title, unit, rows, detail, **extra):
                 detail=detail, items=rows, **extra)
 
 
+@functools.lru_cache(maxsize=4096)
+def _checked_digest(path, modified, size):
+    return digest(path)
+
+
+def matches_digest(path, expected):
+    if not path or not expected:
+        return False
+    try:
+        file = Path(path)
+        stat = file.stat()
+        return _checked_digest(str(file), stat.st_mtime_ns, stat.st_size) == expected
+    except OSError:
+        return False
+
+
+def published_stage3_shard(path, audit, compiler, native):
+    shard = read(path)
+    if (not path or not shard or audit.get('status') != 'passed-published-schema10-bootstrap-chain'
+            or shard.get('compiler_source_sha256') != compiler or shard.get('native_source_sha256') != native
+            or audit.get('compiler_source_sha256') != compiler or audit.get('native_source_sha256') != native):
+        return {}
+    stage = audit['stages'][-1]
+    selected = shard.get('selected_compiler', {})
+    directory = Path(path).parent
+    wrapper = directory / 'frontend.py'
+    if (stage.get('stage') != 3 or selected.get('stage') != 3 or selected.get('compiler_sha256') != stage['compiler_sha256']
+            or shard.get('provider_object_sha256') != stage['inputs']['library_provider']['artifacts']['library.o']
+            or not matches_digest(selected.get('compiler'), stage['compiler_sha256'])
+            or not matches_digest(wrapper, shard.get('wrapper_sha256'))):
+        return {}
+    if f"compiler={selected['compiler']!r}" not in wrapper.read_text().splitlines():
+        return {}
+    return {row['name']: (row, directory, stage['inputs']['interface_set_sha256'])
+            for row in shard.get('rows', []) if row['status'] != 'pending'}
+
+
+def published_stage3_status(row, directory, interfaces_hash):
+    if row['status'] in ('running', 'failed'):
+        return ('running', 'Running the original target on the matching Stage3.') if row['status'] == 'running' else (
+            'blocked', 'The original target reported a failure on the matching Stage3.')
+    log = row.get('log')
+    if row.get('exit_code') != 0 or not matches_digest(log, row.get('log_sha256')):
+        return 'recheck', 'The selected run has no verified successful test log.'
+    text = Path(log).read_text(errors='replace')
+    summary = re.findall(r'^test result: ok\. (\d+) passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;', text, re.M)
+    names = set(re.findall(r'^test (\S+) \.\.\.', text, re.M))
+    if not names or len(summary) != 1 or int(summary[0]) != len(names):
+        return 'recheck', 'The log does not account for all original test cases.'
+    receipts = row.get('invocation_receipts', {})
+    selected = set()
+    for filename, expected in receipts.items():
+        path = directory / 'invocations' / row['name'] / filename
+        if Path(filename).name != filename or not matches_digest(path, expected):
+            return 'recheck', 'A selected-frontend invocation receipt is missing or changed.'
+        record = read(path)
+        invocation = record.get('invocation', {})
+        if (invocation.get('compiler') != str(directory / 'frontend.py')
+                or not matches_digest(invocation.get('interfaces'), interfaces_hash)):
+            return 'recheck', 'A receipt does not match the audited compiler wrapper and interface set.'
+        selected.add(record.get('test'))
+    if selected != names:
+        return 'recheck', f'{len(selected & names)} of {len(names)} cases recorded a matching Cinch invocation. Remaining cases need a coverage review.'
+    return 'verified', f'All {len(names)} original cases passed with matching Stage3 invocation receipts.'
+
+
 def build_checklist(root, cfg, previous=None):
     root = Path(root)
     compiler = read(cfg.get('publishedRustInputs')).get('compiler_source_sha256')
@@ -175,16 +241,25 @@ def build_checklist(root, cfg, previous=None):
             observed=observed(old, full.get('compiler_source_sha256'), Path(cfg['native']).parent) if old and old.get('status') != 'pending' else observed(earlier_native.get(name), earlier_full.get('compiler_source_sha256'), Path(cfg.get('previousNative',cfg['native'])).parent),
             currentTests=current.get('tests') if current else None))
 
+    published_front = published_stage3_shard(cfg.get('schema10PublishedFrontendShard'), published_audit, compiler, native)
     front_rows = []
     for name in front_names:
         old = old_front.get(name)
         same = (front.get('compiler_source_sha256') == compiler
                 and front.get('native_source_sha256') == native)
         state = {'passed':'verified', 'failed':'blocked', 'running':'running'}.get(old.get('status'), 'pending') if same and old else 'recheck' if old and old.get('status') != 'pending' else 'pending'
-        front_rows.append(item('stage3:'+name, name, state,
-            'Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.',
-            'Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.',
-            link('compiler/tests/'+name+'.rs'), observed=observed(old, front.get('compiler_source_sha256'), Path(front_path).parent),
+        detail = 'Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.'
+        evidence = observed(old, front.get('compiler_source_sha256'), Path(front_path).parent)
+        current = published_front.get(name)
+        if current:
+            row, directory, interface_hash = current
+            test_file = root / 'compiler' / 'tests' / (name + '.rs')
+            if test_file.is_file() and matches_digest(row.get('source'), digest(test_file)):
+                state, detail = published_stage3_status(row, directory, interface_hash)
+                evidence = observed(row, compiler, directory)
+        front_rows.append(item('stage3:'+name, name, state, detail,
+            'Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.',
+            link('compiler/tests/'+name+'.rs'), observed=evidence,
             category='interface / API' if name in scope['interface_api_targets'] else 'portable behavior'))
 
     suites = [suite('native', 'Rust compiler suite', 'targets', native_rows,
@@ -290,6 +365,16 @@ def build_checklist(root, cfg, previous=None):
                 link('bootstrap/current-original-concurrency-frontend-results.json'),
                 observed=dict(status='failed',source=concurrency['compiler_source_sha256'],
                     cases=[dict(name=case['name'], status=case['status']) for case in concurrency['cases']])))
+        fixity_path = 'bootstrap/current-schema10-stage3-fixity-dispatch-results.json'
+        fixity = read(root / fixity_path)
+        if (fixity.get('status') == 'passed-native-and-audited-stage3-fixity'
+                and fixity.get('compiler_source_sha256') == compiler and fixity.get('native_source_sha256') == native
+                and matches_digest(root / published_audit_path, fixity.get('selected_audit_sha256'))
+                and matches_digest(root / 'compiler/tests/fixity_interfaces.rs', fixity.get('test_file_sha256'))):
+            extra_rows.append(item('additional:fixity_interfaces', 'fixity_interfaces', 'verified',
+                'Both original tests passed on the matching Stage3. Rust read back the emitted interfaces.',
+                'Check the imported fixity, renamed operator runtime result and exact defining and facade interface identities.',
+                link(fixity_path)))
         for reviewed in outside_review.get('rows', []):
             name = reviewed['target']
             if name in ('laws', 'prim'):
