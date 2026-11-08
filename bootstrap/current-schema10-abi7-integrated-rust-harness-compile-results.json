@@ -1,0 +1,38 @@
+{
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "default_harnesses_checked": 235,
+  "full_goal_complete": false,
+  "jit_feature_harness_checked": true,
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "rows": [
+    {
+      "checked": 235,
+      "diagnostics_sha256": "17c5bfb5c76eb595cf25c0750335e49485f6c2b45a508f1e240bf18986594efa",
+      "errors": [],
+      "exit_code": 0,
+      "expected": 235,
+      "log_sha256": "99aeed1d39ae9ae771bf4ca9e08f50d03f7dc3da8f5080b742a583de15a0b0ee",
+      "missing": [],
+      "name": "default-test-harnesses",
+      "status": "passed"
+    },
+    {
+      "checked": 1,
+      "diagnostics_sha256": "1cc41a1e897775873531b60a5a72fdad5ca06753b1ed118e7f78770bf14cb8c3",
+      "errors": [],
+      "exit_code": 0,
+      "expected": 1,
+      "log_sha256": "58d1c079f586e44e70665d8e825bf852114bfb22d045402b158a45b268d9dde9",
+      "missing": [],
+      "name": "jit-test-harness",
+      "status": "passed"
+    }
+  ],
+  "runtime_abi": 7,
+  "rustc_commit": "48a229ceaefd4985c50990b14116b6d856af0985",
+  "scope": "Cargo compile-only evidence for all 235 non-doctest Rust test harnesses and a separate JIT-feature check. Runtime test execution is tracked separately.",
+  "source_snapshot_sha256": "c4e66a5cb32595158ff87120943e80010687ebbac0d54dd7615e04e6c6e83d9c",
+  "status": "audited-abi7-integrated-rust-harness-compile",
+  "test_inventory_sha256": "dcc1abd7a28e0bf0de9b82ff36981bcc4653f4656959ea60faed494673f6c959"
+}

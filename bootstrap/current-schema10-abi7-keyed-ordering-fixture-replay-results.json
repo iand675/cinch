@@ -1,0 +1,41 @@
+{
+  "base_interfaces_sha256": "af49cbfa51a0ec18195057eb78ef4940c0bb90faab0325d4f1b35ef87ccc04cd",
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "fixture_commit_on_main": "4b03dc656b354c70f7a30f4bd38c9dbab3037eac",
+  "fixture_revision": "3a1773e398b99644f8e869ac4599afc1c88438c2",
+  "full_goal_complete": false,
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "original_cases_passed": 3,
+  "rustc_commit": "48a229ceaefd4985c50990b14116b6d856af0985",
+  "stage3_compiler_sha256": "593d1158766b8c64bf9362d306dd43b50187694fd0d028084c61aec98696b314",
+  "status": "audited-abi7-keyed-ordering-fixture-replay",
+  "targets": [
+    {
+      "build_log_sha256": "57cbee20362a1f2cbb6e8ae820463f7ed6faf60573c4ad151384255a65d3895e",
+      "case_count": 2,
+      "old_failure_log_sha256": "109792008ceff4984f38126f3fb38b1153cebd9da938942c1b4a5010693ec4ce",
+      "old_harness_compile_error_count": 1,
+      "run_log_sha256": "4d59a879e2588e5fe15d9e5e69291b9df54670d052bc42bf9e2c0bbbe4160791",
+      "selected_invocation_receipts": {
+        "11150-0.json": "0ba8cd8f64eee925fb88d58c1eb70de5ce869566ff00364558faae108c2c4e96",
+        "11150-1.json": "68fc3d5618ac7cdb656d095f36929d78f2ac7822f1bd0794808732d3e702bca9"
+      },
+      "source_sha256": "5fcc30af49623d242b34b5a7d51662cab685764b837ffa8407ffbbc0c6923506",
+      "status": "passed",
+      "target": "bootstrap_load"
+    },
+    {
+      "build_log_sha256": "57cbee20362a1f2cbb6e8ae820463f7ed6faf60573c4ad151384255a65d3895e",
+      "case_count": 1,
+      "old_failure_log_sha256": "4a9f5112172e2861a96770e0704cdc34bb82e8ff4ff68afb743c019fc92971ef",
+      "old_harness_compile_error_count": 2,
+      "run_log_sha256": "21c431e224c3ec35d9f3478c90966b2181299d7560784a6605634ce003dd551f",
+      "selected_invocation_receipts": {
+        "29631-0.json": "c2591688eb79b4fc03af43259f2e06728cd3463b48de70dcc96872529be2fef4"
+      },
+      "source_sha256": "5b139891dff87c00f5e137083ae8ed9fadb0ade40215a9f34e6baac4cd931737",
+      "status": "passed",
+      "target": "bootstrap_nominals"
+    }
+  ]
+}
