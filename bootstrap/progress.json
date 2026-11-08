@@ -21107,8 +21107,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Evidence_invalidation",
-        "passed": 3,
+        "phase": "Case_evidence",
+        "passed": 4,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21203,5 +21203,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:10:00.233426+00:00"
+  "updatedAt": "2026-11-08T13:11:03.671069+00:00"
 }
