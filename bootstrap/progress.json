@@ -12006,9 +12006,9 @@
         "total": 105,
         "counts": {
           "verified": 55,
-          "blocked": 8,
+          "blocked": 9,
           "running": 3,
-          "pending": 32,
+          "pending": 31,
           "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13564,21 +13564,21 @@
           {
             "id": "stage3:bootstrap_runtime_emit",
             "title": "bootstrap_runtime_emit",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "blocked",
+            "detail": "The original target reported a failure on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_emit.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:38:35.329669+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:50:01.405978+00:00",
+              "exitCode": 101,
+              "logSha256": "2a9b7f18756fc8b7a7daf25c30282454912f07f885159a68dc668cf8ece76a5b",
               "cases": [
                 {
                   "name": "compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             },
@@ -13669,13 +13669,13 @@
           {
             "id": "stage3:bootstrap_source_constructors",
             "title": "bootstrap_source_constructors",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_constructors.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -20458,9 +20458,9 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "checked total buffer selection",
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20657,9 +20657,9 @@
     ],
     "counts": {
       "verified": 330,
-      "blocked": 14,
+      "blocked": 15,
       "running": 14,
-      "pending": 260,
+      "pending": 259,
       "recheck": 62
     },
     "total": 680,
@@ -20668,5 +20668,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:49:00.303132+00:00"
+  "updatedAt": "2026-11-08T03:50:02.657818+00:00"
 }
