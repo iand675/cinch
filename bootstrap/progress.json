@@ -1385,7 +1385,7 @@
               "cases": [
                 {
                   "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -20705,5 +20705,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:46:07.340581+00:00"
+  "updatedAt": "2026-11-08T20:47:30.717704+00:00"
 }
