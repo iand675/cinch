@@ -21207,8 +21207,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_nominals",
-        "passed": 3,
+        "phase": "bootstrap_library_object",
+        "passed": 4,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:53:57.057715+00:00"
+  "updatedAt": "2026-11-08T16:56:00.094591+00:00"
 }
