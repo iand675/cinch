@@ -11985,10 +11985,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 36,
+          "verified": 37,
           "blocked": 5,
           "running": 3,
-          "pending": 53,
+          "pending": 52,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13111,21 +13111,21 @@
           {
             "id": "stage3:bootstrap_manifest",
             "title": "bootstrap_manifest",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_manifest.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:52:57.233112+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:54:52.687598+00:00",
+              "exitCode": 0,
+              "logSha256": "71bb93af85abd814be0e7be982ad61586f59de22bd3bcebb9f1bef981641beae",
               "cases": [
                 {
                   "name": "manifest_round_trips_and_answers_package_facts",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13211,18 +13211,23 @@
           {
             "id": "stage3:bootstrap_nonzero_source",
             "title": "bootstrap_nonzero_source",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_source.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:54:53.902977+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "structural_nonzero_source_preserves_value_identity_and_contracts",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20407,10 +20412,10 @@
       }
     ],
     "counts": {
-      "verified": 281,
+      "verified": 282,
       "blocked": 10,
       "running": 14,
-      "pending": 291,
+      "pending": 290,
       "recheck": 82
     },
     "total": 678,
@@ -20419,5 +20424,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:53:43.065437+00:00"
+  "updatedAt": "2026-11-08T02:55:05.247766+00:00"
 }
