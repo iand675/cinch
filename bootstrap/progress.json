@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "45 of 236 complete groups passed; 1 running, 2 failed and 188 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "46 of 236 complete groups passed; 1 running, 2 failed and 187 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "45 of 236 complete groups passed; 1 running, 2 failed and 188 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "46 of 236 complete groups passed; 1 running, 2 failed and 187 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 45,
+          "verified": 46,
           "blocked": 2,
           "running": 1,
-          "pending": 188,
+          "pending": 187,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2011,21 +2011,21 @@
           {
             "id": "native:bootstrap_intrinsics",
             "title": "bootstrap_intrinsics",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_intrinsics.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T07:12:53.407212+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T07:18:36.014297+00:00",
+              "exitCode": 0,
+              "logSha256": "5854c6bdde81a11aa21c978f8e1e8a6485986db01307640847944ccb5ed5f466",
               "cases": [
                 {
                   "name": "runtime_intrinsics_check_their_contract_and_retain_canonical_symbols",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2034,25 +2034,21 @@
           {
             "id": "native:bootstrap_ir",
             "title": "bootstrap_ir",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ir.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T19:00:22.063582+00:00",
-              "finishedAt": "2026-11-06T19:15:01.426901+00:00",
-              "exitCode": 0,
-              "logSha256": "c1674e202f22b0085b676a23e5f62e8fc4fdf5b1088a490c1b4fa8cae03574e1",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T07:18:36.017608+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_emitted_ir_assembles_and_runs_to_the_fragments_meaning",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18915,8 +18911,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "32 passed, 3 running, 68 queued, 2 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 32,
+        "phase": "33 passed, 3 running, 67 queued, 2 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 33,
         "failed": 2,
         "total": 105,
         "unit": "targets",
@@ -19633,8 +19629,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_intrinsics",
-        "passed": 45,
+        "phase": "bootstrap_ir",
+        "passed": 46,
         "failed": 2,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20961,8 +20957,8 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-disk-space",
-        "phase": "Waiting disk space. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
         "passed": 3,
         "failed": 0,
         "total": 9,
@@ -20971,10 +20967,10 @@
       }
     ],
     "counts": {
-      "verified": 403,
+      "verified": 404,
       "blocked": 13,
       "running": 11,
-      "pending": 195,
+      "pending": 194,
       "recheck": 58
     },
     "total": 680,
@@ -20983,5 +20979,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:17:54.465091+00:00"
+  "updatedAt": "2026-11-08T07:18:56.502775+00:00"
 }
