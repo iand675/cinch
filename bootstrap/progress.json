@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "11 of 236 complete groups passed; 1 running, 0 failed and 224 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "11 of 236 complete groups passed; 1 running, 1 failed and 223 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -482,7 +482,7 @@
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "repair checks: original interface/API13of14; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
+      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_abstract_nonzero_methods; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
     },
     {
       "title": "Finish the repair gates",
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "11 of 236 complete groups passed; 1 running, 0 failed and 224 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "11 of 236 complete groups passed; 1 running, 1 failed and 223 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -823,9 +823,9 @@
         "total": 236,
         "counts": {
           "verified": 11,
-          "blocked": 0,
+          "blocked": 1,
           "running": 1,
-          "pending": 224,
+          "pending": 223,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1127,21 +1127,21 @@
           {
             "id": "native:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "running",
+            "state": "blocked",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:31:01.396273+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:41:53.357485+00:00",
+              "exitCode": 101,
+              "logSha256": "9f35a9b802330dafc818a919759854e29cab497da06b89ff7f6fa50d557d4bb4",
               "cases": [
                 {
                   "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             },
@@ -1150,21 +1150,21 @@
           {
             "id": "native:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T14:57:41.277250+00:00",
-              "finishedAt": "2026-11-06T14:59:08.330283+00:00",
-              "exitCode": 0,
-              "logSha256": "d4a26568441ae0fcd210b20cdb46bf8d87e2daed506c8ac74b66f8c119a3608c",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:41:53.359934+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -14095,6 +14095,14 @@
                 },
                 {
                   "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
+                  "status": "passed"
+                },
+                {
+                  "name": "guards_carry_their_fact_and_their_refutation",
+                  "status": "passed"
+                },
+                {
+                  "name": "less_than_discharges_in_then_and_its_negation_in_else",
                   "status": "running"
                 }
               ]
@@ -19331,9 +19339,9 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_methods",
+        "phase": "bootstrap_abstract_nonzero_types",
         "passed": 11,
-        "failed": 0,
+        "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
         "earlier": false
@@ -20607,9 +20615,9 @@
     ],
     "counts": {
       "verified": 328,
-      "blocked": 13,
+      "blocked": 14,
       "running": 14,
-      "pending": 264,
+      "pending": 263,
       "recheck": 61
     },
     "total": 680,
@@ -20618,5 +20626,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:40:38.100524+00:00"
+  "updatedAt": "2026-11-08T03:42:00.193244+00:00"
 }
