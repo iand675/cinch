@@ -50,8 +50,9 @@ Stage3 executables. The frozen verification command also requires passing
 results and matching compiler receipts for the preserved Stage3 suite.
 See [the Rust, runtime and tooling audit](../bootstrap/current-schema10-published-native-core-results.json).
 
-The current syntax engine passed all 20 of its original cases. The full
-39-case editor run also exercises Tree-sitter, LSP and compiled examples.
+All 39 original editor tests passed on current inputs with the audited
+Rust compiler, including the syntax engine, Tree-sitter, LSP and compiled
+examples.
 See [the editor replay](../bootstrap/current-schema10-published-editor-results.json).
 
 The previous published compiler source (`45bbfe94`) also passed those four

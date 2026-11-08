@@ -1,6 +1,38 @@
 {
   "cases": [
     {
+      "name": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
       "name": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
       "status": "passed"
     },
@@ -78,6 +110,50 @@
     },
     {
       "name": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
+      "status": "passed"
+    },
+    {
+      "name": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
       "status": "passed"
     }
   ],
@@ -199,14 +275,15 @@
   },
   "engine_log_sha256": "ef19bdca0809deefbfc510d5c04e155849ef279f5deccb553b4b976d8e1fa425",
   "full_goal_complete": false,
-  "log_sha256": "ef19bdca0809deefbfc510d5c04e155849ef279f5deccb553b4b976d8e1fa425",
+  "log_sha256": "c9ea7dc5f68b6b726c805d8da1fbe1957548b903f803289bc3f30760937da744",
   "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "runner_receipt_sha256": "df03e13da7812cc1477bdee933f42dd87a4263eacc3318a8868fc0ad7011e42e",
   "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
   "schema": 1,
-  "scope": "syntax-engine",
+  "scope": "complete-native-editor",
   "skipped": 0,
   "source_snapshot_sha256": "b4ce36e34df2f40295e0316c57ef43bdb38f79845f2e48681628cb3d19f442b2",
-  "tests": 20,
-  "verified_at": "2026-11-08T02:48:09.404914+00:00",
+  "tests": 39,
+  "verified_at": "2026-11-08T03:12:13.089331+00:00",
   "verifier_sha256": "3bbcc36c7a7f7680a8fd70a74181b20393652df38fe5060200acba0ce2f26cf6"
 }
