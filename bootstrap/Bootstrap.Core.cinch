@@ -731,18 +731,27 @@ module Bootstrap.Core where
   core-mutable-writes :: CoreTerm -> List (Span, Option UType)
   core-mutable-writes term = case term of
     CLambda sp ty pattern body -> Nil
-    CApply sp ty f x -> argument-writes sp x <> opaque-call-writes sp f <> child-writes [f, x]
-    CApplyEff sp ty row f x -> argument-writes sp x <> row-writes sp row <> opaque-call-writes sp f <> child-writes [f, x]
-    CErasedApply sp ty row f witness -> row-writes sp row <> opaque-call-writes sp f <> core-mutable-writes f
+    CApply sp ty f x -> child-writes [f, x] <> argument-writes sp x <> opaque-call-writes sp f
+    CApplyEff sp ty row f x -> child-writes [f, x] <> argument-writes sp x <> row-writes sp row <> opaque-call-writes sp f
+    CErasedApply sp ty row f witness -> core-mutable-writes f <> row-writes sp row <> opaque-call-writes sp f
     CPrimitive sp ty operation (CArgument at place rest) ->
-      (if string-compare operation "ref-set" == 0 then argument-writes sp place else Nil)
-        <> child-writes [place, rest]
+      child-writes [place, rest] <> (if string-compare operation "ref-set" == 0 then argument-writes sp place else Nil)
+    CIf sp ty condition yes no -> core-mutable-writes condition <> (case write-branch-literal condition of
+      Some True -> core-mutable-writes yes
+      Some False -> core-mutable-writes no
+      None -> child-writes [yes, no])
     CScope sp ty region evidence callback ->
-      (case scope-callback-parts (core-type callback) of
+      core-mutable-writes callback <> (case scope-callback-parts (core-type callback) of
         Some (owner, inner, row, result) -> row-writes sp row
-        None -> [(sp, None)]) <> core-mutable-writes callback
-    CHandle sp ty label residual body handled-by -> row-writes sp (core-effects term) <> child-writes [body, handled-by]
+        None -> [(sp, None)])
+    CSpawn sp ty token body -> child-writes [token, body] <> row-writes sp (core-effects term)
+    CHandle sp ty label residual body handled-by -> child-writes [handled-by, body] <> row-writes sp (core-effects term)
     other -> child-writes (term-children term)
+  write-branch-literal :: CoreTerm -> Option Bool
+  write-branch-literal term = case term of
+    CUse sp ty name role Nil -> if bool-type ty && string-compare role "constructor" == 0 then
+      (if string-compare name "True" == 0 then Some True else if string-compare name "False" == 0 then Some False else None) else None
+    other -> if decision-constant True term then Some True else if decision-constant False term then Some False else None
   child-writes :: List CoreTerm -> List (Span, Option UType)
   child-writes children = case children of Nil -> Nil; Cons first rest -> core-mutable-writes first <> child-writes rest
   argument-writes :: Span -> CoreTerm -> List (Span, Option UType)
