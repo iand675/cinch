@@ -12,7 +12,9 @@
 //!      consumer checked against the interface alone still parses the
 //!      operator.
 
-use cinch::driver::{check_sources, driver, Mode};
+mod common;
+
+use cinch::driver::{check_sources, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -28,7 +30,17 @@ fn imported_fixity_parses_in_a_single_source_program() {
                \x20   in case xs of\n\
                \x20     Nil -> 1\n\
                \x20     Cons _ _ -> 0\n";
-    match check_sources(src, "<fixity-single-source>") {
+    let result = if common::external_frontend::configured().expect("frontend selection").is_some() {
+        let dir = common::project("fixity_single_source", &[("Main.cinch", src)]);
+        let result = common::check(&dir, "Main.cinch");
+        if result.is_ok() {
+            common::cleanup(&dir);
+        }
+        result
+    } else {
+        check_sources(src, "<fixity-single-source>").map(|_| ()).map_err(|error| error.to_string())
+    };
+    match result {
         Ok(_) => {}
         Err(e) => panic!("importing Algebra.Semigroup must supply `<>`'s fixity: {e}"),
     }
@@ -74,8 +86,7 @@ fn project_consumer_parses_imported_operator_and_iface_records_it() {
     )
     .expect("write main");
 
-    let entry = dir.join("Main.cinch");
-    match driver(Mode::Run, &entry, None) {
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => assert_eq!(code, 9, "the renamed operator must retain its owner's right association"),
         Err(e) => panic!("a consumer must parse the imported operator without redeclaring it: {e}"),
     }

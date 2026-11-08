@@ -1,0 +1,42 @@
+{
+  "compiled_revision": "45bbfe9460a5028dd580c359ea9080baca43d26b",
+  "compiler_sha256": "c8fa459e9b8f750e8f2d7bdfa7466076fc7c3c997b76c0cacca9062e4f8adbee",
+  "compiler_source_sha256": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+  "full_goal_complete": false,
+  "invocation_receipts": {
+    "89645-0.json": "d7f4148499c67ae0d631bf3327adc1c4fe7ade79b5e2a21c88e1f0fca5e143b1",
+    "89645-1.json": "a1eb251df49d6cab8c15da27d15e03b1b309cd589614cf1f4693f4f08b0ca434"
+  },
+  "native_source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+  "original_test_file_sha256": "04e198162cf9837150c1b6c92f1d5e85dcd115b6adb23eb51b750f5d6d7797f3",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "6e7fcf02150d5debc9b946edb1e03dedfc288a7cf22616d289afcb1f1fa4a084",
+      "name": "build-fixity_interfaces",
+      "status": "passed"
+    },
+    {
+      "cases": 2,
+      "exit_code": 0,
+      "leak_reports": 1,
+      "log_sha256": "810b7e8ad0baf105c1a6b08684ea0328e8672a7f759a2d4afec3ab0049244774",
+      "name": "fixity_interfaces",
+      "status": "passed"
+    },
+    {
+      "cases": 2,
+      "exit_code": 0,
+      "log_sha256": "4a82ca9ec840b62982b7ad6e67c974e2297b3ca5eae1693412490e97937108ac",
+      "missing_receipts": [],
+      "name": "selected-fixity_interfaces",
+      "selected_cases": 2,
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "Two unchanged original tests with the Native and selected Stage3 frontend dispatch. The renamed facade ran at exit 9 and both emitted interfaces were inspected.",
+  "selected_audit_sha256": "ed5f26ca3d29ce3c34d930d8220b06e4083947606718300275f6fb3147ba278e",
+  "status": "passed-native-and-audited-stage3-fixity",
+  "test_file_sha256": "20e88bfaac347e2d87d3207495dfdf52c6a06b817638632222a39b2126e9698e"
+}

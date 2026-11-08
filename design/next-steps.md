@@ -41,6 +41,19 @@ specialization, preserved all 55 library interface identities and ran
 each program with zero leaks. Matching Stage3 coverage remains open.
 See [the compiled Foldable audit](../bootstrap/current-schema10-original-foldable-object-results.json).
 
+The development Cinch dictionary ABI repair passed all 12 original
+Category cases on that same object. Eleven programs ran with zero leaks.
+The refusal test exercised both original visitor diagnostics. The
+matching Stage3 library replay remains open.
+See [the compiled Category audit](../bootstrap/current-schema10-original-category-object-results.json).
+
+The published Stage3 and Rust both passed the two original fixity tests.
+The project case preserves the declaring operator through a renamed
+facade and checks the fixities and value identities in the emitted
+interfaces. The tests use the selected frontend when configured.
+See [the fixity dispatch audit](../bootstrap/current-schema10-stage3-fixity-dispatch-results.json).
+
+
 The pinned
 library object preserves all 55 checked interfaces and includes
 `both [TTT]` and `swap [TT]`. All nine
