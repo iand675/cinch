@@ -20782,11 +20782,11 @@
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
-        "status": "running",
-        "phase": "All 39 integration, 5 guard and 10 codata tests passed. concurrency (19 original tests)",
-        "passed": 55,
+        "status": "completed-with-failures",
+        "phase": "Combined candidate, starting from the pinned seed. concurrency (19 original tests)",
+        "passed": 73,
         "total": 74,
-        "failed": 0,
+        "failed": 1,
         "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-combined-host-integration-results.json"
       },
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:09:25.403270+00:00"
+  "updatedAt": "2026-11-08T23:14:51.009455+00:00"
 }
