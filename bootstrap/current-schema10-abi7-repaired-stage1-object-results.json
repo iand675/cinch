@@ -1,0 +1,58 @@
+{
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "evidence_scope": "Pinned ABI 6 Rust seed built Stage 1 targeting ABI 7. Stage 1 rejected ABI 6 interfaces and objects, emitted an independent ABI 7 library, and compiled a caller using the checked object. The linked caller observed both writes with zero leaks. A later call requiring invalidated evidence was refused with source locations. Stage 2, Stage 3 and full suites are separate.",
+  "full_goal_complete": false,
+  "linked_client_sha256": "c3aee56f7fe456a46e465e30d3b4ec06c4061cd7ca014980f9e189c6b992321f",
+  "module_count": 46,
+  "native_source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e",
+  "revision": "50bd7d8b2300cf374c5c91d90a176254b80a628e",
+  "rows": [
+    {
+      "compiler_sha256": "d4acd7c20f7557b04cb87ad7b1fe2068d06fe9dcf638ca00506fac2b6c2cdc3c",
+      "name": "stage1",
+      "seed_link_abi": 6,
+      "status": "passed",
+      "target_abi": 7
+    },
+    {
+      "diagnostics_sha256": "16680685cec034d07318569a57088ef08eca475d7b1f887bb31750f37edb03a3",
+      "exit_code": 7,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "reject-abi6-interfaces",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "680818b85e7f1a568cf6a54f5765fd7bb21d9de7a02edc1f312a493cd562bc1c",
+      "exit_code": 7,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "reject-abi6-object",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "interface_sha256": "1cebe934cc3ca309dd8cc3648433729a122ca5b330f979bca9cc172a3cddbae4",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emit-mutable-library",
+      "object_sha256": "02968190050f2d181af01939d82576377cf4bd2d5e657877345b705f97ee1bca",
+      "source_sha256": "b734103ebb165040d4a3b8b833aed827c16f9e75246a12b4f823a5061a170293",
+      "status": "passed"
+    },
+    {
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 0,
+      "ir_sha256": "a66b2cd40d95bc2335c78d6a72cf09c266d535afdc8ef21171557b7ba4e4e504",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mutable-client-observes-library-writes",
+      "source_sha256": "0a390d2d6ed92f0752f50332010c658d4b02054323b477059bf848c46daa9caf",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "03b87dedcda630ab215333c9f90b5968993ba830e52f02ddc9c3ffb756642782",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "reject-proof-after-library-write",
+      "status": "passed"
+    }
+  ],
+  "status": "audited-abi7-stage1-mutable-object-boundary"
+}
