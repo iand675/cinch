@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "37 of 236 complete groups passed; 1 running, 1 failed and 197 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "38 of 236 complete groups passed; 1 running, 1 failed and 196 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "37 of 236 complete groups passed; 1 running, 1 failed and 197 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "38 of 236 complete groups passed; 1 running, 1 failed and 196 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 37,
+          "verified": 38,
           "blocked": 1,
           "running": 1,
-          "pending": 197,
+          "pending": 196,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1800,21 +1800,21 @@
           {
             "id": "native:bootstrap_guarded_bodies",
             "title": "bootstrap_guarded_bodies",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_bodies.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T06:10:59.495342+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T06:11:40.521164+00:00",
+              "exitCode": 0,
+              "logSha256": "045ce40a540bbc9db5b7b4a6cbc9cc2499b5b38b88868d68e168384d8c080b67",
               "cases": [
                 {
                   "name": "guarded_nat_bodies_need_actual_preconditions_and_formal_scope",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1823,21 +1823,21 @@
           {
             "id": "native:bootstrap_guarded_calls",
             "title": "bootstrap_guarded_calls",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_calls.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:38:20.615026+00:00",
-              "finishedAt": "2026-11-06T17:59:23.374210+00:00",
-              "exitCode": 0,
-              "logSha256": "8704c9069721d2da49745357a81fbfcffad2797ce84a526aa6e27fd9068f17a9",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:11:40.524309+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19607,8 +19607,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_guarded_bodies",
-        "passed": 37,
+        "phase": "bootstrap_guarded_calls",
+        "passed": 38,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20893,10 +20893,10 @@
       }
     ],
     "counts": {
-      "verified": 392,
+      "verified": 393,
       "blocked": 12,
       "running": 12,
-      "pending": 206,
+      "pending": 205,
       "recheck": 58
     },
     "total": 680,
@@ -20905,5 +20905,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:11:07.038176+00:00"
+  "updatedAt": "2026-11-08T06:12:09.154814+00:00"
 }
