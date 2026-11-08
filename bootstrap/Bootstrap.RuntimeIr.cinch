@@ -1834,7 +1834,7 @@ module Bootstrap.RuntimeIr where
   static-constructor :: Writer -> Nat -> (Writer, String)
   static-constructor w descriptor =
     let escaped = descriptor >= 65535 in
-    let layout = if escaped then 65535 else descriptor in
+    let layout = if escaped then (65535 :: Nat) else descriptor in
     let header = nat-to-string (layout * 281474976710656 + 1099511627776) in
     let words = if escaped then "3" else "2" in
     let offset = if escaped then "2" else "1" in
