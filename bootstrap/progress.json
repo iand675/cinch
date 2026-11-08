@@ -20728,8 +20728,8 @@
         "title": "Check erased record evidence and executable field layout",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with erased record evidence",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. original-non-proposition",
+        "passed": 1,
         "total": 6,
         "failed": 0,
         "source": "7b70c35da175c01d8aa9adf99f56ad23087a7d28550113c58ca5d48d4ef1d6ba",
@@ -20744,6 +20744,28 @@
         "total": 7,
         "failed": 0,
         "source": "6ede6a5a0abecfc5d9107bb260a89f6a7029ba630b887871eaa5fc45352d805a",
+        "evidence": null
+      },
+      {
+        "title": "Verify erased record evidence through interfaces and archives",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with compiled record transport",
+        "passed": 1,
+        "total": 13,
+        "failed": 0,
+        "source": "a14539b1de062bab15656ec933e1383c7e8a0220bf4f0cac7924746de44f5149",
+        "evidence": null
+      },
+      {
+        "title": "Check record interface shape in Rust and tooling",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to tooling-suite.",
+        "passed": 1,
+        "total": 2,
+        "failed": 0,
+        "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "evidence": null
       },
       {
@@ -20793,5 +20815,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:07:13.841212+00:00"
+  "updatedAt": "2026-11-08T22:08:38.628157+00:00"
 }
