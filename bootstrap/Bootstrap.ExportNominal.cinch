@@ -212,11 +212,18 @@ module Bootstrap.ExportNominal where
       (Err error, other) -> Err error
       (other, Err error) -> Err error
     other -> template-text declarations locals syntax
+  template-kind :: List Decl -> List String -> Bool -> TypeExpr -> Result String String
+  template-kind declarations locals grouped syntax = case syntax of
+    TFun sp first second -> case (template-kind declarations locals True first, template-kind declarations locals False second) of
+      (Ok a, Ok b) -> Ok (if grouped then string-concat-all ["(", a, " -> ", b, ")"] else string-concat-all [a, " -> ", b])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> template-text declarations locals syntax
   template-parameters :: List Decl -> List String -> List TypeParam -> Result String (List (String, String, Bool))
   template-parameters declarations locals params = case params of
     Nil -> Ok Nil
     Cons p rest -> let name = param-name p in
-      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-text declarations locals syntax),
+      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-kind declarations locals False syntax),
         template-parameters declarations (Cons name locals) rest) of
         (Ok kind, Ok more) -> Ok (Cons (name, kind, param-implicit p) more)
         (Err error, other) -> Err error
