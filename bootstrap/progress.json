@@ -20176,8 +20176,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_runtime_objects, bootstrap_source_effects, bootstrap_source_handlers",
-        "passed": 65,
+        "phase": "Bootstrap_source_effects, bootstrap_source_handlers, bootstrap_source_instances",
+        "passed": 66,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20533,5 +20533,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:24:29.893158+00:00"
+  "updatedAt": "2026-11-08T17:25:32.500939+00:00"
 }
