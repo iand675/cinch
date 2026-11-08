@@ -1,0 +1,73 @@
+{
+  "compiler_modules": 46,
+  "compiler_sha256": "3490723169cf21edf5f4ad4037987ac51555f7b9ab26f1431effc2199014bd6f",
+  "compiler_source_sha256": "f1a7cafb94446072e233dcfe1ff32280c6efe87059c0141936dc2bca6b490a64",
+  "compiler_stage": 1,
+  "exact_refusals": 4,
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "passed": 6,
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "rows": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "ir_sha256": "8e53b7cd54b47d0aecd6d0fc627f821979a8c2b536db609d0b66b206be7e09cb",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "checked total buffer selection",
+      "program_exit": 0,
+      "program_sha256": "57b6440e20872be0977ca3f948be208eee56523391e297a073f509044f0a7e79",
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "10ecf7ed3b7a7a9e25e4588263417b4c6a2ed4e57c14ee464d722ed781715fdf",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:6:19: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "buffer selection cannot exchange arguments",
+      "source_sha256": "a55d863287e376d92c99c7feb5b486146b3810eb61cc31e6b4e75dcac82e36cd",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:5:18: byte observation input needs checked pure total reification\nbootstrap.check:5:18: ill-sorted, partial or unchecked typed source index\nbootstrap.check:5:18: a type cannot be used as a predicate value\nbootstrap.check:5:18: ill-sorted proof predicate\nbootstrap.check:5:99: ill-formed function proof contract\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "effectful buffer selection has no observation authority",
+      "source_sha256": "61401b610508faf05690cd0b4e0e31452edb5eadefdf81f53b9f6fa1a044e2e6",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:7:33: byte observation input needs checked pure total reification\nbootstrap.check:7:33: ill-sorted, partial or unchecked typed source index\nbootstrap.check:7:33: kind mismatch in type inference\nbootstrap.check:7:27: kind mismatch in type inference\nbootstrap.check:7:11: ill-formed source dependent function\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "ordinary byte helper has no identity authority",
+      "source_sha256": "ac4f399332884fae691e995ecd0c2516ce851f72adcb3947fde50d2fce6893ff",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "actual result identity",
+      "source_sha256": "2d049e72592c5170395ce566e9a5d5e2fd7c85c13075846d722a556041fcd7c7",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:4:13: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "different buffer cannot borrow fact",
+      "source_sha256": "1b99b05f489caafaf49199caad3d78baf5fe4aa8f642d78bef4bd1bb37ed3418",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "runtime_programs": 1,
+  "schema": 1,
+  "scope": "Checked total Bytes-returning functions over primitive inputs. Nominal projections and the unchanged Regex program are separate tests.",
+  "stage1_receipt_sha256": "046a8c0ccf05821c759deaa896fe8da91cc6e634678ae74bf8e8bf96d031f0e0",
+  "status": "audited-total-byte-observation-controls"
+}

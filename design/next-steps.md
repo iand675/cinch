@@ -25,6 +25,13 @@ interfaces, the separate client and the changed-source rebuild. This
 candidate still needs its matching complete suites.
 See [the combined candidate audit](../bootstrap/current-schema10-integrated-compiled-clients-bootstrap-results.json).
 
+The total byte-observation candidate passed six checks on development
+Stage1. Its linked program selected buffers of two different lengths and
+exited without leaks. The four refusal cases checked argument identity and
+body authority. The nominal projection and original `Text.Regex` replay are
+separate checks.
+See [the byte-observation audit](../bootstrap/current-schema10-total-byte-observation-results.json).
+
 The previous published compiler source (`45bbfe94`) also passed those four
 gates with its own pinned library. Its suite receipts apply to that snapshot.
 See [the previous fixed-point audit](../bootstrap/current-schema10-45bbfe94-bootstrap-results.json).
