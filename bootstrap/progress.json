@@ -19827,6 +19827,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-foldable-object-results.json"
       },
       {
+        "title": "Run all original Category cases on Cinch with compiled objects",
+        "status": "passed",
+        "phase": "Eleven linked programs ran with zero leaks. Both original visitor refusals passed.",
+        "passed": 12,
+        "failed": 0,
+        "total": 12,
+        "unit": "original test cases",
+        "source": "50a6a95518aa20e8562636d3dd1ba57f9cca0816acbff0925aba76ff4d43c704",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-category-object-results.json"
+      },
+      {
+        "title": "Run original defining-module fixity tests on audited Stage3",
+        "status": "passed",
+        "phase": "The right-associated renamed operator ran at exit 9 and emitted both checked interfaces.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "unit": "original test cases",
+        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-fixity-dispatch-results.json"
+      },
+      {
         "title": "Link original NonEmpty clients against compiled objects",
         "status": "passed",
         "phase": "Foldable, Semigroup and Traversable linked and ran with zero leaks.",
@@ -19871,8 +19893,8 @@
       {
         "title": "Resolve NonZero predicates during specialization and rebuild",
         "status": "running",
-        "phase": "Waiting for one of the five build workers.",
-        "passed": 0,
+        "phase": "building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19880,10 +19902,21 @@
         "auditPending": false
       },
       {
+        "title": "Bootstrap the combined compiled-library and refinement fixes",
+        "status": "running",
+        "phase": "Waiting for the separate NonZero repair to clear Stage2.",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "3d334fcd786076738c9332221812ee2e42e0dbb2655f054ad6409a99d9f999c6",
+        "auditPending": false
+      },
+      {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_checked_program",
-        "passed": 5,
+        "phase": "bootstrap_guarded_association. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 8,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19891,10 +19924,10 @@
       },
       {
         "title": "Replay full Foldable and Category with the NonEmpty object",
-        "status": "running",
-        "phase": "round 2 lib_category Round 1 passed 14/15 Foldable and 11/12 Category cases.",
+        "status": "completed-with-non-object-failures",
+        "phase": "round 2 lib_category Round 2 passed 15/15 Foldable and 11/12 Category cases.",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "unit": "original test targets",
         "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e"
@@ -19911,9 +19944,9 @@
       },
       {
         "title": "Check original Const and dictionary ABI clients",
-        "status": "running",
-        "phase": "foldable-nonempty",
-        "passed": 3,
+        "status": "passed-original-generic-factory-clients",
+        "phase": "foldable-nonempty run",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "client cases",
@@ -19941,23 +19974,33 @@
       },
       {
         "title": "Replay Algebra with the numeric repair and expanded object",
-        "status": "running",
+        "status": "completed-with-selected-algebra-failures",
         "phase": "selected-lib_algebra",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "unit": "original test target",
         "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
       },
       {
         "title": "Check direct refinement construction and erased LLVM",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules with checked static refinement discharge",
         "passed": 0,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
-        "source": "759119de4e71b3821e54a3804fc5d3a29c819084c222b884a63cd43035ee250d"
+        "source": "35af4d86f3c48e09c0f8ae1340187cff552a510b303e63c48b7c7eb03ca66c86"
+      },
+      {
+        "title": "Run the original argv suite through the real Cinch CLI",
+        "status": "failed",
+        "phase": "build and smoke-test 46 compiler modules with direct CLI execution",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "unit": "frontend replays",
+        "source": "dfab86f6febada8b3f74d208a64d7ccc21ae6615e3beee9d2a794a4e46665b65"
       },
       {
         "title": "Check original NonEmpty clients against compiled contracts",
@@ -20008,8 +20051,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_conditional_methods",
-        "passed": 23,
+        "phase": "bootstrap_export_interfaces",
+        "passed": 31,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -20028,5 +20071,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:29:18.062106+00:00"
+  "updatedAt": "2026-11-08T00:46:19.238620+00:00"
 }
