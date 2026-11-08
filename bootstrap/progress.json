@@ -20629,9 +20629,9 @@
         "title": "Execute Cinch memo groups and verify scope cleanup",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked memo scopes",
-        "passed": 0,
-        "total": 12,
+        "phase": "Isolated Stage 1 candidate. 18",
+        "passed": 1,
+        "total": 18,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "evidence": null
@@ -20672,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:26:29.847587+00:00"
+  "updatedAt": "2026-11-08T20:27:32.967523+00:00"
 }
