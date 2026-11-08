@@ -21087,10 +21087,10 @@
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
-        "status": "failed",
-        "phase": "erased-ownership exited 101, see /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-native-erasure-validation-2/erased-ownership.log",
+        "status": "running",
+        "phase": "Checking the worker signature, curried calls, shared closure captures, and effect preservation.",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
         "unit": "target",
         "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39"
@@ -21184,5 +21184,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:30:18.009593+00:00"
+  "updatedAt": "2026-11-08T15:31:20.283143+00:00"
 }
