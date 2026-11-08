@@ -21101,8 +21101,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Attributes",
-        "passed": 12,
+        "phase": "Bootstrap_abstract_nonzero_methods",
+        "passed": 13,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21121,8 +21121,8 @@
       },
       {
         "title": "Replay the proof and visibility batch with checked borrow reads in decisions",
-        "status": "running",
-        "phase": "Build all 46 compiler modules and smoke-test Stage1",
+        "status": "waiting-worker",
+        "phase": "Waiting-worker",
         "passed": 0,
         "failed": 0,
         "total": 7,
@@ -21131,8 +21131,8 @@
       },
       {
         "title": "Check the staged arrow multiplicity representation",
-        "status": "waiting-worker",
-        "phase": "waiting-worker",
+        "status": "running",
+        "phase": "seed builds the targeted parser and type model",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -21228,5 +21228,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:18:47.164980+00:00"
+  "updatedAt": "2026-11-08T14:19:50.339603+00:00"
 }
