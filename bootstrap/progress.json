@@ -18846,8 +18846,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "45 passed, 3 running, 54 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 45,
+        "phase": "46 passed, 3 running, 53 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 46,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20912,9 +20912,9 @@
       },
       {
         "title": "Compile and execute lexical effect handlers",
-        "status": "running",
+        "status": "passed-lexical-handler-clients",
         "phase": "Compile. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
-        "passed": 5,
+        "passed": 6,
         "failed": 0,
         "total": 6,
         "unit": "gates",
@@ -20932,8 +20932,8 @@
       },
       {
         "title": "Compile guarded function equations in Rust Cinch",
-        "status": "waiting-handler-worker",
-        "phase": "Waiting handler worker. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
+        "status": "running",
+        "phase": "Guard_coverage. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -20964,5 +20964,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:57:20.973645+00:00"
+  "updatedAt": "2026-11-08T07:58:23.024832+00:00"
 }
