@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 74,
+          "verified": 75,
           "blocked": 6,
           "running": 2,
-          "pending": 19,
+          "pending": 18,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12365,17 +12365,17 @@
           {
             "id": "stage3:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T04:44:51.827796+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:04:38.783608+00:00",
+              "exitCode": 0,
+              "logSha256": "ede0c0d8c38b7a7ca463fead92898d91a3209c75487e85fabdefc5681833a358",
               "cases": [
                 {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
@@ -12387,7 +12387,7 @@
                 },
                 {
                   "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12492,18 +12492,23 @@
           {
             "id": "stage3:bootstrap_contract",
             "title": "bootstrap_contract",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_contract.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:04:39.643507+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "the_shared_contract_compiles_and_answers",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20795,10 +20800,10 @@
       }
     ],
     "counts": {
-      "verified": 357,
+      "verified": 358,
       "blocked": 12,
       "running": 13,
-      "pending": 239,
+      "pending": 238,
       "recheck": 59
     },
     "total": 680,
@@ -20807,5 +20812,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:03:20.103736+00:00"
+  "updatedAt": "2026-11-08T05:04:42.959916+00:00"
 }
