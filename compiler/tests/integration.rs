@@ -217,6 +217,31 @@ module Main where
 "#,
         0,
     );
+    expect_ok(
+        "memo-boxed",
+        r#"
+module Main where
+  main :: Int
+  main = if shared == 18446744073709551616 && shared == 18446744073709551616 then 0 else 1
+    where ~shared = 18446744073709551616
+"#,
+        0,
+    );
+    expect_ok(
+        "memo-strict-order",
+        r#"
+module Main where
+  main :: Int
+  main =
+    let input = 41
+        first = ready
+        ~ready = input + 1
+        ~other = later
+        later = 123
+    in if first == 42 && other == 123 then 0 else 1
+"#,
+        0,
+    );
 }
 
 #[test]
@@ -261,6 +286,19 @@ module Main where
     where ~x = x + 1
 "#,
         "memo group",
+    );
+    expect_err(
+        "memo-before-strict-capture",
+        r#"
+module Main where
+  main :: Int
+  main =
+    let first = delayed
+        ~delayed = later
+        later = 42
+    in first
+"#,
+        "before its captured locals are initialized",
     );
 }
 

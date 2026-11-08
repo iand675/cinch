@@ -6712,22 +6712,30 @@ impl Checker {
         dspan: ast::Span,
         sig: Option<Ty>,
         form: LocalForm,
-    ) -> Result<(ECore, Ty)> {
+        observe_effects: bool,
+    ) -> Result<(ECore, Ty, Option<EffRow>)> {
         match form {
-            LocalForm::Plain | LocalForm::Proof => match sig {
-                Some(t) => Ok((self.check(env, body, &t)?, t)),
-                None => {
-                    let (core, ty) = self.infer(env, body)?;
-                    // Type inference alone is not evidence admission. In
-                    // particular a polymorphic computational bottom can be
-                    // instantiated at Prop, but cannot prove anything.
-                    if let Ty::Prp(prop) = self.uni.zonk(&ty) {
-                        Ok((self.check_proof(env, body, &prop)?, ty))
-                    } else {
-                        Ok((core, ty))
+            LocalForm::Plain | LocalForm::Proof => {
+                let saved = observe_effects.then(|| self.enter_perf());
+                let checked: Result<(ECore, Ty)> = (|| match sig {
+                    Some(t) => Ok((self.check(env, body, &t)?, t)),
+                    None => {
+                        let (core, ty) = self.infer(env, body)?;
+                        // Inference alone is not evidence admission.
+                        if let Ty::Prp(prop) = self.uni.zonk(&ty) {
+                            Ok((self.check_proof(env, body, &prop)?, ty))
+                        } else {
+                            Ok((core, ty))
+                        }
                     }
+                })();
+                let performed = saved.map(|saved| self.exit_perf(saved));
+                let (core, ty) = checked?;
+                if let Some(row) = &performed {
+                    self.perform(row)?;
                 }
-            },
+                Ok((core, ty, performed))
+            }
             LocalForm::DoStmt { .. } => {
                 let saved = self.enter_perf();
                 let checked = match sig {
@@ -6744,7 +6752,7 @@ impl Checker {
                             "a `let` statement in `do` must be pure (its interpretation does not sequence effects)",
                         )
                     })?;
-                Ok((core, ty))
+                Ok((core, ty, None))
             }
         }
     }
@@ -6872,7 +6880,7 @@ impl Checker {
                 };
                 let l = self.fresh_local();
                 let eff = self.uni.fresh_row();
-                let inner = self.uni.fresh();
+                let inner = sigs.get(&name.text).cloned().unwrap_or_else(|| self.uni.fresh());
                 let cell_ty = Ty::Lazy {
                     eff: eff.clone(),
                     region: g.region.clone(),
@@ -6883,9 +6891,10 @@ impl Checker {
             }
         }
 
-        // Strict bindings in source order first, so `~` bodies may see all
-        // of them (cell evaluation is deferred past the whole block).
+        // Check strict bindings in source order. Their effects are recorded
+        // separately so we can validate the eventual memo setup order.
         let mut out = Vec::new();
+        let mut strict_effects = Vec::new();
         for d in decls {
             if matches!(d, ast::LocalDecl::Lazy { .. }) {
                 continue;
@@ -6903,13 +6912,17 @@ impl Checker {
                     }
                     let l = self.fresh_local();
                     let (core, ty, is_value) = if pats.is_empty() {
-                        let (core, ty) = self.elab_local_strict(
+                        let (core, ty, effects) = self.elab_local_strict(
                             env,
                             body,
                             *span,
                             sigs.get(&name.text).cloned(),
                             form,
+                            group.is_some(),
                         )?;
+                        if let Some(row) = effects {
+                            strict_effects.push((out.len(), *span, row));
+                        }
                         (core, ty, is_syntactic_value(body))
                     } else {
                         // A local function is a lambda; `check_lam` enforces
@@ -6944,7 +6957,11 @@ impl Checker {
                     }
                 }
                 ast::LocalDecl::Bind { pat, body, span } => {
-                    let (bc, bt) = self.elab_local_strict(env, body, *span, None, form)?;
+                    let (bc, bt, effects) =
+                        self.elab_local_strict(env, body, *span, None, form, group.is_some())?;
+                    if let Some(row) = effects {
+                        strict_effects.push((out.len(), *span, row));
+                    }
                     let l = self.fresh_local();
                     self.note_local_ty(l, &bt);
                     match pat {
@@ -7013,10 +7030,10 @@ impl Checker {
                 };
                 let saved = self.enter_perf();
                 self.memo_depth += 1;
-                let checked = self.infer(env, body);
+                let checked = self.check(env, body, inner);
                 self.memo_depth -= 1;
-                let (bc, bt) = checked?;
                 let performed = self.exit_perf(saved);
+                let bc = checked?;
                 self.uni
                     .require_lacks(&performed, g.label.clone())
                     .map_err(|m| {
@@ -7028,9 +7045,11 @@ impl Checker {
                 self.uni
                     .unify_rows(eff, &performed)
                     .map_err(|m| Error::at(body.span(), m))?;
-                self.uni
-                    .unify(inner, &bt)
-                    .map_err(|m| Error::at(body.span(), m))?;
+                self.new_want(
+                    ClassApp { class: "Copy".into(), args: vec![inner.clone()] },
+                    body.span(),
+                    env,
+                );
                 let unit_param = self.fresh_local();
                 self.note_local_ty(unit_param, &Ty::Unit);
                 let thunk = ECore::Lam {
@@ -7039,18 +7058,78 @@ impl Checker {
                 };
                 inits.push((*l, thunk));
             }
-            // Allocate every cell first (siblings capture each other), then
-            // store the thunks.
-            for (l, _) in &inits {
-                out.push((*l, ECore::LazyAlloc));
-            }
-            for (l, thunk) in inits {
-                let tmp = self.fresh_local();
-                self.note_local_ty(tmp, &Ty::Unit);
-                out.push((tmp, ECore::LazyInit(l, Box::new(thunk))));
-            }
+            out = self.schedule_local_memos(g, out, inits, strict_effects)?;
         }
         Ok((out, group))
+    }
+
+    fn schedule_local_memos(
+        &mut self,
+        group: &MemoGroup,
+        strict: Vec<(LocalId, ECore)>,
+        inits: Vec<(LocalId, ECore)>,
+        strict_effects: Vec<(usize, ast::Span, EffRow)>,
+    ) -> Result<Vec<(LocalId, ECore)>> {
+        let strict_ids: HashSet<_> = strict.iter().map(|(id, _)| *id).collect();
+        let mut out = Vec::new();
+        let mut waiting = Vec::new();
+        let mut reachable = HashMap::<LocalId, HashSet<LocalId>>::new();
+        for (cell, thunk) in inits {
+            out.push((cell, ECore::LazyAlloc));
+            reachable.insert(cell, HashSet::from([cell]));
+            let mut captures = Vec::new();
+            free_locals(&thunk, &mut Vec::new(), &mut captures);
+            captures.retain(|id| strict_ids.contains(id));
+            waiting.push((cell, thunk, captures));
+        }
+        let demands: HashMap<_, _> = strict_effects
+            .into_iter()
+            .filter(|(_, _, row)| self.uni.resolve_row(row).labels.contains(&group.label))
+            .map(|(index, span, _)| (index, span))
+            .collect();
+        let mut bound = HashSet::new();
+        self.install_ready_memos(&mut out, &mut waiting, &bound);
+        for (index, (id, value)) in strict.into_iter().enumerate() {
+            let mut free = Vec::new();
+            free_locals(&value, &mut Vec::new(), &mut free);
+            let cells: HashSet<_> = free
+                .iter()
+                .filter_map(|capture| reachable.get(capture))
+                .flatten()
+                .copied()
+                .collect();
+            if let Some(&site) = demands.get(&index) {
+                if waiting.iter().any(|(cell, _, _)| cells.is_empty() || cells.contains(cell)) {
+                    return Err(Error::at(
+                        site,
+                        "a strict binding demands a memo before its captured locals are initialized",
+                    ));
+                }
+            }
+            reachable.insert(id, cells);
+            out.push((id, value));
+            bound.insert(id);
+            self.install_ready_memos(&mut out, &mut waiting, &bound);
+        }
+        debug_assert!(waiting.is_empty());
+        Ok(out)
+    }
+
+    fn install_ready_memos(
+        &mut self,
+        out: &mut Vec<(LocalId, ECore)>,
+        waiting: &mut Vec<(LocalId, ECore, Vec<LocalId>)>,
+        bound: &HashSet<LocalId>,
+    ) {
+        for (cell, thunk, captures) in std::mem::take(waiting) {
+            if captures.iter().all(|capture| bound.contains(capture)) {
+                let id = self.fresh_local();
+                self.note_local_ty(id, &Ty::Unit);
+                out.push((id, ECore::LazyInit(cell, Box::new(thunk))));
+            } else {
+                waiting.push((cell, thunk, captures));
+            }
+        }
     }
 
     /// `letrec b1; ...; bn in e`: one recursive binding group (surface

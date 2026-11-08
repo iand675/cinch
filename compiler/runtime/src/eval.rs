@@ -80,12 +80,13 @@
 //!   (the `__apply` convention of `crate::task::apply_closure`), so
 //!   under- and over-application behave exactly as the generated apply
 //!   stubs define.
-//! * A memo cell is `{ state; thunk; value }` (24 zeroed bytes, as
+//! * A memo cell is `{ state; owned; value }` (24 zeroed bytes, as
 //!   `cinch_alloc` allocates, header kind `KIND_MEMO`). `DEMAND` runs the same state machine as the
 //!   generated `__cinch_demand` helper (`MEMO_HELPERS` in
 //!   `compiler/src/codegen.rs`): state 0 stores 1, moves the thunk out
 //!   (its slot becomes 0), applies it to one Unit word (0), stores the
-//!   value and stores state 2; state 2 returns the stored value; any
+//!   value, puts its heap pointer (if any) in the owned slot, and stores
+//!   state 2. State 2 returns the stored value. Any
 //!   other state (including 1, a cell demanded while its own evaluation
 //!   runs) is the `BlackHole` fault.
 //!
@@ -1031,16 +1032,23 @@ fn eval_demand(cell: &Node, counted: bool, env: &mut [i64], holes: &[i64]) -> Re
     // (`MEMO_HELPERS` in `compiler/src/codegen.rs`).
     let v = match unsafe { word_at(p, 0) } {
         0 => {
-            unsafe { word_set(p, 0, 1) };
             let thunk = unsafe { word_at(p, 8) };
+            if thunk == 0 {
+                return Err(Error::BlackHole);
+            }
             block_ptr(thunk)?;
+            unsafe { word_set(p, 0, 1) };
             // The application consumes the thunk: the cell gives its
             // reference up, so releasing the cell later cannot release
             // the thunk a second time.
             unsafe { word_set(p, 8, 0) };
             let mut argv = [0i64];
             let v = apply_checked(thunk, &mut argv)?;
+            // The result is owned by the cell. Keep only a real heap
+            // pointer in the slot that its fixed scan map visits.
+            let owned = if counted && !crate::abi::is_immediate(v) { v } else { 0 };
             unsafe {
+                word_set(p, 8, owned);
                 word_set(p, 16, v);
                 word_set(p, 0, 2);
             }

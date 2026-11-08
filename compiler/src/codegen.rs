@@ -424,11 +424,10 @@ fn emit_module(
     out.push('\n');
     if object {
         out.push_str("declare i64 @__apply(i64, i64, ptr)\n");
-        out.push_str(&MEMO_HELPERS.replace("define ", "define weak_odr "));
     } else {
         out.push_str(APPLY_DEF);
-        out.push_str(MEMO_HELPERS);
     }
+    out.push_str(MEMO_HELPERS);
 
     // Real foreign bindings (foreign function interface specification
     // section 2): the C symbol declarations (over the named by-value
@@ -1438,7 +1437,7 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
-        PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
+        PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
@@ -2174,7 +2173,7 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
 /// carry no boundary signature.
 fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     use PrimOp::*;
-    if matches!(op, Delay | Force | ApplyErased | Demand | Eval | Conc(_)) {
+    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_)) {
         return None;
     }
     Some(op.sig())
@@ -2783,7 +2782,7 @@ fn counted_class(c: Class) -> bool {
 }
 
 /// Memo cell machinery (laziness and reclamation specification). A cell is
-/// `{ i64 state; i64 thunk; i64 value }` with state 0 = unevaluated,
+/// `{ i64 state; i64 owned; i64 value }` with state 0 = unevaluated,
 /// 1 = evaluating, 2 = evaluated. Demanding an evaluating cell is a black
 /// hole: the defined `BlackHole` runtime fault (exit 70), never undefined
 /// behavior.
@@ -2791,31 +2790,41 @@ fn counted_class(c: Class) -> bool {
 /// Evaluation moves the thunk out of the cell (its slot becomes 0, which
 /// the cell's pointer map skips) and hands it to `__apply`, which
 /// consumes it: the thunk and what only it captured are released once it
-/// has run (design/reclamation.md section 6). The result word returns
-/// borrowed from the cell; `Core::Demand` dups it.
+/// has run (design/reclamation.md section 6). The scanned slot then owns
+/// the cached heap pointer, if any. The result slot is always unscanned
+/// because a raw value word can look like a pointer. `Core::Demand`
+/// duplicates the borrowed result when its class is counted.
 const MEMO_HELPERS: &str = r#"
 declare void @exit(i32) noreturn
 
-define void @"__cinch_blackhole"() noreturn {
+define internal void @"__cinch_blackhole"() noreturn {
 entry:
   call void @exit(i32 70)
   unreachable
 }
 
-define i64 @"__cinch_demand"(i64 %cell) {
+define internal i64 @"__cinch_demand"(i64 %cell, i1 %counted) {
 entry:
   %p = inttoptr i64 %cell to ptr
   %sp = getelementptr inbounds i8, ptr %p, i64 0
   %state = load i64, ptr %sp
   switch i64 %state, label %bad [ i64 0, label %eval i64 2, label %done ]
 eval:
-  store i64 1, ptr %sp
   %tp = getelementptr inbounds i8, ptr %p, i64 8
   %thunk = load i64, ptr %tp
+  %uninitialized = icmp eq i64 %thunk, 0
+  br i1 %uninitialized, label %bad, label %force
+force:
+  store i64 1, ptr %sp
   store i64 0, ptr %tp
   %argv = alloca i64, i64 1
   store i64 0, ptr %argv
   %v = call i64 @__apply(i64 %thunk, i64 1, ptr %argv)
+  %tag = and i64 %v, 1
+  %even = icmp eq i64 %tag, 0
+  %owns = and i1 %counted, %even
+  %owned = select i1 %owns, i64 %v, i64 0
+  store i64 %owned, ptr %tp
   %vp = getelementptr inbounds i8, ptr %p, i64 16
   store i64 %v, ptr %vp
   store i64 2, ptr %sp
@@ -4150,15 +4159,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!("{r} = call i64 @__apply(i64 %p0, i64 0, ptr {argv})"));
             ret(b, &r);
         }
-        Demand => {
-            let r = b.reg();
-            b.line(&format!(
-                "{r} = call i64 @{}(i64 %p0)",
-                quote("__cinch_demand")
-            ));
-            ret(b, &r);
-        }
-
         Bound { ty, max } => {
             let w = if max { max_word(ty) } else { min_word(ty) };
             ret(b, &w.to_string());
@@ -6234,14 +6234,12 @@ impl CoreEmitter<'_, '_> {
                 Ok(r)
             }
             Core::Demand(cell, class) => {
-                // The cell keeps its reference to the cached value (its
-                // value slot is uncounted until S8 tears memo groups
-                // down), so the demand hands out a second one.
                 let v = self.emit_expr(cell)?;
                 let r = self.b.reg();
                 self.b.line(&format!(
-                    "{r} = call i64 @{}(i64 {v})",
-                    quote("__cinch_demand")
+                    "{r} = call i64 @{}(i64 {v}, i1 {})",
+                    quote("__cinch_demand"),
+                    q_counted(*class) != 0,
                 ));
                 rc_op(self.b, self.reg.rc_debug, false, &r, *class);
                 Ok(r)
@@ -6295,7 +6293,7 @@ impl CoreEmitter<'_, '_> {
                 Ok(r)
             }
             Core::LazyAlloc => {
-                // `{ state; thunk; value }`; the thunk slot is filled by
+                // `{ state; owned; value }`; the owned slot is filled by
                 // `LazyInit`.
                 let c = self.b.reg();
                 self.b.line(&alloc_call(&c, 24, block::KIND_MEMO));

@@ -764,18 +764,26 @@ mod tests {
     }
 
     #[test]
-    fn memo_cells_release_their_thunk_only() {
+    fn memo_cells_scan_the_owned_slot_and_skip_the_untyped_value() {
         let thunk = ctor(NIL, &[]);
         let cell = unsafe { crate::abi::cinch_alloc(24, i64::from(block::KIND_MEMO)) };
         let p = cell as usize as *mut i64;
         unsafe {
-            p.write(2);
+            p.write(0);
             p.add(1).write(thunk);
-            // The value has no class at the kind: an even raw word here
-            // must not be touched.
             p.add(2).write(0x10);
         }
         assert_eq!(freed_by(|| unsafe { cinch_drop(cell) }), vec![thunk as usize, cell as usize]);
+
+        let value = ctor(NIL, &[]);
+        let cell = unsafe { crate::abi::cinch_alloc(24, i64::from(block::KIND_MEMO)) };
+        let p = cell as usize as *mut i64;
+        unsafe {
+            p.write(2);
+            p.add(1).write(value);
+            p.add(2).write(value);
+        }
+        assert_eq!(freed_by(|| unsafe { cinch_drop(cell) }), vec![value as usize, cell as usize]);
     }
 
     #[test]

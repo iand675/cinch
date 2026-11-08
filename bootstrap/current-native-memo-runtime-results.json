@@ -1,0 +1,54 @@
+{
+  "baseline_native_source_sha256": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834",
+  "baseline_revision": "3f6224fb35400d4343db0d47ab42341b8c9606d3",
+  "compiler_sha256": "8bdc73c41a65c041e11a6b4d8badfe0f3d1684bba9926e73c2a44ca76c063aa8",
+  "controls": [
+    {
+      "after_exit": 0,
+      "after_leaks": 0,
+      "after_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "before_exit": 0,
+      "before_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "tagged-demand-twice",
+      "source_sha256": "cb7aae14988b9e978b43abc7568d7ac38acbbbe6c949e480ef7b834c1bf5c388"
+    },
+    {
+      "after_exit": 0,
+      "after_leaks": 0,
+      "after_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "before_exit": 74,
+      "before_log_sha256": "80baa31e2c4aa33f61b20d632f8fc9457bf981fff915c6dc44985614b1fba594",
+      "name": "boxed-demand-twice",
+      "source_sha256": "149f8d664242729403daccbb6d807fe883c8ab514fb908ce4cd4e5ba242b3aee"
+    },
+    {
+      "after_exit": 0,
+      "after_leaks": 0,
+      "after_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "before_exit": 1,
+      "before_log_sha256": "17f45a4143a7ae7c660bcc34470a11e7223a17b4e911b1846bad51f0662a0a14",
+      "name": "strict-reads-memo",
+      "source_sha256": "ddc45e7e3c2d29ee488989f72c496500e9012f5acda68f0052c6ce88a245b5db"
+    }
+  ],
+  "full_goal_complete": false,
+  "input_sha256": {
+    "compiler/runtime/src/block_kinds.rs": "dfc9dbcbe1b113175f890d6d637803de5498554a7f733c249aa724aa6c8dd7b0",
+    "compiler/runtime/src/eval.rs": "3beb464e99a5b6fa953d8004fee353d895af476c917486155930cc7d0c0a134e",
+    "compiler/runtime/src/rc.rs": "40d5a6f50c4f0e41c28ac6c1d05e0dc75bdb3f6959ab1502f4f91da565e00648",
+    "compiler/src/check_terms.rs": "ee2db8714d504e98996d5e6eb27bca33eb235b407181e294985122fa064ad8e5",
+    "compiler/src/codegen.rs": "bb3b9594871f6f20a3c6cb30e2d264f4ebd32140048e40e7766892e9b02636c4",
+    "compiler/src/core.rs": "da62192970560b691d3be2876dfd8e0b9afd21c4a72645a0a01b54ed1cfd976b",
+    "compiler/tests/integration.rs": "5b1fc9f453c1ef1ff1d9ad682dac7027aa86450ec12e170bb8addab585a2664d"
+  },
+  "integration_log_sha256": "41fb0f5ba0f31e860d9708d468b46a47132255d468814ef346dab68f9145b88b",
+  "integration_tests_passed": 39,
+  "native_source_sha256": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "ccc78cd01aa71b868a24668bb1cf46ab194a938d429480ee2c3b11bb27816801",
+  "runtime_log_sha256": "c99dd03fa3bb8eb932e28d571bba02e02ea00512959f2afa32d6afae9f61f519",
+  "runtime_tests_passed": 171,
+  "scope": "Rust Native compiler and runtime. Full Rust sweep and Cinch memo support are separate gates.",
+  "state_sha256": "a22bc917e5a66d84c64a60f32a3c9934adbb2d8a4fb15e5793c20a5e4b243f0b",
+  "status": "passed-native-memo-runtime-and-integration"
+}

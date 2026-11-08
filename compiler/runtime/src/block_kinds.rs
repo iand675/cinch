@@ -287,23 +287,23 @@ pub const CLOSURE_PREFIX_WORDS: u64 = 3;
 pub const CLOSURE_FILLED_WORD: u64 = 2;
 /// A dictionary's method count word, before its method slots.
 pub const DICT_PREFIX_WORDS: u64 = 1;
-/// A memo cell's thunk word (`{ state; thunk; value }`).
-pub const MEMO_THUNK_WORD: u64 = 1;
+/// A memo cell's owned heap pointer, first the thunk and then any boxed cached value.
+pub const MEMO_OWNED_WORD: u64 = 1;
 /// A quote code block's fixed words (`{ KIND_CODE; code; len; holes }`)
 /// before its hole words.
 pub const CODE_PREFIX_WORDS: u64 = 4;
 
 /// The code of payload word `slot` of a block whose kind fixes its map
-/// (every kind but `kind_has_shape`'s). A memo cell's value and a knot's
-/// value have no class at the kind: they are `SCAN_RAW`, which can only
-/// leak. A quote block's holes are quote blocks.
+/// (every kind but `kind_has_shape`'s). A memo's value word is raw
+/// because its heap pointer, if any, lives in the scanned owned slot.
+/// A knot's value has no class at the kind. A quote block's holes are quote blocks.
 pub const fn fixed_scan_code(kind: u8, slot: u64) -> u64 {
     if kind == KIND_TENSOR {
         SCAN_OBJ
     } else if kind == KIND_COLUMNAR {
         if slot >= 3 { SCAN_OBJ } else { SCAN_RAW }
     } else if kind == KIND_MEMO {
-        if slot == MEMO_THUNK_WORD {
+        if slot == MEMO_OWNED_WORD {
             SCAN_OBJ
         } else {
             SCAN_RAW
