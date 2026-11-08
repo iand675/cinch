@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "63 of 236 complete groups passed; 1 running, 5 failed and 167 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "64 of 236 complete groups passed; 1 running, 5 failed and 166 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "63 of 236 complete groups passed; 1 running, 5 failed and 167 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "64 of 236 complete groups passed; 1 running, 5 failed and 166 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 63,
+          "verified": 64,
           "blocked": 5,
           "running": 1,
-          "pending": 167,
+          "pending": 166,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2545,21 +2545,21 @@
           {
             "id": "native:bootstrap_refinement_constructors",
             "title": "bootstrap_refinement_constructors",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_constructors.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T09:18:24.045025+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T09:29:09.816832+00:00",
+              "exitCode": 0,
+              "logSha256": "bc090cdb0a3097aef82941b47ff15b175fd971582a20c2c6632d9e01b8861584",
               "cases": [
                 {
                   "name": "compiled_cinch_checks_explicit_refinement_proofs_and_payload_identity",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2568,21 +2568,21 @@
           {
             "id": "native:bootstrap_refinement_core",
             "title": "bootstrap_refinement_core",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_core.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:24:50.768043+00:00",
-              "finishedAt": "2026-11-06T21:26:18.037002+00:00",
-              "exitCode": 0,
-              "logSha256": "97285824ab6fe2d1061d8d5f851128adf6c0740732ef98483377b80fd5312259",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T09:29:09.820227+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "refinement_core_rechecks_actual_values_and_contexts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_refinement_constructors",
-        "passed": 63,
+        "phase": "bootstrap_refinement_core",
+        "passed": 64,
         "failed": 5,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20972,19 +20972,29 @@
       {
         "title": "Verify stale mutable proof rejection in the self-hosted checker",
         "status": "running",
-        "phase": "Building stage1.",
+        "phase": "Case write then use.",
         "passed": 2,
         "failed": 0,
         "total": 3,
         "unit": "gates",
         "source": "fc9c1e1a0969a5ef57b25d74d9d7947f8d1ce7d77cd3f727126656f1f9a233a2"
+      },
+      {
+        "title": "Verify the ABI 7 library and mutable object boundary",
+        "status": "waiting-disk-space",
+        "phase": "Waiting disk space. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
+        "passed": 2,
+        "failed": 0,
+        "total": 10,
+        "unit": "gates",
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
       }
     ],
     "counts": {
-      "verified": 373,
+      "verified": 374,
       "blocked": 16,
       "running": 11,
-      "pending": 174,
+      "pending": 173,
       "recheck": 101
     },
     "total": 675,
@@ -20993,5 +21003,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:29:06.440939+00:00"
+  "updatedAt": "2026-11-08T09:29:55.573404+00:00"
 }
