@@ -281,7 +281,8 @@ def build_checklist(root, cfg, previous=None):
         '235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.',
         observedCounts=dict(collections.Counter(r.get('status') for r in earlier_full.get('rows', []))), observedSource=earlier_full.get('compiler_source_sha256')),
         suite('stage3', 'Cinch-built compiler suite', 'targets', front_rows,
-        'All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.',
+        (f"All 100 original targets plus five additions: {len(scope['portable_targets'])} portable targets "
+         f"and {len(scope['interface_api_targets'])} interface/API groups."),
         observedCounts=dict(collections.Counter(r.get('status') for r in front.get('rows', []))), observedSource=front.get('compiler_source_sha256'))]
 
     auxiliary = read(cfg['auxiliary'])
