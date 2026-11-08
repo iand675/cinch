@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "3f6224fb35400d4343db0d47ab42341b8c9606d3",
+  "commit": "6cd57e196295edfb91aa0e9a58183f477e0cef78",
   "status": "Integrated ABI 7 verification",
   "stages": [
     {
@@ -510,11 +510,11 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+  "candidateSource": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "11/105 Stage 3 targets verified on the published compiler. 28/236 Rust targets and 35/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "summary": "The published memo compiler has a verified fixed point. Exact full suites and frontend parity are in progress.",
+  "activity": "0/105 Stage 3 targets verified and 0/236 Rust targets verified on the published memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -526,12 +526,12 @@
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
         "state": "verified",
-        "detail": "Pinned seed and runnable Stage 1 audited on these Cinch sources.",
+        "detail": "Pinned seed and Stage 1 passed all stage smoke checks.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-erased-arguments-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
           "cases": []
         }
       },
@@ -539,12 +539,12 @@
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
         "state": "verified",
-        "detail": "The matching Stage 1 rebuilt and linked Stage 2 with all 46 compiler interfaces.",
+        "detail": "Stage 1 rebuilt the memo compiler with all 46 compiler interfaces.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage2-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
           "cases": []
         }
       },
@@ -552,12 +552,12 @@
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
         "state": "verified",
-        "detail": "Stage 2 and Stage 3 agreement and executable smokes audited.",
+        "detail": "Stages 2 and 3 match in executable bytes, LLVM IR and all 46 compiler interfaces.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
           "cases": []
         }
       },
@@ -565,12 +565,12 @@
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
         "state": "verified",
-        "detail": "The changed-source rebuild produced the expected diagnostic.",
+        "detail": "The compiler rebuilt from changed source produced the expected diagnostic.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
           "cases": []
         }
       },
@@ -17927,7 +17927,29 @@
     ],
     "active": [
       {
-        "title": "Run all 105 Stage 3 targets on the published compiler",
+        "title": "Run all 236 Rust targets on the published memo revision",
+        "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+        "unit": "targets",
+        "passed": 0,
+        "total": 236,
+        "failed": 0,
+        "status": "running",
+        "phase": "clean-native-build",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
+      },
+      {
+        "title": "Run all 105 Stage 3 targets on the published memo revision",
+        "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+        "unit": "targets",
+        "passed": 0,
+        "total": 105,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
+      },
+      {
+        "title": "Run all 105 Stage 3 targets on the preceding Cinch revision",
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
         "unit": "targets",
         "passed": 11,
@@ -17938,7 +17960,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
-        "title": "Run all 236 targets on the published Rust compiler",
+        "title": "Run all 236 Rust targets on the preceding Rust memo revision",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
         "passed": 13,
@@ -20645,7 +20667,7 @@
         "total": 6,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
         "title": "Replay the three original guarded Later tests",
@@ -20771,5 +20793,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:56:27.784054+00:00"
+  "updatedAt": "2026-11-08T21:59:32.461314+00:00"
 }
