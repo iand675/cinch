@@ -1011,7 +1011,7 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (substitute pairs body)
     UPropNonZero body -> UPropNonZero (substitute pairs body)
     UPropNotNull body -> UPropNotNull (substitute pairs body)
-    UPropNonZeroPending body -> UPropNonZeroPending (substitute pairs body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (substitute pairs body)
     URequire predicates body -> URequire (substitute pairs predicates) (substitute pairs body)
     URefine id name carrier predicate -> substitute-refinement False pairs id name carrier predicate
     UIndexForget value -> UIndexForget (substitute pairs value)
@@ -1068,7 +1068,7 @@ module Bootstrap.Type where
     UPropNot body -> UPropNot (replace-metas pairs body)
     UPropNonZero body -> UPropNonZero (replace-metas pairs body)
     UPropNotNull body -> UPropNotNull (replace-metas pairs body)
-    UPropNonZeroPending body -> UPropNonZeroPending (replace-metas pairs body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (replace-metas pairs body)
     URequire predicates body -> URequire (replace-metas pairs predicates) (replace-metas pairs body)
     URefine id name carrier predicate -> substitute-refinement True pairs id name carrier predicate
     UIndexForget value -> UIndexForget (replace-metas pairs value)

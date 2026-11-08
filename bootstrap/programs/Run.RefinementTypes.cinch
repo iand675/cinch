@@ -44,11 +44,18 @@ module Main where
     let (element, opened) = fresh-meta KType first in
     let unified = unify sp (UApp wanted element) actual opened in
     let codec = case value-carrier (value-kind actual) of Some decoded -> good actual decoded; None -> False in
+    let a = UBound formal "a" KType in
+    let nonzero = URefine binder "n" a (UPropNonZeroPending (UIndex a (IBound binder "n"))) in
+    let divisor = UApp (URefineFormer (interface-global "Algebra.Arithmetic.NonZero") [formal] nonzero) nat in
+    let gamma = make-proof-scope Nil Nil in
+    let admits-two = case scoped-prove-refinement gamma Nil divisor (CInt sp nat "2") of Some evidence -> True; None -> False in
+    let refuses-zero = case scoped-prove-refinement gamma Nil divisor (CInt sp nat "0") of Some evidence -> False; None -> True in
     [ valid-type former, good former renamed, bad former forged
     , succeeds unified && good (normalize unified wanted) former && good (normalize unified element) nat
     , good actual (substitute-bound [(formal, nat)] body)
     , not (valid-type (URefineFormer identity [formal + 1] body))
     , codec
+    , admits-two, refuses-zero
     ]
   checks :: Nat -> List Bool
   checks nonce =
