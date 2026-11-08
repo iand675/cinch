@@ -12972,6 +12972,10 @@
               "cases": [
                 {
                   "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
                   "status": "running"
                 }
               ]
@@ -20269,5 +20273,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:27:27.187256+00:00"
+  "updatedAt": "2026-11-08T02:30:09.776831+00:00"
 }
