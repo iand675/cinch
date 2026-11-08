@@ -18,33 +18,35 @@
 
 mod common;
 
-use cinch::driver::{check_sources, run_source};
+use cinch::driver::Mode;
 use std::path::Path;
 use std::process::{Command, Output};
 
 fn expect_checks(name: &str, src: &str) {
-    if let Err(e) = check_sources(src, "<test>") {
+    let dir = common::project("caseev_check", &[("Main.cinch", src)]);
+    if let Err(e) = common::check(&dir, "Main.cinch") {
         panic!("{name}: expected the program to check, but it failed: {e}");
     }
+    common::cleanup(&dir);
 }
 
 fn expect_err(name: &str, src: &str, needles: &[&str]) {
-    match check_sources(src, "<test>") {
-        Ok(_) => panic!("{name}: expected an error containing {needles:?}, but the program checked"),
-        Err(e) => {
-            let msg = e.to_string();
-            for n in needles {
-                assert!(msg.contains(n), "{name}: error {msg:?} does not contain {n:?}");
-            }
-        }
+    let dir = common::project("caseev_refusal", &[("Main.cinch", src)]);
+    let message = common::check(&dir, "Main.cinch")
+        .expect_err(&format!("{name}: expected an error containing {needles:?}, but the program checked"));
+    for needle in needles {
+        assert!(message.contains(needle), "{name}: error {message:?} does not contain {needle:?}");
     }
+    common::cleanup(&dir);
 }
 
 fn expect_run(name: &str, src: &str, expected: i32) {
-    match run_source(src) {
+    let dir = common::project("caseev_run", &[("Main.cinch", src)]);
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
+    common::cleanup(&dir);
 }
 
 /// Obligation-bearing functions the programs below call: a refined
