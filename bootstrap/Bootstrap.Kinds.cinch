@@ -9,17 +9,32 @@ module Bootstrap.Kinds where
   export type-well-formed, kind-well-formed, scheme-well-formed, scheme-type-scope
   export nominal-kinds-closed, add-rigid-kind
   export proper-type, argument-well-formed
+  export borrow-scope-conflict, open-memo-region, in-memo-region
 
   data TypeScope where
-    MkTypeScope :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Scheme) -> TypeScope
+    MkTypeScope :: List (Nat, Kind) -> List (Nat, Kind) -> List (Nat, Scheme) -> List Nat -> TypeScope
   empty-type-scope :: TypeScope
-  empty-type-scope = MkTypeScope Nil Nil Nil
+  empty-type-scope = MkTypeScope Nil Nil Nil Nil
   scope-bound :: TypeScope -> List (Nat, Kind)
-  scope-bound scope = case scope of MkTypeScope bound rigid locals -> bound
+  scope-bound scope = case scope of MkTypeScope bound rigid locals memos -> bound
   scope-rigid :: TypeScope -> List (Nat, Kind)
-  scope-rigid scope = case scope of MkTypeScope bound rigid locals -> rigid
+  scope-rigid scope = case scope of MkTypeScope bound rigid locals memos -> rigid
   scope-locals :: TypeScope -> List (Nat, Scheme)
-  scope-locals scope = case scope of MkTypeScope bound rigid locals -> locals
+  scope-locals scope = case scope of MkTypeScope bound rigid locals memos -> locals
+  scope-memos :: TypeScope -> List Nat
+  scope-memos scope = case scope of MkTypeScope bound rigid locals memos -> memos
+  open-memo-region :: Nat -> TypeScope -> Option TypeScope
+  open-memo-region id scope = case add-rigid-kind id KRegion scope of
+    Some (MkTypeScope bound rigid locals memos) -> Some (MkTypeScope bound rigid locals (Cons id memos))
+    None -> None
+  in-memo-region :: UType -> TypeScope -> Bool
+  in-memo-region region scope = case region of
+    URigid id name level KRegion -> has-memo-id id (scope-memos scope)
+    other -> False
+  has-memo-id :: Nat -> List Nat -> Bool
+  has-memo-id id memos = case memos of
+    Nil -> False
+    Cons first rest -> first == id || has-memo-id id rest
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   lookup-id :: Nat -> List (Nat, Kind) -> Option Kind
@@ -31,22 +46,32 @@ module Bootstrap.Kinds where
   add-rigid-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
   add-rigid-kind id kind scope = case lookup-id id (scope-rigid scope) of
     Some prior -> None
-    None -> (case lookup-local id (scope-locals scope) of Some prior -> None; None -> Some (MkTypeScope (scope-bound scope) (Cons (id, kind) (scope-rigid scope)) (scope-locals scope)))
+    None -> (case lookup-local id (scope-locals scope) of Some prior -> None; None -> Some (MkTypeScope (scope-bound scope) (Cons (id, kind) (scope-rigid scope)) (scope-locals scope) (scope-memos scope)))
   add-bound-kind :: Nat -> Kind -> TypeScope -> Option TypeScope
   add-bound-kind id kind scope = case lookup-id id (scope-bound scope) of
     Some prior -> None
-    None -> Some (MkTypeScope (Cons (id, kind) (scope-bound scope)) (scope-rigid scope) (scope-locals scope))
+    None -> Some (MkTypeScope (Cons (id, kind) (scope-bound scope)) (scope-rigid scope) (scope-locals scope) (scope-memos scope))
   lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
   lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if id == key then Some sc else lookup-local id rest
   add-local-scheme :: Nat -> Scheme -> TypeScope -> Option TypeScope
   add-local-scheme id sc scope = case (lookup-id id (scope-rigid scope), lookup-local id (scope-locals scope)) of
-    (None, None) -> Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, sc) (scope-locals scope)))
+    (None, None) -> if borrow-scope-conflict scope (scheme-body sc) then None
+      else Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, sc) (scope-locals scope)) (scope-memos scope))
     other -> None
+  borrow-scope-conflict :: TypeScope -> UType -> Bool
+  borrow-scope-conflict scope ty = case borrow-regions ty of
+    Nil -> False
+    loans -> borrow-local-conflict loans (scope-locals scope)
+  borrow-local-conflict :: List (Bool, UType) -> List (Nat, Scheme) -> Bool
+  borrow-local-conflict loans locals = case locals of
+    Nil -> False
+    Cons (id, scheme) rest ->
+      borrow-region-conflict loans (borrow-regions (scheme-body scheme)) || borrow-local-conflict loans rest
   -- A forall value has both its actual rigid index kind and a term binding
   -- at that kind's carrier. Ordinary locals still cannot shadow rigid ids.
   add-value-parameter :: Nat -> UType -> TypeScope -> Option TypeScope
   add-value-parameter id carrier scope = case (lookup-id id (scope-rigid scope), lookup-local id (scope-locals scope)) of
-    (Some kind, None) -> if kind-equal kind (value-kind carrier) then Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, mono carrier) (scope-locals scope))) else None
+    (Some kind, None) -> if kind-equal kind (value-kind carrier) then Some (MkTypeScope (scope-bound scope) (scope-rigid scope) (Cons (id, mono carrier) (scope-locals scope)) (scope-memos scope)) else None
     other -> None
   highest :: Nat -> Nat -> Nat
   highest a b = if a > b then a else b

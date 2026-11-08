@@ -496,6 +496,65 @@ module Bootstrap.Resolve where
         (others, names, more) -> (EBinding s name body others, names, errors <> more)
     other -> (bs, locals, fail (expr-span bs) "malformed lexical binding spine")
 
+  group-binding-sites :: Expr -> List (Span, String)
+  group-binding-sites bindings = case bindings of
+    ELocalStrict sp pattern value rest -> group-pattern-sites sp (pattern-names pattern) (group-binding-sites rest)
+    ELocalMemo sp name value rest -> Cons (sp, name) (group-binding-sites rest)
+    ELocalSignature sp name ty rest -> group-binding-sites rest
+    other -> Nil
+  group-pattern-sites :: Span -> List String -> List (Span, String) -> List (Span, String)
+  group-pattern-sites sp names rest = case names of
+    Nil -> rest
+    Cons name more -> Cons (sp, name) (group-pattern-sites sp more rest)
+  group-site-name :: (Span, String) -> String
+  group-site-name (sp, name) = name
+  group-memo-names :: Expr -> List String
+  group-memo-names bindings = case bindings of
+    ELocalMemo sp name value rest -> Cons name (group-memo-names rest)
+    ELocalStrict sp pattern value rest -> group-memo-names rest
+    ELocalSignature sp name ty rest -> group-memo-names rest
+    other -> Nil
+  group-signature-sites :: Expr -> List (Span, String)
+  group-signature-sites bindings = case bindings of
+    ELocalSignature sp name ty rest -> Cons (sp, name) (group-signature-sites rest)
+    ELocalMemo sp name value rest -> group-signature-sites rest
+    ELocalStrict sp pattern value rest -> group-signature-sites rest
+    other -> Nil
+  duplicate-group-sites :: String -> List String -> List (Span, String) -> List Diagnostic
+  duplicate-group-sites description seen sites = case sites of
+    Nil -> Nil
+    Cons (sp, name) rest -> let more = duplicate-group-sites description (Cons name seen) rest in
+      if has-name name seen then fail sp (cat ["duplicate local ", description, " ", name]) <> more else more
+  orphan-group-signatures :: List String -> List (Span, String) -> List Diagnostic
+  orphan-group-signatures declared sites = case sites of
+    Nil -> Nil
+    Cons (sp, name) rest -> let more = orphan-group-signatures declared rest in
+      if has-name name declared then more else fail sp (cat ["local signature has no binding for ", name]) <> more
+  rename-group-bindings :: List Binding -> List String -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-group-bindings visible strict all bindings = case bindings of
+    ELocalEnd sp -> (bindings, Nil)
+    ELocalStrict sp pattern value rest -> (case rename-pat visible pattern of
+      (renamed-pattern, errors) -> (case rename-expr visible strict value of
+        (renamed-value, more) -> (case rename-group-bindings visible (pattern-names pattern <> strict) all rest of
+          (renamed-rest, others) -> (ELocalStrict sp renamed-pattern renamed-value renamed-rest, errors <> more <> others))))
+    ELocalMemo sp name value rest -> (case rename-expr visible all value of
+      (renamed, errors) -> (case rename-group-bindings visible strict all rest of
+        (more, others) -> (ELocalMemo sp name renamed more, errors <> others)))
+    ELocalSignature sp name ty rest -> (case rename-group-bindings visible strict all rest of
+      (more, errors) -> (ELocalSignature sp name (rename-type visible all ty) more, errors))
+    other -> (bindings, fail (expr-span bindings) "malformed local group")
+  rename-local-group :: List Binding -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
+  rename-local-group visible locals sp bindings body =
+    let sites = group-binding-sites bindings in
+    let declared = map group-site-name sites in
+    let signatures = group-signature-sites bindings in
+    let all = declared <> locals in
+    let errors = (duplicate-group-sites "binding" Nil sites <> duplicate-group-sites "signature" Nil signatures
+      <> orphan-group-signatures declared signatures) in
+    (case rename-group-bindings visible (group-memo-names bindings <> locals) all bindings of
+      (renamed, more) -> (case rename-expr visible all body of
+        (value, others) -> (ELocalGroup sp renamed value, errors <> more <> others)))
+
   rename-alts :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-alts visible locals alts = case alts of
     EAltsEnd s -> (alts, Nil)
@@ -609,6 +668,7 @@ module Bootstrap.Resolve where
     ELet s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
         (rhs, more) -> (ELet s bindings rhs, errors <> more)
+    ELocalGroup sp bindings body -> rename-local-group visible locals sp bindings body
     EDo sp statements -> (case rename-do visible locals statements of (renamed, errors) -> (EDo sp renamed, errors))
     EWith s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
@@ -698,12 +758,12 @@ module Bootstrap.Resolve where
       (Cons (DOpaque s (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) kind)) Nil, Nil)
     DData s name params ctors -> if has-name name ["Array", "Tensor", "Columnar"] then (Nil, fail s "a builtin array primitive cannot be redefined")
-      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DData s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ctors)) Nil, Nil)
     DRecord s name params fields -> if has-name name ["Array", "Tensor", "Columnar"] then
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
-      else if has-name name ["Ref", "Mut", "Thunk"] then (Nil, fail s "a builtin ownership type cannot be redefined")
+      else if has-name name ["Ref", "Mut", "Thunk", "Lazy"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
     DClass s name params members ->

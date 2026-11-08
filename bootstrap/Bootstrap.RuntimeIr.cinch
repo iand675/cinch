@@ -46,6 +46,7 @@ module Bootstrap.RuntimeIr where
     DictionaryDemand :: String -> List Nat -> Demand
     ArrayDemand :: String -> List Nat -> Demand
     BuiltinDemand :: String -> Demand
+    MemoWorker :: Demand
     ExternalDemand :: RuntimeUnit -> Demand
     ForeignDemand :: ForeignPlan -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
@@ -242,7 +243,9 @@ module Bootstrap.RuntimeIr where
     Some place -> Some 1
     None -> case borrowed-carrier (base ty) of
       Some carrier -> word-class context carrier
-      None -> case thunk-parts (base ty) of Some parts -> Some 1; None -> value-word-class context ty
+      None -> case (thunk-parts (base ty), lazy-parts (base ty)) of
+        (None, None) -> value-word-class context ty
+        other -> Some 1
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -362,6 +365,7 @@ module Bootstrap.RuntimeIr where
     DictionaryDemand name classes -> dictionary-name name classes
     ArrayDemand name classes -> array-symbol name classes
     BuiltinDemand name -> name
+    MemoWorker -> "runtime:memo"
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
     ForeignDemand plan -> cat ["foreign:", foreign-symbol plan]
   request-demand :: Demand -> Writer -> Writer
@@ -640,6 +644,7 @@ module Bootstrap.RuntimeIr where
     CErasedApply sp ty row f x -> CErasedApply sp ty row (specialize-local id scheme value f) (specialize-local id scheme value x)
     CDecision sp ty predicate condition -> CDecision sp ty predicate (specialize-local id scheme value condition)
     CScope sp ty region evidence callback -> CScope sp ty region evidence (specialize-local id scheme value callback)
+    CMemoScope sp ty region body -> CMemoScope sp ty region (specialize-local id scheme value body)
     CSpawn sp ty token body -> CSpawn sp ty (specialize-local id scheme value token) (specialize-local id scheme value body)
     CJoin sp ty token body -> CJoin sp ty (specialize-local id scheme value token) (specialize-local id scheme value body)
     CWith sp ty given rhs body -> CWith sp ty given (specialize-local id scheme value rhs) (specialize-local id scheme value body)
@@ -848,6 +853,7 @@ module Bootstrap.RuntimeIr where
       (ready, values) -> call-name definitions locals ready sp name actuals values Nil
     CMethod sp ty name owner slot actuals evidence -> method-value definitions locals w sp ty name owner slot actuals evidence
     CScope sp ty region evidence callback -> scope-expression definitions locals w sp evidence callback
+    CMemoScope sp ty region body -> memo-scope definitions locals (request-demand MemoWorker w) body
     CSpawn sp ty token body -> if task-result-abi w then (case expressions definitions locals w [token, body] of (ready, [scope, closure]) -> call ready "@cinch_task_spawn" [scope, closure]; other -> unsupported w sp "malformed task spawn") else unsupported w sp "tasks require the canonical checked Result error/success ABI"
     CJoin sp ty token body -> if task-result-abi w then join-expression definitions locals w sp ty token body else unsupported w sp "tasks require the canonical checked Result error/success ABI"
     CWith sp ty given value body -> case expression definitions locals w value of
@@ -1547,6 +1553,7 @@ module Bootstrap.RuntimeIr where
     CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
     CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
     CScope sp ty region evidence callback -> term-value-dependencies w owner key seen callback
+    CMemoScope sp ty region body -> term-value-dependencies w owner key seen body
     CSpawn sp ty token body -> merge-value-fields (term-value-dependencies w owner key seen token) (term-value-dependencies w owner key seen body)
     CJoin sp ty token body -> merge-value-fields (term-value-dependencies w owner key seen token) (term-value-dependencies w owner key seen body)
     CWith sp ty given value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
@@ -1830,6 +1837,7 @@ module Bootstrap.RuntimeIr where
     CApply sp ty first second -> term-uses id first || term-uses id second
     CApplyEff sp ty row first second -> term-uses id first || term-uses id second
     CScope sp ty region evidence callback -> term-uses id callback
+    CMemoScope sp ty region body -> term-uses id body
     CSpawn sp ty token body -> term-uses id token || term-uses id body
     CJoin sp ty token body -> term-uses id token || term-uses id body
     CWith sp ty given value body -> term-uses id value || term-uses id body
@@ -1868,6 +1876,7 @@ module Bootstrap.RuntimeIr where
     CLambda sp ty pattern body -> given-uses name body
     CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
     CScope sp ty region evidence callback -> evidence-uses name evidence || given-uses name callback
+    CMemoScope sp ty region body -> given-uses name body
     CSpawn sp ty token body -> given-uses name token || given-uses name body
     CJoin sp ty token body -> given-uses name token || given-uses name body
     CWith sp ty given value body -> given-uses name value || (not (same name (given-symbol given)) && given-uses name body)
@@ -2160,9 +2169,36 @@ module Bootstrap.RuntimeIr where
   guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   guarded-expression definitions locals w failed term = case term of
     CRequire sp ty body -> guarded-expression definitions locals w failed body
-    CGuard sp ty condition body -> case expression definitions locals w condition of
-      (ready, value) -> guarded-expression definitions locals (continue-if ready value failed) failed body
+    CGuard sp ty condition body -> if core-alternative-covers term then guarded-expression definitions locals w failed body
+      else (case expression definitions locals w condition of
+        (ready, value) -> guarded-expression definitions locals (continue-if ready value failed) failed body)
+    CLet sp ty id name sc rhs body -> if row-guarded body then guarded-let definitions locals w failed sp id sc rhs body
+      else expression definitions locals w term
     other -> expression definitions locals w term
+  row-guarded :: CoreTerm -> Bool
+  row-guarded term = case term of
+    CLet sp ty id name sc rhs body -> row-guarded body
+    CRequire sp ty body -> row-guarded body
+    CGuard sp ty condition body -> True
+    other -> False
+  guarded-let :: List CoreDefinition -> List Local -> Writer -> String -> Span -> Nat -> Scheme -> CoreTerm -> CoreTerm -> (Writer, String)
+  guarded-let definitions locals w failed sp id sc rhs body = case scheme-params sc of
+    Nil -> if scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+      (case expression definitions locals w rhs of
+        (bound, value) ->
+          let bound-locals = Cons (Local id (scheme-body sc) value) locals in
+          let release = count-op False (scheme-body sc) value in
+          if core-alternative-covers body then (case guarded-expression definitions bound-locals bound failed body of
+            (done, result) -> (release done, result))
+          else let (one, cleanup) = fresh bound "guardcleanup" in
+            let (two, next) = fresh one "guardpassed" in
+            let (done, result) = guarded-expression definitions bound-locals two cleanup body in
+            let missed = line (line (release done) (cat ["  br label %", next])) (cat [cleanup, ":"]) in
+            (line (line (release missed) (cat ["  br label %", failed])) (cat [next, ":"]), result))
+      else unsupported w sp "guarded where binding needs a runtime word"
+    other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
+      guarded-expression definitions locals w failed (specialize-local id sc rhs body)
+      else unsupported w sp "guarded where binding needs runtime specialization"
   case-value :: List CoreDefinition -> List Local -> Writer -> UType -> String -> CoreTerm -> (Writer, String)
   case-value definitions locals w ty value alternatives =
     let (one, slot) = fresh w "%slot" in
@@ -2199,7 +2235,8 @@ module Bootstrap.RuntimeIr where
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
-      else if same op "thunk-delay" then expression definitions locals w input
+      else if same op "memo-demand" then memo-demand definitions locals w sp ty input
+      else if same op "borrow" || same op "thunk-delay" then expression definitions locals w input
       else if same op "thunk-force" then (case expression definitions locals w input of
         (ready, closure-word) -> apply-one ready closure-word "0")
       else if same op "mut-borrow" then (case expression definitions locals w input of
@@ -2216,6 +2253,7 @@ module Bootstrap.RuntimeIr where
               (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", frame, " to ptr"])) pointer slot of
                 (loaded, field) -> (count-op False (core-type first) frame (count-op True ty field loaded), field))
           other -> unsupported w sp "handler field has no checked slot")
+      else if same op "memo-init" then memo-init definitions locals w sp first second
       else if same op "ref-set" then write-borrow-word definitions locals w sp first second
       else if number (core-type first) then binary definitions locals w sp op first second
       else if (same op "==" || same op "/=") && scalar (core-type first) then
@@ -2225,6 +2263,49 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "primitive carrier needs runtime lowering"
     CArgumentsEnd end -> if same op "decision-true" then (w, "1") else if same op "decision-false" then (w, "0") else unsupported w sp "nullary primitive needs runtime lowering"
     other -> unsupported w sp "primitive arity needs runtime lowering"
+  -- The leading lets hold the group's cells until the continuation exits.
+  -- Clear their scanned slot in reverse allocation order, breaking cycles
+  -- between unforced closures before dropping the owning cell references.
+  memo-scope :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
+  memo-scope definitions locals w term = case term of
+    CLet sp ty id name sc (CPrimitive at cell op (CArgumentsEnd end)) body ->
+      if same op "memo-alloc" then
+        (case call w "@cinch_alloc" ["24", "4"] of
+          (allocated, word) -> case memo-scope definitions (Cons (Local id cell word) locals) allocated body of
+            (done, result) -> let (one, pointer) = fresh done "%ptr" in
+              let pointed = line one (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"]) in
+              (case load-word pointed pointer "1" of
+                (loaded, owned) -> let cleared = store-fields loaded pointer 1 ["0"] in
+                  let released = line cleared (cat ["  call void @cinch_drop(i64 ", owned, ")"]) in
+                  (count-op False cell word released, result)))
+      else expression definitions locals w term
+    other -> expression definitions locals w term
+  memo-init :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  memo-init definitions locals w sp cell callback = case expressions definitions locals w [cell, callback] of
+    (ready, [word, closure]) -> let (one, pointer) = fresh ready "%ptr" in
+      let pointed = line one (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"]) in
+      (count-op False (core-type cell) word (store-fields pointed pointer 1 [closure]), "0")
+    other -> unsupported w sp "memo initialization needs a cell and a closure"
+  memo-demand :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> (Writer, String)
+  memo-demand definitions locals w sp result cell = case word-class (writer-context w) result of
+    None -> unsupported w sp "memo demand needs a checked result representation"
+    Some code -> case expression definitions locals (request-demand MemoWorker w) cell of
+      (ready, word) -> case call ready "@cinch.typed.memo.demand" [word, if code == 0 then "0" else "1"] of
+        (loaded, value) -> (count-op False (core-type cell) word (count-op True result value loaded), value)
+  memo-worker :: Writer -> Writer
+  memo-worker w = global w (cat [
+    "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
+    "define internal i64 @cinch.typed.memo.demand(i64 %cell, i64 %counted) {\nentry:\n",
+    "  %p = inttoptr i64 %cell to ptr\n  %owned = getelementptr i64, ptr %p, i64 1\n  %cache = getelementptr i64, ptr %p, i64 2\n",
+    "  %state = load i64, ptr %p\n  switch i64 %state, label %bad [ i64 0, label %eval i64 2, label %done ]\n",
+    "eval:\n  %thunk = load i64, ptr %owned\n  %empty = icmp eq i64 %thunk, 0\n  br i1 %empty, label %bad, label %force\n",
+    "force:\n  store i64 1, ptr %p\n  store i64 0, ptr %owned\n  %argv = alloca i64\n  store i64 0, ptr %argv\n",
+    "  %value = call i64 @__apply(i64 %thunk, i64 1, ptr %argv)\n",
+    "  %tag = and i64 %value, 1\n  %even = icmp eq i64 %tag, 0\n  %heap = icmp ne i64 %counted, 0\n",
+    "  %keep = and i1 %heap, %even\n  %child = select i1 %keep, i64 %value, i64 0\n  store i64 %child, ptr %owned\n",
+    "  store i64 %value, ptr %cache\n  store i64 2, ptr %p\n  ret i64 %value\n",
+    "done:\n  %cached = load i64, ptr %cache\n  ret i64 %cached\n",
+    "bad:\n  call void @cinch_blackhole()\n  unreachable\n}\n"])
   copy-out-word :: List CoreDefinition -> List Local -> Writer -> UType -> CoreTerm -> (Writer, String)
   copy-out-word definitions locals w ty input = case mutable-borrow (core-type input) of
     None -> expression definitions locals w input
@@ -2389,6 +2470,7 @@ module Bootstrap.RuntimeIr where
           DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
           ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
           BuiltinDemand name -> workers definitions (builtin-worker name claimed)
+          MemoWorker -> workers definitions (memo-worker claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
   declarations :: String

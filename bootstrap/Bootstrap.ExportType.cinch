@@ -12,6 +12,7 @@ module Bootstrap.ExportType where
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
   export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
   export export-resolved-value-scheme
+  export diagnostic-member-name
 
   join :: List (Result String String) -> Result String String
   join parts = case parts of
@@ -50,6 +51,16 @@ module Bootstrap.ExportType where
       else if same name "b.Io" then Ok "Io" else if same name "b.Dec" then Ok "Dec" else if same name "b.Fin" then Ok "Fin" else if same name "b.Scope" then Ok "Scope" else if same name "b.Task" then Ok "Task"
       else if char-code dot == 46 && char-code prefix == 98 then Err "unported kernel defining identity" else Ok name
     other -> Ok name
+
+  -- Linkage identities stay encoded. Diagnostics use the source spelling.
+  diagnostic-member-name :: String -> String
+  diagnostic-member-name symbol = case export-global symbol of
+    Ok name -> pack (diagnostic-member-chars (unpack name) Nil)
+    Err message -> symbol
+  diagnostic-member-chars :: List Char -> List Char -> List Char
+  diagnostic-member-chars input seen = case input of
+    Nil -> reverse seen
+    Cons c rest -> diagnostic-member-chars rest (if char-code c == 46 then Nil else Cons c seen)
 
   local :: Nat -> List (Nat, String) -> Result String String
   local id scope = case scope of
@@ -311,8 +322,13 @@ module Bootstrap.ExportType where
       Some (row, result) -> case row-in scope row of
         Err error -> Err error
         Ok effects -> join [Ok "(Thunk ", Ok (if same effects "" then "{}" else effects), Ok " ", type-in-style display scope result, Ok ")"]
-      None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
-        join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
+      None -> (case lazy-parts ty of
+        Some (row, region, result) -> (case row-in scope row of
+          Err error -> Err error
+          Ok effects -> join [Ok "(Lazy ", Ok (if same effects "" then "{}" else effects), Ok " ",
+            type-in-style display scope region, Ok " ", type-in-style display scope result, Ok ")"])
+        None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
+          join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"])
     UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
     UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
     UUsageArrow usage arrow -> case usage-arrow-prefix display False scope 0 usage arrow of

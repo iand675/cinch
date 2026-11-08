@@ -187,6 +187,10 @@ module Bootstrap.Contracts where
     ENeg s x -> expr-references x
     ELam s ps body -> patterns-references ps <> expr-references body
     ELet s bs body -> expr-references bs <> expr-references body
+    ELocalGroup sp bindings body -> expr-references bindings <> expr-references body
+    ELocalStrict sp pattern value rest -> pat-references pattern <> expr-references value <> expr-references rest
+    ELocalMemo sp name value rest -> expr-references value <> expr-references rest
+    ELocalSignature sp name ty rest -> type-references ty <> expr-references rest
     EIf s c a b -> expr-references c <> expr-references a <> expr-references b
     ECase s value alts -> expr-references value <> expr-references alts
     EGuarded s guard body -> expr-references guard <> expr-references body

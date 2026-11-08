@@ -267,6 +267,11 @@ module Bootstrap.Ast where
     ENeg :: Span -> Expr -> Expr
     ELam :: Span -> List Pat -> Expr -> Expr
     ELet :: Span -> Expr -> Expr -> Expr
+    ELocalGroup :: Span -> Expr -> Expr -> Expr
+    ELocalStrict :: Span -> Pat -> Expr -> Expr -> Expr
+    ELocalSignature :: Span -> String -> TypeExpr -> Expr -> Expr
+    ELocalMemo :: Span -> String -> Expr -> Expr -> Expr
+    ELocalEnd :: Span -> Expr
     EIf :: Span -> Expr -> Expr -> Expr -> Expr
     ECase :: Span -> Expr -> Expr -> Expr
     EGuarded :: Span -> Expr -> Expr -> Expr
@@ -343,6 +348,11 @@ module Bootstrap.Ast where
     ENeg s x -> s
     ELam s ps body -> s
     ELet s bs body -> s
+    ELocalGroup s bs body -> s
+    ELocalStrict s p value rest -> s
+    ELocalSignature s name ty rest -> s
+    ELocalMemo s name value rest -> s
+    ELocalEnd s -> s
     EIf s c t f -> s
     ECase s scrut alts -> s
     EGuarded s guard body -> s
@@ -368,9 +378,8 @@ module Bootstrap.Ast where
   -- ------------------------------------------------------------ declarations
 
   -- `DFun`'s clauses are `(List Pat, Expr)` pairs; a pattern list inside a
-  -- clause is not a recursive position of `Decl`, so it stays a `List`. A
-  -- clause's own `where` locals and a declaration's modifiers are not
-  -- modeled yet: they arrive as `DUnmodeled` when a corpus uses them.
+  -- clause is not a recursive position of `Decl`, so it stays a `List`.
+  -- Equation-local bindings are represented in the clause body.
   data ExportItem where
     ExportName :: Span -> List String -> ExportItem
     ExportModule :: Span -> String -> ExportItem
@@ -593,6 +602,11 @@ module Bootstrap.Ast where
     ENeg s x -> expr-unmodeled-count x
     ELam s ps body -> pats-unmodeled ps + expr-unmodeled-count body
     ELet s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
+    ELocalGroup s bs body -> expr-unmodeled-count bs + expr-unmodeled-count body
+    ELocalStrict s p value rest -> pat-unmodeled-count p + expr-unmodeled-count value + expr-unmodeled-count rest
+    ELocalSignature s name ty rest -> type-unmodeled-count ty + expr-unmodeled-count rest
+    ELocalMemo s name value rest -> expr-unmodeled-count value + expr-unmodeled-count rest
+    ELocalEnd s -> 0
     EIf s c t f -> expr-unmodeled-count c + expr-unmodeled-count t + expr-unmodeled-count f
     ECase s scrut alts -> expr-unmodeled-count scrut + alts-unmodeled (alts-of alts)
     EGuarded s guard body -> expr-unmodeled-count guard + expr-unmodeled-count body
@@ -774,6 +788,11 @@ module Bootstrap.Ast where
     ENeg part0 part1 -> JArr (JStr "ENeg") (JArr (source-identity-expr part1) (JArrEnd))
     ELam part0 part1 part2 -> JArr (JStr "ELam") (JArr (source-identity-pats part1) (JArr (source-identity-expr part2) (JArrEnd)))
     ELet part0 part1 part2 -> JArr (JStr "ELet") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
+    ELocalGroup sp bindings body -> JArr (JStr "ELocalGroup") (JArr (source-identity-expr bindings) (JArr (source-identity-expr body) JArrEnd))
+    ELocalStrict sp pattern value rest -> JArr (JStr "ELocalStrict") (JArr (source-identity-pat pattern) (JArr (source-identity-expr value) (JArr (source-identity-expr rest) JArrEnd)))
+    ELocalSignature sp name ty rest -> JArr (JStr "ELocalSignature") (JArr (JStr name) (JArr (source-identity-type ty) (JArr (source-identity-expr rest) JArrEnd)))
+    ELocalMemo sp name value rest -> JArr (JStr "ELocalMemo") (JArr (JStr name) (JArr (source-identity-expr value) (JArr (source-identity-expr rest) JArrEnd)))
+    ELocalEnd sp -> JArr (JStr "ELocalEnd") JArrEnd
     EIf part0 part1 part2 part3 -> JArr (JStr "EIf") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArr (source-identity-expr part3) (JArrEnd))))
     ECase part0 part1 part2 -> JArr (JStr "ECase") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))
     EGuarded part0 part1 part2 -> JArr (JStr "EGuarded") (JArr (source-identity-expr part1) (JArr (source-identity-expr part2) (JArrEnd)))

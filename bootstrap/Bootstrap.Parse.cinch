@@ -66,6 +66,11 @@ module Bootstrap.Parse where
   data Fix where
     MkFix :: String -> Nat -> Fix
 
+  data LocalSyntax where
+    LocalStrict :: Pat -> Expr -> LocalSyntax
+    LocalSignature :: Span -> String -> TypeExpr -> LocalSyntax
+    LocalMemo :: Span -> String -> Expr -> LocalSyntax
+
   -- ------------------------------------------------------------------
   -- Token predicates and small accessors.
   -- ------------------------------------------------------------------
@@ -1064,18 +1069,14 @@ module Bootstrap.Parse where
       Cons t rest2 ->
         if is-punct-t (lt-token t) "=" then
           case parse-expr rest2 src fix of
-            POk body rest3 ->
-              if at-boundary rest3 then POk (DFun (list-start-span start) name (Cons (pats, body) Nil)) rest3
-              else PBad
+            POk body rest3 -> equation-tail (list-start-span start) name pats body rest3 src fix
             PBad -> PBad
         else if is-punct-t (lt-token t) "|" then
           case parse-expr rest2 src fix of
             POk guard rest3 -> case rest3 of
               Cons equals rest4 -> if is-punct-t (lt-token equals) "=" then
                 case parse-expr rest4 src fix of
-                  POk body rest5 -> if at-boundary rest5 then
-                    POk (DFun (list-start-span start) name [(pats, EGuarded (sp-of t) guard body)]) rest5
-                    else PBad
+                  POk body rest5 -> equation-tail (list-start-span start) name pats (EGuarded (sp-of t) guard body) rest5 src fix
                   PBad -> PBad
                 else PBad
               Nil -> PBad
@@ -1083,6 +1084,31 @@ module Bootstrap.Parse where
         else PBad
       Nil -> PBad
     PBad -> PBad
+
+  equation-tail :: Span -> String -> List Pat -> Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  equation-tail sp name pats body toks src fix = case expect-word-t toks "where" of
+    PBad -> if at-boundary toks then POk (DFun sp name [(pats, body)]) toks else PBad
+    POk at block -> (case block of
+      Cons open rest -> if is-punct-t (lt-token open) "{" then
+        (case parse-bindings rest src fix Nil of
+          POk bindings tail -> if at-boundary tail then
+            POk (DFun sp name [(pats, equation-locals at bindings body)]) tail
+            else PBad
+          PBad -> PBad)
+        else PBad
+      Nil -> PBad)
+  equation-locals :: Span -> List LocalSyntax -> Expr -> Expr
+  equation-locals sp bindings body = case strict-locals bindings of
+    None -> ELocalGroup sp (local-spine sp bindings) body
+    Some strict -> (case body of
+      EGuarded at guard rhs -> if named-equation-locals strict then let-patterns sp strict body
+        else EUnmodeled sp "a guarded equation needs named strict where bindings"
+      other -> let-patterns sp strict body)
+  named-equation-locals :: List (Pat, Expr) -> Bool
+  named-equation-locals bindings = case bindings of
+    Nil -> True
+    Cons (PVar sp name, rhs) rest -> named-equation-locals rest
+    other -> False
 
   -- signature Name params where { members }
   parse-signature :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
@@ -1644,7 +1670,12 @@ module Bootstrap.Parse where
     Cons t rest -> case op-expr-of (lt-token t) of
       Some op -> case lookup-fix op fix of
         MkFix assoc prec ->
-          if string-compare assoc "undeclared" == 0 then PBad
+          if string-compare assoc "undeclared" == 0 then
+            (case parse-app rest src fix of
+              POk rhs remaining -> chain-loop
+                (EUnmodeled (sp-of t) (string-concat-all ["undeclared operator `", op, "`"]))
+                remaining src minp fix
+              PBad -> PBad)
           else if lt-i64 (nat-cmp prec minp) 0 then POk lhs toks
           else if string-compare assoc "right" == 0 then chain-right lhs op rest src prec minp fix
           else chain-left lhs op rest src prec minp fix
@@ -1817,7 +1848,9 @@ module Bootstrap.Parse where
     Cons token rest -> if is-word-t (lt-token token) "let" then
       (case expect-punct-t rest "{" of
         POk at bindings -> (case parse-bindings bindings src fix Nil of
-          POk values remaining -> POk (ELet (sp-of token) (binding-spine (sp-of token) (do-binding-names values)) (EUnit (sp-of token))) remaining
+          POk values remaining -> (case strict-locals values of
+            Some strict -> POk (ELet (sp-of token) (binding-spine (sp-of token) (do-binding-names strict)) (EUnit (sp-of token))) remaining
+            None -> POk (EUnmodeled (sp-of token) "a do let statement needs strict bindings without local signatures") remaining)
           PBad -> PBad)
         PBad -> PBad)
       else (case parse-pat toks src of
@@ -2041,7 +2074,9 @@ module Bootstrap.Parse where
         case parse-bindings rest src fix Nil of
           POk bs rest2 -> case expect-word-t rest2 "in" of
             POk _ rest3 -> case parse-expr rest3 src fix of
-              POk body rest4 -> POk (let-patterns sp bs body) rest4
+              POk body rest4 -> (case strict-locals bs of
+                Some strict -> POk (let-patterns sp strict body) rest4
+                None -> POk (ELocalGroup sp (local-spine sp bs) body) rest4)
               PBad -> PBad
             PBad -> PBad
           PBad -> PBad
@@ -2057,7 +2092,23 @@ module Bootstrap.Parse where
       PVar s name -> ELet sp (binding-spine sp (Cons (name, rhs) Nil)) (let-patterns sp rest body)
       other -> ECase sp rhs (alt-spine sp (Cons (p, let-patterns sp rest body) Nil))
 
-  parse-bindings :: List LToken -> Bytes -> List (String, Fix) -> List (Pat, Expr) -> Ps (List (Pat, Expr))
+  strict-locals :: List LocalSyntax -> Option (List (Pat, Expr))
+  strict-locals bindings = case bindings of
+    Nil -> Some Nil
+    Cons (LocalStrict pattern value) rest -> (case strict-locals rest of
+      Some more -> Some (Cons (pattern, value) more)
+      None -> None)
+    other -> None
+
+  local-spine :: Span -> List LocalSyntax -> Expr
+  local-spine sp bindings = case bindings of
+    Nil -> ELocalEnd sp
+    Cons first rest -> let more = local-spine sp rest in (case first of
+      LocalStrict pattern value -> ELocalStrict (pat-span pattern) pattern value more
+      LocalSignature at name ty -> ELocalSignature at name ty more
+      LocalMemo at name value -> ELocalMemo at name value more)
+
+  parse-bindings :: List LToken -> Bytes -> List (String, Fix) -> List LocalSyntax -> Ps (List LocalSyntax)
   parse-bindings toks src fix acc = case toks of
     Cons t rest -> case lt-token t of
       TPunct p ->
@@ -2068,13 +2119,37 @@ module Bootstrap.Parse where
       _ -> binding-step toks src fix acc
     Nil -> POk (reverse acc) Nil
 
-  binding-step :: List LToken -> Bytes -> List (String, Fix) -> List (Pat, Expr) -> Ps (List (Pat, Expr))
-  binding-step toks src fix acc = case parse-binding toks src fix of
+  binding-step :: List LToken -> Bytes -> List (String, Fix) -> List LocalSyntax -> Ps (List LocalSyntax)
+  binding-step toks src fix acc = case parse-local toks src fix of
     POk b rest -> parse-bindings rest src fix (Cons b acc)
     PBad -> case take-bal toks 0 Nil of
       consumed ->
         let sp = run-span toks consumed in
-        parse-bindings (drop-toks toks (list-length consumed)) src fix (Cons (PUnmodeled sp (slice-src src sp), EUnmodeled sp (slice-src src sp)) acc)
+        parse-bindings (drop-toks toks (list-length consumed)) src fix (Cons (LocalStrict (PUnmodeled sp (slice-src src sp)) (EUnmodeled sp (slice-src src sp))) acc)
+
+  parse-local :: List LToken -> Bytes -> List (String, Fix) -> Ps LocalSyntax
+  parse-local toks src fix = case expect-punct-t toks "~" of
+    POk sp rest -> (case rest of
+      Cons binder tail -> (case lt-token binder of
+        TVar name -> if string-compare name "_" == 0 then PBad else (case expect-punct-t tail "=" of
+          POk equals rhs -> (case parse-expr rhs src fix of
+            POk value remaining -> POk (LocalMemo sp name value) remaining
+            PBad -> PBad)
+          PBad -> PBad)
+        other -> PBad)
+      Nil -> PBad)
+    PBad -> (case parse-value-name toks of
+      POk name rest -> (case expect-punct-t rest "::" of
+        POk annotation input -> (case parse-type input src of
+          POk ty remaining -> POk (LocalSignature (list-start-span toks) name ty) remaining
+          PBad -> PBad)
+        PBad -> parse-strict-local toks src fix)
+      PBad -> parse-strict-local toks src fix)
+
+  parse-strict-local :: List LToken -> Bytes -> List (String, Fix) -> Ps LocalSyntax
+  parse-strict-local toks src fix = case parse-binding toks src fix of
+    POk (pattern, value) rest -> POk (LocalStrict pattern value) rest
+    PBad -> PBad
 
   parse-binding :: List LToken -> Bytes -> List (String, Fix) -> Ps (Pat, Expr)
   parse-binding toks src fix = case parse-value-name toks of

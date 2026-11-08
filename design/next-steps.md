@@ -68,7 +68,11 @@ See [the layout and syntax audit](../bootstrap/current-abi7-explicit-let-layout-
 An isolated Cinch Stage 1 passed all 17 memo controls. Nine compiled and
 ran without leaks, including the original demand tests, a boxed cache,
 strict initialization, and teardown of mutually capturing unforced cells.
-The memo compiler has a separate Stage 2 and Stage 3 gate.
+The same compiler source now has a Stage 2 and Stage 3 fixed point.
+The executables, LLVM IR and 46 compiler interfaces match. All 12 stage
+smoke tests, the interface-only consumer and the changed-source rebuild
+passed. The full suites and frontend parity remain open.
+See [the memo fixed-point audit](../bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json).
 See [the Stage 1 memo audit](../bootstrap/current-schema10-abi7-cinch-memo-stage1-results.json).
 
 An isolated Cinch Stage 1 passed all three original guarded `Later` tests.

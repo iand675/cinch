@@ -26,6 +26,7 @@ module Bootstrap.Core where
   export CApplyEff, CWith, core-effects
   export core-float-literal-word
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
+  export CMemoScope, memo-row, memo-residual, memo-demand-type
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, mutable-borrow, copy-out-type
   export thunk-function-parts
@@ -298,6 +299,7 @@ module Bootstrap.Core where
     -- exact test in the actual value scope before it can justify a branch.
     CDecision :: Span -> UType -> UType -> CoreTerm -> CoreTerm
     CScope :: Span -> UType -> UType -> CoreEvidence -> CoreTerm -> CoreTerm
+    CMemoScope :: Span -> UType -> UType -> CoreTerm -> CoreTerm
     CSpawn :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CJoin :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CWith :: Span -> UType -> CoreGiven -> CoreTerm -> CoreTerm -> CoreTerm
@@ -441,6 +443,7 @@ module Bootstrap.Core where
     CDischarge sp ty evidence body -> handler-body-direct label names body
     CGuard sp ty condition body -> handler-body-direct label names condition && handler-body-direct label names body
     CScope sp ty region evidence callback -> handler-row-absent label (core-effects term) && handler-body-direct label names callback
+    CMemoScope sp ty region body -> handler-row-absent label (core-effects term) && handler-body-direct label names body
     CSpawn sp ty token body -> handler-row-absent label (core-effects term) && handler-body-direct label names token && handler-body-direct label names body
     CJoin sp ty token body -> handler-row-absent label (core-effects term) && handler-body-direct label names token && handler-body-direct label names body
     CWith sp ty given value body -> handler-body-direct label names value && handler-body-direct label names body
@@ -476,6 +479,7 @@ module Bootstrap.Core where
     CDischarge sp ty evidence body -> resume-uses id body
     CGuard sp ty condition body -> resume-uses id condition + resume-uses id body
     CScope sp ty region evidence callback -> resume-uses id callback
+    CMemoScope sp ty region body -> resume-uses id body
     CSpawn sp ty token body -> resume-uses id token + resume-uses id body
     CJoin sp ty token body -> resume-uses id token + resume-uses id body
     CWith sp ty given value body -> resume-uses id value + resume-uses id body
@@ -548,6 +552,7 @@ module Bootstrap.Core where
     CErasedApply sp ty row f x -> [f, x]
     CDecision sp ty predicate condition -> [condition]
     CScope sp ty region evidence callback -> [callback]
+    CMemoScope sp ty region body -> [body]
     CSpawn sp ty token body -> [token, body]
     CJoin sp ty token handles -> [token, handles]
     CWith sp ty given value body -> [value, body]
@@ -590,7 +595,7 @@ module Bootstrap.Core where
   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
 
   ownership-type-kinds :: List (String, Kind)
-  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind)]
+  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind), ("Lazy", lazy-kind)]
   thunk-function-parts :: UType -> Option (UType, UType)
   thunk-function-parts ty = case ty of
     UFun (UCon name KType) result -> if string-compare name "Unit" == 0 then Some (URow UEnd, result) else None
@@ -620,6 +625,19 @@ module Bootstrap.Core where
   scope-region-closed region result = case region of
     URigid id name level KRegion -> not (local-id id (type-all-ids result))
     other -> False
+  memo-label :: UType -> UType
+  memo-label region = UApp (UCon "Eval" (KFun KRegion KEffect)) region
+  memo-row :: UType -> UType
+  memo-row region = URow (UArg (memo-label region) UEnd)
+  memo-residual :: UType -> UType -> UType
+  memo-residual region row = case row of
+    UMeta id KRow -> row
+    URowJoin first second -> union-effects (memo-residual region first) (memo-residual region second)
+    other -> (case handler-residual (memo-label region) row of Some residual -> residual; None -> UError)
+  memo-demand-type :: UType -> UType
+  memo-demand-type cell = case lazy-parts cell of
+    Some (row, region, result) -> UApp (UApp (UCon "Ref" borrow-constructor-kind) region) result
+    None -> UError
   scope-callback-parts :: UType -> Option (UType, UType, UType, UType)
   scope-callback-parts ty = case ty of
     UFun domain result -> scope-domain domain (URow UEnd) result
@@ -694,6 +712,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f x -> ty
     CDecision s ty predicate condition -> ty
     CScope s ty region evidence callback -> ty
+    CMemoScope s ty region body -> ty
     CSpawn s ty token body -> ty
     CJoin s ty token body -> ty
     CWith s ty given value body -> ty
@@ -725,6 +744,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> union-effects row (core-effects f)
     CDecision s ty predicate condition -> core-effects condition
     CScope s ty region evidence callback -> (case scope-callback-parts (core-type callback) of Some (owner, bound, row, result) -> union-effects (URow (UArg (UCon "Diverge" KEffect) UEnd)) (union-effects row (core-effects callback)); None -> UError)
+    CMemoScope s ty region body -> memo-residual region (core-effects body)
     CSpawn s ty token body -> task-spawn-effects token body
     CJoin s ty token body -> task-join-effects token body
     CWith s ty given value body -> union-effects (core-effects value) (core-effects body)
@@ -739,6 +759,12 @@ module Bootstrap.Core where
       (case args of
         CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
         other -> UError)
+      else if string-compare name "memo-demand" == 0 then
+        (case args of
+          CArgument at cell (CArgumentsEnd end) -> (case lazy-parts (core-type cell) of
+            Some (row, region, result) -> union-effects (memo-row region) (union-effects (core-effects cell) row)
+            None -> UError)
+          other -> UError)
       else core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body
@@ -761,7 +787,8 @@ module Bootstrap.Core where
     CErasedApply sp ty row f witness -> core-mutable-writes f <> row-writes sp row <> opaque-call-writes sp f
     CPrimitive sp ty operation (CArgument at place rest) ->
       child-writes [place, rest] <> (if string-compare operation "ref-set" == 0 then argument-writes sp place
-        else if string-compare operation "thunk-force" == 0 then forced-thunk-writes sp place else Nil)
+        else if string-compare operation "thunk-force" == 0 then forced-thunk-writes sp place
+        else if string-compare operation "memo-demand" == 0 then [(sp, None)] else Nil)
     CIf sp ty condition yes no -> core-mutable-writes condition <> (case write-branch-literal condition of
       Some True -> core-mutable-writes yes
       Some False -> core-mutable-writes no
@@ -796,6 +823,9 @@ module Bootstrap.Core where
   guard-fallthrough-writes :: CoreTerm -> List (Span, Option UType)
   guard-fallthrough-writes body = case body of
     CGuard sp ty condition rhs -> scoped-branch-writes condition False
+    CLet sp ty id name sc rhs inner -> if core-alternative-covers inner then Nil
+      else core-mutable-writes rhs <> guard-fallthrough-writes inner
+    CMemoScope sp ty region inner -> guard-fallthrough-writes inner
     CRequire sp ty inner -> guard-fallthrough-writes inner
     other -> Nil
   child-writes :: List CoreTerm -> List (Span, Option UType)
@@ -889,6 +919,7 @@ module Bootstrap.Core where
       URow UEnd -> CApply s (f ty) (map-term-types f fun) (map-term-types f arg)
       effects -> CApplyEff s (f ty) effects (map-term-types f fun) (map-term-types f arg)
     CScope s ty region evidence callback -> CScope s (f ty) (f region) (map-evidence f evidence) (map-term-types f callback)
+    CMemoScope s ty region body -> CMemoScope s (f ty) (f region) (map-term-types f body)
     CSpawn s ty token body -> CSpawn s (f ty) (map-term-types f token) (map-term-types f body)
     CJoin s ty token body -> CJoin s (f ty) (map-term-types f token) (map-term-types f body)
     CWith s ty given value body -> CWith s (f ty) (CGiven s (given-symbol given) (f (given-type given))) (map-term-types f value) (map-term-types f body)
@@ -1052,6 +1083,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> type-metas st ty <> type-metas st row <> term-metas st f <> term-metas st witness
     CDecision s ty predicate condition -> type-metas st ty <> type-metas st predicate <> term-metas st condition
     CScope s ty region evidence callback -> type-metas st ty <> type-metas st region <> evidence-metas st evidence <> term-metas st callback
+    CMemoScope s ty region body -> type-metas st ty <> type-metas st region <> term-metas st body
     CSpawn s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
     CJoin s ty token body -> type-metas st ty <> term-metas st token <> term-metas st body
     CWith s ty given value body -> type-metas st ty <> type-metas st (given-type given) <> term-metas st value <> term-metas st body
@@ -1224,6 +1256,7 @@ module Bootstrap.Core where
     CErasedApply s ty row f witness -> closed-runtime-type ty && closed-type row && kind-equal (type-kind row) KRow && valid-term f
       && (if erased-value-arrow (core-type f) then valid-term witness && erasable-value-argument witness else valid-proof-reference witness)
     CScope s ty region evidence callback -> closed-runtime-type ty && closed-type region && scope-region-closed region ty && scope-region-closed region (core-effects term) && evidences-closed [evidence] && valid-term callback
+    CMemoScope s ty region body -> closed-runtime-type ty && closed-type region && scope-region-closed region ty && scope-region-closed region (core-effects term) && valid-term body
     CSpawn s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
     CJoin s ty token body -> closed-runtime-type ty && valid-term token && valid-term body
     CWith s ty given value body -> closed-runtime-type ty && closed-type (given-type given) && valid-term value && valid-term body
@@ -1399,6 +1432,7 @@ module Bootstrap.Core where
       CApplyEff s ty row f x -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CErasedApply s ty row f witness -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope witness
       CScope s ty region evidence callback -> type-index-scope universals rigid region && evidence-index-scope-with universals rigid evidence && scoped-term-with universals values scope callback
+      CMemoScope s ty region body -> type-index-scope universals rigid region && scoped-term-with universals values scope body
       CSpawn s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
       CJoin s ty token body -> scoped-term-with universals values scope token && scoped-term-with universals values scope body
       CWith s ty given value body -> type-index-scope universals rigid (given-type given) && scoped-term-with universals values scope value && scoped-term-with universals values scope body
@@ -2032,6 +2066,9 @@ module Bootstrap.Core where
       None -> Nil
   core-alternative-covers :: CoreTerm -> Bool
   core-alternative-covers body = case body of
+    CLet sp ty id name sc rhs inner -> core-alternative-covers inner
+    CMemoScope sp ty region inner -> core-alternative-covers inner
+    CRequire sp ty inner -> core-alternative-covers inner
     CGuard sp ty condition rhs -> (case condition of
       CUse at actual name role Nil -> bool-type actual && string-compare name "True" == 0 && string-compare role "constructor" == 0
       other -> False)
@@ -2176,6 +2213,7 @@ module Bootstrap.Core where
     CApply s ty f x -> proof-application gamma facts ty (URow UEnd) f x
     CApplyEff s ty row f x -> proof-application gamma facts ty row f x
     CScope s ty region evidence callback -> proof-term gamma facts callback
+    CMemoScope s ty region body -> proof-term gamma facts body
     CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CWith s ty given value body -> proof-term gamma facts value && proof-after-term gamma facts value body
@@ -2346,6 +2384,7 @@ module Bootstrap.Core where
     CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard
       && proof-expected (proof-after-writes gamma (scoped-branch-writes guard True)) (scoped-branch-facts gamma facts guard True) ty rhs
     CScope s ty region evidence callback -> proof-term gamma facts callback
+    CMemoScope s ty region body -> proof-term gamma facts body
     CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CWith s ty given value body -> let writes = core-mutable-writes value in
@@ -2413,6 +2452,7 @@ module Bootstrap.Core where
         None -> CError s
     CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
     CScope s ty region evidence callback -> CScope s ty region evidence (refresh-certificates gamma facts callback)
+    CMemoScope s ty region body -> CMemoScope s ty region (refresh-certificates gamma facts body)
     CSpawn s ty token body -> CSpawn s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CJoin s ty token body -> CJoin s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-after-term gamma facts value body)

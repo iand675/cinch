@@ -1339,7 +1339,8 @@ module Text.Lex where
   -- An implicit block (its column and whether `in` may close it) or
   -- an explicit delimiter shielding enclosing layout. The flag marks
   -- the `(` of a capability supply clause `with (...)`: 1 while open,
-  -- 2 once it binds names (amendment section 7).
+  -- 2 once it binds names (amendment section 7). Flag 3 marks an
+  -- explicit `let { ... }` whose closing brace can be followed by `in`.
   data Frame where
     FImplicit :: Nat -> Bool -> Frame
     FDelim :: DelimKind -> Nat -> Frame
@@ -1506,24 +1507,24 @@ module Text.Lex where
     case lay of
       Lay o s p ps pi wp sc ->
         let with-group-open = wp && is-open-paren kind in
-        let supply-in = sc in
+        let explicit-in = sc in
         let base = Lay o s p ps pi False False in
         case ps of
-          None -> layout-cont rest tok base True with-group-open supply-in
+          None -> layout-cont rest tok base True with-group-open explicit-in
           Some psp ->
             if is-eof kind then
               let l1 = push-tok (virtual-tok sp-tok (TPunct ("}")))
                     (push-tok (virtual-tok sp-tok (TPunct ("{"))) (clear-pend base)) in
-              layout-cont rest tok l1 True with-group-open supply-in
+              layout-cont rest tok l1 True with-group-open explicit-in
             else if is-open-brace kind then
-              let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace 0)) in
+              let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace (if pi then 3 else 0))) in
               layout-run rest (set-prev l1 sp-tok)
             else if shallow-top s sp-tok then
               LexedFail sp-tok (LayoutTooShallow (frame-col (top-frame s)))
             else
               let l1 = push-tok (virtual-tok sp-tok (TPunct ("{")))
                     (push-frame (clear-pend base) (FImplicit (span-col sp-tok) pi)) in
-              layout-cont rest tok l1 False with-group-open supply-in
+              layout-cont rest tok l1 False with-group-open explicit-in
 
   top-frame :: List Frame -> Frame
   top-frame fs = case fs of
@@ -1539,7 +1540,7 @@ module Text.Lex where
   -- the special token kinds, then the line-start logic, then the
   -- opener bookkeeping.
   layout-cont :: List LToken -> LToken -> Lay -> Bool -> Bool -> Bool -> Lexed
-  layout-cont rest tok lay check with-group-open supply-in =
+  layout-cont rest tok lay check with-group-open explicit-in =
     let sp-tok = lt-span tok in
     let kind = lt-token tok in
     if is-eof kind then
@@ -1552,12 +1553,12 @@ module Text.Lex where
           if is-implicit f then LexedFail sp-tok MismatchedDelimiter
           else if not (eq-delim (frame-delim f) (closer-delim kind)) then
             LexedFail sp-tok MismatchedDelimiter
-          else if frame-flag f == 2 then
+          else if frame-flag f == 2 || frame-flag f == 3 then
             layout-run rest
               (set-prev (set-supply (push-tok tok (pop-frame l1)) True) sp-tok)
           else layout-run rest (set-prev (push-tok tok (pop-frame l1)) sp-tok)
         Nil -> LexedFail sp-tok MismatchedDelimiter
-    else if is-in-tok kind && supply-in then
+    else if is-in-tok kind && explicit-in then
       layout-run rest (set-prev (push-tok tok lay) sp-tok)
     else if is-in-tok kind then
       case find-let-frame (lay-stack lay) of

@@ -51,8 +51,8 @@ module Bootstrap.Builtin where
     , ("Scope", "b.Scope"), ("Task", "b.Task")
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
-    , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
-    , ("delay", "b.delay"), ("force", "b.force")
+    , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Proof.search", "b.Proof.search")
     ]
@@ -120,10 +120,12 @@ module Bootstrap.Builtin where
     , task-rule "joinAllOrCancel" "JoinAllOrCancel" 2 True
     , task-rule "unrefine" "Unrefine" 1 False
     , task-rule "copyOut" "CopyOut" 1 False
+    , task-rule "borrow" "Borrow" 1 False
     , task-rule "mutBorrow" "MutBorrow" 1 False
     , task-rule "refSet" "RefSet" 2 False
     , task-rule "delay" "Delay" 1 False
     , task-rule "force" "Force" 1 False
+    , task-rule "demand" "Demand" 1 False
     , decision-rule
     , task-rule "Proof.search" "ProofSearch" 1 False
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"

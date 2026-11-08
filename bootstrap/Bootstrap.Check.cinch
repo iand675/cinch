@@ -459,6 +459,11 @@ module Bootstrap.Check where
     EArgsEnd s -> (TyHole, fail s "unsupported expression: argument spine end")
     EBinding s n rhs rest -> (TyHole, fail s "unsupported expression: binding spine cell")
     EBindingsEnd s -> (TyHole, fail s "unsupported expression: binding spine end")
+    ELocalGroup sp bindings body -> (TyHole, fail sp "a local binding group requires the typed checker")
+    ELocalStrict sp pattern value rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
+    ELocalMemo sp name value rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
+    ELocalSignature sp name ty rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
+    ELocalEnd sp -> (TyHole, fail sp "a local binding entry requires its enclosing group")
     EAlt s p body rest -> (TyHole, fail s "unsupported expression: alternative spine cell")
     EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
     ESplice s expression -> (TyHole, fail s "a splice requires a compile-time quotation")
@@ -710,10 +715,15 @@ module Bootstrap.Check where
   check-tuple-pat env s xs expected = case spine-ok-pats xs of
     False -> (env, fail s "malformed tuple pattern spine")
     True -> case expected of
-      TyTuple fields -> case bind-pats env (tuple-field-types fields) (pats-of xs) of
-        (bound, ds) ->
-          if list-length (tuple-field-types fields) == list-length (pats-of xs) then (bound, ds)
-          else (bound, ds <> fail s "tuple pattern arity disagrees with its type")
+      TyTuple fields -> let expected-fields = tuple-field-types fields in
+        let patterns = pats-of xs in
+        let expected-count = list-length expected-fields in
+        let actual-count = list-length patterns in
+        case bind-pats env expected-fields patterns of
+          (bound, ds) ->
+            if expected-count == actual-count then (bound, ds)
+            else (bound, ds <> fail s (string-concat-all ["tuple pattern has ", nat-to-string actual-count,
+              " components but the tuple type has ", nat-to-string expected-count]))
       other -> case bind-extra-pats env (pats-of xs) of
         (bound, ds) -> (bound, ds <> fail s "a tuple pattern requires a tuple type")
 

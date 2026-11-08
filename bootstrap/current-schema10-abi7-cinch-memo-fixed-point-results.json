@@ -1,0 +1,112 @@
+{
+  "compiler_interfaces": 46,
+  "compiler_source_sha256": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+  "fixed_point": {
+    "changed_source": {
+      "compiler_sha256": "d3a2d3ad9122751e601249a7ff5b0efbb55843dfb66d7a69060850991761940c",
+      "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+      "source_sha256": "e50a8a47a4c460b2a21b00c91f39788762d44aa9fbe4ecfdad6cd3692b7b4d37"
+    },
+    "compiler_sha256": "8ad2f2f171814f80019c006eda884adbf862878ad3480e48fbf90189e97cc14d",
+    "interface_consumer": {
+      "compiler_sha256": "8ad2f2f171814f80019c006eda884adbf862878ad3480e48fbf90189e97cc14d",
+      "manifest_sha256": "a155ac500393a548358bf57f84c39b8f90c49863adc9dba619ad28195c5830c3",
+      "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+      "status": "passed"
+    },
+    "llvm_sha256": "1ed125cca311fee55719ec81a5ba451e8e4de10098b9f9508bf038c8926c63f0",
+    "name": "fixed-point",
+    "status": "passed"
+  },
+  "full_goal_complete": false,
+  "library_interfaces": 55,
+  "library_object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+  "memo_controls": 17,
+  "memo_executions_without_leaks": 9,
+  "native_source_sha256": "c1e0760b1397fec3029aff14170cab38aae90f55fab755ed52a166a1047168c6",
+  "pinned_stage0_source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88",
+  "published_native_source_sha256": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+  "runtime_abi": 7,
+  "schema": 1,
+  "scope": "Cinch memo and strict where candidate, including the fresh compiler ladder. The complete suites and frontend parity remain separate gates.",
+  "smoke_tests": {
+    "stage0/fib": {
+      "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "stage0/precedence": {
+      "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+    },
+    "stage0/refusal": {
+      "compile.log": "7ee2d858c7673fe07b6483b4022c44b3cb3139c7ae839932639fb572eb5154a8"
+    },
+    "stage1/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage1/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage1/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    },
+    "stage2/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage2/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage2/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    },
+    "stage3/fib": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage3/precedence": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stage3/refusal": {
+      "compile.log": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "program.ll.diagnostics": "2ab232c0bb50f2735eaa1a4b1b75a358fd1e6432a9264d4aac88a43f65dd9057"
+    }
+  },
+  "stage_results": [
+    {
+      "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+      "name": "stage0",
+      "stage_receipt_sha256": "07b0173c9ee3cfdcf4f752edc267474a3e8c1efbc2b04e61cda14496f4c00cef",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "a3e744b2dd0a45f9ffaf1b8d14529075bd0ddce1663e018b9a1bdd04a2bb2bfe",
+      "name": "stage1",
+      "stage_receipt_sha256": "193bdf1a9516b7705890614a14a9cdb5a8ecd71f048ccc4ba4aea2576e23c748",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "8ad2f2f171814f80019c006eda884adbf862878ad3480e48fbf90189e97cc14d",
+      "llvm_sha256": "1ed125cca311fee55719ec81a5ba451e8e4de10098b9f9508bf038c8926c63f0",
+      "name": "stage2",
+      "stage_receipt_sha256": "f8e2eeac05b01c702aaa1440423434dafbe07185a1bafd9a8c6e8166379f556b",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "8ad2f2f171814f80019c006eda884adbf862878ad3480e48fbf90189e97cc14d",
+      "llvm_sha256": "1ed125cca311fee55719ec81a5ba451e8e4de10098b9f9508bf038c8926c63f0",
+      "name": "stage3",
+      "stage_receipt_sha256": "995eb7bbc582b0560bd5e07d11ead9f9330f361b05103d819d61538a136ceb6d",
+      "status": "passed"
+    }
+  ],
+  "state_sha256": "009c84cbe63459859b0699cfdc5ad4130d3a91571f7cc4d5fc216d64bf3f3a29",
+  "status": "audited-cinch-memo-fixed-point",
+  "validation_sha256": "fd50461b10ace0bddcbd23af27074add85c9d43736f11e7733b166c9f8644370"
+}

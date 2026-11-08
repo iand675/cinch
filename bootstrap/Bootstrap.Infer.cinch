@@ -21,7 +21,7 @@ module Bootstrap.Infer where
   import Bootstrap.Contracts (declaration-references)
   import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body)
   import Text.Json (canonical-bytes)
-  import Bootstrap.ExportType (export-global)
+  import Bootstrap.ExportType (export-global, diagnostic-member-name)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -80,6 +80,7 @@ module Bootstrap.Infer where
     MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
     MkLocalBinding :: String -> Scheme -> Nat -> Nat -> CheckedBinding
+    MkMemoBinding :: String -> UType -> Nat -> CheckedBinding
     -- A strict, monomorphic let whose checked RHS has a total index form.
     -- Its runtime slot remains distinct; only type conversion uses the RHS.
     MkValueBinding :: String -> Scheme -> Nat -> Nat -> UType -> CheckedBinding
@@ -88,11 +89,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> Span -> Option Span -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -220,6 +221,7 @@ module Bootstrap.Infer where
     EApp s f x -> expression-needs f || expression-needs x
     ECon s name args -> expression-needs args
     ELet s bs body -> expression-needs bs || expression-needs body
+    ELocalGroup sp bindings body -> True
     EWith s bs body -> True
     EDo sp statements -> True
     EHandle s body handled-by -> True
@@ -233,7 +235,7 @@ module Bootstrap.Infer where
     EArg s x rest -> expression-needs x || expression-needs rest
     EBinding s name rhs rest -> expression-needs rhs || expression-needs rest
     EAlt s p rhs rest -> expression-needs rhs || expression-needs rest
-    EGuarded s guard body -> expression-needs guard || expression-needs body
+    EGuarded s guard body -> True
     other -> False
   ctor-needs :: List (String, TypeExpr) -> Bool
   ctor-needs cs = case cs of Nil -> False; Cons (name, ty) rest -> needs-type ty || ctor-needs rest
@@ -513,7 +515,7 @@ module Bootstrap.Infer where
       None -> if same name "(->)" then (UCon name arrow-constructor-kind, st)
         else if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
         else if same name "Dec" || same name "b.Dec" then (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> (UCon "b.Dec" (KFun KProp KType), st))
-        else if has name ["Ref", "Mut", "Thunk"] then
+        else if has name ["Ref", "Mut", "Thunk", "Lazy"] then
           (case context-kind name primitive-kinds of Some kind -> (UCon name kind, st); None -> bad s "unknown kernel ownership type" st)
         else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
         else if primitive name then (literal-type kinds name, st)
@@ -859,20 +861,36 @@ module Bootstrap.Infer where
       other -> bad sp "local index requires unresolved dictionary evidence" st
 
   let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
-  let-binding sp env name sc id level value st = if volatile-borrow-index (normalize st (scheme-body sc)) then
-    (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
-    else if not (stable-index-source value) then (MkLocalBinding name sc id level, st) else case (scheme-params sc, scheme-requirements sc) of
-    (Nil, Nil) -> case reify-argument sp env value st of
-      (index, checked) -> case (store-errors checked, index-of-type index) of
-        -- Reification can expose the mathematical carrier of a refined
-        -- result (for example a byte length). It is not a definition at the
-        -- refined carrier. Keep the actual local and its checked RHS fact,
-        -- just as Core's scope-definitions does for a mismatched index kind.
-        (Nil, witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
-          (MkValueBinding name sc id level index, checked)
-          else (MkLocalBinding name sc id level, st)
-        other -> (MkLocalBinding name sc id level, st)
-    other -> (MkLocalBinding name sc id level, st)
+  let-binding sp env name sc id level value before =
+    let st = check-borrow-binding sp env (scheme-body sc) before in
+    if volatile-borrow-index (normalize st (scheme-body sc)) then
+      (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
+    else if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
+    else (case (scheme-params sc, scheme-requirements sc) of
+      (Nil, Nil) -> case reify-argument sp env value st of
+        (index, checked) -> case (store-errors checked, index-of-type index) of
+          -- Reification can expose the mathematical carrier of a refined
+          -- result (for example a byte length). It is not a definition at the
+          -- refined carrier. Keep the actual local and its checked RHS fact,
+          -- just as Core's scope-definitions does for a mismatched index kind.
+          (Nil, witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
+            (MkValueBinding name sc id level index, checked)
+            else (MkLocalBinding name sc id level, st)
+          other -> (MkLocalBinding name sc id level, st)
+      other -> (MkLocalBinding name sc id level, st))
+
+  check-borrow-binding :: Span -> List CheckedBinding -> UType -> Store -> Store
+  check-borrow-binding sp env ty st = case borrow-regions (normalize st ty) of
+    Nil -> st
+    loans -> if active-borrow-conflict loans env st then add-error sp "region conflict: exclusive borrows are unique" st else st
+  active-borrow-conflict :: List (Bool, UType) -> List CheckedBinding -> Store -> Bool
+  active-borrow-conflict loans env st = case env of
+    Nil -> False
+    Cons binding rest -> let ty = (case binding of
+      MkLocalBinding name sc id level -> scheme-body sc
+      MkValueBinding name sc id level value -> scheme-body sc
+      other -> UError) in
+      borrow-region-conflict loans (borrow-regions (normalize st ty)) || active-borrow-conflict loans rest st
 
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
   bind-arrow-pattern classes kinds families env locals pat expected st = case arrow-shape (normalize st expected) of
@@ -1157,7 +1175,12 @@ module Bootstrap.Infer where
       else if has name ["Scope", "b.Scope"] then
         (case carrier of TName t inner -> [region, inner]; other -> region-names carrier)
       else region-names carrier
-    TApp s (TName h name) (TArg a (TName r region) (TArg b error (TArg c value (TArgsEnd end)))) -> if has name ["Task", "b.Task"] then [region] else region-names error <> region-names value
+    TApp s (TName h name) (TArg a first (TArg b second (TArg c value (TArgsEnd end)))) ->
+      if has name ["Task", "b.Task"] then (case first of TName r region -> [region]; other -> Nil)
+      else if same name "Lazy" then (case second of
+        TName r region -> Cons region (region-names first <> region-names value)
+        other -> region-names first <> region-names value)
+      else region-names first <> region-names second <> region-names value
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval", "Foreign"] then [region] else Nil
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
@@ -2207,7 +2230,7 @@ module Bootstrap.Infer where
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.borrow", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.demand", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case builtin-syntax-metadata name of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -2238,19 +2261,22 @@ module Bootstrap.Infer where
       else case refinement-view carrier of
         URefine id name base predicate -> (CForget sp base body, checked)
         other -> term-error sp "unrefine projects a refinement to its container" checked
-  ownership-syntax-arguments :: String -> List CheckedBinding -> Expr -> Option (List Expr)
-  ownership-syntax-arguments operation env expr = case application-spine expr Nil of
-    (EVar sp name, args) -> if same name operation then
-      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some args else None; other -> None)
+  ownership-syntax-call :: List CheckedBinding -> Expr -> Option (String, List Expr)
+  ownership-syntax-call env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> if has name ["b.borrow", "b.mutBorrow", "b.refSet"] then
+      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some (name, args) else None; other -> None)
       else None
     other -> None
-  infer-mutable-borrow :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> UType -> Store -> (CoreTerm, Store)
-  infer-mutable-borrow classes kinds families env locals sp args expected st = case args of
-    [input] -> (case mutable-borrow (normalize st expected) of
-      Some (region, carrier) -> (case check classes kinds families env locals input carrier st of
-        (value, ready) -> (CPrimitive sp expected "mut-borrow" (CArgument (expr-span input) value (CArgumentsEnd sp)), ready))
-      None -> term-error sp "mutBorrow needs an expected Mut region type" st)
-    other -> term-error sp "mutBorrow takes exactly one argument" st
+  infer-borrow :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> List Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-borrow classes kinds families env locals sp operation args expected st = case args of
+    [input] -> let mutable = same operation "b.mutBorrow" in
+      (case borrow-type-parts (normalize st expected) of
+        Some (actual, region, carrier) | actual == mutable ->
+          (case check classes kinds families env locals input carrier st of
+            (value, ready) -> (CPrimitive sp expected (if mutable then "mut-borrow" else "borrow")
+              (CArgument (expr-span input) value (CArgumentsEnd sp)), check-borrow-binding sp env expected ready))
+        other -> term-error sp (if mutable then "mutBorrow needs an expected Mut region type" else "borrow needs an expected Ref region type") st)
+    other -> term-error sp "borrow and mutBorrow take exactly one argument" st
   infer-ref-set :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
   infer-ref-set classes kinds families env locals sp args st = case args of
     [place, input] -> case infer classes kinds families env locals place st of
@@ -2690,6 +2716,9 @@ module Bootstrap.Infer where
     other -> term-error sp "transparent constructor needs its actual defining refinement" st
   lookup-expression-value :: Span -> TypeContext -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
   lookup-expression-value sp kinds name env st = case lookup-binding name env of
+    Some (MkMemoBinding source ty id) -> let cell = CLocal sp ty id source Nil in
+      let borrowed = memo-demand-term sp (normalize st ty) cell in
+      (CPrimitive sp (copy-out-type (core-type borrowed)) "copy-out" (CArgument sp borrowed (CArgumentsEnd sp)), st)
     Some binding -> lookup-value sp name env st
     None -> case find-refinement name (context-aliases kinds) of
       Some declaration -> refinement-constructor sp kinds name st
@@ -2710,10 +2739,12 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
+    EApp s f x | memo-demand-head env f -> infer-memo-demand classes kinds families env locals s x st
     EApp s f x -> case thunk-syntax-operation env f of
       Some operation -> infer-thunk classes kinds families env locals s operation x st
-      None -> case ownership-syntax-arguments "b.refSet" env expr of
-        Some args -> infer-ref-set classes kinds families env locals s args st
+      None -> case ownership-syntax-call env expr of
+        Some (operation, args) -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals s args st
+          else infer-borrow classes kinds families env locals s operation args UError st
         None -> case projection-syntax-head env f of
           Some operation -> infer-projection classes kinds families env locals s operation x st
           None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
@@ -2723,6 +2754,7 @@ module Bootstrap.Infer where
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
+    ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body None st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
     EHandle sp body handled-by -> infer-handle classes kinds families env locals sp body handled-by st
     EHandler sp label clauses -> case fresh-meta KType st of
@@ -2754,6 +2786,8 @@ module Bootstrap.Infer where
   check-unrefined classes kinds families env locals expr expected st = case expr of
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     ELet sp bindings body -> infer-let-with-expected classes kinds families env locals sp bindings body (Some expected) st
+    ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body (Some expected) st
+    EGuarded sp guard body -> check-alt-body classes kinds families env locals expr expected st
     ETuple sp fields -> (case normalize st expected of
       UTuple types -> (case check-tuple-elements classes kinds families env locals sp fields types st of (values, checked) -> (CTuple sp expected values, checked))
       UMeta id KType -> (case fresh-tuple-elements sp fields st of
@@ -2846,9 +2880,11 @@ module Bootstrap.Infer where
     ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
-    EApp sp function argument -> case ownership-syntax-arguments "b.mutBorrow" env expr of
-      Some args -> infer-mutable-borrow classes kinds families env locals sp args expected st
-      None -> if projection-syntax-spine env expr || (case ownership-syntax-arguments "b.refSet" env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+    EApp sp function argument | memo-demand-head env function -> infer-memo-demand classes kinds families env locals sp argument st
+    EApp sp function argument -> case ownership-syntax-call env expr of
+      Some (operation, args) -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
+        else infer-borrow classes kinds families env locals sp operation args expected st
+      None -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
         (case application-spine expr Nil of
           (head, args) -> case thunk-syntax-operation env head of
             Some operation -> infer classes kinds families env locals expr st
@@ -2878,6 +2914,7 @@ module Bootstrap.Infer where
   check-refined classes kinds families env locals expr expected carrier st = case expr of
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
+    EGuarded s guard body -> check-alt-body classes kinds families env locals expr expected st
     ECase s value alternatives -> case infer classes kinds families env locals value st of
       (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
@@ -3369,6 +3406,192 @@ module Bootstrap.Infer where
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
             (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
+  memo-demand-head :: List CheckedBinding -> Expr -> Bool
+  memo-demand-head env expression = case expression of
+    EVar sp name -> same name "b.demand" && (case lookup-binding name env of
+      Some (MkSyntaxBinding symbol) -> same symbol name
+      other -> False)
+    other -> False
+  memo-demand-term :: Span -> UType -> CoreTerm -> CoreTerm
+  memo-demand-term sp cell value =
+    CPrimitive sp (memo-demand-type cell) "memo-demand" (CArgument sp value (CArgumentsEnd sp))
+  infer-memo-demand :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
+  infer-memo-demand classes kinds families env locals sp input st = case input of
+    EVar at name -> (case lookup-binding name env of
+      Some (MkMemoBinding source ty id) -> (memo-demand-term sp (normalize st ty) (CLocal at ty id source Nil), st)
+      other -> check-memo-demand classes kinds families env locals sp input st)
+    other -> check-memo-demand classes kinds families env locals sp input st
+  check-memo-demand :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
+  check-memo-demand classes kinds families env locals sp input st = case infer classes kinds families env locals input st of
+    (value, checked) -> let carrier = normalize checked (core-type value) in
+      (case lazy-parts carrier of
+        Some parts -> (memo-demand-term sp carrier value, checked)
+        None -> term-error sp "demand expects a checked Lazy cell" checked)
+
+  data LocalStep where
+    StrictValueStep :: Span -> Nat -> String -> Scheme -> CoreTerm -> LocalStep
+    StrictPatternStep :: Span -> CorePattern -> CoreTerm -> LocalStep
+  data MemoLocal where
+    MemoLocal :: Span -> String -> Nat -> UType -> UType -> UType -> Expr -> MemoLocal
+
+  group-signatures :: Expr -> List (String, TypeExpr)
+  group-signatures bindings = case bindings of
+    ELocalSignature sp name ty rest -> Cons (name, ty) (group-signatures rest)
+    ELocalStrict sp pattern value rest -> group-signatures rest
+    ELocalMemo sp name value rest -> group-signatures rest
+    other -> Nil
+  group-signature :: String -> List (String, TypeExpr) -> Option TypeExpr
+  group-signature wanted signatures = case signatures of
+    Nil -> None
+    Cons (name, ty) rest -> if same wanted name then Some ty else group-signature wanted rest
+  checked-local-signature :: TypeContext -> List CheckedBinding -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  checked-local-signature kinds env locals syntax st = case convert False kinds (value-locals env locals) syntax st of
+    (ty, checked) -> (ty, expect-type (type-expr-span syntax) ty checked)
+  open-memo-locals :: TypeContext -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> UType -> Expr -> Store -> (List CheckedBinding, List MemoLocal, Store)
+  open-memo-locals kinds env locals signatures region bindings st = case bindings of
+    ELocalMemo sp name value rest -> case fresh-meta KRow st of
+      (row, opened) -> (case (case group-signature name signatures of
+        Some annotation -> checked-local-signature kinds env locals annotation opened
+        None -> fresh-meta KType opened) of
+        (carrier, ready) -> (case fresh-id ready of
+          (id, fresh) -> let bound = Cons (MkMemoBinding name (lazy-type row region carrier) id) env in
+            (case open-memo-locals kinds bound locals signatures region rest fresh of
+              (complete, more, done) -> (complete, Cons (MemoLocal sp name id region row carrier value) more, done))))
+    ELocalStrict sp pattern value rest -> open-memo-locals kinds env locals signatures region rest st
+    ELocalSignature sp name ty rest -> open-memo-locals kinds env locals signatures region rest st
+    ELocalEnd sp -> (env, Nil, st)
+    other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
+  infer-group-rhs :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Pat -> Expr -> Store -> (CoreTerm, Store)
+  infer-group-rhs classes kinds families env locals signatures pattern syntax st =
+    case (case pattern of PVar sp name -> group-signature name signatures; other -> None) of
+      Some annotation -> (case checked-local-signature kinds env locals annotation st of
+        (ty, checked) -> check classes kinds families env locals syntax ty checked)
+      None -> infer classes kinds families env locals syntax st
+  infer-group-strict :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Expr -> Store -> (List CheckedBinding, List LocalStep, Store)
+  infer-group-strict classes kinds families env locals signatures bindings st = case bindings of
+    ELocalStrict sp pattern syntax rest -> let level = store-level st in
+      (case infer-group-rhs classes kinds families env locals signatures pattern syntax (enter-level st) of
+        (term, checked) -> (case resolve-dictionary-term-with classes (env-instances env) (env-givens env) term checked of
+          (value, prepared) -> (case bind-group-value classes kinds families env locals sp pattern level value prepared of
+            (bound, step, ready) -> (case infer-group-strict classes kinds families bound locals signatures rest ready of
+              (finished, steps, done) -> (finished, Cons step steps, done)))))
+    ELocalMemo sp name syntax rest -> infer-group-strict classes kinds families env locals signatures rest st
+    ELocalSignature sp name ty rest -> infer-group-strict classes kinds families env locals signatures rest st
+    ELocalEnd sp -> (env, Nil, st)
+    other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
+  bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
+  bind-group-value classes kinds families env locals sp pattern level value st = case pattern of
+    PVar at name -> let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+      (case fresh-id (restore-level level st) of
+        (id, fresh) -> (case let-binding at env name scheme id level value fresh of
+          (binding, ready) -> (proof-let-env env binding id scheme value ready,
+            StrictValueStep at id name scheme (abstract-term st pairs value), ready)))
+    other -> let ty = core-type value in let written = proof-env-after-term env value st in
+      (case bind-pattern classes kinds families written locals pattern ty (restore-level level st) of
+        (bound, checked, ready) -> (proof-case-env sp bound value checked True ready, StrictPatternStep sp checked value,
+          ensure-coverage sp families env [ty] [[pattern]] ready))
+  local-step-terms :: List LocalStep -> CoreTerm -> CoreTerm
+  local-step-terms steps result = case steps of
+    Nil -> result
+    Cons first rest -> let inside = local-step-terms rest result in
+      (case first of
+        StrictValueStep sp id name scheme value -> CLet sp (core-type inside) id name scheme value inside
+        StrictPatternStep sp pattern value -> CCase sp (core-type inside) value (CAlternative sp pattern inside (CAlternativesEnd sp)))
+  memo-allocation-terms :: List MemoLocal -> CoreTerm -> CoreTerm
+  memo-allocation-terms cells result = case cells of
+    Nil -> result
+    Cons (MemoLocal sp name id region row carrier syntax) rest ->
+      let cell = lazy-type row region carrier in
+      let inside = memo-allocation-terms rest result in
+      CLet sp (core-type inside) id name (mono cell) (CPrimitive sp cell "memo-alloc" (CArgumentsEnd sp)) inside
+  infer-memo-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List MemoLocal -> Store -> (List (Nat, LocalStep), Store)
+  infer-memo-bodies classes kinds families env locals cells st = case cells of
+    Nil -> (Nil, st)
+    Cons (MemoLocal sp name id region row carrier syntax) rest ->
+      let captured = proof-env-after-writes env [(sp, None)] st in
+      (case check classes kinds families captured locals syntax carrier st of
+        (value, checked) -> let effects = normalize checked (core-effects (map-term-types (normalize checked) value)) in
+          let allowed = (if scope-region-closed region effects then unify sp row effects checked else
+            add-error (expr-span syntax) "this memo binding demands its own memo group" checked) in
+          (case fresh-id allowed of
+            (temporary, ready) -> let cell = lazy-type row region carrier in
+              let unit = primitive-type "Unit" in
+              let callback = CLambda sp (UFunEff unit row carrier) (CPWild sp unit) value in
+              let initial = CPrimitive sp unit "memo-init" (CArgument sp (CLocal sp cell id name Nil)
+                (CArgument sp callback (CArgumentsEnd sp))) in
+              (case infer-memo-bodies classes kinds families env locals rest ready of
+                (more, done) -> (Cons (id, StrictValueStep sp temporary "#memo-init" (mono unit) initial) more, done))))
+  step-value :: LocalStep -> CoreTerm
+  step-value step = case step of StrictValueStep sp id name scheme value -> value; StrictPatternStep sp pattern value -> value
+  step-span :: LocalStep -> Span
+  step-span step = case step of StrictValueStep sp id name scheme value -> sp; StrictPatternStep sp pattern value -> sp
+  step-ids :: LocalStep -> List Nat
+  step-ids step = case step of StrictValueStep sp id name scheme value -> [id]; StrictPatternStep sp pattern value -> task-pattern-ids pattern
+  strict-ids :: List LocalStep -> List Nat
+  strict-ids steps = case steps of Nil -> Nil; Cons first rest -> step-ids first <> strict-ids rest
+  memo-id-present :: Nat -> List Nat -> Bool
+  memo-id-present id ids = case ids of Nil -> False; Cons first rest -> id == first || memo-id-present id rest
+  captures-strict :: List Nat -> List (Nat, UType) -> Bool
+  captures-strict unbound free = case free of
+    Nil -> False
+    Cons (id, ty) rest -> memo-id-present id unbound || captures-strict unbound rest
+  ready-memos :: List Nat -> List (Nat, LocalStep) -> (List LocalStep, List (Nat, LocalStep))
+  ready-memos unbound pending = case pending of
+    Nil -> (Nil, Nil)
+    Cons (id, step) rest -> case ready-memos unbound rest of
+      (ready, waiting) -> if captures-strict unbound (task-free Nil (step-value step)) then
+        (ready, Cons (id, step) waiting) else (Cons step ready, waiting)
+  memo-links :: List (Nat, LocalStep) -> List (Nat, List Nat)
+  memo-links pending = case pending of Nil -> Nil; Cons (id, step) rest -> Cons (id, [id]) (memo-links rest)
+  linked-memos :: Nat -> List (Nat, List Nat) -> List Nat
+  linked-memos id links = case links of Nil -> Nil; Cons (key, refs) rest -> if id == key then refs else linked-memos id rest
+  referenced-memos :: List (Nat, UType) -> List (Nat, List Nat) -> List Nat
+  referenced-memos free links = case free of
+    Nil -> Nil
+    Cons (id, ty) rest -> linked-memos id links <> referenced-memos rest links
+  bind-memo-links :: List Nat -> List Nat -> List (Nat, List Nat) -> List (Nat, List Nat)
+  bind-memo-links ids refs links = case ids of Nil -> links; Cons id rest -> Cons (id, refs) (bind-memo-links rest refs links)
+  pending-memo-demand :: List Nat -> List (Nat, LocalStep) -> Bool
+  pending-memo-demand refs waiting = case waiting of
+    Nil -> False
+    Cons (id, step) rest -> (case refs of Nil -> True; other -> memo-id-present id refs) || pending-memo-demand refs rest
+  schedule-memo-steps :: UType -> List LocalStep -> List (Nat, LocalStep) -> List (Nat, List Nat) -> Store -> (List LocalStep, Store)
+  schedule-memo-steps region strict pending links st = case ready-memos (strict-ids strict) pending of
+    (ready, waiting) -> case strict of
+      Nil -> (ready, st)
+      Cons step rest -> let value = map-term-types (normalize st) (step-value step) in
+        let refs = referenced-memos (task-free Nil value) links in
+        let checked = (if not (scope-region-closed region (core-effects value)) && pending-memo-demand refs waiting then
+            add-error (step-span step) "a strict binding demands a memo before its captured locals are initialized" st
+          else st) in
+        (case schedule-memo-steps region rest waiting (bind-memo-links (step-ids step) refs links) checked of
+          (more, done) -> (ready <> Cons step more, done))
+  infer-local-group :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-local-group classes kinds families env locals sp bindings syntax wanted st =
+    let level = store-level st in
+    let signatures = group-signatures bindings in
+    (case fresh-id (enter-level st) of
+      (id, opened) -> let region = URigid id "memo" (store-level opened) KRegion in
+        (case open-memo-locals kinds env locals signatures region bindings opened of
+          (memos, cells, prepared) -> (case infer-group-strict classes kinds families memos locals signatures bindings prepared of
+            (bound, strict, checked) -> (case infer-memo-bodies classes kinds families bound locals cells checked of
+              (initial, ready) -> (case (case wanted of
+                Some expected -> check classes kinds families bound locals syntax expected ready
+                None -> infer classes kinds families bound locals syntax ready) of
+                (body, done) ->
+                  (case cells of
+                    Nil -> (local-step-terms strict body, restore-level level done)
+                    other -> case schedule-memo-steps region strict initial (memo-links initial) done of
+                      (steps, scheduled) ->
+                        let term = memo-allocation-terms cells (local-step-terms steps body) in
+                        let closed = restore-level level scheduled in
+                        let result = normalize scheduled (core-type body) in
+                        -- Solved row variables inside nested calls can
+                        -- introduce this scope's Eval label.
+                        if scope-region-closed region result then
+                          (CMemoScope sp result region (map-term-types (normalize scheduled) term), closed)
+                        else term-error sp "region escape: a value leaves its local memo group" closed))))))
+
   infer-operator :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-operator classes kinds families env locals sp op a b st =
     if has op ["&&", "||"] then
@@ -3421,7 +3644,10 @@ module Bootstrap.Infer where
     PArg s x rest -> pattern-names x <> pattern-names rest
     other -> Nil
   duplicate-names :: Span -> List String -> List String -> Store -> Store
-  duplicate-names sp names seen st = case names of Nil -> st; Cons n rest -> duplicate-names sp rest (Cons n seen) (if has n seen then add-error sp (string-concat "duplicate pattern binder: " n) st else st)
+  duplicate-names sp names seen st = case names of
+    Nil -> st
+    Cons name rest -> duplicate-names sp rest (Cons name seen)
+      (if has name seen then add-error sp (string-concat-all ["duplicate pattern binder: ", name, " is bound twice"]) st else st)
   patterns-names :: List Pat -> List String
   patterns-names ps = case ps of Nil -> Nil; Cons p rest -> pattern-names p <> patterns-names rest
   bind-proof-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
@@ -3434,9 +3660,9 @@ module Bootstrap.Infer where
   bind-pattern classes kinds families env locals pat expected st = case pat of
     PWild s -> (env, CPWild s expected, st)
     PVar s name -> case fresh-id st of
-      (id, fresh) -> (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env, CPVar s expected id name, fresh)
+      (id, fresh) -> (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env, CPVar s expected id name, check-borrow-binding s env expected fresh)
     PAs s name inner -> case fresh-id st of
-      (id, fresh) -> case bind-pattern classes kinds families (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env) locals inner expected fresh of
+      (id, fresh) -> case bind-pattern classes kinds families (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env) locals inner expected (check-borrow-binding s env expected fresh) of
         (bound, pattern, ss) -> (bound, CPAs s expected id name pattern, ss)
     PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
@@ -3448,17 +3674,34 @@ module Bootstrap.Infer where
     PLitStr s text -> (env, CPString s expected text, unify s expected (literal-type kinds "String") st)
     PLitChar s text -> (env, CPChar s expected text, unify s expected (primitive-type "Char") st)
     PTuple s args -> case pattern-fields args st of
-      (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (unify s expected (tuple-type fields) sf) of
+      (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (check-tuple-pattern-type s expected fields sf) of
         (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
     PCon s name args -> case lookup-binding name env of
       Some b ->
         if same (checked-role b) "constructor" then
           case open-scheme False (checked-scheme b) st of
-            (ty, pairs, ss) -> case bind-constructor classes kinds families env locals s args ty expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
-              (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
+            (ty, pairs, ss) -> case foreign-constructor-family families (normalize ss (result-type ty)) (normalize ss expected) of
+              Some owner -> (env, CPWild s UError, add-error s (string-concat-all
+                ["constructor ", diagnostic-member-name name, " does not belong to type ", diagnostic-member-name owner]) ss)
+              None -> case bind-constructor classes kinds families env locals s args ty expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
+                (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
         else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
       None -> (env, CPWild s UError, add-error s (string-concat "unknown constructor: " name) st)
+    PUnmodeled s message -> (env, CPWild s UError, add-error s message st)
     other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "pattern needs further elaboration" st)
+  foreign-constructor-family :: List (String, List String) -> UType -> UType -> Option String
+  foreign-constructor-family families actual expected = case (root-name actual, root-name expected) of
+    (Some source, Some owner) -> if same source owner then None else
+      (case family-ctors owner families of Some constructors -> Some owner; None -> None)
+    other -> None
+  check-tuple-pattern-type :: Span -> UType -> UType -> Store -> Store
+  check-tuple-pattern-type sp expected fields st = case normalize st expected of
+    UTuple existing -> let actual = list-length (spine-list fields) in
+      let wanted = list-length (spine-list existing) in
+      if actual == wanted then unify sp expected (tuple-type fields) st else
+        add-error sp (string-concat-all ["tuple pattern has ", nat-to-string actual,
+          " components but the tuple type has ", nat-to-string wanted]) st
+    other -> unify sp expected (tuple-type fields) st
   pattern-fields :: Pat -> Store -> (UType, Store)
   pattern-fields ps st = case ps of
     PArgsEnd s -> (UEnd, st)
@@ -3490,6 +3733,14 @@ module Bootstrap.Infer where
 
   task-wanted :: Option UType -> Store -> (UType, Store)
   task-wanted wanted st = case wanted of Some ty -> (ty, st); None -> fresh-meta KType st
+  inferred-scope-result-escapes :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> UType -> Store -> Bool
+  inferred-scope-result-escapes classes kinds families env locals callback owner region row st =
+    case fresh-meta KType st of
+      (result, ready) ->
+        let expected = UFunEff (scope-type owner region) row result in
+        (case check classes kinds families env locals callback expected ready of
+          (checked, done) -> list-length (store-errors done) == list-length (store-errors st)
+            && not (scope-region-closed region (normalize done result)))
   infer-task-application :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-task-application classes kinds families env locals sp expr wanted st = case application-spine expr Nil of
     (EVar at name, args) -> if same name "b.withScope" then (case args of
@@ -3501,7 +3752,12 @@ module Bootstrap.Infer where
                 (id, inner) -> let region = URigid id "scope" (store-level inner) KRegion in
                   let expected = UFunEff (scope-type owner region) row result in
                   case check classes kinds families env locals body expected inner of
-                    (callback, done) -> (CScope sp result region (CENeeded sp (UApp (UCon "b.Io" (KFun KRegion KType)) owner) (env-givens env)) callback, restore-level level done))
+                    (callback, done) ->
+                      let failed = list-length (store-errors done) > list-length (store-errors inner) in
+                      let escapes = (not (scope-region-closed region (normalize done result))
+                        || (failed && inferred-scope-result-escapes classes kinds families env locals body owner region row inner)) in
+                      if escapes then term-error sp "region escape: a value leaves its `withScope`" (restore-level level inner)
+                      else (CScope sp result region (CENeeded sp (UApp (UCon "b.Io" (KFun KRegion KType)) owner) (env-givens env)) callback, restore-level level done))
       other -> term-error sp "withScope takes exactly one scope callback" st)
       else if same name "b.spawn" then (case args of
         Cons token (Cons body Nil) -> (case fresh-meta KRegion st of
@@ -3556,7 +3812,7 @@ module Bootstrap.Infer where
   finish-do-value classes kinds families env locals sp at name value rest expected st = case fresh-id st of
     (id, ready) -> let scheme = mono (normalize ready (core-type value)) in
       let bound = proof-let-env env (MkLocalBinding name scheme id (store-level ready)) id scheme value ready in
-      case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected ready of
+      case check-do classes kinds families (if same name "_" then env else bound) locals sp rest expected (check-borrow-binding at env (scheme-body scheme) ready) of
         (body, done) -> (CLet at expected id name scheme value body, done)
   check-do-lets :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-do-lets classes kinds families env locals sp bindings rest expected st = case bindings of
@@ -3586,6 +3842,8 @@ module Bootstrap.Infer where
   -- Arbitrary expressions that happen to evaluate to True do not cover.
   body-covers :: Expr -> Bool
   body-covers body = case body of
+    ELet sp bindings value -> body-covers value
+    ELocalGroup sp bindings value -> body-covers value
     EGuarded s guard rhs -> case guard of
       ECon at name (EArgsEnd end) -> same name "True"
       other -> False
@@ -3708,15 +3966,23 @@ module Bootstrap.Infer where
 
   -- The unguarded matrix decides coverage. Use the original rows only to
   -- name a path through that failed matrix, including guarded literals.
-  coverage-literal :: List (List Pat) -> Option String
-  coverage-literal rows = case rows of
-    Nil -> None
-    Cons (Cons p tail) rest -> (case strip-pattern p of
+  coverage-literals :: List (List Pat) -> List String -> List String
+  coverage-literals rows seen = case rows of
+    Nil -> reverse seen
+    Cons (Cons p tail) rest -> let literal = (case strip-pattern p of
       PLitInt sp text -> Some text
       PLitStr sp text -> Some (string-concat-all ["\"", text, "\""])
       PLitChar sp text -> Some (string-concat-all ["'", text, "'"])
-      other -> coverage-literal rest)
-    Cons Nil rest -> coverage-literal rest
+      other -> None) in
+      (case literal of
+        Some text -> coverage-literals rest (if has text seen then seen else Cons text seen)
+        None -> coverage-literals rest seen)
+    Cons Nil rest -> coverage-literals rest seen
+  coverage-literal-list :: List String -> String
+  coverage-literal-list literals = case literals of
+    Nil -> ""
+    Cons text Nil -> text
+    Cons text rest -> string-concat-all [text, ", ", coverage-literal-list rest]
   uncovered-coverage :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> List (List Pat) -> String -> Store -> String
   uncovered-coverage families env tys covered original hint st = case tys of
     Nil -> hint
@@ -3733,7 +3999,9 @@ module Bootstrap.Infer where
             None -> uncovered-default families env tail covered original hint shaped))
   uncovered-default :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> List (List Pat) -> String -> Store -> String
   uncovered-default families env tail covered original hint st =
-    let witness = (case coverage-literal original of Some text -> string-concat "a value other than " text; None -> hint) in
+    let witness = (case coverage-literals original Nil of
+      Nil -> hint
+      literals -> string-concat "a value other than " (coverage-literal-list literals)) in
     uncovered-coverage families env tail (defaults covered) (defaults original) witness st
   uncovered-constructor :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> List (List Pat) -> String -> List String -> Store -> String
   uncovered-constructor families env ty tail covered original hint constructors st = case constructors of
@@ -3796,7 +4064,13 @@ module Bootstrap.Infer where
             Cons first rest -> prepend-proof-facts zero
               (scoped-core-equation-facts (proof-context env st) (normalize-equation-prefix st earlier) (normalize-patterns st patterns)) env in
       (case check-required classes kinds families bound locals body expected st of
-        (rhs, ss) -> (patterns, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss))
+        (rhs, ss) -> let site = expr-span body in
+          let checked = include-effects site (core-effects rhs) allowed ss in
+          let finished = (case reversed of
+            Nil -> if list-length (store-errors checked) > list-length (store-errors ss) then
+              add-error site "a nullary definition must be pure" checked else checked
+            other -> checked) in
+          (patterns, rhs, finished))
     Cons p rest -> case bind-arrow-pattern classes kinds families env locals p expected (include-effects (pat-span p) allowed (URow UEnd) st) of
       (bound, pattern, row, result, checked) -> check-equation classes kinds families bound locals earlier (Cons pattern reversed) rest body result row checked
   normalize-equation-prefix :: Store -> List (List CorePattern) -> List (List CorePattern)
@@ -3807,8 +4081,11 @@ module Bootstrap.Infer where
   check-clauses classes kinds families env locals ty earlier cs st = case cs of
     Nil -> (Nil, st)
     Cons (ps, body) rest -> case check-equation classes kinds families env locals earlier Nil ps body ty (URow UEnd) (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
-      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
-        (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
+      (patterns, rhs, sr) ->
+        let writes = if core-alternative-covers rhs then Nil else guard-fallthrough-writes (map-term-types (normalize sr) rhs) in
+        let remaining = proof-env-after-writes env writes sr in
+        case check-clauses classes kinds families remaining locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
+          (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
   bind-value-parameters :: List Quant -> List (Nat, UType) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   bind-value-parameters params pairs env st = case params of
     Nil -> (env, st)
@@ -3951,6 +4228,7 @@ module Bootstrap.Infer where
     MkConditionalBinding n owner slot dictionary head sc guarded -> MkConditionalBinding n owner slot dictionary (normalize st head) (map-scheme-types (normalize st) sc) guarded
     MkGivenBinding n ty symbol -> MkGivenBinding n (normalize st ty) symbol
     MkLocalBinding n sc id level -> MkLocalBinding n (map-scheme-types (normalize st) sc) id level
+    MkMemoBinding name ty id -> MkMemoBinding name (normalize st ty) id
     MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
     MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
     MkProofBinding origin invalidated fact -> MkProofBinding origin invalidated fact
@@ -4146,15 +4424,6 @@ module Bootstrap.Infer where
     None -> (expected, st)
     Some syntax -> case member-annotation-scheme classes kinds (scheme-params factory) syntax st of
       (annotated, checked) -> (annotated, if scheme-equivalent expected annotated then checked else add-error (type-expr-span syntax) "instance method signature disagrees with the specialized class contract" checked)
-  -- Linkage identities stay encoded; diagnostics retain the source spelling.
-  diagnostic-member-name :: String -> String
-  diagnostic-member-name symbol = case export-global symbol of
-    Ok name -> pack (diagnostic-member-chars (unpack name) Nil)
-    Err message -> symbol
-  diagnostic-member-chars :: List Char -> List Char -> List Char
-  diagnostic-member-chars input seen = case input of
-    Nil -> reverse seen
-    Cons c rest -> diagnostic-member-chars rest (if char-code c == 46 then Nil else Cons c seen)
   source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
   source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations methods st = case methods of
     Nil -> (Nil, st)
@@ -4709,6 +4978,10 @@ module Bootstrap.Infer where
     ENeg sp x -> ENeg sp (record-expression all x)
     ELam sp patterns body -> ELam sp (record-patterns all patterns) (record-expression all body)
     ELet sp bindings body -> ELet sp (record-expression all bindings) (record-expression all body)
+    ELocalGroup sp bindings body -> ELocalGroup sp (record-expression all bindings) (record-expression all body)
+    ELocalStrict sp pattern value rest -> ELocalStrict sp (record-pattern all pattern) (record-expression all value) (record-expression all rest)
+    ELocalMemo sp name value rest -> ELocalMemo sp name (record-expression all value) (record-expression all rest)
+    ELocalSignature sp name ty rest -> ELocalSignature sp name ty (record-expression all rest)
     EIf sp c a b -> EIf sp (record-expression all c) (record-expression all a) (record-expression all b)
     ECase sp value alternatives -> ECase sp (record-expression all value) (record-expression all alternatives)
     EGuarded sp guard body -> EGuarded sp (record-expression all guard) (record-expression all body)

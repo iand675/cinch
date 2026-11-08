@@ -304,6 +304,7 @@ module Bootstrap.Global where
     CHandlerEnd sp -> True
     CErasedApply sp ty row f witness -> term-references globals locals givens f && term-references globals locals givens witness
     CScope sp ty region evidence callback -> evidence-valid globals givens evidence && term-references globals locals givens callback
+    CMemoScope sp ty region body -> term-references globals locals givens body
     CSpawn sp ty token body -> term-references globals locals givens token && term-references globals locals givens body
     CJoin sp ty token handles -> term-references globals locals givens token && term-references globals locals givens handles
     CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)

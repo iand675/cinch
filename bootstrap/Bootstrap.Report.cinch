@@ -9,6 +9,7 @@ module Bootstrap.Report where
 
   import Text.Lex (Span, span-line, span-col, bytes-slice)
   import Data.String (utf8-valid-from)
+  import Text.Scan (string-starts-with)
   import Text.Show (nat-to-string)
   import Bootstrap.Ast (span-join, span-here)
 
@@ -38,7 +39,10 @@ module Bootstrap.Report where
   render-diagnostic d =
     let rung = diagnostic-rung d in
     let pos = render-position (diagnostic-span d) in
-    string-concat rung (string-concat ":" (string-concat pos (string-concat ": " (diagnostic-message d))))
+    let message = diagnostic-message d in
+    let rendered = (if string-starts-with "name is not in scope: " message then
+      string-concat-all ["unknown name (", message, ")"] else message) in
+    string-concat rung (string-concat ":" (string-concat pos (string-concat ": " rendered)))
 
   diagnostics-count :: List Diagnostic -> Nat
   diagnostics-count ds = case ds of

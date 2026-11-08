@@ -20,6 +20,7 @@ module Bootstrap.Typing where
   export TypingContext, close-typing-context, typing-definition-closed, context-bodies, context-guarded-bodies
   export context-body-context, close-typing-context-with-definitions
   export task-source-forwarder, task-forwarder-type
+  export task-free, task-pattern-ids
   data TypingContext where
     CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> TypingContext
   context-data :: TypingContext -> List CoreData
@@ -263,6 +264,7 @@ module Bootstrap.Typing where
         None -> False)
       other -> False)
     CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
+    CMemoScope sp ty region body -> checked-memo-scope context scope gamma facts ty region body
     CSpawn sp ty token body -> checked-spawn ty token body && checked-term context scope gamma facts token && checked-term context scope gamma facts body
     CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
     CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
@@ -277,7 +279,11 @@ module Bootstrap.Typing where
       checked-term context scope gamma facts value
         && alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
-    CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else if same name "mut-borrow" then mut-borrow-checked ty args else if same name "ref-set" then ref-set-checked ty args else primitive-types ty name args)
+    CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args
+      else if has name ["borrow", "mut-borrow"] then borrow-checked scope (same name "mut-borrow") ty args
+      else if same name "ref-set" then ref-set-checked ty args
+      else if has name ["memo-alloc", "memo-init", "memo-demand"] then checked-memo-primitive context scope ty name args
+      else primitive-types ty name args)
       && argument-terms context scope gamma facts args
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
     CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
@@ -341,15 +347,37 @@ module Bootstrap.Typing where
   copy-out-checked context result args = case args of
     CArgument sp value (CArgumentsEnd end) -> equal-type result (copy-out-type (core-type value)) && copyable-type context Nil 64 result
     other -> False
-  mut-borrow-checked :: UType -> CoreTerm -> Bool
-  mut-borrow-checked result args = case (mutable-borrow result, args) of
-    (Some (region, carrier), CArgument sp value (CArgumentsEnd end)) -> equal-type carrier (core-type value)
+  borrow-checked :: TypeScope -> Bool -> UType -> CoreTerm -> Bool
+  borrow-checked scope mutable result args = case (borrow-type-parts result, args) of
+    (Some (actual, region, carrier), CArgument sp value (CArgumentsEnd end)) ->
+      actual == mutable && equal-type carrier (core-type value) && not (borrow-scope-conflict scope result)
     other -> False
   ref-set-checked :: UType -> CoreTerm -> Bool
   ref-set-checked result args = type-is "Unit" result && (case args of
     CArgument sp (CLocal at ty id name actuals) (CArgument bt value (CArgumentsEnd end)) ->
       (case mutable-borrow ty of Some (region, carrier) -> equal-type carrier (core-type value); None -> False)
     other -> False)
+  checked-memo-scope :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
+  checked-memo-scope context scope gamma facts result region body = case region of
+    URigid id name level KRegion -> equal-type result (core-type body) && scope-region-closed region result
+      && scope-region-closed region (memo-residual region (core-effects body))
+      && (case open-memo-region id scope of
+        Some opened -> checked-term context opened gamma facts body
+        None -> False)
+    other -> False
+  checked-memo-primitive :: TypingContext -> TypeScope -> UType -> String -> CoreTerm -> Bool
+  checked-memo-primitive context scope result op args = case args of
+    CArgumentsEnd sp -> same op "memo-alloc" && (case lazy-parts result of
+      Some (row, region, carrier) -> in-memo-region region scope && scope-region-closed region row
+        && scope-region-closed region carrier && copyable-type context Nil 64 carrier
+      None -> False)
+    CArgument sp cell (CArgumentsEnd end) -> same op "memo-demand" && equal-type result (memo-demand-type (core-type cell))
+    CArgument sp (CLocal at cell id name Nil) (CArgument bt callback (CArgumentsEnd end)) ->
+      same op "memo-init" && type-is "Unit" result && (case (lazy-parts cell, thunk-function-parts (core-type callback)) of
+        (Some (row, region, carrier), Some (latent, returned)) -> in-memo-region region scope
+          && equal-type row latent && equal-type carrier returned && scope-region-closed region row
+        other -> False)
+    other -> False
   task-signature :: String -> List CoreGlobal -> Bool
   task-signature owner declarations = case declarations of
     Nil -> False
@@ -364,7 +392,10 @@ module Bootstrap.Typing where
     UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"] || same name (interface-global "Data.String.String") then True else task-data-property context True seen fuel ty
     UTuple fields -> task-fields-property context True seen fuel fields
     UApp (UCon name kind) owner -> if same name "b.Io" then True else task-data-property context True seen fuel ty
-    UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True else task-data-property context True seen fuel ty
+    UApp (UApp (UCon name kind) owner) region -> if same name "b.Scope" then True
+      else (case borrow-type-parts (task-base ty) of
+        Some (False, lifetime, carrier) -> task-shareable context seen (fuel - 1) carrier
+        other -> task-data-property context True seen fuel ty)
     URigid id name level KRegion -> True
     UBound id name KRegion -> True
     other -> task-data-property context True seen fuel ty
@@ -527,6 +558,8 @@ module Bootstrap.Typing where
     CIf sp ty condition yes no -> use-count-after interrupted condition (use-count interrupted id condition) (use-count-choice (use-count interrupted id yes) (use-count interrupted id no))
     CCase sp ty value alts -> use-count-after interrupted value (use-count interrupted id value) (use-count-alternatives interrupted id alts)
     CScope sp ty region evidence callback -> use-count-once interrupted id callback
+    CPrimitive sp ty op (CArgument at cell (CArgument bt callback (CArgumentsEnd end))) | same op "memo-init" ->
+      use-count-sequence (use-count interrupted id cell) (use-count-choice (Some (0, 0)) (use-count-once interrupted id callback))
     CSpawn sp ty token callback ->
       use-count-after interrupted token (use-count interrupted id token) (use-count-once interrupted id callback)
     CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
@@ -540,6 +573,7 @@ module Bootstrap.Typing where
       let next = if core-alternative-covers body then branch else use-count-choice branch (use-count-alternatives interrupted id rest) in
       use-count-after interrupted guard (use-count interrupted id guard) next
     CLet sp ty key name sc rhs value -> use-count-after interrupted rhs (use-count interrupted id rhs) (use-count-row interrupted id value rest)
+    CMemoScope sp ty region value -> use-count-row interrupted id value rest
     CRequire sp ty value -> use-count-row interrupted id value rest
     CDischarge sp ty evidence value -> use-count-row interrupted id value rest
     CProved sp ty evidence value -> use-count-row interrupted id value rest
@@ -779,6 +813,26 @@ module Bootstrap.Typing where
   task-types-hold-mut types = case types of Nil -> False; Cons ty rest -> task-type-holds-mut ty || task-types-hold-mut rest
   task-free-holds-mut :: List (Nat, UType) -> Bool
   task-free-holds-mut free = case free of Nil -> False; Cons (id, ty) rest -> task-type-holds-mut ty || task-free-holds-mut rest
+  task-type-holds-memo :: UType -> Bool
+  task-type-holds-memo ty = let base = task-base ty in case lazy-parts base of
+    Some cell -> True
+    None -> (case base of
+      UApp f x -> task-type-holds-memo f || task-type-holds-memo x
+      UFun a b -> task-type-holds-memo a || task-type-holds-memo b
+      UFunEff a row b -> task-type-holds-memo a || task-type-holds-memo b
+      UUsageArrow usage arrow -> task-type-holds-memo arrow
+      UPi id name a row b -> task-type-holds-memo a || task-type-holds-memo b
+      UTuple fields -> task-type-holds-memo fields
+      UArg first rest -> task-type-holds-memo first || task-type-holds-memo rest
+      other -> False)
+  task-free-holds-memo :: List (Nat, UType) -> Bool
+  task-free-holds-memo free = case free of
+    Nil -> False
+    Cons (id, ty) rest -> task-type-holds-memo ty || task-free-holds-memo rest
+  task-evidence-holds-memo :: List UType -> Bool
+  task-evidence-holds-memo types = case types of
+    Nil -> False
+    Cons ty rest -> task-type-holds-memo ty || task-evidence-holds-memo rest
   -- A non-shareable value can move into the direct, one-shot task body
   -- only when its source binder has its own checked usage obligation.
   task-free-transfer :: TypingContext -> List TaskLocal -> CoreTerm -> List (Nat, UType) -> Bool
@@ -786,6 +840,7 @@ module Bootstrap.Typing where
     Nil -> True
     Cons (id, ty) rest ->
       (task-handle-type ty || task-shareable context Nil 64 ty || (transferable-local env id &&
+        (case borrow-regions ty of Nil -> True; other -> False) &&
         (case use-count False id body of Some (low, high) -> high == 1; None -> False)))
       && task-free-transfer context env body rest
   task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace
@@ -794,7 +849,9 @@ module Bootstrap.Typing where
       let inside = task-trace context (task-pattern-env p Nil False (transfer-parameter ty) env) scopes True body in
       let captured-evidence = task-free-evidence Nil body in
       let capture-error = (if not spawning then None else
-        if task-free-holds-mut free || task-types-hold-mut captured-evidence then Some (sp, "an exclusive `Mut` borrow cannot cross a task boundary")
+        if task-free-holds-memo free || task-evidence-holds-memo captured-evidence then
+          Some (sp, "a thread-shared memo cell cannot cross a task boundary")
+        else if task-free-holds-mut free || task-types-hold-mut captured-evidence then Some (sp, "an exclusive `Mut` borrow cannot cross a task boundary")
         else require-task (task-free-transfer context env body free && task-types-property context True Nil 64 captured-evidence)
           sp "a task capture crosses the task boundary without shareable evidence") in
       let task-failure = first-task-error (task-pattern-use-error p body) (first-task-error (task-trace-error inside) capture-error) in
@@ -815,6 +872,9 @@ module Bootstrap.Typing where
         let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a scoped capture leaves its `withScope`" in
         let failure = first-task-error (task-trace-error inside) escape in
         TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
+      CMemoScope sp ty region body -> let inside = task-trace context env scopes consuming body in
+        let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a value captures a local memo cell" in
+        TaskTrace (first-task-error (task-trace-error inside) escape) (task-trace-regions inside) (task-trace-shared inside)
       CSpawn sp ty token callback -> task-spawn-trace context env scopes sp token callback
       CJoin sp ty token handles -> let scope-value = task-trace context env scopes False token in
         let consumed = task-trace-list context env scopes True (case handles of CArgument sp first rest -> task-argument-values handles; other -> Nil) in
@@ -822,6 +882,9 @@ module Bootstrap.Typing where
       CPrimitive sp ty op args -> let checked = task-trace context env scopes False args in
         if same op "copy-out" && not (copy-out-checked context ty args) then
           TaskTrace (Some (sp, string-concat "copyOut requires structural Copy evidence for " (type-text ty))) Nil False
+        else if same op "memo-alloc" && (case lazy-parts ty of
+          Some (row, region, carrier) -> not (copyable-type context Nil 64 carrier)
+          None -> True) then TaskTrace (Some (sp, "a memo cell cache requires structural Copy evidence")) Nil False
         else task-result-trace context ty checked
       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
         let inside = task-trace context (task-pattern-env p Nil False (transfer-parameter ty) env) scopes True body in
@@ -878,6 +941,7 @@ module Bootstrap.Typing where
   task-code-present :: TypingContext -> CoreTerm -> Bool
   task-code-present context term = annotated-arrow (core-type term) || task-scoped-type (core-type term) || affine-thunk (core-type term) || (case term of
     CScope sp ty region evidence callback -> True
+    CMemoScope sp ty region body -> True
     CSpawn sp ty token callback -> True
     CJoin sp ty token handles -> True
     CPrimitive sp ty op args -> has op ["copy-out", "thunk-force", "thunk-delay"] || task-code-present context args

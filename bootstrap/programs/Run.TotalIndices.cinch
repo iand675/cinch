@@ -38,7 +38,7 @@ module Main where
     let solved = unify sp meta input store in
     let late = call function (UIndex nat (IRigid id "late" 3)) in
     let (outer, os) = fresh-meta (value-kind nat) (empty-store "call escape") in
-    let scope = MkTypeScope [(id, value-kind nat)] Nil Nil in
+    let scope = MkTypeScope [(id, value-kind nat)] Nil Nil Nil in
     let kinds = [("Nat", KType), ("Int", KType), ("At", KFun (value-kind nat) KType)] in
     [ valid-type observed
     , typed-index-admissible observed
@@ -59,7 +59,7 @@ module Main where
     , has id (type-all-ids observed)
     , type-well-formed kinds scope observed
     , not (type-well-formed kinds empty-type-scope observed)
-    , not (type-well-formed kinds (MkTypeScope [(id, value-kind int)] Nil Nil) observed)
+    , not (type-well-formed kinds (MkTypeScope [(id, value-kind int)] Nil Nil Nil) observed)
     , valid-type (call function observed) && typed-index-admissible (call function observed)
     , not (typed-index-admissible (UIndex nat (IApply (IGlobal (total-identity function)) (IBound id "n"))))
     , (case index-of-type observed of None -> True; other -> False)
