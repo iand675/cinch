@@ -16947,209 +16947,139 @@
         "unit": "checks",
         "total": 14,
         "counts": {
-          "verified": 0,
+          "verified": 14,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 14
+          "recheck": 0
         },
         "detail": "The 14 original executable, fixity, facade and class-identity checks.",
         "items": [
           {
             "id": "external:0",
             "title": "mixed / emit",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:1",
             "title": "mixed / link",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:2",
             "title": "mixed / run",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:3",
             "title": "passing / emit",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:4",
             "title": "passing / link",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:5",
             "title": "passing / run",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:6",
             "title": "produce",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:7",
             "title": "separate-facade",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:8",
             "title": "direct",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:9",
             "title": "renamed-reexport",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:10",
             "title": "separate-renamed",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:11",
             "title": "identical-redeclaration",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:12",
             "title": "changed-redeclaration",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "external:13",
             "title": "class-identity",
-            "state": "recheck",
-            "detail": "Awaiting the matching Stage 3 external check.",
+            "state": "verified",
+            "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           }
         ]
       },
@@ -20370,7 +20300,7 @@
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
-        "status": "waiting-shared-worker",
+        "status": "running",
         "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 34,
@@ -20392,9 +20322,9 @@
       },
       {
         "title": "Run the 14 external Stage 3 acceptance checks",
-        "status": "running",
-        "phase": "class-identity",
-        "passed": 13,
+        "status": "passed",
+        "phase": "Both executable controls, defining-module fixity checks and all three class-identity cases passed.",
+        "passed": 14,
         "total": 14,
         "unit": "gates",
         "failed": 0,
@@ -20521,11 +20451,11 @@
       }
     ],
     "counts": {
-      "verified": 298,
+      "verified": 312,
       "blocked": 0,
       "running": 2,
       "pending": 6,
-      "recheck": 400
+      "recheck": 386
     },
     "total": 706,
     "acceptanceVerified": 4,
@@ -20533,5 +20463,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:32:22.681339+00:00"
+  "updatedAt": "2026-11-08T17:33:25.754126+00:00"
 }
