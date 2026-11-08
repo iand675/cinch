@@ -618,7 +618,7 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "recheck",
-        "detail": "Earlier checkpoint. The separate imported-law replay reached the checker and exposed an incorrect terminator on a named law binder. The corrected candidate parses and is queued with Nat and generic constructor-field counterexamples.",
+        "detail": "Checked Nat and U32 samples and runtime wraparound passed. Original rewrite citations parse and resolve. Typed equation comparison, justification checking and assumption transport remain open.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-law-observations-results.json"
       },
@@ -666,7 +666,7 @@
         "id": "gap:records",
         "title": "Finish record interface transport",
         "state": "recheck",
-        "detail": "Earlier checkpoint. A known earlier compiler gap; latest exact behavior still needs a complete check.",
+        "detail": "All 18 isolated record checks passed, including source-free archives. The replay on the combined codata and nominal compiler remains separate.",
         "doneWhen": "The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.",
         "evidence": "https://github.com/iand675/cinch/blob/main/design/next-steps.md"
       },
@@ -20714,6 +20714,17 @@
         "evidence": null
       },
       {
+        "title": "Replay records, nominal types and codata on the combined compiler",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with compiled record transport",
+        "passed": 1,
+        "total": 20,
+        "failed": 0,
+        "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
+        "evidence": null
+      },
+      {
         "title": "Check record interface shape in Rust and tooling",
         "unit": "controls",
         "status": "passed",
@@ -20739,7 +20750,7 @@
         "title": "Replay class laws with checked numeric samples and U32 wrapping",
         "unit": "controls",
         "status": "completed-with-failures",
-        "phase": "Isolated Stage 1 candidate. link and run U32 overflow and underflow controls",
+        "phase": "Numeric sample checks and U32 wraparound pass. Three rewrite cases and one artifact assertion remain open.",
         "passed": 7,
         "total": 11,
         "failed": 4,
@@ -20750,7 +20761,7 @@
         "title": "Check rewrite syntax and resolve defining law signatures",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. replay original law citations and syntax refusals",
+        "phase": "Original law citations resolve to defining signatures. Syntax and binder refusals pass. The checker still requires a verified equation and justification.",
         "passed": 2,
         "total": 2,
         "failed": 0,
@@ -20758,15 +20769,26 @@
         "evidence": null
       },
       {
+        "title": "Verify Rust primitive clause order and the checked law observation",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to wait for the primitive interface replay to release its worker.",
+        "passed": 0,
+        "total": 3,
+        "failed": 0,
+        "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+        "evidence": null
+      },
+      {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. concurrency (19 original tests)",
+        "phase": "All 39 integration, 5 guard and 10 codata tests passed. concurrency (19 original tests)",
         "passed": 55,
         "total": 74,
         "failed": 0,
         "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-combined-host-integration-results.json"
       },
       {
         "title": "Check Rust task sharing and transfer through reference fields",
@@ -20804,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:05:59.969308+00:00"
+  "updatedAt": "2026-11-08T23:09:25.403270+00:00"
 }
