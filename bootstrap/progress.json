@@ -481,7 +481,8 @@
     "laws",
     "prim",
     "codata",
-    "guard_coverage"
+    "guard_coverage",
+    "integration"
   ],
   "milestones": [
     {
@@ -592,7 +593,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | prim | codata | guard_coverage",
+        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | prim | codata | guard_coverage | integration",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -17734,8 +17735,8 @@
         "total": 8,
         "counts": {
           "verified": 1,
-          "blocked": 6,
-          "running": 1,
+          "blocked": 7,
+          "running": 0,
           "pending": 0,
           "recheck": 0
         },
@@ -17912,8 +17913,8 @@
           {
             "id": "additional:integration",
             "title": "integration",
-            "state": "running",
-            "detail": "Running all 39 original cases through the matching Stage 3.",
+            "state": "blocked",
+            "detail": "The original target reported a failure on the matching Stage3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           }
@@ -20436,8 +20437,8 @@
     ],
     "counts": {
       "verified": 352,
-      "blocked": 7,
-      "running": 4,
+      "blocked": 8,
+      "running": 3,
       "pending": 2,
       "recheck": 346
     },
@@ -20447,5 +20448,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:01:04.404149+00:00"
+  "updatedAt": "2026-11-08T18:02:07.908196+00:00"
 }
