@@ -2136,7 +2136,7 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.refSet"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -2167,12 +2167,19 @@ module Bootstrap.Infer where
       else case refinement-view carrier of
         URefine id name base predicate -> (CForget sp base body, checked)
         other -> term-error sp "unrefine projects a refinement to its container" checked
-  ref-set-arguments :: List CheckedBinding -> Expr -> Option (List Expr)
-  ref-set-arguments env expr = case application-spine expr Nil of
-    (EVar sp name, args) -> if same name "b.refSet" then
+  ownership-syntax-arguments :: String -> List CheckedBinding -> Expr -> Option (List Expr)
+  ownership-syntax-arguments operation env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> if same name operation then
       (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some args else None; other -> None)
       else None
     other -> None
+  infer-mutable-borrow :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-mutable-borrow classes kinds families env locals sp args expected st = case args of
+    [input] -> (case mutable-borrow (normalize st expected) of
+      Some (region, carrier) -> (case check classes kinds families env locals input carrier st of
+        (value, ready) -> (CPrimitive sp expected "mut-borrow" (CArgument (expr-span input) value (CArgumentsEnd sp)), ready))
+      None -> term-error sp "mutBorrow needs an expected Mut region type" st)
+    other -> term-error sp "mutBorrow takes exactly one argument" st
   infer-ref-set :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
   infer-ref-set classes kinds families env locals sp args st = case args of
     [place, input] -> case infer classes kinds families env locals place st of
@@ -2557,7 +2564,7 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> case ref-set-arguments env expr of
+    EApp s f x -> case ownership-syntax-arguments "b.refSet" env expr of
       Some args -> infer-ref-set classes kinds families env locals s args st
       None -> case projection-syntax-head env f of
         Some operation -> infer-projection classes kinds families env locals s operation x st
@@ -2690,11 +2697,13 @@ module Bootstrap.Infer where
     ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
-    EApp sp function argument -> if projection-syntax-spine env expr || (case ref-set-arguments env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
-      (case application-spine expr Nil of
-        (head, args) -> case infer classes kinds families env locals head st of
-          (fun, opened) -> apply-spine classes kinds families env locals fun args
-            (hint-application-result sp (core-type fun) args expected opened))
+    EApp sp function argument -> case ownership-syntax-arguments "b.mutBorrow" env expr of
+      Some args -> infer-mutable-borrow classes kinds families env locals sp args expected st
+      None -> if projection-syntax-spine env expr || (case ownership-syntax-arguments "b.refSet" env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+        (case application-spine expr Nil of
+          (head, args) -> case infer classes kinds families env locals head st of
+            (fun, opened) -> apply-spine classes kinds families env locals fun args
+              (hint-application-result sp (core-type fun) args expected opened))
     other -> infer classes kinds families env locals expr st
   comparison-predicate :: UType -> Bool
   -- Only comparisons and their conjunctions widen to a carrier. Structural

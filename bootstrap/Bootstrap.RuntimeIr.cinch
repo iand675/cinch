@@ -238,9 +238,11 @@ module Bootstrap.RuntimeIr where
     Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
     None -> False
   word-class :: RuntimeContext -> UType -> Option Nat
-  word-class context ty = case borrowed-carrier (base ty) of
-    Some carrier -> word-class context carrier
-    None -> value-word-class context ty
+  word-class context ty = case mutable-borrow (base ty) of
+    Some place -> Some 1
+    None -> case borrowed-carrier (base ty) of
+      Some carrier -> word-class context carrier
+      None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -2177,7 +2179,9 @@ module Bootstrap.RuntimeIr where
     (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
-    CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then expression definitions locals w input
+    CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
+      else if same op "mut-borrow" then (case expression definitions locals w input of
+        (ready, value) -> let (planned, descriptor) = request-layout sp [input] ready in allocate planned descriptor [value])
       else if same op "negate" && named (core-type input) "Int" then
       (case expression definitions locals w input of
         (ready, value) -> case call ready "@cinch_int_neg" [value] of (done, result) -> (count-op False (core-type input) value done, result))
@@ -2190,7 +2194,7 @@ module Bootstrap.RuntimeIr where
               (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", frame, " to ptr"])) pointer slot of
                 (loaded, field) -> (count-op False (core-type first) frame (count-op True ty field loaded), field))
           other -> unsupported w sp "handler field has no checked slot")
-      else if same op "ref-set" then unsupported w sp "mutable writes require checked cell lowering"
+      else if same op "ref-set" then write-borrow-word definitions locals w sp first second
       else if number (core-type first) then binary definitions locals w sp op first second
       else if (same op "==" || same op "/=") && scalar (core-type first) then
         (case expressions definitions locals w [first, second] of
@@ -2199,6 +2203,22 @@ module Bootstrap.RuntimeIr where
       else unsupported w sp "primitive carrier needs runtime lowering"
     CArgumentsEnd end -> if same op "decision-true" then (w, "1") else if same op "decision-false" then (w, "0") else unsupported w sp "nullary primitive needs runtime lowering"
     other -> unsupported w sp "primitive arity needs runtime lowering"
+  copy-out-word :: List CoreDefinition -> List Local -> Writer -> UType -> CoreTerm -> (Writer, String)
+  copy-out-word definitions locals w ty input = case mutable-borrow (core-type input) of
+    None -> expression definitions locals w input
+    Some place -> case expression definitions locals w input of
+      (ready, cell) -> let (one, pointer) = fresh ready "%ptr" in
+        (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
+          (loaded, value) -> (count-op False (core-type input) cell (count-op True ty value loaded), value))
+  write-borrow-word :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  write-borrow-word definitions locals w sp target input = case mutable-borrow (core-type target) of
+    None -> unsupported w sp "mutable write needs a checked cell carrier"
+    Some (region, carrier) -> case expression definitions locals w target of
+      (held, cell) -> case expression definitions locals held input of
+        (ready, value) -> let (one, pointer) = fresh ready "%ptr" in
+          (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
+            (loaded, old) -> let replaced = store-fields loaded pointer 0 [value] in
+              (count-op False (core-type target) cell (count-op False carrier old replaced), "0"))
   compare-word :: Writer -> String -> String -> String -> (Writer, String)
   compare-word w predicate a b = let (one, flag) = fresh w "%v" in let (two, result) = fresh one "%v" in
     (line (line two (cat ["  ", flag, " = icmp ", predicate, " i64 ", a, ", ", b])) (cat ["  ", result, " = zext i1 ", flag, " to i64"]), result)
