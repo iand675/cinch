@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "60 passed, 3 running, 39 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 60,
+        "phase": "61 passed, 3 running, 38 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 61,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20918,13 +20918,14 @@
       },
       {
         "title": "Require compiled dependencies for object clients",
-        "status": "failed",
-        "phase": "AssertionError(PosixPath('/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-objects-only-validation-1/fixtures/client-only/compile-client-only.log'))",
-        "passed": 2,
+        "status": "passed-staged-compiled-object-clients",
+        "phase": "Stage2 passed all three smokes. Its client linked against the library object and exited 17 with zero leaks. A duplicate library module was refused and stale IR was cleared.",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "gates",
-        "source": "1eb7eb299a7559b147455ac913030d86e503fd540efb8ad9e50c44792ef9e1ec"
+        "source": "1eb7eb299a7559b147455ac913030d86e503fd540efb8ad9e50c44792ef9e1ec",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-object-only-stage2-results.json"
       },
       {
         "title": "Verify Rust tests on the current main integration",
@@ -20959,13 +20960,13 @@
       },
       {
         "title": "Run shared mutable cells through the rebuilt Cinch compiler",
-        "status": "superseded-before-build",
-        "phase": "Schema10 objects only validation 1.",
+        "status": "running",
+        "phase": "Pinned seed check.",
         "passed": 1,
         "failed": 0,
-        "total": 9,
+        "total": 10,
         "unit": "gates",
-        "source": "6847b00883a60fb87857d5f06d97ea2e40e34cb17a41a3d6cb2f30c5889ce8c4"
+        "source": "0fe775e5aab0ec924d0243aa0347ddf75df064e799191a2b03718966de7e00c0"
       }
     ],
     "counts": {
@@ -20981,5 +20982,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:44:31.422976+00:00"
+  "updatedAt": "2026-11-08T08:48:47.267642+00:00"
 }
