@@ -20543,9 +20543,9 @@
       {
         "title": "Check Rust task sharing against mutable reference payloads",
         "unit": "targets",
-        "status": "running",
+        "status": "passed",
         "phase": "Isolated Rust candidate. ownership",
-        "passed": 1,
+        "passed": 2,
         "total": 2,
         "failed": 0,
         "source": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74"
@@ -20564,5 +20564,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:04:03.398734+00:00"
+  "updatedAt": "2026-11-08T19:05:06.447265+00:00"
 }
