@@ -20706,10 +20706,10 @@
         "title": "Check erased record evidence and executable field layout",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. original-non-proposition",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. construct-and-match",
+        "passed": 3,
         "total": 5,
-        "failed": 0,
+        "failed": 1,
         "source": "6cb202e5ba6c226bfe1fc5563a2e240ece1702015a950def8d5b2f81e82830dc",
         "evidence": null
       },
@@ -20771,5 +20771,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:50:36.078709+00:00"
+  "updatedAt": "2026-11-08T21:51:38.702228+00:00"
 }
