@@ -20521,9 +20521,9 @@
       {
         "title": "Verify shared borrows and task scope exits",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. ref-conflicts-with-mut",
-        "passed": 5,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. borrow-needs-context",
+        "passed": 8,
         "total": 8,
         "failed": 0,
         "source": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
@@ -20543,8 +20543,8 @@
       {
         "title": "Check Rust task sharing against mutable reference payloads",
         "unit": "targets",
-        "status": "waiting-worker",
-        "phase": "Isolated Rust candidate. Queued for a shared worker.",
+        "status": "running",
+        "phase": "Isolated Rust candidate. concurrency",
         "passed": 0,
         "total": 2,
         "failed": 0,
@@ -20564,5 +20564,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:58:50.678428+00:00"
+  "updatedAt": "2026-11-08T18:59:53.080280+00:00"
 }
