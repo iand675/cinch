@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_refinement_closure, bootstrap_refinement_constructors, bootstrap_refinement_core",
-        "passed": 56,
+        "phase": "Bootstrap_refinement_constructors, bootstrap_refinement_core, bootstrap_refinement_types",
+        "passed": 57,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20990,8 +20990,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_conditional_methods",
-        "passed": 25,
+        "phase": "Bootstrap_core",
+        "passed": 27,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:49:50.387060+00:00"
+  "updatedAt": "2026-11-08T16:52:13.877792+00:00"
 }
