@@ -1788,7 +1788,12 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -12000,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 91,
+          "verified": 92,
           "blocked": 6,
           "running": 1,
-          "pending": 4,
+          "pending": 3,
           "recheck": 3
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13815,21 +13820,21 @@
           {
             "id": "stage3:bootstrap_source_handlers",
             "title": "bootstrap_source_handlers",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_handlers.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T06:02:25.012923+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T06:09:23.558972+00:00",
+              "exitCode": 0,
+              "logSha256": "f7a875e59288168fb35e731cc43bc177742e76e416a77058ecd7dffcb11ef33d",
               "cases": [
                 {
                   "name": "source_handlers_preserve_declarations_effects_and_resumptions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13938,18 +13943,23 @@
           {
             "id": "stage3:bootstrap_source_refinements",
             "title": "bootstrap_source_refinements",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:09:24.708968+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "source_refinements_check_actual_values_and_preserve_effects",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -19015,14 +19025,14 @@
       },
       {
         "title": "Integrated Stage0 through Stage3 rebuild",
-        "status": "running",
-        "phase": "checking fixed point and source change",
+        "status": "passed-chain-awaiting-independent-audit",
+        "phase": "passed chain awaiting independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
@@ -20883,10 +20893,10 @@
       }
     ],
     "counts": {
-      "verified": 390,
+      "verified": 391,
       "blocked": 12,
       "running": 12,
-      "pending": 208,
+      "pending": 207,
       "recheck": 58
     },
     "total": 680,
@@ -20895,5 +20905,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:08:42.028857+00:00"
+  "updatedAt": "2026-11-08T06:09:44.468870+00:00"
 }
