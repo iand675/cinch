@@ -11999,6 +11999,22 @@
                 },
                 {
                   "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+                  "status": "passed"
+                },
+                {
+                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_scalars_roundtrip_through_generic_operations",
                   "status": "running"
                 }
               ]
@@ -20075,5 +20091,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:57:32.562273+00:00"
+  "updatedAt": "2026-11-08T01:58:34.595195+00:00"
 }
