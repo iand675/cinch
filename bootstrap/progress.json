@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_nonzero_source, bootstrap_nonzero_types, bootstrap_parse",
-        "passed": 47,
+        "phase": "Bootstrap_nonzero_source, bootstrap_pi, bootstrap_pipeline",
+        "passed": 49,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -21248,5 +21248,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:26:39.509157+00:00"
+  "updatedAt": "2026-11-08T16:27:41.741083+00:00"
 }
