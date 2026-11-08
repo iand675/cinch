@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "67 of 236 complete groups passed; 1 running, 5 failed and 163 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "67 of 236 complete groups passed; 1 running, 6 failed and 162 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -482,7 +482,7 @@
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_abstract_nonzero_methods; Native compiler tests: bootstrap_infer; Native compiler tests: bootstrap_named_refinements; Native compiler tests: bootstrap_nonzero_source; Native compiler tests: bootstrap_parse; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
+      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_abstract_nonzero_methods; Native compiler tests: bootstrap_infer; Native compiler tests: bootstrap_named_refinements; Native compiler tests: bootstrap_nonzero_source; Native compiler tests: bootstrap_parse; Native compiler tests: bootstrap_runtime_emit; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
     },
     {
       "title": "Finish the repair gates",
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "67 of 236 complete groups passed; 1 running, 5 failed and 163 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "67 of 236 complete groups passed; 1 running, 6 failed and 162 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -823,9 +823,9 @@
         "total": 236,
         "counts": {
           "verified": 67,
-          "blocked": 5,
+          "blocked": 6,
           "running": 1,
-          "pending": 163,
+          "pending": 162,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2637,21 +2637,21 @@
           {
             "id": "native:bootstrap_runtime_emit",
             "title": "bootstrap_runtime_emit",
-            "state": "running",
+            "state": "blocked",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_emit.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T09:40:52.175184+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T09:51:06.276067+00:00",
+              "exitCode": 101,
+              "logSha256": "1f57052f4b51af57a7d86f9ef3837e639c4d29e8403b0c881bd4de2705e2e9cf",
               "cases": [
                 {
                   "name": "compiler_emit_mode_uses_the_typed_runtime_backend_and_preserves_refusals",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             },
@@ -2660,21 +2660,21 @@
           {
             "id": "native:bootstrap_runtime_ir",
             "title": "bootstrap_runtime_ir",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_ir.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:40:46.558244+00:00",
-              "finishedAt": "2026-11-06T21:48:00.986896+00:00",
-              "exitCode": 0,
-              "logSha256": "abc6af26474b48cce7aa1fccd2dd0b79afcdae8f68dcc234756027aca4641b0b",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T09:51:06.280472+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,9 +19568,9 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_runtime_emit",
+        "phase": "bootstrap_runtime_ir",
         "passed": 67,
-        "failed": 5,
+        "failed": 6,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
         "earlier": false
@@ -20989,7 +20989,7 @@
         "total": 13,
         "unit": "gates",
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-native-provider-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-object-results.json"
       },
       {
         "title": "Run the complete ABI 7 Native suite",
@@ -21003,20 +21003,31 @@
       },
       {
         "title": "Run all required ABI 7 Stage 3 frontend groups",
-        "status": "superseded-before-running",
-        "phase": "Superseded before running.",
+        "status": "waiting-stage3",
+        "phase": "Waiting for the ABI 7 fixed point and matching Native runtime archives.",
         "passed": 0,
         "failed": 0,
         "total": 105,
         "unit": "targets",
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
+      },
+      {
+        "title": "Run the original editor and syntax suite on ABI 7",
+        "status": "audited-abi7-native-editor",
+        "phase": "All 39 original tests passed on the matching Native compiler.",
+        "passed": 39,
+        "failed": 0,
+        "total": 39,
+        "unit": "tests",
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-editor-results.json"
       }
     ],
     "counts": {
       "verified": 377,
-      "blocked": 16,
+      "blocked": 17,
       "running": 11,
-      "pending": 170,
+      "pending": 169,
       "recheck": 101
     },
     "total": 675,
@@ -21025,5 +21036,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:49:30.586337+00:00"
+  "updatedAt": "2026-11-08T09:51:16.678205+00:00"
 }
