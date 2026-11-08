@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "c744ffca469ba31f92ffdf7ee3dd82b4c1f7a451",
+  "commit": "3f6224fb35400d4343db0d47ab42341b8c9606d3",
   "status": "Integrated ABI 7 verification",
   "stages": [
     {
@@ -510,11 +510,11 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "candidateSource": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "24/236 Rust targets and 22/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
+  "activity": "0/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 23/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -793,15 +793,15 @@
     "suites": [
       {
         "id": "native",
-        "title": "Rust compiler suite",
+        "title": "Rust compiler suite on the preceding candidate",
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 24,
+          "verified": 25,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 211
+          "recheck": 210
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -1267,52 +1267,44 @@
           {
             "id": "native:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T19:36:25.585667+00:00",
+              "finishedAt": "2026-11-08T19:44:42.555338+00:00",
+              "exitCode": 0,
+              "logSha256": "1e41e2d13851b89b1336224c1f658de0286d915c20cc649091802442b3d8d679",
+              "cases": [
+                {
+                  "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
+                  "status": "passed"
+                }
+              ]
+            },
+            "currentTests": 1
+          },
+          {
+            "id": "native:bootstrap_byte_observations",
+            "title": "bootstrap_byte_observations",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
+            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
+            "observed": {
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T19:44:42.571201+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
               "cases": [
                 {
-                  "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
-                  "status": "running"
-                }
-              ]
-            },
-            "currentTests": null
-          },
-          {
-            "id": "native:bootstrap_byte_observations",
-            "title": "bootstrap_byte_observations",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
-            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T04:33:11.424031+00:00",
-              "finishedAt": "2026-11-08T04:49:24.766339+00:00",
-              "exitCode": 0,
-              "logSha256": "94fa17c21be169afa0105912f05308a6b992ba999a276fe600df951be0a03da4",
-              "cases": [
-                {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
-                  "status": "passed"
-                },
-                {
-                  "name": "imported_observation_identity_survives_a_renamed_facade",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -12031,15 +12023,15 @@
       },
       {
         "id": "stage3",
-        "title": "Cinch-built compiler suite",
+        "title": "Cinch-built compiler suite on the preceding candidate",
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 22,
+          "verified": 23,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 81
+          "recheck": 80
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12633,10 +12625,34 @@
           {
             "id": "stage3:bootstrap_effect_types",
             "title": "bootstrap_effect_types",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "c9abf4f3675add89632e88e7ed38305a291e372850f39e406a411065f227a4d4",
+              "cases": [
+                {
+                  "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:bootstrap_effects",
+            "title": "bootstrap_effects",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12645,30 +12661,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:bootstrap_effects",
-            "title": "bootstrap_effects",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T05:05:44.390890+00:00",
-              "finishedAt": "2026-11-08T05:12:20.570096+00:00",
-              "exitCode": 0,
-              "logSha256": "cdad6917c6158b3bed7131089065d80d87eddb349aa8fc3d7e5f361e48a47fa0",
-              "cases": [
-                {
-                  "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
-                  "status": "passed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -17927,6 +17919,17 @@
     ],
     "active": [
       {
+        "title": "Run all 105 Stage 3 targets on the published compiler",
+        "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+        "unit": "targets",
+        "passed": 0,
+        "failed": 0,
+        "total": 105,
+        "status": "running",
+        "phase": "bootstrap_load",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
+      },
+      {
         "title": "Build and verify the integrated ABI 7 compiler",
         "unit": "stages",
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -20301,8 +20304,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_core, bootstrap_effect_types",
-        "passed": 22,
+        "phase": "bootstrap_core, bootstrap_effects",
+        "passed": 23,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20345,8 +20348,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_buffer_aliases",
-        "passed": 24,
+        "phase": "bootstrap_byte_observations",
+        "passed": 25,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20568,6 +20571,17 @@
         "total": 2,
         "failed": 0,
         "source": "841aeafb95ecbd7535810a63bc35f457eb23b5e34dbcf19891914a6c0f1cadb6",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
+      },
+      {
+        "title": "Type-check memo groups, effects and task capture in Cinch",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked memo scopes",
+        "passed": 0,
+        "total": 12,
+        "failed": 0,
+        "source": "56d8fcb7b99a75b0d7819bb1b8af2b2b936240a2b9012134d42ada2f3af8d9b3",
         "evidence": null
       },
       {
@@ -20589,15 +20603,16 @@
         "passed": 1,
         "total": 1,
         "failed": 0,
-        "source": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834"
+        "source": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
       }
     ],
     "counts": {
-      "verified": 384,
+      "verified": 386,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 314
+      "recheck": 312
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20605,5 +20620,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:43:07.487618+00:00"
+  "updatedAt": "2026-11-08T19:46:28.455174+00:00"
 }
