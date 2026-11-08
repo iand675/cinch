@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 76,
+          "verified": 77,
           "blocked": 6,
           "running": 2,
-          "pending": 17,
+          "pending": 16,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13807,21 +13807,21 @@
           {
             "id": "stage3:bootstrap_source_pi",
             "title": "bootstrap_source_pi",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:03:09.349184+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:09:51.377011+00:00",
+              "exitCode": 0,
+              "logSha256": "2947a378b437526088db687ee3b33a7b0d23c0fd7fe945cfab864be3177337e4",
               "cases": [
                 {
                   "name": "source_dependent_functions_use_checked_argument_values",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13921,18 +13921,23 @@
           {
             "id": "stage3:bootstrap_total",
             "title": "bootstrap_total",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:09:52.838348+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_checks_actual_total_body_graphs_and_forged_variants",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20598,8 +20603,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_source_pi. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 16,
+        "phase": "bootstrap_total. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 17,
         "failed": 1,
         "total": 21,
         "unit": "original test targets",
@@ -20827,10 +20832,10 @@
       }
     ],
     "counts": {
-      "verified": 360,
+      "verified": 361,
       "blocked": 12,
       "running": 13,
-      "pending": 236,
+      "pending": 235,
       "recheck": 59
     },
     "total": 680,
@@ -20839,5 +20844,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:08:34.225021+00:00"
+  "updatedAt": "2026-11-08T05:09:56.298184+00:00"
 }
