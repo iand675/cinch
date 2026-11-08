@@ -503,7 +503,7 @@
     }
   ],
   "candidateSource": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-  "candidatePublished": false,
+  "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
   "activity": "9/236 Rust targets and 1/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
@@ -20176,8 +20176,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_runtime_objects, bootstrap_source_constructors, bootstrap_source_decisions",
-        "passed": 63,
+        "phase": "Bootstrap_runtime_objects, bootstrap_source_effects, bootstrap_source_handlers",
+        "passed": 65,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20533,5 +20533,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:22:44.224605+00:00"
+  "updatedAt": "2026-11-08T17:23:47.378544+00:00"
 }
