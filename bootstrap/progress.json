@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "70 of 236 complete groups passed; 1 running, 7 failed and 158 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "71 of 236 complete groups passed; 1 running, 7 failed and 157 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "70 of 236 complete groups passed; 1 running, 7 failed and 158 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "71 of 236 complete groups passed; 1 running, 7 failed and 157 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 70,
+          "verified": 71,
           "blocked": 7,
           "running": 1,
-          "pending": 158,
+          "pending": 157,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2752,21 +2752,21 @@
           {
             "id": "native:bootstrap_source_constructors",
             "title": "bootstrap_source_constructors",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_constructors.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T10:32:16.086003+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T10:38:58.761095+00:00",
+              "exitCode": 0,
+              "logSha256": "53213bf6f0ab46f7db05292da75c2e1126aa14dc9fd83e96d6b7518f3c251199",
               "cases": [
                 {
                   "name": "decision_constructors_check_erasure_metadata_and_source_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2775,21 +2775,21 @@
           {
             "id": "native:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:24:36.870778+00:00",
-              "finishedAt": "2026-11-06T22:30:20.726931+00:00",
-              "exitCode": 0,
-              "logSha256": "df458efd1fb347efd0f83ea48c7adcfd7a9db358ffaa1aa7d15b77c2eaeefeaf",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T10:38:58.763527+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_constructors",
-        "passed": 70,
+        "phase": "bootstrap_source_decisions",
+        "passed": 71,
         "failed": 7,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -21056,13 +21056,13 @@
       {
         "title": "Rebuild ABI 7 with concrete closure proof lists",
         "status": "running",
-        "phase": "Emit mutable library. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
-        "passed": 6,
+        "phase": "Build stage2. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
+        "passed": 9,
         "failed": 0,
         "total": 12,
         "unit": "gates",
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage2-lowering-reproducer.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-repaired-stage1-object-results.json"
       },
       {
         "title": "Independently verify the repaired ABI 7 fixed point",
@@ -21105,6 +21105,27 @@
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
       },
       {
+        "title": "Run all 236 integrated Native groups",
+        "status": "waiting-matching-stage2",
+        "phase": "Waiting matching stage2",
+        "passed": 0,
+        "failed": 0,
+        "total": 236,
+        "unit": "groups",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+      },
+      {
+        "title": "Verify the single package execution interface on ABI 7",
+        "status": "passed",
+        "phase": "Package installation, verification, Native linking, JIT, and store tests passed.",
+        "passed": 23,
+        "failed": 0,
+        "total": 23,
+        "unit": "tests",
+        "source": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-package-interface-results.json"
+      },
+      {
         "title": "Consolidate installed package execution metadata",
         "status": "passed-package-cinchif-only",
         "phase": "All 23 package, Native linking, and JIT tests passed.",
@@ -21117,10 +21138,10 @@
       }
     ],
     "counts": {
-      "verified": 380,
+      "verified": 381,
       "blocked": 18,
       "running": 11,
-      "pending": 165,
+      "pending": 164,
       "recheck": 101
     },
     "total": 675,
@@ -21129,5 +21150,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:37:24.913743+00:00"
+  "updatedAt": "2026-11-08T10:42:07.497371+00:00"
 }
