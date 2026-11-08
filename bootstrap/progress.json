@@ -20390,7 +20390,8 @@
         "passed": 5,
         "total": 7,
         "failed": 2,
-        "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d"
+        "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json"
       },
       {
         "title": "Check linear and affine task capture transfers",
@@ -20400,7 +20401,8 @@
         "passed": 6,
         "total": 6,
         "failed": 0,
-        "source": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10"
+        "source": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json"
       },
       {
         "title": "Check quantified term annotations and lexical scope",
@@ -20410,17 +20412,41 @@
         "passed": 5,
         "total": 5,
         "failed": 0,
-        "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131"
+        "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json"
+      },
+      {
+        "title": "Replay all seven class-default tests on the annotation repair",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. all seven original class-default tests",
+        "passed": 0,
+        "total": 7,
+        "failed": 0,
+        "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131",
+        "evidence": null
       },
       {
         "title": "Rebuild the pinned object for the tagged List integration cases",
         "unit": "controls",
-        "status": "failed",
-        "phase": "Pinned provider rebuild. build pinned provider for the batched Stage 3 object requests",
-        "passed": 0,
+        "status": "passed",
+        "phase": "Pinned provider rebuild. prelude_sum_list_generic",
+        "passed": 3,
         "total": 3,
-        "failed": 1,
-        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-scoped-frontend-repairs-results.json"
+      },
+      {
+        "title": "Bootstrap the combined frontend and provider repairs",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 from the combined source",
+        "passed": 1,
+        "total": 14,
+        "failed": 0,
+        "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+        "evidence": null
       }
     ],
     "counts": {
@@ -20436,5 +20462,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:18:45.413468+00:00"
+  "updatedAt": "2026-11-08T18:22:05.521828+00:00"
 }
