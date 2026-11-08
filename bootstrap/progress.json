@@ -20662,7 +20662,7 @@
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. direct-public",
+        "phase": "All eight checks passed. A source-free archive client ran without leaks. The stale dependency and changed-body hashes matched their checks.",
         "passed": 8,
         "total": 8,
         "failed": 0,
@@ -20769,24 +20769,46 @@
         "evidence": null
       },
       {
+        "title": "Check rewrite equations against cited laws and record assumptions",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked rewrite equations and numeric law sampling",
+        "passed": 0,
+        "total": 11,
+        "failed": 0,
+        "source": "03e80a41769af7a78b00c1fcf78ab3e0a1aa24ee2e07cbf3552dfe1ac5f57fa1",
+        "evidence": null
+      },
+      {
         "title": "Verify Rust primitive clause order and the checked law observation",
         "unit": "controls",
-        "status": "completed-with-failures",
+        "status": "passed",
         "phase": "Isolated Stage 1 candidate. cinch-law-observation",
-        "passed": 0,
+        "passed": 3,
         "total": 3,
-        "failed": 3,
+        "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+        "evidence": null
+      },
+      {
+        "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with the preceding compiler",
+        "passed": 1,
+        "total": 5,
+        "failed": 0,
+        "source": "ebb74360d498988e68ba9a901008638d9be4c675a11a36f4a86901c6194f3c8a",
         "evidence": null
       },
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
-        "status": "completed-with-failures",
-        "phase": "Combined candidate, starting from the pinned seed. concurrency (19 original tests)",
-        "passed": 73,
+        "status": "passed",
+        "phase": "All 73 original tests passed on the same Stage 1, including all 19 concurrency tests. Both runs of the forwarder test are retained.",
+        "passed": 74,
         "total": 74,
-        "failed": 1,
+        "failed": 0,
         "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-combined-host-integration-results.json"
       },
@@ -20826,5 +20848,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:23:10.550814+00:00"
+  "updatedAt": "2026-11-08T23:26:15.386630+00:00"
 }
