@@ -81,6 +81,29 @@ class BootstrapContract(unittest.TestCase):
                                   if not line.startswith("  import ") or " as CompilerSource" not in line)
         self.assertEqual(without_imports, original)
 
+    def test_fixed_point_requires_matching_executables(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp)
+            for stage in ("stage2", "stage3"):
+                directory = build / stage
+                directory.mkdir()
+                (directory / "cinch").write_bytes(stage.encode())
+                (directory / "compiler.ll").write_bytes(b"identical IR")
+                (directory / "Main.cinchif").write_bytes(b"identical interface")
+            with patch.object(bootstrap, "BUILD", build), patch.object(bootstrap, "smoke"), \
+                    patch.object(bootstrap, "compiler_sources", return_value={}), \
+                    patch.object(bootstrap, "require_compiler_interfaces"), \
+                    patch.object(bootstrap, "check_interface_consumer") as consumer, \
+                    patch.object(bootstrap, "check_changed_source") as changed:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "compiler executables differ"):
+                    bootstrap.check_fixed_point()
+                consumer.assert_not_called()
+                changed.assert_not_called()
+                (build / "stage3/cinch").write_bytes(b"stage2")
+                bootstrap.check_fixed_point()
+                consumer.assert_called_once()
+                changed.assert_called_once()
+
     def test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

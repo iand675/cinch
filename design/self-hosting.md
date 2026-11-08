@@ -1823,8 +1823,9 @@ changed compiler and requires the new label in an actual refusal.
    every compiler module. It may use clang, the runtime and checked base
    library artifacts, as the existing ABI design permits. It must not
    invoke the Rust compiler frontend or substitute prebuilt compiler code.
-3. Stage 2 repeats the build into stage 3. Canonical interfaces and emitted
-   IR agree between stages 2 and 3. Run the resulting executables as well.
+3. Stage 2 repeats the build into stage 3. The compiler executables,
+   canonical interfaces and emitted IR agree byte for byte between stages
+   2 and 3. Run both resulting executables.
 4. Exercise a changed compiler source through the chain, so reusing an old
    artifact or emitting a fixed copy of the compiler cannot pass.
 5. The complete compiler and runtime suites pass, including previously

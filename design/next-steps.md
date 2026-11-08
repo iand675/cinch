@@ -34,8 +34,9 @@ See [the byte-observation audit](../bootstrap/current-schema10-total-byte-observ
 
 The current published Rust snapshot passed 205 compiler unit tests and
 171 runtime tests with ignored cases included. The current tooling suite
-passed 45 tests. The original integration targets and the final Stage3
-suite remain separate.
+passed 46 tests. The fixed-point command now also requires identical
+Stage2 and Stage3 executables. The original integration targets and the
+final Stage3 suite remain separate.
 See [the Rust, runtime and tooling audit](../bootstrap/current-schema10-published-native-core-results.json).
 
 The current syntax engine passed all 20 of its original cases. The full

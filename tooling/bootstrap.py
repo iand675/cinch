@@ -442,6 +442,8 @@ def check_fixed_point() -> None:
     for stage in (0, 1, 2, 3):
         smoke(stage)
     second, third = BUILD / "stage2", BUILD / "stage3"
+    if file_hash(second / "cinch") != file_hash(third / "cinch"):
+        raise BootstrapError("stage-2 and stage-3 compiler executables differ")
     if (second / "compiler.ll").read_bytes() != (third / "compiler.ll").read_bytes():
         raise BootstrapError("stage-2 and stage-3 LLVM IR differ")
     interfaces = {str(p.relative_to(second)): file_hash(p) for p in second.rglob("*.cinchif")}

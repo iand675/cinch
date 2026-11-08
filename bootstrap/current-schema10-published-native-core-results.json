@@ -1545,6 +1545,10 @@
           "status": "passed"
         },
         {
+          "name": "test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
           "name": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
           "status": "passed"
         },
@@ -1709,10 +1713,10 @@
           "status": "passed"
         }
       ],
-      "log_sha256": "b048777d5f1588d1547e39faf16782622fac8791f21a151a64cdce3b8c066b7c",
+      "log_sha256": "0bce653a011f445c012cf4eeb1fa0c68d99fdd049d3627ef603f21442daaa769",
       "name": "tooling",
       "status": "passed",
-      "tests": 45
+      "tests": 46
     }
   ],
   "runtime_archives": {
@@ -1724,7 +1728,7 @@
   "status": "audited-published-native-unit-runtime-tooling",
   "tooling_inputs": {
     "tooling/README.md": "bbb6579c66fd7335b458965c2c7b660c428f7e9f579ae238e76f5f272cc359a1",
-    "tooling/bootstrap.py": "eca3389320d825040e8e082837aeae642671f753e37b918be91c6b599f6201ed",
+    "tooling/bootstrap.py": "97953db46c950e20cdf897b564d8486b1f4349f36a3f99b59fa64f759bba7f6d",
     "tooling/bootstrap.sh": "6f4b7011cb7759c6825c2b4c056f30f5957804cc1819f3e09201dedbef1d42dc",
     "tooling/bootstrap_checklist.py": "9f876157895d2fa2100e1801773daaed0c617162050d91072f89a779ed10c495",
     "tooling/bootstrap_interfaces.py": "20ab0eb9aff01ad89ed830c416b54f3aae6d266827b48cfa862ee49788bc8de2",
@@ -1748,7 +1752,7 @@
     "tooling/lsp-driver/src/main.rs": "9df9207a44339ee39aef8d9b8fc88c36bb4dc1795f9a527bac2bde38504ad4f8",
     "tooling/run-bootstrap-ladder.sh": "9e7f53565a2a9c636d001c11afc5394f0a2cc87c24a82d2d13932904443b0e93",
     "tooling/tests/fixtures/checked-interface.json": "788f83f6acc0c739dee9fcb5b066e8079ed9b668b6d8897576c60f2e09b7a1ff",
-    "tooling/tests/test_bootstrap.py": "5d6f263384350acc4dd5cc52b712d82383347fbe4017daba9bef7b0d748ef96e",
+    "tooling/tests/test_bootstrap.py": "059222ede7afeab7e4124371e67fdedfbe328662ca97c495832dd599389459a9",
     "tooling/tests/test_bootstrap_interfaces.py": "3591fc4705ad922241698471df0b5d173521126cc150f79e51b97e78e3e67093",
     "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054",
     "tooling/tests/test_verify_bootstrap.py": "518e4b9d7b8742a451fc89ffca9e3fe8e0fba86dcab45845c5dd3b7d215f0961",
