@@ -17952,11 +17952,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding Cinch revision",
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
         "unit": "targets",
-        "passed": 12,
+        "passed": 13,
         "failed": 0,
         "total": 105,
         "status": "running",
-        "phase": "bootstrap_argument_scopes",
+        "phase": "bootstrap_boolean_branches",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
@@ -20815,5 +20815,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:15:56.354393+00:00"
+  "updatedAt": "2026-11-08T22:18:19.567412+00:00"
 }
