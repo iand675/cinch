@@ -20738,11 +20738,11 @@
       {
         "title": "Replay class laws with checked numeric samples and U32 wrapping",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. replay all eight original class-law tests",
-        "passed": 1,
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. link and run U32 overflow and underflow controls",
+        "passed": 7,
         "total": 11,
-        "failed": 0,
+        "failed": 4,
         "source": "4adb20843accaa25cecbddecbe10946d50f34ed8276266c0d8ecdb4886d51928",
         "evidence": null
       },
@@ -20804,5 +20804,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:01:28.300848+00:00"
+  "updatedAt": "2026-11-08T23:02:30.829825+00:00"
 }
