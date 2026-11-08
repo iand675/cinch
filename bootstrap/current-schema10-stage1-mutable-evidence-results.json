@@ -1,0 +1,83 @@
+{
+  "compiler_source_sha256": "fc9c1e1a0969a5ef57b25d74d9d7947f8d1ce7d77cd3f727126656f1f9a233a2",
+  "evidence_scope": "The Stage 1 source checker rejected three stale-proof programs, including the two original fixtures, and accepted four controls. This is an isolated ABI 6 test provider without Mut exports. The ABI 7 provider, fixed point and complete suites are separate gates.",
+  "full_goal_complete": false,
+  "native_source_sha256": "fe66f63f0080cdd024170d45e538aedc924fc9322e03134e2b9ab2111a86fe1d",
+  "original_refusal_cases": 2,
+  "positive_controls": 4,
+  "revision": "07e969d565582c043b8f5254c194bee36368fa20",
+  "rows": [
+    {
+      "log_sha256": "e709c23fed7c2cb5c88cc11800603770945416bc5abbb2313fc5a73f4bf109a1",
+      "name": "complete-source-parse",
+      "source_sha256": "fc5f151ab3e57e488787d7d2f4964cc2fe9fa688c572a753a2525eb0bcb3b3c7",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "c02c9704dd581855363214cb890200f2f42907cdfdd1adfd83d6a31bcb3c6ed3",
+      "name": "stage1",
+      "receipt_sha256": "793bf3da3b8414ebef0c38e92b876c6083eb0b896fdb010653ab9e5c0f1a6c6d",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "80222aa2ba3f29c21bb5484792c7ca4d6d41d602a8c7c576b6ef8df5745da920",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "write-then-use",
+      "source_sha256": "f74d88904548f2bf7a20a339a4040b50b66e2fc21cfbada9021249810035164b",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "cfbb9e0675c475addeac5acd8702bba0606eb47c56d73f92ece7244766f0ee6a",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "case-write-then-use",
+      "source_sha256": "74f4ec915992e01e9e720e17a37aa705ef530855fc724f2c643bc4f51b40859a",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "a6130a4e15ac0ecfaf0a39d1d9691aabe92282af2121fd2c40e3ac04bc082573",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "write-inside-condition",
+      "source_sha256": "dd6df3abd08de09ba18fa4f887113918dda4094231f508b9b7128b91bd5f5ebb",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "re-test-after-write",
+      "source_sha256": "a78fc5b8c6c2455746b3841f91da87ae545ef1dbaa5adaabae45e4e8aa7925d8",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "sibling-branch-write",
+      "source_sha256": "5831252a2b797031d939c32355a16b107d8d5ef4ded7641886cb2e9a4f642e41",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "read-only-fact-survives-write",
+      "source_sha256": "997bda6cb9796604b25b8c5e3b0fb2eea06fb6c1e1a5b2f75003945723bc2059",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "unrelated-mutable-region",
+      "source_sha256": "9db808635f3d61cd55de99436900eb590f4f791b2873bc38f75dce1ad6f9d833",
+      "status": "passed"
+    }
+  ],
+  "seed_preflight_compiler_source_sha256": "60de82d28692030daf29204bc6354176951f871fead2756829c4647b95d7e18c",
+  "seed_preflight_revision": "6b369be28b1ec0ae3989e71d83761f8d4e9bfd66",
+  "source_module_count": 46,
+  "status": "audited-stage1-mutable-evidence-controls"
+}
