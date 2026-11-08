@@ -21098,9 +21098,9 @@
       },
       {
         "title": "Replay Rust ownership and link its erased-arrow object from Cinch",
-        "status": "waiting-worker",
-        "phase": "native-emit-object",
-        "passed": 2,
+        "status": "passed",
+        "phase": "All Rust ownership tests passed and the separately linked Cinch client exited zero without leaks.",
+        "passed": 4,
         "total": 4,
         "unit": "gates",
         "failed": 0,
@@ -21225,5 +21225,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:42:24.196428+00:00"
+  "updatedAt": "2026-11-08T15:43:26.718626+00:00"
 }
