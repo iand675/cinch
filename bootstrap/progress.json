@@ -1741,6 +1741,10 @@
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
                   "status": "running"
                 }
               ]
@@ -20982,5 +20986,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:58:45.907696+00:00"
+  "updatedAt": "2026-11-08T06:00:48.708883+00:00"
 }
