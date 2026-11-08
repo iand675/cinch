@@ -19893,8 +19893,8 @@
       {
         "title": "Resolve NonZero predicates during specialization and rebuild",
         "status": "running",
-        "phase": "building stage2",
-        "passed": 2,
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19904,7 +19904,7 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "Waiting for the separate NonZero repair to clear Stage2.",
+        "phase": "Waiting for one of the five build workers.",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19915,8 +19915,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_imported_preconditions. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 9,
+        "phase": "bootstrap_intrinsics. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 10,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -20071,5 +20071,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:58:12.389136+00:00"
+  "updatedAt": "2026-11-08T00:59:14.629375+00:00"
 }
