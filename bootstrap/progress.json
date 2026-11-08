@@ -20716,11 +20716,11 @@
       {
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
-        "status": "failed",
-        "phase": "Isolated Stage 1 candidate. native-primitive-contract",
-        "passed": 0,
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to build Stage 1 with compiled primitive assumptions.",
+        "passed": 1,
         "total": 8,
-        "failed": 1,
+        "failed": 0,
         "source": "1e45838521fffaabffc68e66cd7b1215e2142bcceee6058d6abe2144c5bfc5c6",
         "evidence": null
       },
@@ -20761,8 +20761,8 @@
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. source-construct-and-match",
-        "passed": 6,
+        "phase": "Isolated Stage 1 candidate. projection-via-returned-record",
+        "passed": 11,
         "total": 18,
         "failed": 0,
         "source": "c6320f4be12e902cc25ec25b146a12163d6e35b1905ddeeddd200847d8b4b68c",
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:50:23.007785+00:00"
+  "updatedAt": "2026-11-08T22:51:25.614681+00:00"
 }
