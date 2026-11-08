@@ -9591,7 +9591,40 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_failed_load_keeps_the_previous_session",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_error_shows_its_source_span",
+                  "status": "passed"
+                },
+                {
+                  "name": "completion_covers_session_and_prelude_names",
+                  "status": "passed"
+                },
+                {
+                  "name": "definition_and_expression_evaluation_persist_across_inputs",
+                  "status": "passed"
+                },
+                {
+                  "name": "history_records_the_accepted_inputs",
+                  "status": "passed"
+                },
+                {
+                  "name": "load_and_reload_a_multi_file_project",
+                  "status": "passed"
+                },
+                {
+                  "name": "loaded_project_expressions_reuse_the_checked_closure",
+                  "status": "passed"
+                },
+                {
+                  "name": "multi_line_input_continues_until_the_block_closes",
+                  "status": "running"
+                }
+              ]
             },
             "currentTests": null
           },
@@ -20318,5 +20351,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:43:51.941191+00:00"
+  "updatedAt": "2026-11-08T02:44:54.155207+00:00"
 }
