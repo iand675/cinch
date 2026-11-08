@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "95 passed, 2 running, 5 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 95,
+        "phase": "101 passed, 1 running, 0 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 101,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20994,8 +20994,8 @@
       {
         "title": "Run the complete ABI 7 Native suite",
         "status": "running",
-        "phase": "Bootstrap_source_instances.",
-        "passed": 5,
+        "phase": "Bootstrap_pipeline.",
+        "passed": 6,
         "failed": 0,
         "total": 236,
         "unit": "targets",
@@ -21054,14 +21054,26 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-editor-results.json"
       },
       {
-        "title": "Consolidate installed package execution metadata",
+        "title": "Rebuild ABI 7 with concrete closure proof lists",
         "status": "running",
-        "phase": "Package store integration. The candidate uses build/package.cinchif for package verification, Native linking and JIT.",
-        "passed": 2,
+        "phase": "Build stage1. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
+        "passed": 3,
+        "failed": 0,
+        "total": 12,
+        "unit": "gates",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage2-lowering-reproducer.json"
+      },
+      {
+        "title": "Consolidate installed package execution metadata",
+        "status": "passed-package-cinchif-only",
+        "phase": "All 23 package, Native linking, and JIT tests passed.",
+        "passed": 3,
         "failed": 0,
         "total": 3,
         "unit": "gates",
-        "source": "025657d61dead7aacb46050ad8dc0a09732c7e91aa1eac037599fc4e09425c37"
+        "source": "025657d61dead7aacb46050ad8dc0a09732c7e91aa1eac037599fc4e09425c37",
+        "evidence": "https://github.com/iand675/cinch/commit/f5431e81c933b14873d2d28c0ff66ec7b7ceacf0"
       }
     ],
     "counts": {
@@ -21077,5 +21089,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:20:23.718432+00:00"
+  "updatedAt": "2026-11-08T10:29:13.299840+00:00"
 }
