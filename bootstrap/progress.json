@@ -20661,9 +20661,9 @@
       {
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. forced-before-later-field",
-        "passed": 11,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. guard-in-eager-local",
+        "passed": 13,
         "total": 13,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20738,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:37:45.381516+00:00"
+  "updatedAt": "2026-11-08T21:38:48.363666+00:00"
 }
