@@ -11860,11 +11860,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 6,
+          "verified": 7,
           "blocked": 0,
           "running": 3,
           "pending": 79,
-          "recheck": 17
+          "recheck": 16
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12019,21 +12019,21 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:45:35.294570+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:49:08.335763+00:00",
+              "exitCode": 0,
+              "logSha256": "a899af00d9329ef25971ae234b7a278506d4041204e436249ed5be0c517e4d82",
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12161,21 +12161,21 @@
           {
             "id": "stage3:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T13:14:38.080483+00:00",
-              "finishedAt": "2026-11-07T13:22:23.517516+00:00",
-              "exitCode": 0,
-              "logSha256": "c9401fbc5c18a99e27ef861b5906d83f0e15fbe03bc21e9770b755a010ef9a00",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:49:09.439387+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20025,11 +20025,11 @@
       }
     ],
     "counts": {
-      "verified": 11,
+      "verified": 12,
       "blocked": 5,
       "running": 13,
       "pending": 321,
-      "recheck": 325
+      "recheck": 324
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20037,5 +20037,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:48:39.298113+00:00"
+  "updatedAt": "2026-11-08T01:49:41.209010+00:00"
 }
