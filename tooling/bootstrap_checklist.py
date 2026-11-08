@@ -1027,9 +1027,11 @@ def build_checklist(root, cfg, previous=None):
         audited = (copy_audit.get('status') == 'audited-executable-source-spans-with-two-fixture-failures'
                    and copy_audit['compiler_sha256'] == overlay_validation.get('compiler_sha256'))
         rows = copy_audit['rows'] if audited else overlay_validation['rows']
-        active.append(dict(title='Verify when a source rebuild can reuse the library object',
+        active.append(dict(title='Earlier experiment with test fixtures that supplied library source',
             status=overlay_validation['status'],
-            phase=('Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.'
+            phase=('This experiment checked when explicit source could reuse the compiled library object. '
+                   'Core, Algebra and both edit refusals passed. Two old Category and Foldable fixtures failed. '
+                   'Their current fixtures supply only client source and link the library object.'
                    if audited else overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=copy_audit['total'] if audited else 4, source=overlay_validation['compiler_source_sha256'],
@@ -1037,7 +1039,7 @@ def build_checklist(root, cfg, previous=None):
     ambient = read(cfg.get('schema10LibraryCopyAmbient'))
     if ambient:
         rows = ambient['rows']
-        active.append(dict(title='Check explicit source rebuilds that depend on facade exports',
+        active.append(dict(title='Earlier experiment with facade exports in source rebuilds',
             status=ambient['status'], phase=ambient.get('phase', 'Waiting for the source override regression tests'),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=6, source=ambient['compiler_source_sha256']))
