@@ -21164,8 +21164,8 @@
       {
         "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
         "status": "running",
-        "phase": "drop-unforced",
-        "passed": 1,
+        "phase": "delay-latent-effect",
+        "passed": 4,
         "failed": 0,
         "total": 26,
         "unit": "cases",
@@ -21260,5 +21260,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:54:55.021971+00:00"
+  "updatedAt": "2026-11-08T14:55:57.669340+00:00"
 }
