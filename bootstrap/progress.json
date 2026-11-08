@@ -20540,10 +20540,10 @@
         "title": "Build Stage 1 and replay 32 original integration, guard and concurrency tests",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. integration (8 original tests)",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. guard_coverage (5 original tests)",
+        "passed": 8,
         "total": 33,
-        "failed": 0,
+        "failed": 1,
         "source": "d212410648137b5155ed9a36a218ba65e259e4bd92c461e92a803afe814d7ead",
         "evidence": null
       },
@@ -20572,5 +20572,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:19:52.428792+00:00"
+  "updatedAt": "2026-11-08T19:21:35.137835+00:00"
 }
