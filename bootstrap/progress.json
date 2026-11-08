@@ -20750,8 +20750,8 @@
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with compiled record transport",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. record-object",
+        "passed": 2,
         "total": 13,
         "failed": 0,
         "source": "a14539b1de062bab15656ec933e1383c7e8a0220bf4f0cac7924746de44f5149",
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:22:24.804908+00:00"
+  "updatedAt": "2026-11-08T22:23:28.451411+00:00"
 }
