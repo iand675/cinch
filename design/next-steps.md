@@ -43,6 +43,15 @@ all five original guard-coverage cases. Both original strict and guarded
 combined Stage 3 checks have separate gates.
 See [the Stage 1 concurrency and guard audit](../bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json).
 
+The combined frontend and provider candidate reached Stage 2. Its
+executable, LLVM IR and 46 compiler interfaces matched the build receipt.
+Stage 2 is the input to the separate Stage 3 comparison. An isolated
+Stage 1 passed the original shared-reference and task-scope escape cases
+plus five focused borrow checks. The Rust candidate passed all 20
+concurrency and 27 ownership cases, including a regression for mutable
+referents in direct, wrapped and transferred reference captures.
+See [the Stage 2 and borrow audit](../bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

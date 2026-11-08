@@ -1,0 +1,314 @@
+{
+  "full_goal_complete": false,
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "rust": {
+    "baseline_probe": {
+      "compiler_sha256": "67751461cdb58be57e375aee44066403a8ada9e546c6b4cc613924047f61dd4b",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_sha256": "515dda8b5542637e0f1dd5648ef5a87d2e30dd727c1a7ba691b433bc6f697ac1"
+    },
+    "baseline_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+    "native_source_sha256": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74",
+    "targets": {
+      "concurrency": {
+        "cases": [
+          {
+            "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+            "status": "passed"
+          },
+          {
+            "name": "a_mut_borrow_capture_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "a_thread_shared_memo_cell_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+            "status": "passed"
+          },
+          {
+            "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+            "status": "passed"
+          },
+          {
+            "name": "an_unshared_mutable_capture_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+            "status": "passed"
+          },
+          {
+            "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+            "status": "passed"
+          },
+          {
+            "name": "double_capture_of_a_linear_value_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "dropping_a_handle_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "example_11_structured_tasks_accepts",
+            "status": "passed"
+          },
+          {
+            "name": "io_read_and_write_round_trip",
+            "status": "passed"
+          },
+          {
+            "name": "join_all_or_cancel_cancels_siblings_on_failure",
+            "status": "passed"
+          },
+          {
+            "name": "local_task_callbacks_retain_their_captures_through_aliases",
+            "status": "passed"
+          },
+          {
+            "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+            "status": "passed"
+          },
+          {
+            "name": "ref_and_copy_captures_are_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "source_task_forwarders_check_actual_captures",
+            "status": "passed"
+          },
+          {
+            "name": "spawned_task_results_join_correctly",
+            "status": "passed"
+          },
+          {
+            "name": "task_handles_cannot_escape_their_scope",
+            "status": "passed"
+          },
+          {
+            "name": "task_shared_ref_requires_a_shareable_referent",
+            "status": "passed"
+          }
+        ],
+        "exit_code": 0,
+        "log_sha256": "77ef72183b1ec9b2915ad843cc6e7e57b2080200383a68a1414b42d13b2ac772",
+        "name": "concurrency",
+        "status": "passed"
+      },
+      "ownership": {
+        "cases": [
+          {
+            "name": "affine_double_use_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "affine_thunk_is_forced_at_most_once",
+            "status": "passed"
+          },
+          {
+            "name": "annotated_linear_lambda_owns_its_parameter_inside_its_body",
+            "status": "passed"
+          },
+          {
+            "name": "borrow_escape_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "borrow_matching_yields_field_borrows",
+            "status": "passed"
+          },
+          {
+            "name": "copy_class_from_the_vector_filter_shape_works",
+            "status": "passed"
+          },
+          {
+            "name": "copy_class_is_structural_and_not_user_extensible",
+            "status": "passed"
+          },
+          {
+            "name": "copy_out_coheres_with_multiplicity",
+            "status": "passed"
+          },
+          {
+            "name": "erased_argument_has_no_worker_word",
+            "status": "passed"
+          },
+          {
+            "name": "erased_arrows_preserve_curried_stages_and_counted_captures",
+            "status": "passed"
+          },
+          {
+            "name": "erased_boundary_preserves_the_callees_effects",
+            "status": "passed"
+          },
+          {
+            "name": "erased_operand_must_typecheck_and_be_pure",
+            "status": "passed"
+          },
+          {
+            "name": "erased_use_is_rejected_and_non_use_is_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "exclusive_borrows_are_lexically_unique",
+            "status": "passed"
+          },
+          {
+            "name": "linear_double_use_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "linear_dropped_on_one_path_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "linear_lambda_parameter_still_cannot_be_captured_duplicated_or_dropped",
+            "status": "passed"
+          },
+          {
+            "name": "linear_record_disjoint_projections_split_once",
+            "status": "passed"
+          },
+          {
+            "name": "linear_thunk_forced_once_per_branch_is_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "linear_thunk_is_forced_exactly_once",
+            "status": "passed"
+          },
+          {
+            "name": "linear_use_once_per_case_branch_is_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "linear_use_once_per_if_branch_is_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "scoped_borrow_is_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "strict_aliases_preserve_linear_and_affine_usage",
+            "status": "passed"
+          },
+          {
+            "name": "unannotated_binders_default_to_unrestricted",
+            "status": "passed"
+          },
+          {
+            "name": "unannotated_thunk_defaults_to_affine",
+            "status": "passed"
+          },
+          {
+            "name": "unrestricted_use_is_free",
+            "status": "passed"
+          }
+        ],
+        "exit_code": 0,
+        "log_sha256": "32ccc67c87b55d430d5b38cf4f9b5acd0ce13af0613bf363d95db4f6b560ed9b",
+        "name": "ownership",
+        "status": "passed"
+      }
+    }
+  },
+  "schema": 1,
+  "scope": "The combined candidate reached Stage 2. The borrow controls ran on a separate Stage 1. Rust concurrency and ownership results refer to the Rust-only candidate. Matching Stage 3 and complete suites remain separate.",
+  "stage1_borrows": {
+    "compiler_source_sha256": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
+    "rows": [
+      {
+        "compiler_sha256": "17b917ff7a5875dbdbbaf749e7bf24ed32294a30d63ea40d9749c03c8a578a56",
+        "name": "stage1",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected_diagnostic": null,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "leaked": false,
+        "link_exit": 0,
+        "name": "original-task-shared-ref",
+        "run_exit": 0,
+        "source_sha256": "83e80e9c6e665ca30600055b640f4ffdf67ee6f575c65dd58c05f805a081579d",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:5:11: region escape: a value leaves its `withScope` (Main.cinch:4:11)\n",
+        "exit_code": 4,
+        "expected_diagnostic": "leaves its `withScope`",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "original-task-scope-escape",
+        "source_sha256": "eee1bd125db5ff13084b5337f277ce39bdaee5d9867ef7dc507a955e00550dde",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:7:20: a task capture crosses the task boundary without shareable evidence\n",
+        "exit_code": 4,
+        "expected_diagnostic": "without shareable evidence",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "nonshareable-referent",
+        "source_sha256": "515dda8b5542637e0f1dd5648ef5a87d2e30dd727c1a7ba691b433bc6f697ac1",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:3:10: region conflict: exclusive borrows are unique\n",
+        "exit_code": 4,
+        "expected_diagnostic": "exclusive borrows are unique",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "exclusive-borrows-unique",
+        "source_sha256": "d044922e363810ed12a1632268e93db8157885b236e241b05078c6fc614b1aa8",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:3:10: region conflict: exclusive borrows are unique\n",
+        "exit_code": 4,
+        "expected_diagnostic": "exclusive borrows are unique",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "ref-conflicts-with-mut",
+        "source_sha256": "4b4c4a76d52f1b2efd858a169d1a006e7f25377490d34e6178353bed41585cce",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "",
+        "exit_code": 0,
+        "expected_diagnostic": null,
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "leaked": false,
+        "link_exit": 0,
+        "name": "shared-region-allows-two-readers",
+        "run_exit": 0,
+        "source_sha256": "ba62a066b2a20ff6cd2fe5c524da58f93c6c4f855f8f88841be998e5410d9946",
+        "status": "passed"
+      },
+      {
+        "diagnostics": "bootstrap.check:3:18: borrow needs an expected Ref region type\n",
+        "exit_code": 4,
+        "expected_diagnostic": "borrow needs an expected Ref region type",
+        "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "name": "borrow-needs-context",
+        "source_sha256": "1ba70cb82754147d15eb6421459cfac0a9d8376207658b1a1acec01b31da532d",
+        "status": "passed"
+      }
+    ],
+    "stage_receipt_sha256": "eba67dfb1c14091801ce68f2b36deeff64f1facdd26170ae485258520e2c733e"
+  },
+  "stage2": {
+    "builder_sha256": "a8d959a0bb94454bfa10bafa5c495766ccda1e72a9df87950dfcad459ff6820a",
+    "compiler_interfaces": 46,
+    "compiler_sha256": "a11084e41be8d8a3f07209c7f315692bcb094965387c7952c12ba687cef709be",
+    "compiler_source_sha256": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+    "library_interfaces": 55,
+    "library_object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+    "llvm_sha256": "3e15d629ef814a62fb4215baac497c43c18dd8ac586a8b81a3fa56f5416901fb",
+    "revision": "0306f8f035f0dcef585163410823df4cab5a1a0a",
+    "stage_receipt_sha256": "7e41b989ad1a4779f82194d9ac95430498f4b1b4a7cd43fe53becf077bce0364"
+  },
+  "status": "audited-abi7-borrow-and-combined-stage2"
+}
