@@ -20994,8 +20994,8 @@
       {
         "title": "Run the complete ABI 7 Native suite",
         "status": "running",
-        "phase": "Bootstrap_abstract_nonzero_types.",
-        "passed": 14,
+        "phase": "Bootstrap_anonymous_contracts.",
+        "passed": 15,
         "failed": 0,
         "total": 236,
         "unit": "targets",
@@ -21107,7 +21107,7 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Runtime release archive",
+        "phase": "Clean native build",
         "passed": 0,
         "failed": 0,
         "total": 236,
@@ -21191,5 +21191,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:01:52.014300+00:00"
+  "updatedAt": "2026-11-08T13:02:55.414686+00:00"
 }
