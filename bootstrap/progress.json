@@ -20662,8 +20662,8 @@
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. codata_is_observed_not_destructured",
-        "passed": 9,
+        "phase": "Isolated Stage 1 candidate. forced-before-later-field",
+        "passed": 11,
         "total": 13,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20694,11 +20694,11 @@
       {
         "title": "Check erased record evidence and executable field layout",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with erased record evidence",
         "passed": 0,
         "total": 5,
-        "failed": 0,
+        "failed": 1,
         "source": "89dbd27c2b6ad6628cd4e0fd1cc3702e8f46dd2bafbb7088fbcc3b75e9efdf72",
         "evidence": null
       },
@@ -20738,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:36:42.053286+00:00"
+  "updatedAt": "2026-11-08T21:37:45.381516+00:00"
 }
