@@ -11904,10 +11904,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 10,
+          "verified": 11,
           "blocked": 0,
           "running": 1,
-          "pending": 73,
+          "pending": 72,
           "recheck": 21
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12892,17 +12892,17 @@
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
               "startedAt": "2026-11-08T01:05:09.734102+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:10:26.002434+00:00",
+              "exitCode": 0,
+              "logSha256": "4f5208015fe5471dedf8bb861b7a866b5d705c98ed1fd44f7c1f5ed3b539ef1f",
               "cases": [
                 {
                   "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
@@ -12910,7 +12910,7 @@
                 },
                 {
                   "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12991,18 +12991,23 @@
           {
             "id": "stage3:bootstrap_named_refinements",
             "title": "bootstrap_named_refinements",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T01:10:28.320915+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -19939,8 +19944,8 @@
       {
         "title": "Resolve NonZero predicates during specialization and rebuild",
         "status": "running",
-        "phase": "building stage3",
-        "passed": 3,
+        "phase": "Checking the fixed point and changed-source rebuild.",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19961,8 +19966,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_load. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 11,
+        "phase": "bootstrap_named_refinements. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 12,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19976,7 +19981,8 @@
         "failed": 1,
         "total": 2,
         "unit": "original test targets",
-        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e"
+        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
+        "evidence": null
       },
       {
         "title": "Check executable NotNull with scoped witness controls",
@@ -19986,7 +19992,8 @@
         "failed": 0,
         "total": 4,
         "unit": "client cases",
-        "source": "859f62ba333d3294ea124d8194ceb65e6a8b0396e781ec8a242ed30aef3cfb16"
+        "source": "859f62ba333d3294ea124d8194ceb65e6a8b0396e781ec8a242ed30aef3cfb16",
+        "evidence": null
       },
       {
         "title": "Check original Const and dictionary ABI clients",
@@ -19996,7 +20003,8 @@
         "failed": 0,
         "total": 4,
         "unit": "client cases",
-        "source": "50a6a95518aa20e8562636d3dd1ba57f9cca0816acbff0925aba76ff4d43c704"
+        "source": "50a6a95518aa20e8562636d3dd1ba57f9cca0816acbff0925aba76ff4d43c704",
+        "evidence": null
       },
       {
         "title": "Run original Algebra on Rust and the selected Cinch frontend",
@@ -20006,7 +20014,8 @@
         "failed": 1,
         "total": 2,
         "unit": "frontend replays",
-        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+        "evidence": null
       },
       {
         "title": "Run the original checked nat-rem contract and zero-divisor control",
@@ -20016,7 +20025,8 @@
         "failed": 1,
         "total": 2,
         "unit": "client cases",
-        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
+        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21",
+        "evidence": null
       },
       {
         "title": "Replay Algebra with the numeric repair and expanded object",
@@ -20026,7 +20036,8 @@
         "failed": 1,
         "total": 1,
         "unit": "original test target",
-        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "evidence": null
       },
       {
         "title": "Check direct refinement construction and erased LLVM",
@@ -20036,32 +20047,35 @@
         "failed": 1,
         "total": 8,
         "unit": "client cases",
-        "source": "35af4d86f3c48e09c0f8ae1340187cff552a510b303e63c48b7c7eb03ca66c86"
+        "source": "35af4d86f3c48e09c0f8ae1340187cff552a510b303e63c48b7c7eb03ca66c86",
+        "evidence": null
       },
       {
         "title": "Transfer the owned parameter through erased unrefine",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules with ownership transfer for erased refinement projections",
-        "passed": 0,
+        "phase": "wrong-static-witness",
+        "passed": 4,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
-        "source": "06152a32142942c55ef51b918c2320c22162a2e796389aa88773abea25189f0d"
+        "source": "06152a32142942c55ef51b918c2320c22162a2e796389aa88773abea25189f0d",
+        "evidence": null
       },
       {
         "title": "Run the original argv suite through the real Cinch CLI",
         "status": "passed-native-and-cinch-cli-argv",
-        "phase": "selected-argv",
+        "phase": "All three original cases passed on Rust and development Stage1. Four direct CLI calls were audited. The matching Stage3 replay remains open.",
         "passed": 2,
         "failed": 0,
         "total": 2,
         "unit": "frontend replays",
-        "source": "ab2d7921f3580b190fe7ecf1b355c7da312f451f29e165cf1166133ad62df911"
+        "source": "ab2d7921f3580b190fe7ecf1b355c7da312f451f29e165cf1166133ad62df911",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-compiled-argv-results.json"
       },
       {
         "title": "Rebuild requested Algebra object variants and rerun all original cases",
-        "status": "waiting-worker",
-        "phase": "Waiting for the previous Algebra replay.",
+        "status": "running",
+        "phase": "round 1 original Algebra",
         "passed": 0,
         "failed": 0,
         "total": 22,
@@ -20116,19 +20130,19 @@
       },
       {
         "title": "Rerun the full Native suite after the clean-build fix",
-        "status": "running",
-        "phase": "bootstrap_guarded_association",
-        "passed": 37,
+        "status": "waiting-worker",
+        "phase": "bootstrap_guarded_bodies",
+        "passed": 39,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
       }
     ],
     "counts": {
-      "verified": 16,
+      "verified": 17,
       "blocked": 5,
       "running": 11,
-      "pending": 80,
+      "pending": 79,
       "recheck": 564
     },
     "total": 676,
@@ -20137,5 +20151,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:07:57.188321+00:00"
+  "updatedAt": "2026-11-08T01:12:16.918293+00:00"
 }
