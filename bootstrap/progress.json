@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Arrays, bootstrap_anonymous_contracts, bootstrap_argument_scopes",
-        "passed": 7,
+        "phase": "Bootstrap_anonymous_contracts, bootstrap_argument_scopes, bootstrap_boolean_branches",
+        "passed": 8,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21228,5 +21228,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:10:58.988672+00:00"
+  "updatedAt": "2026-11-08T14:12:22.086005+00:00"
 }
