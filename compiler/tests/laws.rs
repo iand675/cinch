@@ -6,6 +6,8 @@
 //! identity (`Semigroup.assoc`), with the undischarged law identity
 //! recorded in the artifact manifest's declared assumptions.
 
+mod common;
+
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 use cinch::driver::{check_sources, driver_with_profile};
@@ -182,17 +184,17 @@ module LawCiteBad where
 #[test]
 fn law_abiding_instance_passes_sample_wise() {
     // The fixture's `Semigroup Box` instance obeys `Semigroup.assoc`:
-    // the sample-wise check runs over the carrier's samples and the
-    // manifest reports what it decided.
-    let m = manifest_of("law-pass", LAWS);
-    let i = m
-        .find("LawLib.Semigroup_Box")
-        .unwrap_or_else(|| panic!("the instance's law row is in the manifest: {m}"));
-    let row = &m[i..(i + 240).min(m.len())];
-    assert!(
-        row.contains("Semigroup") && row.contains("assoc") && row.contains("checked ("),
-        "{row}"
-    );
+    // the checked interface reports the result for that exact instance.
+    let dir = write_project("law-pass", LAWS);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("check the lawful instance");
+    let owner = interfaces.iter().find(|iface| iface.module == "LawLib").expect("checked LawLib");
+    assert!(owner.laws.iter().any(|row| {
+        row.instance == "LawLib.Semigroup_Box"
+            && row.class == "Algebra.Semigroup.Semigroup"
+            && row.law == "assoc"
+            && row.status == "checked (8 samples)"
+    }), "{:?}", owner.laws);
+    common::cleanup(&dir);
 }
 
 #[test]

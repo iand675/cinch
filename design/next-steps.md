@@ -95,6 +95,13 @@ interface regression changes only the assumed body and checks that the
 identity changes while the intrinsic remains listed.
 See [the Rust primitive audit](../bootstrap/current-native-primitive-assumption-results.json).
 
+The Rust primitive parser accepts a complete target condition before
+an immediate-operand clause. Both clause orders retain the immediate
+metadata. All 17 primitive tests and eight Rust law tests passed. The
+sampled Box law assertion reads the exact typed interface row and also
+passed with the selected Cinch Stage 1.
+See [the parser and law harness audit](../bootstrap/current-abi7-rust-prim-clause-and-law-harness-results.json).
+
 The combined codata and memo Stage 1 passed all ten original codata tests
 and two eager-recursion refusals. Both executable controls ran without leaks.
 The unchanged stream example checked, and ordinary construction and pattern

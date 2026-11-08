@@ -1,0 +1,39 @@
+{
+  "base_revision": "af3f1ef8870ae73a4ec7fc2a7202d0f01f912faa",
+  "compiler_source_sha256": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+  "evidence": {
+    "cinch-law-observation": {
+      "exit_code": 0,
+      "invocation_sha256": "3b41611789553c4bfb354d4188ab1fd3470782ef5926509fcae004d891c75ee5",
+      "log_sha256": "5318e040383de5e33ea82c036f329ddea31c0b37ae55360027a93ead89517be8",
+      "name": "cinch-law-observation",
+      "status": "passed",
+      "tests": 1
+    },
+    "native-laws": {
+      "exit_code": 0,
+      "log_sha256": "9af4665cf519ad114b58e0505766cc4ad26fb3746e6ef684e11e4c25cefb3d36",
+      "name": "native-laws",
+      "status": "passed",
+      "tests": 8
+    },
+    "native-prim": {
+      "exit_code": 0,
+      "log_sha256": "da620e5520655ef768d4ee68a6b861bd302c6842c9de0b7f0cec4458f598a1ab",
+      "name": "native-prim",
+      "status": "passed",
+      "tests": 17
+    }
+  },
+  "full_goal_complete": false,
+  "inputs": {
+    "compiler/src/parser.rs": "174b175fef31251fc3be99c9b795914a0edc3ea29656e2cc8d7790fb54232583",
+    "compiler/tests/laws.rs": "4ef53bb9f6e2f779511cb15be3f6aff4d4a25bae866fa853fa7b807954de5880",
+    "compiler/tests/prim.rs": "d4ea20eb019b786ca979c7ddf86d7c4a038454d7fc44541a9b8d39a20ab08d1c"
+  },
+  "native_source_sha256": "d04ac86784a6cee08e6cdff148d4c1d78b427159f3d9b8d2216327e6ca61d2f0",
+  "schema": 1,
+  "scope": "Rust prim and laws targets. The original sampled-law assertion also passes through the selected Cinch Stage 1.",
+  "selected_stage1_sha256": "857ed84261b6a6a9828e5cdfb67c540bf034d464366d5819b78e01c477987d6b",
+  "status": "audited-rust-primitive-and-law-harness"
+}

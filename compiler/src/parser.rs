@@ -779,7 +779,7 @@ impl<'a> Parser<'a> {
                     if when.is_some() {
                         return Err(dup("when"));
                     }
-                    when = Some(self.parse_term()?);
+                    when = Some(self.parse_prim_condition()?);
                 }
                 1 => {
                     if justify.is_some() {
@@ -847,6 +847,32 @@ impl<'a> Parser<'a> {
             unverified,
             span,
         })
+    }
+
+    /// A complete predicate can be followed by a contextual body clause.
+    /// A clause spelling inside a predicate, such as `arch immarg`, is
+    /// still an ordinary name.
+    fn parse_prim_condition(&mut self) -> Result<Term> {
+        for (end, token) in self.toks.iter().enumerate().skip(self.pos + 1) {
+            match &token.tok {
+                Tok::Semicolon | Tok::RBrace | Tok::Eof | Tok::Justify => break,
+                Tok::VarId(word) if matches!(word.as_str(), "when" | "uses" | "immarg") => {
+                    let mut predicate = self.toks[self.pos..end].to_vec();
+                    predicate.push(Token { tok: Tok::Eof, span: token.span, virtual_: false });
+                    let mut parser = Parser::new(&predicate);
+                    if let Ok(term) = parser.parse_term() {
+                        if parser.at(&Tok::Eof)
+                            && matches!(&term, Term::App(_, arguments, _) if arguments.len() == 1)
+                        {
+                            self.pos = end;
+                            return Ok(term);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.parse_term()
     }
 
     /// `upgrade Old to New where { migrate = e; [related = e] }` and its

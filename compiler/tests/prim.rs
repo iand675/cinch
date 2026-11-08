@@ -558,10 +558,10 @@ module Main where
   prim pop :: U32 -> U32 where
     unsafe asm {
       popcnt
-    } when arch x86_64
+    } when arch x86_64 immarg 0
     unsafe asm {
       cnt
-    } when arch aarch64
+    } immarg 0 when arch aarch64
     llvm {
       ret i32 %0
     }
@@ -587,6 +587,7 @@ module Main where
         cinch::codegen::emit(&p).expect("emit")
     };
     assert!(body_of(&irx, "Main.pop.asm").contains("popcnt"), "{irx}");
+    assert!(define_of(&irx, "Main.pop.asm").contains("!immarg"));
     assert!(!irx.contains("cnt\\0A") && !body_of(&irx, "Main.pop.asm").contains(" cnt"), "{irx}");
 
     // aarch64: the other conditional wins.
@@ -597,6 +598,7 @@ module Main where
         cinch::codegen::emit(&p).expect("emit")
     };
     assert!(body_of(&ira, "Main.pop.asm").contains("cnt"), "{ira}");
+    assert!(define_of(&ira, "Main.pop.asm").contains("!immarg"));
     assert!(!body_of(&ira, "Main.pop.asm").contains("popcnt"), "{ira}");
 
     // A third platform: no condition matches, so the portable `llvm`
