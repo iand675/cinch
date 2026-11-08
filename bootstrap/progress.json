@@ -11985,10 +11985,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 35,
+          "verified": 36,
           "blocked": 5,
           "running": 3,
-          "pending": 54,
+          "pending": 53,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13002,21 +13002,21 @@
           {
             "id": "stage3:bootstrap_ladder",
             "title": "bootstrap_ladder",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ladder.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:42:39.424305+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:52:55.978759+00:00",
+              "exitCode": 0,
+              "logSha256": "8363c41028f867f9e0474e49516cb39d02ce2866d0d92600e2e82de3918badd8",
               "cases": [
                 {
                   "name": "every_ladder_module_checks_together",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13111,18 +13111,23 @@
           {
             "id": "stage3:bootstrap_manifest",
             "title": "bootstrap_manifest",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_manifest.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:52:57.233112+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "manifest_round_trips_and_answers_package_facts",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -16546,9 +16551,9 @@
         "id": "tooling",
         "title": "Bootstrap and tooling suite",
         "unit": "tests",
-        "total": 45,
+        "total": 46,
         "counts": {
-          "verified": 45,
+          "verified": 46,
           "blocked": 0,
           "running": 0,
           "pending": 0,
@@ -16598,6 +16603,19 @@
           {
             "id": "tooling:test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
             "title": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
+            "state": "verified",
+            "detail": "Passed on the audited current inputs.",
+            "doneWhen": "Run the complete suite on matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "observed": {
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "cases": []
+            }
+          },
+          {
+            "id": "tooling:test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
+            "title": "test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
             "state": "verified",
             "detail": "Passed on the audited current inputs.",
             "doneWhen": "Run the complete suite on matching inputs.",
@@ -20389,17 +20407,17 @@
       }
     ],
     "counts": {
-      "verified": 279,
+      "verified": 281,
       "blocked": 10,
       "running": 14,
-      "pending": 292,
+      "pending": 291,
       "recheck": 82
     },
-    "total": 677,
+    "total": 678,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:50:43.077975+00:00"
+  "updatedAt": "2026-11-08T02:53:43.065437+00:00"
 }
