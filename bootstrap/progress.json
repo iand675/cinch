@@ -736,10 +736,10 @@
       {
         "id": "gap:fixities",
         "title": "Reverify defining-module-only fixities",
-        "state": "recheck",
-        "detail": "Earlier checkpoint. The earlier self-built controls prove that both identical and changed importer declarations refuse.",
+        "state": "verified",
+        "detail": "Stage 3 retained defining-module fixities and refused identical and changed importer redeclarations.",
         "doneWhen": "Repeat the original defining-owner, facade/rename and importer-refusal controls through the final matching Stage3.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json"
       },
       {
         "id": "gap:coverage",
@@ -16965,7 +16965,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -16974,7 +16974,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -16983,7 +16983,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -16992,7 +16992,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17001,7 +17001,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17010,7 +17010,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17019,7 +17019,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17028,7 +17028,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17037,7 +17037,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17046,7 +17046,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17055,7 +17055,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17064,7 +17064,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17073,7 +17073,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           },
           {
@@ -17082,7 +17082,7 @@
             "state": "verified",
             "detail": "Passed with the integrated Stage 3 compiler.",
             "doneWhen": "Pass this original control using the final matching self-built executable.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-external-acceptance-results.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-erased-external-results.json",
             "observed": null
           }
         ]
@@ -17783,12 +17783,12 @@
         "id": "additional",
         "title": "Additional frontend coverage",
         "unit": "targets",
-        "total": 4,
+        "total": 8,
         "counts": {
           "verified": 0,
           "blocked": 0,
           "running": 1,
-          "pending": 3,
+          "pending": 7,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17932,10 +17932,42 @@
             "id": "additional:prim",
             "title": "prim",
             "state": "pending",
-            "detail": "Awaiting matching self-built evidence. The Rust target passed all 17 tests. Matching Stage3 source coverage is pending. All seventeen Rust tests exercise source-facing prim declarations or their generated IR and manifests. The harness has direct Rust code generation, profile and IR inspection roles. Portable assertions include runtime execution, named containment and platform refusals, effect-row invalidation and lawful versus assumed identities.",
+            "detail": "Host LLVM/ASM fixture and ten original refusal checks. Cross-target selection and the remaining primitive assertions are separate.",
             "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "currentTests": null
+          },
+          {
+            "id": "additional:codata",
+            "title": "codata",
+            "state": "pending",
+            "detail": "Queued for the matching Stage 3. 10 original cases.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+          },
+          {
+            "id": "additional:fixity_interfaces",
+            "title": "fixity_interfaces",
+            "state": "pending",
+            "detail": "Queued for the matching Stage 3. 2 original cases.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+          },
+          {
+            "id": "additional:guard_coverage",
+            "title": "guard_coverage",
+            "state": "pending",
+            "detail": "Queued for the matching Stage 3. 5 original cases.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+          },
+          {
+            "id": "additional:integration",
+            "title": "integration",
+            "state": "pending",
+            "detail": "Queued for the matching Stage 3. 39 original cases.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           }
         ]
       }
@@ -20110,7 +20142,7 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_source_instances, bootstrap_source_pi",
+        "phase": "Finishing 2 active targets before releasing their worker lanes.",
         "passed": 68,
         "failed": 2,
         "total": 105,
@@ -20142,8 +20174,8 @@
       },
       {
         "title": "Run all 236 integrated Native groups",
-        "status": "waiting-worker",
-        "phase": "Waiting worker",
+        "status": "completed-superseded-snapshot",
+        "phase": "Superseded by the published integrated compiler. Historical test logs are retained.",
         "passed": 32,
         "failed": 0,
         "total": 236,
@@ -20455,17 +20487,17 @@
       }
     ],
     "counts": {
-      "verified": 312,
+      "verified": 313,
       "blocked": 0,
       "running": 3,
-      "pending": 5,
-      "recheck": 386
+      "pending": 9,
+      "recheck": 385
     },
-    "total": 706,
+    "total": 710,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:34:28.180133+00:00"
+  "updatedAt": "2026-11-08T17:38:32.853104+00:00"
 }
