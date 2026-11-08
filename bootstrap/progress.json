@@ -12007,8 +12007,8 @@
         "counts": {
           "verified": 68,
           "blocked": 7,
-          "running": 0,
-          "pending": 23,
+          "running": 1,
+          "pending": 22,
           "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13441,18 +13441,23 @@
           {
             "id": "stage3:bootstrap_proposition_types",
             "title": "bootstrap_proposition_types",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proposition_types.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:25:32.007969+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "proposition_contract_types_preserve_scope_and_runtime_separation",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20531,8 +20536,8 @@
       },
       {
         "title": "Run the first frontend shard on the audited published Stage3",
-        "status": "waiting-worker",
-        "phase": "bootstrap_pi. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "status": "running",
+        "phase": "bootstrap_proposition_types. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
         "passed": 13,
         "failed": 1,
         "total": 21,
@@ -20585,7 +20590,7 @@
       },
       {
         "title": "Check explicit library sources against their compiled object",
-        "status": "running",
+        "status": "failed",
         "phase": "exact",
         "passed": 2,
         "failed": 0,
@@ -20763,8 +20768,8 @@
     "counts": {
       "verified": 347,
       "blocked": 13,
-      "running": 11,
-      "pending": 247,
+      "running": 12,
+      "pending": 246,
       "recheck": 62
     },
     "total": 680,
@@ -20773,5 +20778,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:25:19.385854+00:00"
+  "updatedAt": "2026-11-08T04:26:21.874985+00:00"
 }
