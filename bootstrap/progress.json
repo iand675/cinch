@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "21 of 236 complete groups passed; 1 running, 1 failed and 213 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "22 of 236 complete groups passed; 1 running, 1 failed and 212 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "21 of 236 complete groups passed; 1 running, 1 failed and 213 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "22 of 236 complete groups passed; 1 running, 1 failed and 212 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 21,
+          "verified": 22,
           "blocked": 1,
           "running": 1,
-          "pending": 213,
+          "pending": 212,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1396,21 +1396,21 @@
           {
             "id": "native:bootstrap_collections",
             "title": "bootstrap_collections",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_collections.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:05:49.683302+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:16:58.160295+00:00",
+              "exitCode": 0,
+              "logSha256": "51e6882af213765c0ac89f2a79e6cca556227f01aab6c415730761672c11dc03",
               "cases": [
                 {
                   "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1419,21 +1419,21 @@
           {
             "id": "native:bootstrap_conditional_methods",
             "title": "bootstrap_conditional_methods",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_conditional_methods.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T16:40:51.832148+00:00",
-              "finishedAt": "2026-11-06T16:51:26.751949+00:00",
-              "exitCode": 0,
-              "logSha256": "45d8f5c0986e45c5b0cb41d0b6ba5adae7cb8562fe220658c5aeadd8d6f6e7e4",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:16:58.164077+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_selects_checked_conditional_methods_with_call_proofs",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19602,8 +19602,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_collections",
-        "passed": 21,
+        "phase": "bootstrap_conditional_methods",
+        "passed": 22,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20877,10 +20877,10 @@
       }
     ],
     "counts": {
-      "verified": 365,
+      "verified": 366,
       "blocked": 12,
       "running": 12,
-      "pending": 232,
+      "pending": 231,
       "recheck": 59
     },
     "total": 680,
@@ -20889,5 +20889,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:16:12.780370+00:00"
+  "updatedAt": "2026-11-08T05:17:14.801175+00:00"
 }
