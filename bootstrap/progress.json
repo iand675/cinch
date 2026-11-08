@@ -19838,7 +19838,7 @@
       {
         "title": "Bootstrap the candidate with the pinned NonEmpty library",
         "status": "failed",
-        "phase": "Stage2 refused the original nat-mod predicate over a NonZero Nat divisor. The provider reproduced the object and all 55 interfaces.",
+        "phase": "Stage2 refused the original nat-rem predicate over a NonZero Nat divisor. The provider reproduced the object and all 55 interfaces.",
         "passed": 2,
         "failed": 1,
         "total": 4,
@@ -19849,8 +19849,8 @@
       {
         "title": "Rebuild with the dependent Nat predicate repair",
         "status": "running",
-        "phase": "building stage1",
-        "passed": 1,
+        "phase": "building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -19860,8 +19860,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_total_semantics",
-        "passed": 1,
+        "phase": "bootstrap_body_bindings",
+        "passed": 4,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19889,8 +19889,8 @@
       },
       {
         "title": "Check original Const and dictionary ABI clients",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules with generic factory ABI checks",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19899,13 +19899,43 @@
       },
       {
         "title": "Run original Algebra on Rust and the selected Cinch frontend",
-        "status": "running",
-        "phase": "selected-lib_algebra",
+        "status": "completed-with-selected-algebra-failures",
+        "phase": "Rust passed 22/22. The earlier Cinch compiler passed 6/22, with 22 selected-frontend receipts.",
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "total": 2,
         "unit": "frontend replays",
         "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+      },
+      {
+        "title": "Run the original checked nat-rem contract and zero-divisor control",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 2,
+        "unit": "client cases",
+        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
+      },
+      {
+        "title": "Replay Algebra with the numeric repair and expanded object",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "unit": "original test target",
+        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
+      },
+      {
+        "title": "Check direct refinement construction and erased LLVM",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 8,
+        "unit": "client cases",
+        "source": "759119de4e71b3821e54a3804fc5d3a29c819084c222b884a63cd43035ee250d"
       },
       {
         "title": "Check original NonEmpty clients against compiled contracts",
@@ -19956,8 +19986,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_collections",
-        "passed": 22,
+        "phase": "bootstrap_conditional_methods",
+        "passed": 23,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -19976,5 +20006,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:13:52.593984+00:00"
+  "updatedAt": "2026-11-08T00:23:56.980488+00:00"
 }
