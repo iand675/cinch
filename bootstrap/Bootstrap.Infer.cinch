@@ -2327,6 +2327,10 @@ module Bootstrap.Infer where
   proof-case-env :: List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
   proof-case-env env value pattern positive st = prepend-proof-facts
     (scoped-core-case-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value) (map-pattern-types (normalize st) pattern) positive) env
+  proof-case-rest-env :: List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
+  proof-case-rest-env env value pattern body st = prepend-proof-facts
+    (scoped-core-case-rest-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
+      (map-pattern-types (normalize st) pattern) (map-term-types (normalize st) body)) env
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st = case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of
     Some fact -> Cons (MkProofBinding fact) (Cons binding env)
@@ -3291,11 +3295,8 @@ module Bootstrap.Infer where
     EAltsEnd s -> (CAlternativesEnd s, st)
     EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
       (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env bound scrut pattern True sb) locals body result sb of
-        (rhs, sr) -> let fallback = prepend-proof-facts
-          (scoped-core-case-rest-facts (proof-context env sr) (proof-facts env) (map-term-types (normalize sr) scrut)
-            (map-pattern-types (normalize sr) pattern) (map-term-types (normalize sr) rhs)) env in
-          case check-alternatives classes kinds families fallback locals scrut result rest sr of
-            (more, ss) -> (CAlternative s pattern rhs more, ss)
+        (rhs, sr) -> case check-alternatives classes kinds families (proof-case-rest-env env scrut pattern rhs sr) locals scrut result rest sr of
+          (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-alt-body classes kinds families env locals body result st = case body of
