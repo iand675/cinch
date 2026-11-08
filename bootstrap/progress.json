@@ -21073,6 +21073,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-erased-arguments-results.json"
       },
       {
+        "title": "Run the Rust compiler unit, runtime and tooling tests",
+        "status": "passed",
+        "phase": "214 compiler unit, 171 runtime and 51 tooling tests passed.",
+        "passed": 436,
+        "failed": 0,
+        "total": 436,
+        "unit": "tests",
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-native-core-runtime-tooling-results.json"
+      },
+      {
         "title": "Link a source-free Cinch client to a staged erased-arrow object",
         "status": "passed",
         "phase": "The checked object exports have zero and one physical parameters. The separately linked consumer exited zero without leaks.",
@@ -21155,6 +21166,28 @@
         "phase": "Waiting for the independent Stage 2 and Stage 3 audit.",
         "passed": 0,
         "total": 105,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
+      },
+      {
+        "title": "Run the 14 external Stage 3 acceptance checks",
+        "status": "waiting-stage3",
+        "phase": "Waiting for the independent Stage 2 and Stage 3 audit.",
+        "passed": 0,
+        "total": 14,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
+      },
+      {
+        "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
+        "passed": 0,
+        "total": 39,
         "unit": "gates",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -21270,5 +21303,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:40:55.468631+00:00"
+  "updatedAt": "2026-11-08T16:43:19.150801+00:00"
 }
