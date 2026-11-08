@@ -12005,8 +12005,8 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 69,
-          "blocked": 7,
+          "verified": 70,
+          "blocked": 6,
           "running": 2,
           "pending": 21,
           "recheck": 6
@@ -12913,21 +12913,21 @@
           {
             "id": "stage3:bootstrap_infer",
             "title": "bootstrap_infer",
-            "state": "blocked",
-            "detail": "The original target reported a failure on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
-              "status": "failed",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:35:40.297634+00:00",
-              "finishedAt": "2026-11-08T02:42:38.412514+00:00",
-              "exitCode": 101,
-              "logSha256": "be2642bd9833ffd4ac3832301676fd2d75bc0a64f9db130d83d5baa5c0dbebe3",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "4ba8c08546ecc432d596fdc6c4d405707957efa091812343cdda87610f200e83",
               "cases": [
                 {
                   "name": "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch",
-                  "status": "failed"
+                  "status": "passed"
                 }
               ]
             },
@@ -20771,8 +20771,8 @@
       }
     ],
     "counts": {
-      "verified": 349,
-      "blocked": 13,
+      "verified": 350,
+      "blocked": 12,
       "running": 13,
       "pending": 244,
       "recheck": 61
@@ -20783,5 +20783,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:29:26.713654+00:00"
+  "updatedAt": "2026-11-08T04:32:57.201141+00:00"
 }
