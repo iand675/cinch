@@ -1,0 +1,111 @@
+{
+  "checked_base_interfaces": 55,
+  "compiler_modules": 46,
+  "compiler_sha256": "3c1ceb9079d309b8365e9976c26118238408657c1092ebfbee2fffcf8452dad4",
+  "compiler_source_sha256": "6d797b96d350588a1126291bb99f03612699c63bf6e5adde3959b3bdd20e133c",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "74176fe07ac3f0a52bb17d7116ae50489acfd669f5fff3e41c6229849ec83df6"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Tactics",
+      "result_sha256": "0e067112b3b0c7ec36ce2ed2a75e9ac3591ba0518d532f916bb1a9bc719ef903",
+      "source": "experiments/malleable-syntax/examples/Tactics.cinch",
+      "source_sha256": "4ad5422c6002a0e372f03ba738092507b58f4aa8d75d66aa019d9fe482215fc4",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "e3b6037a188f5eeaa71beab3118800afcfbe4bd5d10f6abe8b714af8778a1b57"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Proof",
+      "result_sha256": "50808c0ddfa56ceb15c40f4a4422f67403ddd995914ef7dc953bcfc050c540c8",
+      "source": "experiments/malleable-syntax/examples/Proof.cinch",
+      "source_sha256": "518a1c82e22b98565d41e1b9716cb406a17163f8aee6bfc080400f70f90d2824",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsMissing.cinch: 4:29: tactic plan `linear` could not prove `(i < n)`",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "ce7ae3bf00e45ad1b026da217ac68e48f2a0fa12b2efe65a3b2c0b077206b9fd"
+      },
+      "mode": "check",
+      "name": "TacticsMissing",
+      "result_sha256": "44836ae696c0a4f72258666960569ff6b4014740c3b3370696f59ad3e0f1ace0",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsMissing.cinch",
+      "source_sha256": "f62030137d6526ef418f2a7746656d387c9aeb51c3e8ecd2b7d797d6d5627608",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsShadow.cinch: 5:44: tactic plan `assumption linear` could not prove `(n < n)`",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "d23ea74df5887b575a9923f2d051b6132ee558506741b4d32a5525c7bda30f73"
+      },
+      "mode": "check",
+      "name": "TacticsShadow",
+      "result_sha256": "48b6a375f5dccdea672d2d7f312a5bc0668d9fe998e37d2eeed18ac732ed7ad8",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsShadow.cinch",
+      "source_sha256": "fa12e3ce42d3bfe66f260e6e8c25c81c713735e9f47794b8eef709bce353b053",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsStale.cinch: 6:52: stale evidence: evidence derived at 5:9 is invalidated by the write at 6:15",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "ca75d6c1f1550014645ac0c17be01ef995d92efbba39f9508b22faf8c18e7dd2"
+      },
+      "mode": "check",
+      "name": "TacticsStale",
+      "result_sha256": "1c4426bfd7cc0bfe79d185cba1961ace915c513fc8249fe1b851d4e564610bb7",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsStale.cinch",
+      "source_sha256": "cec568c2ba862516c9564dd0660c24e11e6b14202d1904ef46923a2904040a7f",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TensorPrivate.cinch: 4:9: unknown constructor Tensor.MkMatrix: not exported into this scope",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+        "Tensor.cinch": "9471c132450872e1a7b16991078cd9704b0e9c55e86147b175e9a9cb699fdf1a"
+      },
+      "mode": "check",
+      "name": "TensorPrivate",
+      "result_sha256": "3956e0fba5762d71ca18e327e8780d1cd061b3203fca8dc9bd9115c9cedeeaab",
+      "source": "experiments/malleable-syntax/examples/negative/TensorPrivate.cinch",
+      "source_sha256": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Proof.cinch: 4:22: obligation disproved: (Eq 5 6)",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "9c60866bda2e9bb3d5102adbe0b187c631d7fb13fcaac193c59fa0673b32c213"
+      },
+      "mode": "check",
+      "name": "Proof",
+      "result_sha256": "e9bbccca1d1d7df28841b5523ba0b24c21b8bac0b7c0af4eeca3c8147bc1b7e4",
+      "source": "experiments/malleable-syntax/examples/negative/Proof.cinch",
+      "source_sha256": "f148e9a03a56e07434f8e56c381348219ce58689b93612aea7e14884b92408ee",
+      "status": "passed"
+    }
+  ],
+  "groups_passed": 7,
+  "library_object_sha256": "0b865c627836e7e0325440552ff663f7e5821c4762a407f5d635676c4aa87e8b",
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "3b445da9d4a074a1c6f504f9a4b1c06a91e5ca3f",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "scope": "Pinned seed-built Stage 1, original proof and visibility controls, checked ABI 7 base artifacts.",
+  "seed_compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+  "stage1_receipt_sha256": "5c04b071e98ea308c46e14a09ea92f3e70a56a35550391d7c052ca35dbde1cd0",
+  "status": "audited-abi7-stage1-proof-and-visibility"
+}
