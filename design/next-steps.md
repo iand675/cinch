@@ -75,6 +75,15 @@ blocks. Changing only those zero-field allocations in the emitted IR gives
 awaits a fresh Stage1 replay.
 See [the object replay and diagnostic relink](../bootstrap/current-schema10-allocation-object-abi-results.json).
 
+The machine-contract replay passed all 13 consumer cases on the published
+Stage3. The producer refused type-level addition over an `I64` argument.
+The matching Rust compiler accepts the `n + 1 > n` precondition at
+`I64::MAX` and refuses `n + 1 <= n`, so type arithmetic reads the
+argument mathematically. The producer's raw scheme remains visible while
+schema 10 omits its resolved interface contract. A staged parity candidate
+is awaiting a fresh build and both full regression targets.
+See [the signed-limit controls](../bootstrap/current-schema10-machine-type-arithmetic-results.json).
+
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and

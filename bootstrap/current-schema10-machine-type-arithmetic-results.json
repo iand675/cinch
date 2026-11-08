@@ -1,0 +1,32 @@
+{
+  "full_goal_complete": false,
+  "native_sha256": "1479dfdd96288d817d400c1a09e3d3c3c7f20ff528dca889a8e726ff17d90ea5",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "rows": [
+    {
+      "diagnostics": "",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "greater",
+      "seconds": 1.029,
+      "source_sha256": "d25a040c8ea2389e9e1fa79507755c85c4411fb3c303616eb54b5de11382f0a5",
+      "status": "exited"
+    },
+    {
+      "diagnostics": "cinch: 5:10: the obligation `(9223372036854775807 + 1) <= 9223372036854775807` of this call is false: its arguments are known here and do not satisfy it",
+      "exit_code": 1,
+      "log_sha256": "12d121f48dc8cb8dd276da389c19b62aff4583ec4bf15ef64a41be81f30e8a51",
+      "name": "not-greater",
+      "seconds": 0.396,
+      "source_sha256": "29e00868678be6fdcba817499d5b73ab051e20cd3ec0d10445ee20f960e5bb81",
+      "status": "exited"
+    }
+  ],
+  "schema": 1,
+  "scope": "Two Native signed-limit source controls and the full matching Stage3 producer/consumer test before the parity fix.",
+  "stage3_compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
+  "stage3_consumer_cases_passed": 13,
+  "stage3_fixture_log_sha256": "6b5899e9a859b7ef739c85351d55b45715e11d43e56954876fb0fde498112076",
+  "stage3_producer_failure": "machine arithmetic cannot enter mathematical index conversion",
+  "status": "audited-native-mathematical-machine-type-arithmetic"
+}
