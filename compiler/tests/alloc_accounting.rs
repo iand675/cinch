@@ -12,7 +12,7 @@
 
 mod common;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
@@ -53,7 +53,8 @@ fn built(tag: &str, src: &str) -> (std::path::PathBuf, std::path::PathBuf) {
 
 fn run_with(exe: &Path, env: &[(&str, &str)]) -> Output {
     let mut cmd = Command::new(exe);
-    cmd.env_remove("CINCH_ALLOC_STATS").env("CINCH_HEAP_LIMIT", "256M");
+    cmd.env_remove("CINCH_ALLOC_STATS").env_remove("CINCH_LEAK_CHECK")
+        .env_remove("CINCH_RC_DEBUG").env("CINCH_HEAP_LIMIT", "256M");
     for (k, v) in env {
         cmd.env(k, v);
     }
@@ -338,9 +339,10 @@ fn normal_program_is_quiet_under_the_guarded_cap() {
 /// used once, so no block is shared: nothing dups yet. `main` hands
 /// control to the C probe, which calls `build` through its symbol and,
 /// as `RC_PROBE` says, keeps the result, drops it once, or drops it twice.
-const DROP_PROGRAM: &str = r#"
-module Main where
+const DROP_LIBRARY: &str = r#"
+module AllocationFixture where
   import Data.List
+  export build
 
   data Shape where
     Leaf :: Shape
@@ -349,7 +351,6 @@ module Main where
   foreign import ccall "cinch.runtime.bytesNew" bytesNew :: Nat -> Bytes
   foreign import ccall "cinch.runtime.natAdd" natAdd :: Nat -> Nat -> Nat
   foreign import ccall "cinch.runtime.natMul" natMul :: Nat -> Nat -> Nat
-  foreign import ccall "rc_probe" rcProbe :: I64 ->{Foreign Probe, IO} I64
 
   shapes :: Unit -> List Shape
   shapes u =
@@ -362,7 +363,11 @@ module Main where
 
   build :: Unit -> (List Shape, List (Nat -> Nat))
   build u = (shapes u, adders u)
+"#;
 
+const DROP_ENTRY: &str = r#"
+module Main where
+  foreign import ccall "rc_probe" rcProbe :: I64 ->{Foreign Probe, IO} I64
   main :: Unit ->{Foreign Probe, IO} Int
   main u = if rcProbe 0 == 0 then 0 else 1
 "#;
@@ -376,7 +381,7 @@ const DROP_PROBE: &str = r#"
 #else
 #define UNIT(s) s
 #endif
-extern int64_t cinch_build(int64_t) __asm__(UNIT("Main.build"));
+extern int64_t cinch_build(int64_t) __asm__(UNIT("AllocationFixture.build"));
 extern void cinch_drop(int64_t);
 int64_t rc_probe(int64_t unused) {
   (void)unused;
@@ -387,6 +392,55 @@ int64_t rc_probe(int64_t unused) {
   return 0;
 }
 "#;
+
+fn build_external_drop_probe(
+    frontend: &common::external_frontend::Frontend, dir: &Path, probe: &Path, exe: &Path, clang: &str,
+) {
+    use cinch::driver::Mode;
+    use cinch::lsp::{parse_json, Json};
+    use common::external_frontend::{drive, drive_with_objects};
+    use sha2::{Digest, Sha256};
+
+    let library = dir.join("AllocationFixture.o");
+    drive(frontend, Mode::EmitObject, dir, "AllocationFixture.cinch", Some(library.clone()))
+        .expect("emit the checked allocation fixture object");
+    let interface = std::fs::read_to_string(dir.join("build/AllocationFixture.cinchif"))
+        .expect("read the builder's checked interface");
+    let interface = cinch::interface::Iface::from_json(&interface).expect("parse the builder's interface");
+    assert_eq!(interface.module, "AllocationFixture");
+    assert_eq!(interface.exports.values.iter().map(|value| value.name.as_str()).collect::<Vec<_>>(), ["build"]);
+    let metadata = library.with_extension("abi.json");
+    let document = parse_json(&std::fs::read_to_string(&metadata).unwrap()).unwrap();
+    let worker = document.get("units").and_then(Json::as_arr).unwrap().iter()
+        .find(|unit| unit.get("symbol").and_then(Json::as_str) == Some("AllocationFixture.build"))
+        .expect("checked builder worker");
+    assert_eq!(worker.get("arity").and_then(Json::as_num), Some(1.0));
+    assert_eq!(worker.get("params").and_then(Json::as_arr).unwrap().iter().map(Json::as_str).collect::<Vec<_>>(), [Some("R")]);
+    assert_eq!(worker.get("result").and_then(Json::as_str), Some("O"));
+
+    let sha256 = |path: &Path| format!("{:x}", Sha256::digest(std::fs::read(path).unwrap()));
+    let configuration = dir.join("allocation.objects.json");
+    std::fs::write(&configuration, Json::obj(vec![
+        ("schema", Json::Num(1.0)),
+        ("target", Json::Str(cinch::core::TargetProfile::native().triple)),
+        ("object", Json::Str(library.display().to_string())),
+        ("metadata", Json::Str(metadata.display().to_string())),
+        ("object_sha256", Json::Str(sha256(&library))),
+        ("metadata_sha256", Json::Str(sha256(&metadata))),
+    ]).to_text()).expect("write the allocation object configuration");
+    let ir = dir.join("entry.ll");
+    // Main only calls C. The object supplies the builder and its layout
+    // table prefix, with its checked interfaces embedded in the metadata.
+    drive_with_objects(frontend, Mode::EmitIr, dir, "Main.cinch", Some(ir.clone()), Some(configuration))
+        .expect("emit the entry against the allocation fixture object");
+    let runtime = PathBuf::from(std::env::var_os("CINCH_TEST_RUNTIME_ARCHIVE")
+        .expect("selected frontend requires the matching runtime archive"));
+    let mut link = Command::new(clang);
+    link.arg(ir).arg(library).arg(probe).arg(runtime).arg("-o").arg(exe);
+    if cfg!(target_os = "linux") { link.args(["-ldl", "-lpthread", "-lm"]); }
+    let output = link.output().expect("link the allocation probe");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
 
 /// The leak check's `leaked=` count from a run's stderr.
 fn leaked(out: &Output) -> u64 {
@@ -404,7 +458,7 @@ fn leaked(out: &Output) -> u64 {
 /// counted a raw word would dereference a non-pointer.
 #[test]
 fn a_compiled_structure_drops_back_to_the_immortal_baseline() {
-    let dir = common::project("rc_drop", &[]);
+    let dir = common::project("rc_drop", &[("AllocationFixture.cinch", DROP_LIBRARY), ("Main.cinch", DROP_ENTRY)]);
     let c = dir.join("probe.c");
     let o = dir.join("probe.o");
     std::fs::write(&c, DROP_PROBE).expect("write probe");
@@ -412,16 +466,21 @@ fn a_compiled_structure_drops_back_to_the_immortal_baseline() {
     let status = Command::new(&clang).arg("-c").arg(&c).arg("-o").arg(&o).status().expect("run clang");
     assert!(status.success(), "the probe did not compile");
     let exe = dir.join("prog");
-    let o = o.to_string_lossy().into_owned();
-    let src = DROP_PROGRAM.to_string();
-    let out_path = exe.clone();
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || cinch::driver::build_source_objects(&src, &[&o], &out_path))
-        .expect("spawn build")
-        .join()
-        .expect("build thread")
-        .unwrap_or_else(|e| panic!("build: {e}"));
+    if let Some(frontend) = common::external_frontend::configured().expect("frontend selection") {
+        build_external_drop_probe(&frontend, &dir, &o, &exe, &clang);
+    } else {
+        let out_path = exe.clone();
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || {
+                let source = format!("{DROP_LIBRARY}{DROP_ENTRY}");
+                cinch::driver::build_source_objects(&source, &[o.to_str().unwrap()], &out_path)
+            })
+            .expect("spawn build")
+            .join()
+            .expect("build thread")
+            .unwrap_or_else(|e| panic!("build: {e}"));
+    }
 
     // Kept: the structure is what is live. Two `Cons` and two `Node`
     // cells, two buffers and a boxed `Nat` under `shapes`; two `Cons`

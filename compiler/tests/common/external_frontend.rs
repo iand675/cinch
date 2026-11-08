@@ -143,7 +143,12 @@ pub fn run_cli(frontend: &Frontend, entry: &Path, words: &[&str]) -> Result<i32,
 }
 
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
-    drive_with_objects(frontend, mode, dir, entry, out, std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from))
+    let objects = if mode == Mode::EmitObject {
+        std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from)
+    } else {
+        None
+    };
+    drive_with_objects(frontend, mode, dir, entry, out, objects)
 }
 
 pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>) -> Result<i32, String> {
@@ -177,12 +182,16 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
     let mut args = vec![flag.into(), "--interfaces".into(), interfaces.display().to_string()];
     if mode == Mode::EmitObject {
-        let configuration = objects.ok_or("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback")?;
-        let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
+        if objects.is_none() { return Err("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback".into()); }
         ir = exe.with_extension("ll");
         if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
         std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
-        args.extend(["--objects".into(), configuration.display().to_string()]);
+    }
+    if matches!(mode, Mode::EmitObject | Mode::EmitIr) {
+        if let Some(configuration) = objects {
+            let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
+            args.extend(["--objects".into(), configuration.display().to_string()]);
+        }
     }
     args.extend([source.display().to_string(), ir.display().to_string()]);
     match mode {
