@@ -17941,11 +17941,11 @@
         "title": "Run all 236 targets on the published Rust compiler",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 11,
+        "passed": 12,
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "case_evidence",
+        "phase": "bootstrap_source_instances",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20672,12 +20672,12 @@
       {
         "title": "Compile and replay the host inline primitive cases",
         "unit": "controls",
-        "status": "failed",
+        "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with inline primitives",
         "passed": 0,
         "total": 14,
-        "failed": 1,
-        "source": "0535f3406d82cf1aa702bb34641f9aaaf075e1994b517f66cc2854cc81f62853",
+        "failed": 0,
+        "source": "0d8798c10506aac597bcd2c0d9d13cd61055a6f2bbe55814aa77ed87b6dba20f",
         "evidence": null
       },
       {
@@ -20716,5 +20716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:07:42.769196+00:00"
+  "updatedAt": "2026-11-08T21:08:45.926709+00:00"
 }
