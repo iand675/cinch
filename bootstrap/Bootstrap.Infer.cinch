@@ -2183,11 +2183,11 @@ module Bootstrap.Infer where
   infer-ref-set :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
   infer-ref-set classes kinds families env locals sp args st = case args of
     [place, input] -> case infer classes kinds families env locals place st of
-      (target, checked) -> case mutable-borrow (normalize checked (core-type target)) of
+      (cell-term, checked) -> case mutable-borrow (normalize checked (core-type cell-term)) of
         None -> term-error (expr-span place) "refSet writes through an exclusive Mut borrow" checked
-        Some (region, carrier) -> (case target of
+        Some (region, carrier) -> (case cell-term of
           CLocal at ty id name actuals -> (case check classes kinds families env locals input carrier checked of
-            (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at target (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
+            (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at cell-term (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
           other -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
     other -> term-error sp "refSet takes a Mut borrow and a value" st
   task-syntax-name :: String -> Bool

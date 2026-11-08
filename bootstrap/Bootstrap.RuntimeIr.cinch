@@ -2211,14 +2211,14 @@ module Bootstrap.RuntimeIr where
         (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
           (loaded, value) -> (count-op False (core-type input) cell (count-op True ty value loaded), value))
   write-borrow-word :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
-  write-borrow-word definitions locals w sp target input = case mutable-borrow (core-type target) of
+  write-borrow-word definitions locals w sp cell-term input = case mutable-borrow (core-type cell-term) of
     None -> unsupported w sp "mutable write needs a checked cell carrier"
-    Some (region, carrier) -> case expression definitions locals w target of
+    Some (region, carrier) -> case expression definitions locals w cell-term of
       (held, cell) -> case expression definitions locals held input of
         (ready, value) -> let (one, pointer) = fresh ready "%ptr" in
           (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
             (loaded, old) -> let replaced = store-fields loaded pointer 0 [value] in
-              (count-op False (core-type target) cell (count-op False carrier old replaced), "0"))
+              (count-op False (core-type cell-term) cell (count-op False carrier old replaced), "0"))
   compare-word :: Writer -> String -> String -> String -> (Writer, String)
   compare-word w predicate a b = let (one, flag) = fresh w "%v" in let (two, result) = fresh one "%v" in
     (line (line two (cat ["  ", flag, " = icmp ", predicate, " i64 ", a, ", ", b])) (cat ["  ", result, " = zext i1 ", flag, " to i64"]), result)
