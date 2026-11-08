@@ -1,0 +1,94 @@
+{
+  "compiler_sha256": "b09b15ab6e9839a8b59acb5fa5d5e5f79a6a82140b45361448dd0caa30ccc63f",
+  "compiler_source_sha256": "0bb5e1546676b41291a5b75a22500346427b4375b9b71f561b52f73962def721",
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "regex_executable_sha256": "e2120093c8fe3b5582413b0fd50e182f769fb2c4e3c3ce48e2e5d25cbdd86783",
+  "regex_interfaces_sha256": "80ca97b4db9b6e8a8ee5ed15e77b9a71e45559d90f787c23efcb73d8d2256ca3",
+  "regex_ir_sha256": "2497713f3cf120a5b66809822d1ed159809b1e526d9e4def922eb2ca9c21fdd2",
+  "regex_library_source_sha256": "ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391",
+  "regex_object_sha256": "7db1f219e128d5d2dc0e9ec289dc98324274b8f107eefcb9c7b6fb44d2eb741f",
+  "rows": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "ir_sha256": "ca051fc038f9b4cd0c5c276f4119b214d66b3b08cc2072a0f0a1ea87a0dd1814",
+      "link_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "checked nested constructor projection",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "839920695f0a8ad83882a27b46eb5d3ad315f0f7cffb0eb24c20ed0bffe3b35c",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:8:23: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "projection facts retain the input value",
+      "source_sha256": "bf8cee595a756d75ee1d32a3029280697233c6959da9b2be38122271d2b3a4cd",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:10:17: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "projection facts retain the selected field",
+      "source_sha256": "a841765ff6cc9687af5a8d812b5d2219b6b02e01c3ddd2811ee1bc53de24cea7",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:8:18: byte observation input needs checked pure total reification\nbootstrap.check:8:18: ill-sorted, partial or unchecked typed source index\nbootstrap.check:8:18: a type cannot be used as a predicate value\nbootstrap.check:8:18: ill-sorted proof predicate\nbootstrap.check:8:77: ill-formed function proof contract\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "partial constructor projection has no observation authority",
+      "source_sha256": "2d17b9b76153a6d7b8eb1c59062b9c0e3b33c2a8864a639a1930f47ebb5b2a4d",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "checked total buffer selection",
+      "source_sha256": "310cde7173616731ab6cb767cb2ecb26b1e21eaa95ad37d17d71718a8aaefeab",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "actual result identity",
+      "source_sha256": "2d049e72592c5170395ce566e9a5d5e2fd7c85c13075846d722a556041fcd7c7",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "regex-check",
+      "source_sha256": "120ce6822f112655cf0e8a7ae1a723e0ee062fa1ade8deabf50f8e6bbd6d7504",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "regex-emit",
+      "source_sha256": "120ce6822f112655cf0e8a7ae1a723e0ee062fa1ade8deabf50f8e6bbd6d7504",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "regex-runtime",
+      "source_sha256": "120ce6822f112655cf0e8a7ae1a723e0ee062fa1ade8deabf50f8e6bbd6d7504",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "a5933b7bfb3af3719f4ab502bfaf74a01d81fdf9a48308f7b2a18433f17a47bf",
+  "status": "audited-stage1-nominal-projections-and-original-regex"
+}

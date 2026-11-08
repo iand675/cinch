@@ -41,6 +41,11 @@ now covers all 112 modules and pins the lower measured counts of
 unmodeled syntax.
 See [the parser audit](../bootstrap/current-schema10-stage3-parser-corpus-results.json).
 
+The complete inference target also passed on that Stage3. It retains the
+constructor, scope and checked Core assertions alongside the updated
+division refusal.
+See [the inference audit](../bootstrap/current-schema10-stage3-inference-target-results.json).
+
 All three class-identity cases and both region and effect interface cases
 passed on Rust and the exact published Stage3. The selected compiler
 checks the wrong-owner refusal and emits the region and effect contracts
@@ -99,9 +104,14 @@ See [the signed-limit controls](../bootstrap/current-schema10-machine-type-arith
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and
-body authority. The nominal projection and original `Text.Regex` replay are
-separate checks.
+body authority.
 See [the byte-observation audit](../bootstrap/current-schema10-total-byte-observation-results.json).
+
+Development Stage1 passed the six nominal projection controls, including
+the wrong input, wrong field and partial projection refusals. The unchanged
+`Text.Regex` client checked, emitted IR and ran with zero leaks against the
+checked object with the additional Algebra variants.
+See [the projection and Regex audit](../bootstrap/current-schema10-nominal-projections-regex-results.json).
 
 The current published Rust snapshot passed 205 compiler unit tests and
 171 runtime tests with ignored cases included. The current tooling suite
