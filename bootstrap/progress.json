@@ -20989,8 +20989,8 @@
       },
       {
         "title": "Run all 236 integrated Native groups",
-        "status": "waiting-worker",
-        "phase": "Waiting worker",
+        "status": "running",
+        "phase": "Bootstrap_decisions",
         "passed": 28,
         "failed": 0,
         "total": 236,
@@ -21184,9 +21184,9 @@
       },
       {
         "title": "Run the 23 package and JIT tests on the integrated Rust compiler",
-        "status": "running",
-        "phase": "package-store-integration",
-        "passed": 13,
+        "status": "passed",
+        "phase": "All 23 original cases passed across installation, Native linking, JIT and the package store.",
+        "passed": 23,
         "total": 23,
         "unit": "tests",
         "failed": 0,
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:04:42.689086+00:00"
+  "updatedAt": "2026-11-08T17:05:46.007679+00:00"
 }
