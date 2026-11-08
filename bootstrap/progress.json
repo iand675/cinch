@@ -20983,7 +20983,7 @@
       },
       {
         "title": "Run the complete ABI 7 Native suite",
-        "status": "running",
+        "status": "superseded-yielded-worker",
         "phase": "Bootstrap_array_float_bits.",
         "passed": 17,
         "failed": 0,
@@ -21197,5 +21197,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:41:25.824498+00:00"
+  "updatedAt": "2026-11-08T13:42:28.853996+00:00"
 }
