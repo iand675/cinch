@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "17/236 Rust targets and 8/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "17/236 Rust targets and 9/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12035,11 +12035,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 8,
+          "verified": 9,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 95
+          "recheck": 94
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12149,10 +12149,34 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "0eeb5b9f600cde113dac1caa7c03b70287f63f4400868a11816a6050927f933f",
+              "cases": [
+                {
+                  "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:bootstrap_abstract_nonzero_types",
+            "title": "bootstrap_abstract_nonzero_types",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12161,30 +12185,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:bootstrap_abstract_nonzero_types",
-            "title": "bootstrap_abstract_nonzero_types",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T01:45:35.294570+00:00",
-              "finishedAt": "2026-11-08T01:49:08.335763+00:00",
-              "exitCode": 0,
-              "logSha256": "a899af00d9329ef25971ae234b7a278506d4041204e436249ed5be0c517e4d82",
-              "cases": [
-                {
-                  "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "passed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20245,8 +20245,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "arrays, bootstrap_abstract_nonzero_methods",
-        "passed": 8,
+        "phase": "arrays, bootstrap_abstract_nonzero_types",
+        "passed": 9,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20450,11 +20450,11 @@
       }
     ],
     "counts": {
-      "verified": 363,
+      "verified": 364,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 335
+      "recheck": 334
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20462,5 +20462,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:22:05.521828+00:00"
+  "updatedAt": "2026-11-08T18:27:50.717980+00:00"
 }
