@@ -11993,11 +11993,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 40,
+          "verified": 42,
           "blocked": 6,
           "running": 3,
           "pending": 47,
-          "recheck": 9
+          "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12942,8 +12942,8 @@
           {
             "id": "stage3:bootstrap_interface",
             "title": "bootstrap_interface",
-            "state": "recheck",
-            "detail": "1 of 2 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
+            "state": "verified",
+            "detail": "1 case passed with matching Stage3 invocations. The same run passed 1 reviewed direct Rust API assertion.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
@@ -14286,17 +14286,17 @@
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "recheck",
-            "detail": "3 of 4 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
+            "state": "verified",
+            "detail": "All 4 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
               "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T01:44:28.170961+00:00",
-              "finishedAt": "2026-11-08T01:45:34.490500+00:00",
+              "startedAt": null,
+              "finishedAt": null,
               "exitCode": 0,
-              "logSha256": "6413e2fb70ab9a130fabff1e07914690457488b3ea71bacf8bfdddb3c2d5648e",
+              "logSha256": "4065a1cbcd62913f3447d49fd8f78b874269e8fe7a3a7a159cbc4e439fb01182",
               "cases": [
                 {
                   "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
@@ -16597,9 +16597,9 @@
         "id": "tooling",
         "title": "Bootstrap and tooling suite",
         "unit": "tests",
-        "total": 46,
+        "total": 48,
         "counts": {
-          "verified": 46,
+          "verified": 48,
           "blocked": 0,
           "running": 0,
           "pending": 0,
@@ -17141,8 +17141,34 @@
             }
           },
           {
+            "id": "tooling:test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
+            "title": "test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
+            "state": "verified",
+            "detail": "Passed on the audited current inputs.",
+            "doneWhen": "Run the complete suite on matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "observed": {
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "cases": []
+            }
+          },
+          {
             "id": "tooling:test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
             "title": "test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
+            "state": "verified",
+            "detail": "Passed on the audited current inputs.",
+            "doneWhen": "Run the complete suite on matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "observed": {
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "cases": []
+            }
+          },
+          {
+            "id": "tooling:test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
+            "title": "test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
             "state": "verified",
             "detail": "Passed on the audited current inputs.",
             "doneWhen": "Run the complete suite on matching inputs.",
@@ -20453,17 +20479,17 @@
       }
     ],
     "counts": {
-      "verified": 286,
+      "verified": 290,
       "blocked": 11,
       "running": 14,
       "pending": 284,
-      "recheck": 83
+      "recheck": 81
     },
-    "total": 678,
+    "total": 680,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:08:47.198570+00:00"
+  "updatedAt": "2026-11-08T03:11:34.305415+00:00"
 }
