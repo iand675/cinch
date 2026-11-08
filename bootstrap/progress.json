@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "80 passed, 3 running, 19 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 80,
+        "phase": "81 passed, 3 running, 18 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 81,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20990,6 +20990,26 @@
         "unit": "gates",
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-native-provider-results.json"
+      },
+      {
+        "title": "Run the complete ABI 7 Native suite",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared worker to run the next target.",
+        "passed": 0,
+        "failed": 0,
+        "total": 236,
+        "unit": "targets",
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
+      },
+      {
+        "title": "Run all required ABI 7 Stage 3 frontend groups",
+        "status": "waiting-stage3",
+        "phase": "Waiting for the ABI 7 fixed point and matching Native runtime archives.",
+        "passed": 0,
+        "failed": 0,
+        "total": 105,
+        "unit": "targets",
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
       }
     ],
     "counts": {
@@ -21005,5 +21025,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:41:08.174143+00:00"
+  "updatedAt": "2026-11-08T09:43:56.533834+00:00"
 }
