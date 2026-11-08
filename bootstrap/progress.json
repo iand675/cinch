@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "52 passed, 3 running, 47 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 52,
+        "phase": "53 passed, 3 running, 46 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 53,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20949,8 +20949,8 @@
       {
         "title": "Rust mutable writes through calls",
         "status": "running",
-        "phase": "Mutation-through-call. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
-        "passed": 3,
+        "phase": "Ownership. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "passed": 5,
         "failed": 0,
         "total": 9,
         "unit": "gates",
@@ -20970,5 +20970,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:22:52.321729+00:00"
+  "updatedAt": "2026-11-08T08:23:54.671496+00:00"
 }
