@@ -19,7 +19,7 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export scoped-core-case-facts, core-alternative-covers, opening-value-types, opening-value-patterns
+  export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
@@ -1670,11 +1670,11 @@ module Bootstrap.Core where
       (Some element, Some declared) -> if contract-equal carrier declared then Some (list-shape-variable id) else None
       other -> None)
     other -> None
-  irrefutable-list-field :: UType -> CorePattern -> Bool
-  irrefutable-list-field expected pattern = case pattern of
+  irrefutable-case-pattern :: UType -> CorePattern -> Bool
+  irrefutable-case-pattern expected pattern = case pattern of
     CPWild sp ty -> contract-equal expected ty
     CPVar sp ty id name -> contract-equal expected ty
-    CPAs sp ty id name inner -> contract-equal expected ty && irrefutable-list-field expected inner
+    CPAs sp ty id name inner -> contract-equal expected ty && irrefutable-case-pattern expected inner
     other -> False
   list-pattern-shape :: UType -> String -> UType -> CorePattern -> Bool -> Option Int
   list-pattern-shape ty name constructor fields positive = case (core-list-element ty, fields) of
@@ -1682,7 +1682,7 @@ module Bootstrap.Core where
       if string-compare name (interface-global "Data.Core.Nil") == 0 && contract-equal constructor ty then Some (if positive then 0 else 1) else None
     (Some element, CPField sp head (CPField tail-at tail (CPDone end))) ->
       if string-compare name (interface-global "Data.Core.Cons") == 0 && contract-equal constructor (UFun element (UFun ty ty))
-        && (positive || (irrefutable-list-field element head && irrefutable-list-field ty tail)) then Some (if positive then 1 else 0) else None
+        && (positive || (irrefutable-case-pattern element head && irrefutable-case-pattern ty tail)) then Some (if positive then 1 else 0) else None
     other -> None
   case-list-shape :: ProofScope -> List Proposition -> CoreTerm -> UType -> String -> UType -> CorePattern -> Bool -> List Proposition
   case-list-shape gamma facts value ty name constructor fields positive = if not (contract-equal ty (core-type value)) then Nil else
@@ -1701,8 +1701,20 @@ module Bootstrap.Core where
     other -> True
   case-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
   case-branch-facts gamma facts value pattern positive = scoped-core-case-facts gamma facts value pattern positive <> facts
+  -- A pure guard on a pattern that always matches can fail only when the
+  -- guard is false. Read it in the outer scope so no row binding escapes.
+  scoped-core-case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
+  scoped-core-case-rest-facts gamma facts value pattern body =
+    if core-alternative-covers body then scoped-core-case-facts gamma facts value pattern False
+    else case body of
+      CGuard sp ty condition rhs ->
+        if irrefutable-case-pattern (core-type value) pattern && bool-type (core-type condition)
+          && contract-equal (core-effects condition) (URow UEnd) && proof-term gamma facts condition then
+          (case scoped-core-branch gamma facts condition False of Some fact -> [fact]; None -> Nil)
+        else Nil
+      other -> Nil
   case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
-  case-rest-facts gamma facts value pattern body = if core-alternative-covers body then case-branch-facts gamma facts value pattern False else facts
+  case-rest-facts gamma facts value pattern body = scoped-core-case-rest-facts gamma facts value pattern body <> facts
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
   branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
     Some p -> Cons p facts

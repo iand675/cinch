@@ -3291,8 +3291,11 @@ module Bootstrap.Infer where
     EAltsEnd s -> (CAlternativesEnd s, st)
     EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
       (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env bound scrut pattern True sb) locals body result sb of
-        (rhs, sr) -> case check-alternatives classes kinds families (if body-covers body then proof-case-env env scrut pattern False sr else env) locals scrut result rest sr of
-          (more, ss) -> (CAlternative s pattern rhs more, ss)
+        (rhs, sr) -> let fallback = prepend-proof-facts
+          (scoped-core-case-rest-facts (proof-context env sr) (proof-facts env) (map-term-types (normalize sr) scrut)
+            (map-pattern-types (normalize sr) pattern) (map-term-types (normalize sr) rhs)) env in
+          case check-alternatives classes kinds families fallback locals scrut result rest sr of
+            (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-alt-body classes kinds families env locals body result st = case body of
