@@ -36,6 +36,21 @@ and through the exact published Stage3. The portable round trips use
 Cinch-emitted interfaces and retain the original Rust Core assertions.
 See [the proof-interface audit](../bootstrap/current-schema10-published-proof-arrow-dispatch-results.json).
 
+The export-closure repair passed the original anonymous-interface and
+refinement-closure targets in Rust and with the development Stage1.
+See [the refinement-interface audit](../bootstrap/current-schema10-refinement-export-closure-results.json).
+
+The original higher-kinded identity example now emits working IR. It ran
+with zero leaks. The oversized tuple still produces its lowering refusal
+and clears the previous IR. The complete runtime target will replay the
+higher-kinded example as an executable case.
+See [the runtime fixture replay](../bootstrap/current-schema10-higher-kind-runtime-fixture-results.json).
+
+The original allocation probe reaches the published Stage3 and fails during
+IR emission. Its checked runtime imports for Nat addition and multiplication
+need staged lowering before the C link and reference-count checks can run.
+See [the allocation probe](../bootstrap/current-schema10-stage3-allocation-drop-results.json).
+
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and

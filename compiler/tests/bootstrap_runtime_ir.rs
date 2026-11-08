@@ -131,6 +131,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("higher-kinded specialization", "  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n", 1),
         ("fixed-index-signal-constructors", r#"  data Signal (n :: Nat) where
     Mono :: Nat -> Signal 1
     Stereo :: Nat -> Nat -> Signal 2
@@ -777,13 +778,7 @@ int main(void) {
     assert_eq!(output.status.code(), Some(0), "physical ABI: {}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
     println!("C ABI tags and aliases: exit0; {}", String::from_utf8_lossy(&output.stderr).trim());
-    // The typed frontend accepts this; unavailable lowering must refuse it
-    // explicitly and clear the preceding successful IR artifact.
-    std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n").unwrap();
-    let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
-    assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(common::read_output(&dir, "output.diagnostics").contains("representation"));
-    assert!(common::read_output(&dir, "output.ll").is_empty());
+    // An unsupported extended tuple must clear the preceding successful IR.
     std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) of\n    _ -> 0\n").unwrap();
     let output = Command::new(&compiler).current_dir(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(5), "{}", String::from_utf8_lossy(&output.stderr));

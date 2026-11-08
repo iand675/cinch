@@ -1,0 +1,24 @@
+{
+  "build_invocation_sha256": "c595c159b41b3e605223ce83de42f33814c40dcf6a026c33ceb36b6335579c45",
+  "checked_at": "2026-11-08T03:26:03.436131+00:00",
+  "compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
+  "compiler_test_source_sha256": "2c0d53401542695cfa22e3c07db4597d2d625394e3ee514ef4eafee36a469950",
+  "full_goal_complete": false,
+  "helper_sha256": "5b1620052c0bde24d0c7e249ba4dc3934fbd1d7251538ee011318ae7dac66cd6",
+  "negative": {
+    "diagnostics": "bootstrap.runtime-ir:1:1: reference operation needs a checked runtime representation\nbootstrap.runtime-ir:1:1: pattern needs typed runtime match lowering\nbootstrap.runtime-ir:3:15: tuple fields need an extended or polymorphic runtime layout\n",
+    "exit_code": 5,
+    "ir_bytes": 0,
+    "source_sha256": "b0c25ad64e9f8046f210e73efe3200257ecbf927ce2d35c5edb5d2d4202552c6"
+  },
+  "positive": {
+    "ir_sha256": "4d85d463e391ec8d0ecd05ffd993f305d1f0bba6a50b35360fe8412ca0158ac5",
+    "program_exit": 1,
+    "program_sha256": "cb39b70d1ab3c680c1f5120b9cb56c4804b3c63ad47676fbe3b1a3fcdf7db327",
+    "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "source_sha256": "00d5c6ac0c8af99bfc56379918180e022f1454f3ed4d079e72cd3b44cfeeee08"
+  },
+  "runtime_sha256": "8fa85cbaed9018b33d4beb780ceb3a10bcd0d79fc8bd967eca15ab7e1a7301d5",
+  "status": "verified",
+  "updated_test_source_sha256": "c1a49f2b30e815fef3cb17cd381f2aed8533688cf13c1336f54c7c48bbeaaa84"
+}

@@ -1,0 +1,20 @@
+{
+  "c_source_sha256": "8b1271ea58933a4b0d22ee46e69e5a35421c95deb9739fb40761d61c94e81a03",
+  "case": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+  "checked_at": "2026-11-08T03:26:03.436131+00:00",
+  "cinch_source_sha256": "bc627794628e8bbcc15e33077dcf52d6d5e2e6f3f8a3c78bba1dee4f7ba59bd7",
+  "compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
+  "compiler_source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+  "diagnostics": "bootstrap.check:10:3: foreign symbol has no checked runtime intrinsic contract or valid C identifier\nbootstrap.check:11:3: foreign symbol has no checked runtime intrinsic contract or valid C identifier\n",
+  "diagnostics_sha256": "c3140d00a4affb461e9ca9ba335b71ec8486ab767fb9c680469d4e312d33093d",
+  "emit_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "exit_code": 4,
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "phase": "emit-ir",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "status": "exact-stage3-allocation-source-refused",
+  "test_source_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2"
+}

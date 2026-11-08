@@ -1,0 +1,81 @@
+{
+  "checked_at": "2026-11-08T03:26:03.436131+00:00",
+  "compiler_sha256": "0658eaa95a08c142feafca01fc2c92d619a8f4c16bf6a98052e8b319f474b89c",
+  "compiler_source_sha256": "7468506391afe571a2c88a5b77ab62ec7c1fa4a2f5a58dc88d266b3785962387",
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "rows": [
+    {
+      "cases": [
+        "checked_anonymous_contracts_survive_facades"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {},
+      "log_sha256": "9390939b164c5f3ff42e64882c8990ceb27f6cb43a6cbaeb9be6764c61e69ef6",
+      "name": "interface_anonymous_contracts native",
+      "runner_sha256": "ebec7ec498a3cc2392830391660adb2cbd0cc8e2da20372b8df855e4d220a624",
+      "status": "passed",
+      "test_source_sha256": "6b16f6d5fdd9104f602373e62769c47a1876dbbbc40531a76c9581861555da8b"
+    },
+    {
+      "cases": [
+        "checked_anonymous_contracts_survive_facades"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {
+        "1843-0.json": {
+          "compiler_exit_code": 0,
+          "sha256": "5df1960577caf2d4d1c03bc75a89148043e1205f306aac76581a1357d80dd2ad",
+          "test": "checked_anonymous_contracts_survive_facades"
+        }
+      },
+      "log_sha256": "0f64936f256ad690a39e2d487ad938508bd8c963707f3591e791db9a209fb474",
+      "name": "interface_anonymous_contracts selected",
+      "runner_sha256": "ebec7ec498a3cc2392830391660adb2cbd0cc8e2da20372b8df855e4d220a624",
+      "status": "passed",
+      "test_source_sha256": "6b16f6d5fdd9104f602373e62769c47a1876dbbbc40531a76c9581861555da8b"
+    },
+    {
+      "cases": [
+        "list_refinement_contracts_keep_the_checked_carrier_and_predicate",
+        "private_refinement_contracts_survive_value_only_facades"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {},
+      "log_sha256": "ad83f926a4ecaa23690c24287787f6e60f972986ab1a7cbd432a62849da531bc",
+      "name": "interface_refinement_closure native",
+      "runner_sha256": "5b5644fdf96b0161590b403a8d1ccb2cc2aff25413cb22b3515cf92f054c8a87",
+      "status": "passed",
+      "test_source_sha256": "c46d4800b85e0a8028bf7ea5536b8ccc5052c0b3503617358fbf05582ac70138"
+    },
+    {
+      "cases": [
+        "list_refinement_contracts_keep_the_checked_carrier_and_predicate",
+        "private_refinement_contracts_survive_value_only_facades"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {
+        "2253-0.json": {
+          "compiler_exit_code": 0,
+          "sha256": "a82208bac8933a4bc24cbf862cd333630b3579701e1fde19161f8b7ee5e5c096",
+          "test": "list_refinement_contracts_keep_the_checked_carrier_and_predicate"
+        },
+        "2253-1.json": {
+          "compiler_exit_code": 0,
+          "sha256": "41ae11de149fb19c34340e67feab4ff7e124df4d084bc12baa742de0d836f625",
+          "test": "private_refinement_contracts_survive_value_only_facades"
+        }
+      },
+      "log_sha256": "0e5b3e7b482e52d598a3c23a54449d762987117cb946caa39625d3aec213922a",
+      "name": "interface_refinement_closure selected",
+      "runner_sha256": "5b5644fdf96b0161590b403a8d1ccb2cc2aff25413cb22b3515cf92f054c8a87",
+      "status": "passed",
+      "test_source_sha256": "c46d4800b85e0a8028bf7ea5536b8ccc5052c0b3503617358fbf05582ac70138"
+    }
+  ],
+  "schema": 1,
+  "stage1_receipt_sha256": "268b9ba240d5ca021e29c54df361ef49b2e7195817abdd6a3cc3d86777e48b93",
+  "status": "audited-original-interface-closure-targets-on-native-and-stage1"
+}

@@ -298,6 +298,8 @@ def build_checklist(root, cfg, previous=None):
     shard_paths = cfg.get('schema10PublishedFrontendShards') or [cfg.get('schema10PublishedFrontendShard')]
     for path in shard_paths:
         published_front.update(published_stage3_shard(path, published_audit, compiler, native))
+    allocation_path = 'bootstrap/current-schema10-stage3-allocation-drop-results.json'
+    allocation = read(root / allocation_path)
     front_rows = []
     for name in front_names:
         old = old_front.get(name)
@@ -306,6 +308,7 @@ def build_checklist(root, cfg, previous=None):
         state = {'passed':'verified', 'failed':'blocked', 'running':'running'}.get(old.get('status'), 'pending') if same and old else 'recheck' if old and old.get('status') != 'pending' else 'pending'
         detail = 'Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.'
         evidence = observed(old, front.get('compiler_source_sha256'), Path(front_path).parent)
+        evidence_path = 'compiler/tests/'+name+'.rs'
         current = published_front.get(name)
         if current:
             row, directory, interface_hash = current
@@ -313,9 +316,19 @@ def build_checklist(root, cfg, previous=None):
             if test_file.is_file() and matches_digest(row.get('source'), digest(test_file)):
                 state, detail = published_stage3_status(row, directory, interface_hash, scope.get('native_api_assertions'))
                 evidence = observed(row, compiler, directory)
+        if (name == 'alloc_accounting' and state == 'recheck' and chain is published_audit
+                and allocation.get('status') == 'exact-stage3-allocation-source-refused'
+                and allocation.get('compiler_source_sha256') == compiler
+                and allocation.get('native_source_sha256') == native
+                and allocation.get('compiler_sha256') == chain['stages'][-1]['compiler_sha256']
+                and allocation.get('interfaces_sha256') == chain['stages'][-1]['inputs']['interface_set_sha256']
+                and matches_digest(root / evidence_path, allocation.get('test_source_sha256'))):
+            state = 'blocked'
+            detail = 'The original C allocation probe fails at Stage3 IR emission. The staged checker rejects the Nat addition and multiplication imports.'
+            evidence_path = allocation_path
         front_rows.append(item('stage3:'+name, name, state, detail,
             'Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.',
-            link('compiler/tests/'+name+'.rs'), observed=evidence,
+            link(evidence_path), observed=evidence,
             category='interface / API' if name in scope['interface_api_targets'] else 'portable behavior'))
 
     suites = [suite('native', 'Rust compiler suite', 'targets', native_rows,
