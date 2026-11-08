@@ -19893,7 +19893,7 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "waiting-worker",
+        "status": "superseded-after-parser-preflight",
         "phase": "Waiting for a worker",
         "passed": 0,
         "failed": 0,
@@ -20103,5 +20103,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:00:38.641546+00:00"
+  "updatedAt": "2026-11-08T02:01:40.561753+00:00"
 }
