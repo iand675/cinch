@@ -20629,11 +20629,44 @@
         "title": "Execute Cinch memo groups and verify scope cleanup",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. raw-cached-word",
+        "phase": "All 17 controls passed on Stage 1. Nine compiled and ran without leaks.",
         "passed": 18,
         "total": 18,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-stage1-results.json"
+      },
+      {
+        "title": "Rebuild the Cinch memo compiler through Stage 3",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Seed and Stage 1 artifacts verified. Stage 2 is queued for a shared worker.",
+        "passed": 3,
+        "total": 6,
+        "failed": 0,
+        "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+        "evidence": null
+      },
+      {
+        "title": "Replay the three original guarded Later tests",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with guarded Later",
+        "passed": 0,
+        "total": 4,
+        "failed": 0,
+        "source": "120a0c96b6e10f9bd772c0f02f643bd0d17a181f727d08dc83a1e9fa4ab04ac3",
+        "evidence": null
+      },
+      {
+        "title": "Replay all ten codata tests with memo and guarded recursion",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Isolated Stage 1 candidate. Queued for a shared worker.",
+        "passed": 0,
+        "total": 13,
+        "failed": 0,
+        "source": "50b2fa011ae9d5f4f1ad6cc3de74ca759a40dd7418c008875d3e56bf75baa93c",
         "evidence": null
       },
       {
@@ -20672,5 +20705,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:33:50.674246+00:00"
+  "updatedAt": "2026-11-08T20:39:16.509573+00:00"
 }
