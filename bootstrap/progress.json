@@ -21107,7 +21107,7 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Clean native build",
+        "phase": "Lib",
         "passed": 0,
         "failed": 0,
         "total": 236,
@@ -21191,5 +21191,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:03:58.930150+00:00"
+  "updatedAt": "2026-11-08T13:05:02.320504+00:00"
 }
