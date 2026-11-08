@@ -71,6 +71,12 @@ strict initialization, and teardown of mutually capturing unforced cells.
 The memo compiler has a separate Stage 2 and Stage 3 gate.
 See [the Stage 1 memo audit](../bootstrap/current-schema10-abi7-cinch-memo-stage1-results.json).
 
+An isolated Cinch Stage 1 passed all three original guarded `Later` tests.
+The positive program ran without leaks. The six refusal cases check the
+distinction from `Thunk`, closed pure deferral and single use. Combined
+codata execution and its fixed point have separate gates.
+See [the guarded Later audit](../bootstrap/current-schema10-abi7-guarded-later-stage1-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

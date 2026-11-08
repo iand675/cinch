@@ -1,0 +1,87 @@
+{
+  "compiler_source_sha256": "120a0c96b6e10f9bd772c0f02f643bd0d17a181f727d08dc83a1e9fa4ab04ac3",
+  "full_goal_complete": false,
+  "native_source_sha256": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
+  "original_harness_sha256": "bf7e3328933aba7c13ca3a2d9ac678d8f1e277999c2a6a0406c700c3814b97b1",
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "original_test_sha256": "9a7bdee743880f453a9b484fcacb31dfa199bf9982a61c22b0d6c82d6cf73ad1",
+  "schema": 1,
+  "scope": "Three unchanged original guarded Later tests on an isolated Cinch Stage 1. The combined codata candidate and its fixed point have separate gates.",
+  "stage1_receipt_sha256": "22de2983dc195afecd2708b93ca821af9589fe219789178096ca758996ede63a",
+  "stage1_sha256": "b6f2665c39e98407a77e63c834437efda26df21682be38951c9bfc422099b649",
+  "status": "audited-stage1-original-guarded-later",
+  "tests": [
+    {
+      "name": "guarded_delay_and_force_accepted",
+      "observations": [
+        {
+          "compiler_exit_code": 0,
+          "executable_sha256": "3cd3df8411424e4d90ea5a0f742b737b030a6ca814febbc50adfecab0615895d",
+          "fixture_sha256": "e036473ce617e2933c6be3d3aba17fc1b77fd10a91d3156a26f990cdee16e49f",
+          "invocation_sha256": "2eae6d4ab1e1e4f362967ae6cd73459e1ef93bd534326d7ccd847f16a776afb6",
+          "ir_sha256": "22804c2c6372e79d47b759bfc1e149ba9bcfe1fb347a68af04d3ca6537715801",
+          "leaks": 0
+        }
+      ],
+      "status": "passed",
+      "test_log_sha256": "5ace3dec416d6ee30609eeedccf222225590666aa1537ca0f854b52a4ff550db"
+    },
+    {
+      "name": "later_is_not_interchangeable_with_thunk",
+      "observations": [
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:8:16: type mismatch: expected (Later Int), found ((Thunk e) Int) (Later and Thunk are distinct types) (Main.cinch:7:16)",
+          "diagnostic_sha256": "c35dd9d05a76aa1abb57a6a854d5044a49e66ad910d98436a74af340a1e73ae5",
+          "fixture_sha256": "4831419f0a947482a9d3da3a5ed0e689e1d36ac280632363a687022d1c9e63b3",
+          "invocation_sha256": "cdf94db16ea1b5cc60b5e0e8b4c482ef1f37f65a34e30e566eb7893085c7e6a8"
+        },
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:8:16: type mismatch: expected ((Thunk ?19) Int), found (Later Int) (Later and Thunk are distinct types) (Main.cinch:7:16)",
+          "diagnostic_sha256": "66a1ccb59bbf34086dbbaa2fcc73641a2059b07496b494a5174a6ba301bd29bd",
+          "fixture_sha256": "79ceb103b7b7b3f419277bfb4a2bbcd346353020271c91d6208455e67382df2d",
+          "invocation_sha256": "75f7fc935993436315d263f7f8f03d8fa1fa88490e05921278877ddb35731af7"
+        },
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:4:8: Later must be applied to exactly one type and takes no effect row (Main.cinch:3:8)",
+          "diagnostic_sha256": "37857091258e459719120810b54c6d5342781203c4d413dbd34de33798bbdf57",
+          "fixture_sha256": "e27a465719e47d89785dbc5e0c92d7c6635ad1e19532c772003e341f334368ce",
+          "invocation_sha256": "2fcf5907e62b09f342621ab6df48a8faedb60cf43fff081052a3aef281d44bb3"
+        }
+      ],
+      "status": "passed",
+      "test_log_sha256": "d0162a354c230dc9d9d921c395065009c76985500b8f3852b99d264be40e1c6d"
+    },
+    {
+      "name": "later_must_not_be_an_unrestricted_thunk",
+      "observations": [
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:4:8: Later requires at most one use: %many would give it unrestricted-thunk semantics (Main.cinch:3:8)",
+          "diagnostic_sha256": "fc49aa0342c6061ffd4702e3748e92552d99d8017f2ebe24a07379d55ae030f0",
+          "fixture_sha256": "3092d6f5833e923290b8cfd199f634dafb50ba64822dece219903316c00eaf6a",
+          "invocation_sha256": "130caef4a301d5b79eac7af8e703af4a4e209a9201c96408016366b9e63957b3"
+        },
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:5:7: multiplicity %aff: a thunk must be used at most once (Main.cinch:4:7)",
+          "diagnostic_sha256": "d3110e233719d779baa2cfb6c001ff17651337f5fa0256a37852fe6bc7dc75f2",
+          "fixture_sha256": "d96829ab4634f44e447d56b355f44bebbc2b7773ca459c771d6ad578a4bf2ee1",
+          "invocation_sha256": "d3e6ce1db3299bdebdae285b221c2ead67170b5c7a4385aee7485ad96cc83f3a"
+        },
+        {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:8:9: a `delay` building a `Later` must be pure (Main.cinch:7:9)",
+          "diagnostic_sha256": "48261fb1920e323080456a9a3fe7fe8aa0b1f8c214edfb8c86c3700548e42f21",
+          "fixture_sha256": "fd040685787d79742f830f05084677888ea7b63b4515c4e016fea34ee501b297",
+          "invocation_sha256": "f947abbe1b58a1ce02e981987753b5c85cb7d2747d7d5c5b3f4adf16c3f39e32"
+        }
+      ],
+      "status": "passed",
+      "test_log_sha256": "a5ebe41db1514044df2efe3f8336645a74c8bc94ade10c7700cf4dac4293e6a5"
+    }
+  ],
+  "validator_state_sha256": "8b9549d3d83219c47e6330157fbe3a9104419510087a96d387881cbfc7d88479"
+}
