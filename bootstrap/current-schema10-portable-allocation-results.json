@@ -1,0 +1,136 @@
+{
+  "c_probe_modes": [
+    "EmitIr",
+    "EmitObject"
+  ],
+  "compiler_sha256": "7266c3ce48fd7a4055afb9630c486b051ca911561211a29d9feb449ffbc227d6",
+  "compiler_source_sha256": "4ed7e2fe9cb2f0e5e72c05100cd844d00a7c612c8372041025f0942b96aef235",
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_allocation_tests": 8,
+  "original_test_source_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "ae302fc9a6608c4e9a021fa7029f59845f29c3d3",
+  "rows": [
+    {
+      "cases": [
+        "duplicate_requested_providers_remain_in_the_selected_compiler_input",
+        "explicit_native_library_fixture_produces_checked_interfaces",
+        "llvm_output_invokes_the_selected_frontend_and_requires_its_output",
+        "native_library_fixture_cannot_supply_bootstrap_implementation_interfaces",
+        "object_output_invokes_selected_frontend_with_explicit_dependency_and_companions",
+        "selected_frontend_bundles_imports_and_preserves_lexical_data_files",
+        "selected_frontend_checks_builds_runs_and_records_the_actual_sources",
+        "selected_frontend_failures_and_non_base_interfaces_never_fall_back"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {},
+      "log_sha256": "48f2b07eb03785c1762e8fc3d0a13a76f2ce4be12afd8243ec93eb3f7e7d2502",
+      "name": "bootstrap_external_frontend native",
+      "runner_sha256": "85346f67551d6636ce518c6d7774c6603cc30e27e69ae22bde7fb39c9dbfe3c5",
+      "status": "passed",
+      "test_source_sha256": "6a5c20a8b856036b1f92ecac1d8b87db7780c71fe24db1af8c80457ae54dc734"
+    },
+    {
+      "cases": [
+        "a_compiled_structure_drops_back_to_the_immortal_baseline",
+        "escaped_constructors_match_and_carry_one_descriptor_word",
+        "header_blocks_count_constructor_cells_with_their_header",
+        "interned_symbols_are_counted_immortal_once_per_name",
+        "normal_program_is_quiet_under_the_guarded_cap",
+        "stats_line_counts_list_cells_only_when_asked",
+        "the_cap_bounds_live_bytes_not_the_lifetime_total",
+        "unbounded_allocation_hits_the_named_cap"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {},
+      "log_sha256": "f100599f3f7b774169cdd36b974627b6443f3dcf0796cbfcea59409a25c304fd",
+      "name": "alloc_accounting native",
+      "runner_sha256": "ec80f2ba669bbbe43e2808e1324f1874b346188d5cb79c5e1a4aa88ff31640d4",
+      "status": "passed",
+      "test_source_sha256": "8f40dfbf2c2cdddb8691eb7e6ba2d4742709ffdda4fe64ba5f385e51b05e45a2"
+    },
+    {
+      "cases": [
+        "a_compiled_structure_drops_back_to_the_immortal_baseline",
+        "escaped_constructors_match_and_carry_one_descriptor_word",
+        "header_blocks_count_constructor_cells_with_their_header",
+        "interned_symbols_are_counted_immortal_once_per_name",
+        "normal_program_is_quiet_under_the_guarded_cap",
+        "stats_line_counts_list_cells_only_when_asked",
+        "the_cap_bounds_live_bytes_not_the_lifetime_total",
+        "unbounded_allocation_hits_the_named_cap"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {
+        "35528-0.json": {
+          "compiler_exit_code": 0,
+          "sha256": "a615f11586c8cd0b36c1d36fb0e25e4de2114a2dc1c92b62e7801110215fdefa",
+          "test": "a_compiled_structure_drops_back_to_the_immortal_baseline"
+        },
+        "35528-1.json": {
+          "compiler_exit_code": 0,
+          "sha256": "b1782d9c23abb02c4d2127fd098907e11f2e714af34ee5e5e93cbe46630eef61",
+          "test": "a_compiled_structure_drops_back_to_the_immortal_baseline"
+        },
+        "35528-10.json": {
+          "compiler_exit_code": 0,
+          "sha256": "83e069d04ff15c39057aa0c338092f058b76dfb698de4826aa0849f1e9897f0e",
+          "test": "unbounded_allocation_hits_the_named_cap"
+        },
+        "35528-2.json": {
+          "compiler_exit_code": 0,
+          "sha256": "4665ee8d855a7ca9a6b066331322bf6d392037899980cd5651a67a9b69be4640",
+          "test": "escaped_constructors_match_and_carry_one_descriptor_word"
+        },
+        "35528-3.json": {
+          "compiler_exit_code": 0,
+          "sha256": "4c052269d28a5b9697278cd826c0bb3927562ea2a115c908affb2e0e6b0d3278",
+          "test": "escaped_constructors_match_and_carry_one_descriptor_word"
+        },
+        "35528-4.json": {
+          "compiler_exit_code": 0,
+          "sha256": "406adac8db26c00a13546b227b1d712c0254c0f382686545b7619dfbd9e31ec1",
+          "test": "header_blocks_count_constructor_cells_with_their_header"
+        },
+        "35528-5.json": {
+          "compiler_exit_code": 0,
+          "sha256": "58f5e2b88a172671140f3306b75e2276be871885bf6160a5ee7486b3942eb94b",
+          "test": "header_blocks_count_constructor_cells_with_their_header"
+        },
+        "35528-6.json": {
+          "compiler_exit_code": 0,
+          "sha256": "6aa3fda21802f375ca7ccf80f73639d970cbc0ac6f1d7ba1c81846cd0b973ac8",
+          "test": "interned_symbols_are_counted_immortal_once_per_name"
+        },
+        "35528-7.json": {
+          "compiler_exit_code": 0,
+          "sha256": "bb2ead11f051b58d5f09cef6274ea6d355e9075128d38d3a3fcd119143266832",
+          "test": "normal_program_is_quiet_under_the_guarded_cap"
+        },
+        "35528-8.json": {
+          "compiler_exit_code": 0,
+          "sha256": "6b24c9fdaed9be63f223f4645d2f8aea195f773e13edd075f47ddc0b2aa3cdc2",
+          "test": "stats_line_counts_list_cells_only_when_asked"
+        },
+        "35528-9.json": {
+          "compiler_exit_code": 0,
+          "sha256": "355d12c9f775815d25ff63cb135959391f044bb5332f4f73eee9c27ffe8e93b8",
+          "test": "the_cap_bounds_live_bytes_not_the_lifetime_total"
+        }
+      },
+      "log_sha256": "667154036e0bb96b2e28fbcb85bfa0937a55c5115cca532dff3ac15477270f8c",
+      "name": "alloc_accounting selected",
+      "runner_sha256": "ec80f2ba669bbbe43e2808e1324f1874b346188d5cb79c5e1a4aa88ff31640d4",
+      "status": "passed",
+      "test_source_sha256": "8f40dfbf2c2cdddb8691eb7e6ba2d4742709ffdda4fe64ba5f385e51b05e45a2"
+    }
+  ],
+  "run_receipt_sha256": "9c8a0c05c0622e450dbdbfdda6bad629890633b497e278b6af09db68ca40c99b",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "486cab4f90e420cd00e7f010f869ba7e2b8f64c7ae53505fe2153c5e8ddd91b3",
+  "status": "audited-complete-original-allocation-target-stage1-and-native",
+  "wrapper_sha256": "20b20401820d4f3b1630b5620d8875c166dffbcf421498deeaa76ab67127d9d8"
+}

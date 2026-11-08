@@ -718,6 +718,15 @@ def build_checklist(root, cfg, previous=None):
             total=len(rows), source=refinement_audit['compiler_source_sha256'], evidence=link(refinement_path)))
     nat_path = 'bootstrap/current-schema10-nat-intrinsic-results.json'
     nat_audit = read(root / nat_path)
+    allocation_path = 'bootstrap/current-schema10-portable-allocation-results.json'
+    allocation = read(root / allocation_path)
+    if (allocation.get('status') == 'audited-complete-original-allocation-target-stage1-and-native'
+            and allocation.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/alloc_accounting.rs', allocation['original_test_source_sha256'])):
+        active.append(dict(title='Development Stage1 and Rust: complete allocation target',
+            status='passed', phase='All eight original tests passed on each compiler. The C probe linked a checked object emitted by Stage1. The matching Stage3 replay is separate.',
+            passed=allocation['original_allocation_tests'], failed=0, total=allocation['original_allocation_tests'],
+            unit='tests on each compiler', source=allocation['compiler_source_sha256'], evidence=link(allocation_path)))
     object_path = 'bootstrap/current-schema10-allocation-object-abi-results.json'
     object_audit = read(root / object_path)
     static_path = 'bootstrap/current-schema10-static-constructor-results.json'
@@ -754,6 +763,7 @@ def build_checklist(root, cfg, previous=None):
             failed=sum(row['status'] == 'failed' for row in rows),
             total=len(rows), source=nat_audit['compiler_source_sha256'], evidence=link(nat_path)))
     for key, title in [
+        ('schema10IntegratedSuiteRepair', 'Integrated Stage0 through Stage3 rebuild'),
         ('partialBooleanBootstrapChain', 'Fresh Stage0 through Stage3 rebuild'),
         ('partialBooleanBootstrapPrior', 'Earlier Stage2 attempt before the library specialization'),
         ('partialBooleanBootstrapHeapPrior', 'Earlier Stage3 attempt at 256 MiB'),
@@ -776,6 +786,8 @@ def build_checklist(root, cfg, previous=None):
             status='running' if status.startswith(('building-', 'checking-')) else status,
             phase=('Waiting for the compiler/object tests, the own-source check, and the nine component targets'
                    if status == 'waiting-matching-development-gates'
+                   else 'All seven prerequisite gates passed. Waiting for an available worker slot.'
+                   if key == 'schema10IntegratedSuiteRepair' and status == 'waiting-worker' and len(next_chain.get('prerequisites', {})) == 7 and not next_chain.get('stages')
                    else 'Stage2 requested the missing Data.List.list-length [R] library specialization'
                    if key == 'partialBooleanBootstrapPrior'
                    else 'Stage3 exhausted the 256 MiB heap after emitting 44 matching interfaces'
