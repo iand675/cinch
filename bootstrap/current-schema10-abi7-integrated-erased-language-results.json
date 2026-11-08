@@ -1,0 +1,312 @@
+{
+  "case_evidence": [
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Html",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:4:13: multiplicity %1: the argument must be used exactly once on every path",
+      "mode": "check",
+      "name": "Once",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Query",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Tasks",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Proof",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Format",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Protocol",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Differentiate",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Reactive",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Audio",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "check",
+      "name": "Circuit",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:12:45: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_49_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_48_",
+      "mode": "check",
+      "name": "ChoreographyState",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:12:64: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_65_112_112_114_111_118_101_100_83_48_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_68_101_99_108_105_110_101_100_83_48_",
+      "mode": "check",
+      "name": "ChoreographyBranch",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:12:73: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_65_112_112_114_111_118_101_100_82_101_99_101_105_112_116_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_68_101_99_108_105_110_101_100_82_101_97_115_111_110_",
+      "mode": "check",
+      "name": "ChoreographyWire",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:13:18: multiplicity %aff: a thunk must be used at most once",
+      "mode": "check",
+      "name": "ChoreographyReplay",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.resolve:15:23: unknown constructor Checkout.MkCheckoutBuyerP1: not exported into this scope",
+      "mode": "check",
+      "name": "ChoreographyForge",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:6:167: type mismatch: expected 2, found 1 (index mismatch)",
+      "mode": "check",
+      "name": "TensorADShape",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.resolve:4:9: unknown constructor Tensor.MkMatrix: not exported into this scope",
+      "mode": "check",
+      "name": "TensorPrivate",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:4:30: tactic plan `linear` could not prove `(i < n)`",
+      "mode": "check",
+      "name": "TacticsMissing",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:5:45: tactic plan `assumption linear` could not prove `(n < n)`",
+      "mode": "check",
+      "name": "TacticsShadow",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": "bootstrap.check:6:53: stale evidence: evidence derived at 5:9 is invalidated by the write at 6:15",
+      "mode": "check",
+      "name": "TacticsStale",
+      "stage3_exit": 4
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Audio",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Choreography",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Circuit",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Differentiate",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Format",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Html",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Proof",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Protocol",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Query",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Reactive",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Tactics",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "Tasks",
+      "stage3_exit": 0
+    },
+    {
+      "assertion": "passed",
+      "first_diagnostic": null,
+      "mode": "run",
+      "name": "TensorAD",
+      "stage3_exit": 0
+    }
+  ],
+  "compiler_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "full_goal_complete": false,
+  "log_sha256": "facbcf4ecff579841ec04bc950b8d574cd813ac4b7b1e9224bdb1331ab8f89bc",
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "negative_intended_reason_passed": 21,
+  "negative_reason_failures": [],
+  "negative_refused": 21,
+  "original_behavioral_tests_sha256": "2d05c2b458f12a5e112121b2d4306b3db95c1b3500c6267000dd0e731f2c64a5",
+  "original_cases": 34,
+  "passing_runtime_artifacts": [
+    {
+      "binary_sha256": "4b0f9a53255fa19e330ee15007bbc832e6cd252b729e5c04e16e6f45b874e360",
+      "example": "Audio"
+    },
+    {
+      "binary_sha256": "eddca174d46b62be254a7fd87f2e757553515b071902106bec948a56ef8b23ce",
+      "example": "Choreography"
+    },
+    {
+      "binary_sha256": "3088f68acdf156ad3a451300cca3b2f3faed2c65549368b6a3af0d9f05c9ee64",
+      "example": "Circuit"
+    },
+    {
+      "binary_sha256": "c099c6a0a9f3194666a0f40d6ba7399f2ae5faabd6357f52276dd195088fd57c",
+      "example": "Differentiate"
+    },
+    {
+      "binary_sha256": "5658b404b5ae39c15f6bb8a6065cda093e9cae111a35bc5cfc3ce082728205fc",
+      "example": "Format"
+    },
+    {
+      "binary_sha256": "9caaa1fb631cab4a51ab251910787668277a79cc9d49ad9eaf24b5eaf5ec3a53",
+      "example": "Html"
+    },
+    {
+      "binary_sha256": "8fb5a4da34e14866a559a9f4a2436aaeb3eb3f64693ccfa7c105c74600b236ad",
+      "example": "Proof"
+    },
+    {
+      "binary_sha256": "3cc7cc0f4c955deefd1a0f6b885379fd887eea57fbd822f9ebfdf2a1c3cc52b3",
+      "example": "Protocol"
+    },
+    {
+      "binary_sha256": "e6e4f4d043ce0be36cf6d606a993f2e104f141d592860cc369445e0e489eb073",
+      "example": "Query"
+    },
+    {
+      "binary_sha256": "5e75d2d3f4930ff40224f384393574e957f94fb0b785055ad750ac68ca331f55",
+      "example": "Reactive"
+    },
+    {
+      "binary_sha256": "b9217099bb6001f1fae2abde6973f731f4cfab9749df39bd95ec4734da63a52d",
+      "example": "Tactics"
+    },
+    {
+      "binary_sha256": "f7aeeafab04f8995469e150d447d80ccfeb354c0a357aa5479e424e8e4cafaab",
+      "example": "Tasks"
+    },
+    {
+      "binary_sha256": "a4a66efc68420bee57726eacb84cef1cfaeeaa45e102f3b93b3fda3c644e6ed3",
+      "example": "TensorAD"
+    }
+  ],
+  "positive_failures": [],
+  "positive_passed": 13,
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "scope": "All 13 positive and 21 negative original examples used the audited schema 10 Stage3. The original tests check program outcomes, exact refusal reasons and source locations. Every passing positive retains its executable and ran under a poisoned 32 MiB heap.",
+  "source_sha256": "c4e66a5cb32595158ff87120943e80010687ebbac0d54dd7615e04e6c6e83d9c",
+  "status": "audited-matching-stage3-external-behavior"
+}
