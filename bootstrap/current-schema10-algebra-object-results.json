@@ -1,0 +1,270 @@
+{
+  "cases": {
+    "all_and_any_fold_bool_lists_through_mconcat": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "e1c43fa85c686b76122d1e70638f743e1be74b1499ad6314f7ef06cb8b24c5d1",
+      "status": "passed"
+    },
+    "dual_newtype_reverses_composition_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "9a066a8b48917e61002e5e657a4083e7030051e0360cd896d63e4a949d8dad31",
+      "status": "passed"
+    },
+    "endo_newtype_composes_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "39f458f986677441f902960a5a95838c868b06c487c54aa4ebf8bd4c37859a11",
+      "status": "passed"
+    },
+    "first_newtype_keeps_the_leftmost_some_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "092e51b34ace6c87b5b3958672cca01c27fdc779179fef97657baa0a769d1fa3",
+      "status": "passed"
+    },
+    "function_mempty_is_the_pointwise_identity": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "b468980caffb9ee3e104a6b0462fb58f2b531669e644bffdc6ce321b8ab97bd0",
+      "status": "passed"
+    },
+    "function_semigroup_is_pointwise_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "26bac2537a2b32805a4e8ddd67fc9b46ecfaf59aa4776591fe75e147612bb4a6",
+      "status": "passed"
+    },
+    "last_newtype_keeps_the_rightmost_some_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "e6c19a514e39d9737920713569165a8cda97b8de4ea77e184874c4bff9c4ce95",
+      "status": "passed"
+    },
+    "list_append_is_associative": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "1ecfab8483fd38787c671561dbd97346dd35a77c7c06e5656f16fb82adb0c343",
+      "status": "passed"
+    },
+    "list_mempty_is_the_identity_for_append": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "5881f8a70291a594830ba642dca67fa496f1ad124c7ba2074bd939034c1a46fb",
+      "status": "passed"
+    },
+    "mconcat_folds_through_the_identity_for_strings_lists_and_sums": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "3c3935f528beeb3a98486eecb2880ebd1e225ed767a1961e03dcc823449bcbc4",
+      "status": "passed"
+    },
+    "modules_load_as_a_multi_file_project": {
+      "compiler_exit": 4,
+      "expected_failure": "source module conflicts with a loaded interface",
+      "inputs": [
+        "Main.cinch",
+        "Monoid.cinch",
+        "Semigroup.cinch"
+      ],
+      "receipt_sha256": "db16eb57c59c66166e899598967cf6f513b488dba48036690a217012f442b5d4",
+      "status": "failed"
+    },
+    "option_first_some_is_associative": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "970ce5bae5a704c557af89489cc5d90f115b25a63db629db43fae9a3c494afef",
+      "status": "passed"
+    },
+    "option_mempty_is_the_identity_for_first_some": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "6c3d28af9a58fd4a8af24906e2d5251d3ed96de77f8c929d71d46cd0903c7b6f",
+      "status": "passed"
+    },
+    "ordering_composition_is_associative": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "b1d00daccb63283eabf633821fd854209963d5da794ad09ca665d786e348313f",
+      "status": "passed"
+    },
+    "ordering_mempty_is_the_identity_for_composition": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "2ce0f057b262fe7c93970d8f3b3ef483821778233cab1cb9dcb497cfda4f8bbd",
+      "status": "passed"
+    },
+    "product_newtype_multiplies_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "c5287810928952e9d8c89b420e8bc742da50fe1af1c4c836338bbec24cad5df0",
+      "status": "passed"
+    },
+    "regex_escape_goes_through_mconcat_behaviour_preserving": {
+      "compiler_exit": 4,
+      "expected_failure": "byte observation input needs checked pure total reification",
+      "inputs": [
+        "Main.cinch",
+        "Text.Regex.cinch"
+      ],
+      "receipt_sha256": "327777891f03c03293490dd5d1706c1caedd0a336c15d755b8294d76db59a04f",
+      "status": "failed"
+    },
+    "sconcat_and_stimes_combine_a_carrier": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "dc6d0d0c8a7cff1cfa2f0a0e0d3836e8b1830bf4b114db25e7cd1fd1c8d69851",
+      "status": "passed"
+    },
+    "string_concat_all_still_concatenates_in_order": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "9b1c3160afb0e7b2a271a0f40f9fcf5b3f8bb3a54999dc13ac1eae662e803f53",
+      "status": "passed"
+    },
+    "string_concatenation_is_associative_with_empty_string_identity": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "3b19181fdc684901ca9d36364e519f985779964a5a7f67804d6f9a3ce3abfcfd",
+      "status": "passed"
+    },
+    "sum_newtype_adds_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "ae9c543b1ce27945b9115d3409150bb867ea96d872d7bba6967b6e6dfa2236bd",
+      "status": "passed"
+    },
+    "tuple_semigroup_and_monoid_are_componentwise_and_obeys_the_laws": {
+      "compiler_exit": 0,
+      "expected_failure": null,
+      "inputs": [
+        "Main.cinch"
+      ],
+      "receipt_sha256": "de37a8a47ff8c89b7efac409cf554060e0a56fcf8fcf70d478b997dc3396bbae",
+      "status": "passed"
+    }
+  },
+  "compiler_sha256": "0a9f96dac42964f3fe078b056faa41317e6d89114fa65d6834b2dcd8eaacbeec",
+  "compiler_source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+  "compiler_stage": 1,
+  "failed": 2,
+  "full_goal_complete": false,
+  "interfaces_sha256": "80ca97b4db9b6e8a8ee5ed15e77b9a71e45559d90f787c23efcb73d8d2256ca3",
+  "metadata_sha256": "9a716eb5466ee537eb7745d2b1a700b36576a77c583aab4b89055419dc04a20f",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "object_sha256": "7db1f219e128d5d2dc0e9ec289dc98324274b8f107eefcb9c7b6fb44d2eb741f",
+  "original_test_file_sha256": "540845511db49f5aa09ab629eeaccab709d52faac5312f49b976de03966c16a7",
+  "passed": 20,
+  "provider_interface_count": 55,
+  "requested_roots": {
+    "dictionaries": [
+      {
+        "classes": "O",
+        "symbol": "Algebra.Monoid.Monoid_Dual"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Monoid_Endo"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Monoid_First"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Monoid_Last"
+      },
+      {
+        "classes": "OO",
+        "symbol": "Algebra.Monoid.Monoid_Pair"
+      },
+      {
+        "classes": "O",
+        "symbol": "Algebra.Monoid.Semigroup_Dual"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Semigroup_Endo"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Semigroup_First"
+      },
+      {
+        "classes": "T",
+        "symbol": "Algebra.Monoid.Semigroup_Last"
+      },
+      {
+        "classes": "OO",
+        "symbol": "Algebra.Semigroup.Semigroup_Pair"
+      }
+    ],
+    "methods": [],
+    "schema": 1,
+    "units": []
+  },
+  "roots_sha256": "d2675473b6aef34a9453a389b103286345ea7bec01cb7d87e7b3b78ccac0f048",
+  "schema": 1,
+  "status": "audited-original-algebra-20-of-22",
+  "test_log_sha256": "6193ca10a2c0cd5a7cea8078c3a1a9db19c3cd45d89c036ddfa6f2e33dea89ca",
+  "total": 22,
+  "zero_leak_runs": 20
+}

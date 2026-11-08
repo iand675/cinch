@@ -69,6 +69,7 @@ module Bootstrap.Kinds where
     UMeta id kind -> kind-level kind
     UIndex carrier value -> highest (type-level carrier) (index-level value)
     URefine id name carrier predicate -> highest (type-level carrier) (type-level predicate)
+    URefineFormer name ids body -> type-level body
     UPi id name a row b -> highest (type-level row) (highest (type-level a) (type-level b))
     UFunEff a row b -> highest (type-level row) (highest (type-level a) (type-level b))
     UProofFun a row b -> highest (type-level row) (highest (type-level a) (type-level b))
@@ -84,6 +85,7 @@ module Bootstrap.Kinds where
     URequire a b -> highest (type-level a) (type-level b)
     UPropNot body -> type-level body
     UPropNonZero body -> type-level body
+    UPropNotNull body -> type-level body
     UPropNonZeroPending body -> type-level body
     UIndexForget body -> type-level body
     UIndexPromote body -> type-level body
@@ -130,6 +132,9 @@ module Bootstrap.Kinds where
     UError -> False
     UIndex carrier value -> type-well-formed kinds scope carrier && index-runtime-admissible carrier value && index-well-formed kinds scope carrier value
     URefine id name carrier predicate -> binder-body kinds scope id carrier predicate
+    URefineFormer name ids body -> (case (lookup-kind name kinds, scheme-type-scope kinds empty-type-scope (refinement-formals ids)) of
+      (Some declared, Some bound) -> kind-equal declared (type-kind ty) && type-well-formed kinds bound body
+      other -> False)
     UPi id name domain row result -> binder-body kinds scope id domain (UArg row (UArg result UEnd))
     UApp f x -> type-well-formed kinds scope f && type-well-formed kinds scope x
     UFun a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
@@ -149,6 +154,7 @@ module Bootstrap.Kinds where
     UPropOr a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UPropNot body -> type-well-formed kinds scope body
     UPropNonZero body -> type-well-formed kinds scope body
+    UPropNotNull body -> type-well-formed kinds scope body
     UPropNonZeroPending body -> type-well-formed kinds scope body
     URequire predicates body -> type-well-formed kinds scope predicates && type-well-formed kinds scope body
     UPropLit value -> True

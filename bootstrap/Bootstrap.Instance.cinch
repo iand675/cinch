@@ -411,7 +411,9 @@ module Bootstrap.Instance where
   sample-term env dictionary self values term fuel = if fuel == 0 then (None, 0) else
     let remaining = fuel - 1 in
     case term of
-      CInt sp ty text -> ((case total-decimal-value text of Some n -> Some (LawNumber n); None -> None), remaining)
+      CInt sp ty text -> if integer-carrier ty then
+        ((case total-decimal-value text of Some n -> Some (LawNumber n); None -> None), remaining)
+        else (None, remaining)
       CLocal sp ty id name Nil -> (sample-local id values, remaining)
       CIf sp ty test yes no -> (case sample-term env dictionary self values test remaining of
         (Some answer, after-test) -> (case sample-truth answer of

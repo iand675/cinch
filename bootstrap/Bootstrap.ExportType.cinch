@@ -259,6 +259,7 @@ module Bootstrap.ExportType where
   type-in scope ty = type-in-style False scope ty
   type-in-style :: Bool -> List (Nat, String) -> UType -> Result String String
   type-in-style display scope ty = case ty of
+    URefineFormer name ids body -> export-global name
     UCon name kind -> export-global name
     UBound id name kind -> local id scope
     URigid id name level kind -> local id scope
@@ -276,6 +277,7 @@ module Bootstrap.ExportType where
     UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
     UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]
     UPropNonZero value -> join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+    UPropNotNull value -> join [Ok "(NotNull ", type-in-style display scope value, Ok ")"]
     URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
     URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
     UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in

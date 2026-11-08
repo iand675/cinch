@@ -56,7 +56,7 @@ module Bootstrap.Global where
     Nil -> [GlobalIntrinsicViews name views]
     Cons prior rest -> if same name (global-name prior) then Cons (GlobalIntrinsicViews name views) rest else Cons prior (replace-intrinsic name views rest)
   intrinsic-carrier :: UType -> UType
-  intrinsic-carrier ty = case ty of
+  intrinsic-carrier ty = case refinement-view ty of
     URefine id name carrier predicate -> intrinsic-carrier carrier
     UFun domain result -> UFun (intrinsic-carrier domain) (intrinsic-carrier result)
     UFunEff domain row result -> UFunEff (intrinsic-carrier domain) row (intrinsic-carrier result)

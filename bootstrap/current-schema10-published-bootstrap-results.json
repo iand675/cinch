@@ -1,62 +1,62 @@
 {
   "changed_source": {
-    "compiler_sha256": "901c56779e5ce878f022a2a887bc7446c4c4f20023892ac320c15138fe9d29ad",
+    "compiler_sha256": "ab7e8b825e036210467fc899f821d5b2d03c9d2451ad5d52a2a605be8873b77b",
     "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
-    "source_sha256": "11575512cab8d131b9c33b85b5dedfbb0626af8bd2a997fc87d64502aa35429a"
+    "source_sha256": "497782a2c4455ec5b4ab6f4e93083ebb82ad4cb7aa7828a9309594614e252f13"
   },
-  "checked_at": "2026-11-08T00:07:17.815527+00:00",
-  "compiler_ir_sha256": "c4a1c06db51c5b6213938e70774dc3a2bd58e6af63c05c29ef7feb9b6e6c803a",
-  "compiler_source_sha256": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+  "checked_at": "2026-11-08T01:24:58.020123+00:00",
+  "compiler_ir_sha256": "3cd5ab8c1373254d10a7364d9d95c70a8fb89a8a21fee8ccce527572f45e4099",
+  "compiler_source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
   "full_goal_complete": false,
   "interface_consumer": {
-    "compiler_sha256": "c8fa459e9b8f750e8f2d7bdfa7466076fc7c3c997b76c0cacca9062e4f8adbee",
-    "manifest_sha256": "7667eabfb53a572799e3f1a5d6b68e320a04ec1c667da2bd8e88cd0c7985cd5b",
+    "compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
+    "manifest_sha256": "58159e0bfd2870abf582d2a2186ef2f4bf9323ca7c2cd17311192c9dc5a946dc",
     "source_sha256": "b55c2bdeba1fe1edcbaa7796b42d555e1be5ae54778fef2f553c30847dfe9f46",
     "status": "passed"
   },
   "interface_count": 46,
   "matching_interfaces": {
     "compiler.ll.Bootstrap.Ast.cinchif": "f94967e766b3f69af76192b47c06cc8a6582eab3620d27731152928aeaeb4c6b",
-    "compiler.ll.Bootstrap.BodyContract.cinchif": "9e74d53f4cd684a2b623cd01cddec4a028d622cec110bb9852bed49fae1717a7",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "22f65de00f29b2ab2ec6992b74cbeb0944564ae5bf0d13b97f61a292d17de1b9",
     "compiler.ll.Bootstrap.Builtin.cinchif": "56565d82cca338672ae376c19628e2d9b723268c6c0fe42c69d3ef24222ce468",
-    "compiler.ll.Bootstrap.Check.cinchif": "5cc33f708d71a4b2eb2345790cd518eb025ac67015a02a5561df0e341cca9821",
+    "compiler.ll.Bootstrap.Check.cinchif": "10d489f22c9818d96628bde171039e1567f613b8482803ba94c30be7fcd3d9f3",
     "compiler.ll.Bootstrap.Contracts.cinchif": "0754de9b42dd831285a10c0d77739bfae7af574a224d72150b3417374654ed8c",
-    "compiler.ll.Bootstrap.Core.cinchif": "2a8d7e3cfd9aeb49cd9fbb52610bc29c7dbfb3a1314c2a091691f404b79891b9",
-    "compiler.ll.Bootstrap.Dictionary.cinchif": "f59d5a66e8d50842533113327d1efd03f4d1602e7529469e882f42bac20cb522",
+    "compiler.ll.Bootstrap.Core.cinchif": "8c6324e16c994d1fbb5e0992e4fa353e36f893f757b254f6b5d1a9790fbd9ce5",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "cf29306a60e721255d1141e33cdca9e08716023ed0a5791ca8f91a1231f2b3a1",
     "compiler.ll.Bootstrap.Driver.cinchif": "82cbb89bb82bf123e827e4bf86cb00888a8f1b4cf6a10f3c0a684b7cc14d8f97",
     "compiler.ll.Bootstrap.Eval.cinchif": "557903a1108e82c890321787b04c8494df2cf952c6a417277b3c6b596dc554a6",
-    "compiler.ll.Bootstrap.Export.cinchif": "35da25b5468b704fe176da012d9ad73a14e86c283b8005949e2d5fc379ed1646",
-    "compiler.ll.Bootstrap.ExportNominal.cinchif": "ae010b290147ce3f58f487281214408ab0f5aca3b3f82aa814c4bf4f3930cfc8",
-    "compiler.ll.Bootstrap.ExportType.cinchif": "335a34f0a990fb60d61f3405e8d8c0666cf7744c96e6936197f28e9fadd8197d",
-    "compiler.ll.Bootstrap.Foreign.cinchif": "461942911cf7e8432494a10c258fee655d5e26063d2e3260e069a32407e1492e",
-    "compiler.ll.Bootstrap.Global.cinchif": "3ebf573574c5c516eaa073463a54eb0d7f9e0636366d6453ec1202b7f5310a0c",
-    "compiler.ll.Bootstrap.Guarded.cinchif": "b167991580f14be37b263cdc7922dc58d2e20a08372ba9172a65fbe3a29b5b02",
+    "compiler.ll.Bootstrap.Export.cinchif": "65d54ef122c10bea1d9272df977da32d4e808a36f5cbbd83d8b1e543a6a3f906",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "e243ffc386d409d4bfffc9a25a9f1856066eebc5c8e97a31f6a64265de85c5b8",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "3b520eb55843f6eec214a6839acc9150ad1a43d7e3448c66daf88e9ddf6be0f6",
+    "compiler.ll.Bootstrap.Foreign.cinchif": "83fc1d86017c631ec3cb29586655c03d47cbc39a4a3a43539856b34d0278a844",
+    "compiler.ll.Bootstrap.Global.cinchif": "dacb349c66203cf42207c66b5bcb01b3f4e33c02602bef50ba69e7387c7157d2",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "d1f9dc7d3274a5f8f8a97f544989ef67de62ed64f9114077feeabfea457ab9d6",
     "compiler.ll.Bootstrap.Index.cinchif": "8b0c1978460c61b4f02469070dc050038576f130867b9271ca10bbfaff089308",
-    "compiler.ll.Bootstrap.Infer.cinchif": "71847f714c9452e047095a904e5cb3d736f8d32da7f0e019430f0b9663031d4d",
+    "compiler.ll.Bootstrap.Infer.cinchif": "6a418b060206231065cd6d60f27ecb258984bf2ea4edafb240ad01fa6531b2fd",
     "compiler.ll.Bootstrap.Inputs.cinchif": "ede340482c712f663c23edbabcde26f9db01d4663750e3f408b35d853eaf0c73",
-    "compiler.ll.Bootstrap.Instance.cinchif": "7e271135b831d265c66bdaa9091aa5e247aab4855fd924d43688f947a62ad390",
+    "compiler.ll.Bootstrap.Instance.cinchif": "62f804e700d9f1d72bd2bd8d1219a14903880c1135d665e788aeed4fb133a1b4",
     "compiler.ll.Bootstrap.Interface.cinchif": "48ce2986b9e7ca441a13b363c3663262f1145d6d8f0188174230cc1a8ad62d1d",
-    "compiler.ll.Bootstrap.Ir.cinchif": "565949cd2f1f241fa3d3e7f3ac043f9b723488292b60d0a10fc880715cc21e3e",
-    "compiler.ll.Bootstrap.Kinds.cinchif": "b30176a01d5d7bae51e0ababf7ec497b11e1015321fb7d18aaccd752f5d81fd4",
+    "compiler.ll.Bootstrap.Ir.cinchif": "c505ca0c9b07c4be97f8b28ed4f424dfecf862e55723615891b43fa1f9d8b518",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "5dbc1dbaf855b1b0670fbf9044c48a2d7b91d968f0caeaae878502b5a0c966e2",
     "compiler.ll.Bootstrap.Load.cinchif": "0363762c9731d0d2b7fce4e49967e4e181209c2d97c65984eabee401221c78e0",
     "compiler.ll.Bootstrap.Manifest.cinchif": "f3fe0d42c7d0867fd34e4942f89c9c8f3443f81c5dd5adc1b4587b5c4a288678",
-    "compiler.ll.Bootstrap.Nominal.cinchif": "113058e4148b779b278f7ee25e51a586ccf022d8fdd5737f25ab83a6236719db",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "38efbfd955aa45b07756becaec6dd196ca92c988b486633add059bb4d92bd790",
     "compiler.ll.Bootstrap.Object.cinchif": "c41525689ac7aa4cca17edc7a1d20cbc8d65db41bad2065ca4f237eca3d9ef7a",
     "compiler.ll.Bootstrap.Parse.cinchif": "885bf0e45d7c77400baa8af15ee41c75aa43a3c659f167503850c42dad563778",
-    "compiler.ll.Bootstrap.Pipeline.cinchif": "bffaa70991185aef7edc37746dc836ee8c47b9235a4a4cb5617e30eaf92cfd36",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "5c02cf91a1a51a59db7beb3a71dd1bfa46b22be33c1905ad6d72e14c6962c89a",
     "compiler.ll.Bootstrap.Proof.cinchif": "3478b6f33da7c685c246ccd4770c3dc11069919168991b710c06d846dcb29e11",
     "compiler.ll.Bootstrap.Report.cinchif": "6700e7c40969fbec6f4befcf2b29cc434694efb32df5af0f2ddf4b8985ff8559",
     "compiler.ll.Bootstrap.Resolve.cinchif": "a7d7c1aa6696cd5e9fc7c4644ef06c14268ed7efb6fb6718a1c784dc678046b0",
     "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "3c7852f56cb0671c8a4e961dda147ad4e1c770198382bbc06130e9c34a47fa9c",
-    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "f1a79c497b60c6e3c62d4e0c399e102c04c8f33e098b9cbdb56f19099285bf20",
-    "compiler.ll.Bootstrap.Stage.cinchif": "435f48cf896540eaeccc37b0188bc0f879bc410fb1633f176a4c2b4d60550d86",
-    "compiler.ll.Bootstrap.StageEval.cinchif": "08e5dd9c0f6a353ba56c92f7e2cd3669d5db2406b3023abdc7d7a4d5dae099f8",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "6c6a2dd0d713c3c22c2d36f4479586ce39a7bda89a343d3fe0f1f7dc685cae3d",
+    "compiler.ll.Bootstrap.Stage.cinchif": "cb4b51706f5f6e3cec227f5159c7462e242c585a74b8c64307d98ed2cfa5971d",
+    "compiler.ll.Bootstrap.StageEval.cinchif": "50ca4e35a9ab25099fd65c70901cef455c89b2b69d66059b2f29f410af36a4f3",
     "compiler.ll.Bootstrap.Test.cinchif": "aff037dacfec7235d5d9d1d6d6f3db42fac346ae46f0b93508eccaaee32170b7",
     "compiler.ll.Bootstrap.Total.cinchif": "e168653f0881a253134dd9e3bcacb58fb3586c678763e214ecaa37fb4b8a7244",
     "compiler.ll.Bootstrap.TotalSemantics.cinchif": "8d10c784acd598f860cd9323efab01a53daad593c07c05dba39495cec5a219a7",
-    "compiler.ll.Bootstrap.Type.cinchif": "9ce61d3722be4a18f133bc1a36575359362e5003dd3c8d04675cd7cd736f7e61",
-    "compiler.ll.Bootstrap.Typing.cinchif": "426f54cd67f985865970f471c6f55fdc184193d9a04e909afc539e9083ec40ef",
-    "compiler.ll.Main.cinchif": "fb70d46dddf77a6db2ff66f13c107c435750f7d3cdcd3bba8ef4bb26ae2cd8d5",
+    "compiler.ll.Bootstrap.Type.cinchif": "a11f474344b1142a629b54628858f4509ef477027ff94537bd88670f0d2706ee",
+    "compiler.ll.Bootstrap.Typing.cinchif": "adac7479f8669e47434c0c60767d2fb8c3ab8041e16e6f2369c69d0dc151c26e",
+    "compiler.ll.Main.cinchif": "6fb3065ccc689dcd991c88df425ba4046f9e8d501b33af94b17aee96dccd7f16",
     "compiler.ll.Text.Builder.cinchif": "fbe280a7719fb47239e16edea42cefc7c35e625d35b71cfa72166b373296184b",
     "compiler.ll.Text.Json.cinchif": "54b50306442e3d78de15c42f8ad6a4fe661cdd8b11b59f2aa47591582a57c4df",
     "compiler.ll.Text.Lex.cinchif": "7541beb865d986c6cbdd297bbadaa2d0809c30fb159845b0b8d4f97f81a28ba9",
@@ -67,19 +67,19 @@
   "native_reader_source_sha256": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1",
   "native_rlib_sha256": "f0377829f31fa62fc37e1eb797d51e6aeeb8457e625893a83fbc76eca674e964",
   "native_schema10_reader_sha256": "75b33b3338089780acdb68d3b0387a86af4d11ce9499fc2420df57201039ad43",
-  "native_source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
   "provider_interface_count": 55,
   "provider_pin": {
-    "description": "ABI 6 Native library producer with scoped class member kinds and schema 10 interfaces.",
-    "revision": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
+    "description": "ABI 6 Native library producer with checked structural List and NotNull refinement contracts.",
+    "revision": "de5c023fb800ebe9a46269ed694fb614279e61c8",
     "runtime_abi": 6,
     "schema": 1,
-    "source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+    "source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe"
   },
-  "revision": "45bbfe9460a5028dd580c359ea9080baca43d26b",
+  "revision": "e2b88a553dd82d8493c9e368ba02557a685ec170",
   "schema": 1,
   "scope": "Four stages, matching Stage2 and Stage3, independent Rust and Python interface closure checks, separate consumer and changed-source control.",
-  "source_sha256": "388283ee686d667880b1b2ef2df56e23bd2d21c68426f62418658712df3129c9",
+  "source_sha256": "4d48a7def626742a1c45e6291045a55d41d15b6c568e735d8c94c6b10216fb86",
   "stages": [
     {
       "compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
@@ -104,7 +104,7 @@
       "status": "passed"
     },
     {
-      "compiler_sha256": "2b929eb690a5a8d4f9798b62b4d1de4744f65db4d6a92c64a0ffee4ebcb63dd7",
+      "compiler_sha256": "0a9f96dac42964f3fe078b056faa41317e6d89114fa65d6834b2dcd8eaacbeec",
       "inputs": {
         "builder_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
         "built_by_stage": 0,
@@ -115,16 +115,16 @@
         "protocol": 4,
         "seed_runtime_profile": "release",
         "seed_runtime_sha256": "2fab721751aa601f3ca72d7677f8520e5bdd37d93887275b5636fce478f959c6",
-        "source_sha256": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+        "source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       "stage": 1,
-      "stage_receipt_sha256": "00bc7a4efe92bf6b556ceda81b266e0c7cba525018edd1e2148289073d521987",
+      "stage_receipt_sha256": "e546f7220f8a91585cfb8b07ffc01289f813e384e40990c08e57e2352f019c4c",
       "status": "passed"
     },
     {
-      "compiler_sha256": "c8fa459e9b8f750e8f2d7bdfa7466076fc7c3c997b76c0cacca9062e4f8adbee",
+      "compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
       "inputs": {
-        "builder_sha256": "2b929eb690a5a8d4f9798b62b4d1de4744f65db4d6a92c64a0ffee4ebcb63dd7",
+        "builder_sha256": "0a9f96dac42964f3fe078b056faa41317e6d89114fa65d6834b2dcd8eaacbeec",
         "built_by_stage": 1,
         "frontend_mode": "typed-ir-objects",
         "host": {
@@ -132,15 +132,15 @@
           "system": "Darwin"
         },
         "interface_output": "checked-schema10",
-        "interface_set_sha256": "c72850fc175350079cb9a77ac9aa9700205c6be1d2fc543f836a013b99a67222",
+        "interface_set_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
         "library_provider": {
           "artifacts": {
-            "cinch": "6babd06c9f7214165920173e3b82382ae25736396f6674521349f083895480af",
-            "interfaces.json": "22639e49ab3a8f57c6c7b602350ec387d77e796c4d1f7d619065aab78b9c3e9f",
+            "cinch": "1479dfdd96288d817d400c1a09e3d3c3c7f20ff528dca889a8e726ff17d90ea5",
+            "interfaces.json": "996e496f78ecb63cc1f8f3b7669e61f4f47f818c0476af164a6dca987952c1d3",
             "libcinchruntime.a": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
-            "library.abi.json": "6536b93de3c628ee4805b7e12ff97c2522fb75e86be90b93cc1d81017de5073a",
-            "library.ll": "4c9c149b769f1da900285302498b3acd18a9928ec5a40c2edc5df221ffd2e5f0",
-            "library.o": "18957c87674c0767585798ee31e1e4a7177e5e9d96dd6a15236edbec6ff57319",
+            "library.abi.json": "6f9cbfe65d4e4893562dbd324633a144e40fc71ca9a1bb4958b46ab932163310",
+            "library.ll": "61f9543a5143a4fb16706c8e095b80406440facf3c6c4c50ea38e5996bb48cd6",
+            "library.o": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
             "library/build/Algebra.Arithmetic.cinchif": "533635472b64884503b330ddefd711266b6c75b2ed662375d180e53583997cc0",
             "library/build/Algebra.Bits.cinchif": "de876d97f2110dc5177d0a1cacea0031d2e9ccaff34a60737686e018411ba90a",
             "library/build/Algebra.Group.cinchif": "62ed018f95fa212cc5d71b356adf81fda52fc338b47fda711c8864b27427a022",
@@ -173,7 +173,7 @@
             "library/build/Data.Machine.cinchif": "1219f92295f62e80c77da5cd61220d6933603ab7559bbd7a6dcd39db9152e672",
             "library/build/Data.Map.cinchif": "b0fd8dc90819f5f55e5e1a5085341d913665bf1226d6153096c4787db3f0b8ab",
             "library/build/Data.Nat.cinchif": "0a0241c1b7cebfe0f72f05ebc0f1618bacac307e707e1145ff66cdf37602e075",
-            "library/build/Data.NonEmpty.cinchif": "e7bb84d45357c9d2687a831232c2af6547078dbf54d7df4b64cf2b5ad7e28b44",
+            "library/build/Data.NonEmpty.cinchif": "09b253bd44bafe2242917442d53e85ad82290556f9e55ce3fb8fc2597a2e805b",
             "library/build/Data.NonZero.cinchif": "33d4a287ff74ed2445671bb1e673f82ac6d33c50e34421539e8cad0b3974beed",
             "library/build/Data.Option.cinchif": "ba8db61cacddf058681f5f169a57e09d1906bc7c8afd00af6d78d83777ea256c",
             "library/build/Data.Ordering.cinchif": "28a4ed1b77d6ca70e079868a068adbf56f1f1aff537027144a0ab3b1f22c16f8",
@@ -204,28 +204,28 @@
             "system": "Darwin"
           },
           "producer": {
-            "description": "ABI 6 Native library producer with scoped class member kinds and schema 10 interfaces.",
-            "revision": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
+            "description": "ABI 6 Native library producer with checked structural List and NotNull refinement contracts.",
+            "revision": "de5c023fb800ebe9a46269ed694fb614279e61c8",
             "runtime_abi": 6,
             "schema": 1,
-            "source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+            "source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe"
           },
           "protocol": 2,
-          "roots_sha256": "1f85e11b4afaf36d406fd03f1cfd4d8d3ae84c6830ebd9ea3d7e2d99c9bb6c1e"
+          "roots_sha256": "5d493e7f22ffd2352d5941af961aa799a8732322b046bc25bf920cf18b87e525"
         },
-        "object_configuration_sha256": "c362fe65a4196662aacfbf88cb34655f5f272d3df301a8b4bbc7a3ae6e057eb0",
+        "object_configuration_sha256": "f736da5f95a715436904fff69a7d5693f82d121079a19783c389c1cc53dd7ffb",
         "protocol": 4,
         "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
-        "source_sha256": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+        "source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       "stage": 2,
-      "stage_receipt_sha256": "62deebb1c710a4608cb072deea4c8041fe1a934e755aecd86e0e080d1b889265",
+      "stage_receipt_sha256": "878f1ff427e48088b46926c98f1a9c3f773d5a068b38e69c3572812b833be3d4",
       "status": "passed"
     },
     {
-      "compiler_sha256": "c8fa459e9b8f750e8f2d7bdfa7466076fc7c3c997b76c0cacca9062e4f8adbee",
+      "compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
       "inputs": {
-        "builder_sha256": "c8fa459e9b8f750e8f2d7bdfa7466076fc7c3c997b76c0cacca9062e4f8adbee",
+        "builder_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
         "built_by_stage": 2,
         "frontend_mode": "typed-ir-objects",
         "host": {
@@ -233,15 +233,15 @@
           "system": "Darwin"
         },
         "interface_output": "checked-schema10",
-        "interface_set_sha256": "c72850fc175350079cb9a77ac9aa9700205c6be1d2fc543f836a013b99a67222",
+        "interface_set_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
         "library_provider": {
           "artifacts": {
-            "cinch": "6babd06c9f7214165920173e3b82382ae25736396f6674521349f083895480af",
-            "interfaces.json": "22639e49ab3a8f57c6c7b602350ec387d77e796c4d1f7d619065aab78b9c3e9f",
+            "cinch": "1479dfdd96288d817d400c1a09e3d3c3c7f20ff528dca889a8e726ff17d90ea5",
+            "interfaces.json": "996e496f78ecb63cc1f8f3b7669e61f4f47f818c0476af164a6dca987952c1d3",
             "libcinchruntime.a": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
-            "library.abi.json": "6536b93de3c628ee4805b7e12ff97c2522fb75e86be90b93cc1d81017de5073a",
-            "library.ll": "4c9c149b769f1da900285302498b3acd18a9928ec5a40c2edc5df221ffd2e5f0",
-            "library.o": "18957c87674c0767585798ee31e1e4a7177e5e9d96dd6a15236edbec6ff57319",
+            "library.abi.json": "6f9cbfe65d4e4893562dbd324633a144e40fc71ca9a1bb4958b46ab932163310",
+            "library.ll": "61f9543a5143a4fb16706c8e095b80406440facf3c6c4c50ea38e5996bb48cd6",
+            "library.o": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
             "library/build/Algebra.Arithmetic.cinchif": "533635472b64884503b330ddefd711266b6c75b2ed662375d180e53583997cc0",
             "library/build/Algebra.Bits.cinchif": "de876d97f2110dc5177d0a1cacea0031d2e9ccaff34a60737686e018411ba90a",
             "library/build/Algebra.Group.cinchif": "62ed018f95fa212cc5d71b356adf81fda52fc338b47fda711c8864b27427a022",
@@ -274,7 +274,7 @@
             "library/build/Data.Machine.cinchif": "1219f92295f62e80c77da5cd61220d6933603ab7559bbd7a6dcd39db9152e672",
             "library/build/Data.Map.cinchif": "b0fd8dc90819f5f55e5e1a5085341d913665bf1226d6153096c4787db3f0b8ab",
             "library/build/Data.Nat.cinchif": "0a0241c1b7cebfe0f72f05ebc0f1618bacac307e707e1145ff66cdf37602e075",
-            "library/build/Data.NonEmpty.cinchif": "e7bb84d45357c9d2687a831232c2af6547078dbf54d7df4b64cf2b5ad7e28b44",
+            "library/build/Data.NonEmpty.cinchif": "09b253bd44bafe2242917442d53e85ad82290556f9e55ce3fb8fc2597a2e805b",
             "library/build/Data.NonZero.cinchif": "33d4a287ff74ed2445671bb1e673f82ac6d33c50e34421539e8cad0b3974beed",
             "library/build/Data.Option.cinchif": "ba8db61cacddf058681f5f169a57e09d1906bc7c8afd00af6d78d83777ea256c",
             "library/build/Data.Ordering.cinchif": "28a4ed1b77d6ca70e079868a068adbf56f1f1aff537027144a0ab3b1f22c16f8",
@@ -305,22 +305,22 @@
             "system": "Darwin"
           },
           "producer": {
-            "description": "ABI 6 Native library producer with scoped class member kinds and schema 10 interfaces.",
-            "revision": "7d7acaf63c6233263f1e10feac5c020b8443ed0f",
+            "description": "ABI 6 Native library producer with checked structural List and NotNull refinement contracts.",
+            "revision": "de5c023fb800ebe9a46269ed694fb614279e61c8",
             "runtime_abi": 6,
             "schema": 1,
-            "source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009"
+            "source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe"
           },
           "protocol": 2,
-          "roots_sha256": "1f85e11b4afaf36d406fd03f1cfd4d8d3ae84c6830ebd9ea3d7e2d99c9bb6c1e"
+          "roots_sha256": "5d493e7f22ffd2352d5941af961aa799a8732322b046bc25bf920cf18b87e525"
         },
-        "object_configuration_sha256": "c362fe65a4196662aacfbf88cb34655f5f272d3df301a8b4bbc7a3ae6e057eb0",
+        "object_configuration_sha256": "f736da5f95a715436904fff69a7d5693f82d121079a19783c389c1cc53dd7ffb",
         "protocol": 4,
         "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
-        "source_sha256": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+        "source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       "stage": 3,
-      "stage_receipt_sha256": "a534c693546b4e22f0d28686e4d129739b5f87b3aadfbc9de544f5f09fc2dd5d",
+      "stage_receipt_sha256": "ef2b7d70f24b075b312c417e779318b5fb76fd6481de8db3ff78398c31cadd49",
       "status": "passed"
     }
   ],

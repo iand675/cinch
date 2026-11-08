@@ -178,7 +178,7 @@ module Bootstrap.Infer where
 
   needs-type :: TypeExpr -> Bool
   needs-type ty = case ty of
-    TName s name -> has name ["Nat", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    TName s name -> has name ["Nat", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]
     TForall s qs body -> True
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
@@ -370,12 +370,14 @@ module Bootstrap.Infer where
       other -> (Nil, add-error sp "invalid imported refinement parameter metadata" st)
     JArrEnd -> (Nil, st)
     other -> (Nil, add-error sp "missing imported refinement parameters" st)
-  imported-refinement-carrier :: List String -> TypeExpr -> Bool
+  imported-refinement-carrier :: List String -> TypeExpr -> (TypeExpr, Bool)
   imported-refinement-carrier params syntax = case syntax of
-    TName sp name -> has name params || (primitive name && not (same name "String"))
-    -- A named private carrier needs its actual defining nominal closure.
-    -- Never qualify a display spelling by guessing the owning module.
-    other -> False
+    TName sp name -> (syntax, has name params || (primitive name && not (same name "String")))
+    TApp sp (TName at name) (TArg arg (TName element element-name) (TArgsEnd end)) ->
+      if same name "Data.Core.List" && (has element-name params || (primitive element-name && not (same element-name "String"))) then
+        (TApp sp (TName at (interface-global name)) (TArg arg (TName element element-name) (TArgsEnd end)), True)
+      else (syntax, False)
+    other -> (syntax, False)
   imported-refinement-param-names :: List TypeParam -> Json -> Bool
   imported-refinement-param-names params names = case (params, names) of
     (Nil, JArrEnd) -> True
@@ -391,11 +393,11 @@ module Bootstrap.Infer where
           if not (imported-refinement-param-names params (field "params" metadata)) then
             (None, add-error sp "imported refinement parameter names disagree" checked)
           else case (parse-scheme "refinement carrier" (string-to-bytes carrier), parse-scheme "refinement predicate" (string-to-bytes predicate)) of
-            (Parsed base Nil, Parsed condition Nil) -> if imported-refinement-carrier (parameter-names-for-check params) base then
-              (case qualify-refinement-predicate (Cons binder (parameter-names-for-check params)) condition of
-                (decoded, Nil) -> (Some (DRefine sp owner params (MkTypeParam sp binder (Some base) False) decoded), checked)
+            (Parsed base Nil, Parsed condition Nil) -> case imported-refinement-carrier (parameter-names-for-check params) base of
+              (carrier-type, True) -> (case qualify-refinement-predicate (Cons binder (parameter-names-for-check params)) condition of
+                (decoded, Nil) -> (Some (DRefine sp owner params (MkTypeParam sp binder (Some carrier-type) False) decoded), checked)
                 other -> (None, add-error sp "invalid imported refinement predicate operation or scope" checked))
-              else (None, add-error sp "imported refinement carrier needs defining nominal contracts" checked)
+              other -> (None, add-error sp "imported refinement carrier needs defining nominal contracts" checked)
             other -> (None, add-error sp "invalid imported refinement predicate or carrier syntax" checked)
     other -> (None, add-error sp "imported refinement is missing its defining contract" st)
   find-refinement :: String -> List Decl -> Option Decl
@@ -408,13 +410,39 @@ module Bootstrap.Infer where
   unfold-refinement :: Span -> TypeContext -> UType -> Store -> (UType, Store)
   unfold-refinement sp kinds value st = case refinement-application value Nil of
     (UCon name kind, actuals) -> case find-refinement name (context-aliases kinds) of
-      Some (DRefine source name params binder predicate) -> if list-length actuals < list-length params then bad sp "unsaturated refinement alias needs higher-kinded elaboration" st
-        else case context-enter-alias name kinds of
-          None -> bad sp "recursive refinement alias expansion" st
-          Some scoped -> case refinement-arguments sp scoped params actuals Nil Nil st of
-            (locals, checked) -> instantiate-refinement sp scoped locals binder predicate checked
+      Some (DRefine source name params binder predicate) -> case context-enter-alias name kinds of
+        None -> bad sp "recursive refinement alias expansion" st
+        Some scoped -> case abstract-refinement sp name scoped params binder predicate st of
+          (Some former, checked) -> (apply-refinement-types former actuals, checked)
+          (None, checked) -> if list-length actuals < list-length params then (value, checked)
+            else case refinement-arguments sp scoped params actuals Nil Nil checked of
+              (locals, prepared) -> instantiate-refinement sp scoped locals binder predicate prepared
       other -> (value, st)
     other -> (value, st)
+  apply-refinement-types :: UType -> List UType -> UType
+  apply-refinement-types former actuals = case actuals of
+    Nil -> former
+    Cons first rest -> apply-refinement-types (UApp former first) rest
+  -- A former must check with its declared type parameters abstract.
+  -- Dependent or representation-sensitive templates are instantiated at
+  -- their concrete arguments by the ordinary refinement checker.
+  abstract-refinement :: Span -> String -> TypeContext -> List TypeParam -> TypeParam -> TypeExpr -> Store -> (Option UType, Store)
+  abstract-refinement sp name kinds params binder predicate st = case params of
+    Nil -> (None, st)
+    Cons first rest -> case fresh-id st of
+      (start, allocated) -> case parameters False kinds Nil params start Nil allocated of
+        (qs, prepared) -> case abstract-refinement-ids qs of
+          Some ids -> case instantiate-refinement sp kinds (quant-locals qs) binder predicate prepared of
+            (body, checked) -> let former = URefineFormer name ids body in
+              if list-length (store-errors checked) == list-length (store-errors st) && valid-type former then (Some former, checked)
+              else (None, st)
+          None -> (None, st)
+  abstract-refinement-ids :: List Quant -> Option (List Nat)
+  abstract-refinement-ids qs = case qs of
+    Nil -> Some Nil
+    Cons q rest -> if kind-equal (quant-kind q) KType then
+      (case abstract-refinement-ids rest of Some ids -> Some (Cons (quant-id q) ids); None -> None)
+      else None
   refinement-arguments :: Span -> TypeContext -> List TypeParam -> List UType -> List (String, UType) -> List String -> Store -> (List (String, UType), Store)
   refinement-arguments sp kinds params actuals locals seen st = case (params, actuals) of
     (Nil, Nil) -> (locals, st)
@@ -448,7 +476,7 @@ module Bootstrap.Infer where
     TIndex sp text -> True
     TNegate sp body -> refinement-predicate-scope kinds names body
     TInfix sp op first second -> has op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] && refinement-predicate-scope kinds names first && refinement-predicate-scope kinds names second
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (same name "NonZero" || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull"] || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
   validate-refinement kinds declaration st = case declaration of
@@ -563,9 +591,13 @@ module Bootstrap.Infer where
     Nil -> None
   checked-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
   checked-literal sp carrier text st = case index-number text of
-    Some value -> (case normalize st carrier of
-      UMeta id KType -> (CInt sp carrier (int-to-string value), pending-number sp carrier value st)
-      other -> if integer-literal-valid (normalize st carrier) value then (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its integer carrier" st)
+    Some value ->
+      let signed-zero = value == 0 && (case unpack text of Cons first rest -> char-code first == 45; Nil -> False) in
+      let digits = if signed-zero then "-0" else int-to-string value in
+      (case normalize st carrier of
+        UMeta id KType -> (CInt sp carrier digits, pending-number sp carrier value st)
+        known -> if number-literal-valid known value then (CInt sp carrier digits, st)
+          else term-error sp (number-literal-error known "literal is outside its integer carrier") st)
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
   math-carrier :: UType -> Bool
   math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
@@ -736,7 +768,7 @@ module Bootstrap.Infer where
         (case reify-argument sp env input st of
           (value, checked) -> checked-typed-source-index sp (UIndexByteLength value) checked)
       else bad sp "argument call needs checked pure total reification or a checked observation contract" st
-    CForget source carrier body -> case normalize st (core-type body) of
+    CForget source carrier body -> case refinement-view (normalize st (core-type body)) of
       URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body))) then bad sp "refinement projection needs checked mathematical semantics" st
         else case body of
           CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
@@ -1612,7 +1644,7 @@ module Bootstrap.Infer where
   domains :: UType -> List UType
   domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
   root-name :: UType -> Option String
-  root-name ty = case ty of UCon name k -> Some name; UApp f x -> root-name f; other -> None
+  root-name ty = case ty of UCon name k -> Some name; URefineFormer name ids body -> Some name; UApp f x -> root-name f; other -> None
   occurs-owner :: String -> UType -> Bool
   occurs-owner name ty = case ty of
     UCon n k -> same name n
@@ -2112,7 +2144,7 @@ module Bootstrap.Infer where
   infer-projection classes kinds families env locals sp operation input st = case infer classes kinds families env locals input st of
     (body, checked) -> let carrier = normalize checked (core-type body) in
       if same operation "b.copyOut" then (CPrimitive sp (copy-out-type carrier) "copy-out" (CArgument sp body (CArgumentsEnd sp)), checked)
-      else case carrier of
+      else case refinement-view carrier of
         URefine id name base predicate -> (CForget sp base body, checked)
         other -> term-error sp "unrefine projects a refinement to its container" checked
   task-syntax-name :: String -> Bool
@@ -2432,7 +2464,7 @@ module Bootstrap.Infer where
   refinement-constructor sp kinds name st = case (find-refinement name (context-aliases kinds), context-kind name kinds) of
     (Some (DRefine at owner parameters binder predicate), Some kind) -> (case refinement-constructor-arguments kinds parameters Nil (UCon name kind) st of
       (applied, opened) -> (case unfold-refinement sp kinds applied opened of
-        (refined, checked) -> (case normalize checked refined of
+        (refined, checked) -> (case refinement-view (normalize checked refined) of
           URefine id display carrier condition -> (case fresh-for-types [refined] checked of
             (argument, fresh) -> (case fresh-id fresh of
               (local, next) -> (case fresh-id next of
@@ -2500,7 +2532,7 @@ module Bootstrap.Infer where
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
   check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check classes kinds families env locals expr expected st = case normalize st expected of
+  check classes kinds families env locals expr expected st = case refinement-view (normalize st expected) of
     URefine id name carrier predicate -> check-refined classes kinds families env locals expr expected carrier st
     other -> check-unrefined classes kinds families env locals expr expected st
   check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -2522,12 +2554,23 @@ module Bootstrap.Infer where
     ECase s value alternatives -> case infer classes kinds families env locals value st of
       (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
-    ELitInt s text -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
-    ENeg s (ELitInt at text) -> if integer-carrier (normalize st expected) || (case normalize st expected of UMeta id KType -> True; other -> False) then checked-literal s expected (string-concat "-" text) st else check-inferred classes kinds families env locals expr expected st
+    ELitInt s text -> check-contextual-literal s expected text st
+    ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
     ELam s ps body -> case check-lambda classes kinds families env locals ps body expected (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss expected))) [ps] ss)
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
+  check-contextual-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
+  check-contextual-literal sp expected text st =
+    let carrier = normalize st expected in
+    if number-literal-carrier carrier || (case carrier of UMeta id KType -> True; other -> False) then
+      checked-literal sp expected text st
+    else term-error sp (string-concat "type mismatch: integer literal cannot have type " (literal-carrier-name carrier)) st
+  literal-carrier-name :: UType -> String
+  literal-carrier-name carrier = let rendered = law-domain-text carrier in case root-name carrier of
+    Some symbol -> let name = diagnostic-member-name symbol in
+      if same name rendered then name else string-concat-all [name, " (", rendered, ")"]
+    None -> rendered
   -- An expected tuple metavariable gets a structural skeleton before its
   -- fields are checked. Literal carriers remain open for the surrounding
   -- dictionary choice, just as they do in ordinary argument checking.
@@ -2565,7 +2608,7 @@ module Bootstrap.Infer where
       UMeta id kind -> st
       other -> let hinted = unify sp ty expected st in
         if list-length (store-errors hinted) == list-length (store-errors st) then hinted
-        else (case normalize st ty of
+        else (case refinement-view (normalize st ty) of
           URefine id name carrier predicate -> let base = unify sp carrier expected st in
             if list-length (store-errors base) == list-length (store-errors st) then base else st
           other -> st))
@@ -2599,16 +2642,16 @@ module Bootstrap.Infer where
   -- projected explicitly, including at an unsolved generic argument.
   comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
   comparison-refinement :: UType -> Bool
-  comparison-refinement ty = case ty of URefine id name carrier predicate -> (integer-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
+  comparison-refinement ty = case refinement-view ty of URefine id name carrier predicate -> (integer-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
   project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
   project-comparison sp term st = case term of
     CLet at ty id name sc rhs body -> let result = project-comparison sp body st in
       CLet at (core-type result) id name sc rhs result
-    other -> case normalize st (core-type term) of
+    other -> case refinement-view (normalize st (core-type term)) of
       URefine id name carrier predicate -> if comparison-refinement (normalize st (core-type term)) then CForget sp carrier term else term
       other -> term
   subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
-  subsume-term sp term expected st = case normalize st expected of
+  subsume-term sp term expected st = case refinement-view (normalize st expected) of
     URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
     other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
   check-refined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
@@ -2645,7 +2688,7 @@ module Bootstrap.Infer where
     CForget at plain body -> if comparison-refinement (normalize st (core-type body)) then
       refine-inferred env sp expected carrier body st
       else introduce-refinement env sp expected term (unify sp (core-type term) carrier st)
-    other -> case normalize st (core-type term) of
+    other -> case refinement-view (normalize st (core-type term)) of
       URefine id name domain predicate -> let direct = unify sp (core-type term) expected st in
         if list-length (store-errors direct) == list-length (store-errors st) then (term, direct)
         else materialize-refinement env sp expected carrier term st
@@ -2683,6 +2726,7 @@ module Bootstrap.Infer where
     UPropOr left right -> UPropOr (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
     UPropNot body -> UPropNot (relocate-local-index binding new-level body)
     UPropNonZero body -> UPropNonZero (relocate-local-index binding new-level body)
+    UPropNotNull body -> UPropNotNull (relocate-local-index binding new-level body)
     UPropNonZeroPending body -> UPropNonZeroPending (relocate-local-index binding new-level body)
     URequire predicates body -> URequire (relocate-local-index binding new-level predicates) (relocate-local-index binding new-level body)
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
@@ -3711,14 +3755,14 @@ module Bootstrap.Infer where
     Some syntax -> case member-annotation-scheme classes kinds (scheme-params factory) syntax st of
       (annotated, checked) -> (annotated, if scheme-equivalent expected annotated then checked else add-error (type-expr-span syntax) "instance method signature disagrees with the specialized class contract" checked)
   -- Linkage identities stay encoded; diagnostics retain the source spelling.
-  instance-diagnostic-name :: String -> String
-  instance-diagnostic-name symbol = case export-global symbol of
-    Ok name -> pack (instance-diagnostic-chars (unpack name) Nil)
+  diagnostic-member-name :: String -> String
+  diagnostic-member-name symbol = case export-global symbol of
+    Ok name -> pack (diagnostic-member-chars (unpack name) Nil)
     Err message -> symbol
-  instance-diagnostic-chars :: List Char -> List Char -> List Char
-  instance-diagnostic-chars input seen = case input of
+  diagnostic-member-chars :: List Char -> List Char -> List Char
+  diagnostic-member-chars input seen = case input of
     Nil -> reverse seen
-    Cons c rest -> instance-diagnostic-chars rest (if char-code c == 46 then Nil else Cons c seen)
+    Cons c rest -> diagnostic-member-chars rest (if char-code c == 46 then Nil else Cons c seen)
   source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
   source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations methods st = case methods of
     Nil -> (Nil, st)
@@ -3734,7 +3778,7 @@ module Bootstrap.Infer where
           let (clauses, with-default) = if has-definition name declarations then (Some (function-clauses name declarations), prepared) else (case existing of Some original -> (Some original, prepared); None -> checked-imported-default instance-span classes kinds families env description member defaults actual prepared) in
           let annotations = if has-definition name declarations then Some Nil else default-annotation-bindings description factory member actual in
           case (clauses, annotations) of
-            (None, other) -> (Nil, add-error instance-span (string-concat-all ["instance ", instance-diagnostic-name symbol, " does not define method ", name]) with-default)
+            (None, other) -> (Nil, add-error instance-span (string-concat-all ["instance ", diagnostic-member-name symbol, " does not define method ", name]) with-default)
             (Some body, None) -> (Nil, add-error zero "inherited default has no checked annotation-binder specialization" with-default)
             (Some body, Some aliases) -> (case check-definition-with-annotations classes kinds families bound zero private-name body aliases with-default of
               (None, failed) -> (Nil, failed)
@@ -3952,7 +3996,7 @@ module Bootstrap.Infer where
   report-finite-law-samples sp name families env sampler dictionary givens patterns left right st = case (givens, finite-law-binders families env patterns (enter-level st)) of
     (Cons given Nil, Ok binders) -> case sample-finite-law sampler dictionary given binders left right of
       FiniteLawSamples samples -> (string-concat-all ["checked (", nat-to-string samples, " samples)"], st)
-      FiniteLawCounterexample -> ("", add-error sp (string-concat-all ["class law ", name, " failed for ", instance-diagnostic-name (instance-name dictionary), law-sample-label dictionary]) st)
+      FiniteLawCounterexample -> ("", add-error sp (string-concat-all ["class law ", name, " failed for ", diagnostic-member-name (instance-name dictionary), law-sample-label dictionary]) st)
       FiniteLawUnavailable message -> (unchecked-law message, st)
     (other, Err reason) -> (unchecked-law reason, st)
     other -> (unchecked-law "the instance's dictionaries do not resolve", st)
@@ -4548,7 +4592,7 @@ module Bootstrap.Infer where
     TNegate s a -> predicate-carrier locals a
     other -> None
   predicate-base-carrier :: UType -> UType
-  predicate-base-carrier carrier = case carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
+  predicate-base-carrier carrier = case refinement-view carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
   predicate-math-carrier :: UType -> Bool
   predicate-math-carrier carrier = case predicate-base-carrier carrier of
     UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
@@ -4579,11 +4623,12 @@ module Bootstrap.Infer where
   same-type first second = case store-errors (unify (Span 0 0 1 1) first second (empty-store "predicate sort")) of Nil -> True; other -> False
   predicate-index-value :: Span -> UType -> UType -> Store -> (UType, Store)
   predicate-index-value sp carrier value st = case value-carrier (type-kind (normalize st value)) of
-    Some (URefine id name base predicate) -> predicate-index-value sp carrier (UIndexForget value) st
-    Some actual -> let checked = unify sp actual (normalize st carrier) st in
-      if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
-      else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
-      else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st
+    Some actual -> (case refinement-view actual of
+      URefine id name base predicate -> predicate-index-value sp carrier (UIndexForget value) st
+      other -> let checked = unify sp actual (normalize st carrier) st in
+        if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
+        else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
+        else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st)
     None -> bad sp "a type cannot be used as a predicate value" st
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of
@@ -4611,6 +4656,16 @@ module Bootstrap.Infer where
     URigid id name level kind -> kind-equal kind KType
     UMeta id kind -> kind-equal kind KType
     other -> False
+  convert-not-null :: Span -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-not-null sp locals syntax st = case syntax of
+    TName at name -> (case lookup-local name locals of
+      Some value -> (case value-carrier (type-kind value) of
+        Some (UApp (UCon owner (KFun KType KType)) element) -> if same owner (interface-global "Data.Core.List") then
+          (UPropNotNull value, st)
+          else bad sp "NotNull needs the checked Data.Core.List carrier" st
+        other -> bad sp "NotNull needs the checked Data.Core.List carrier" st)
+      None -> bad sp "NotNull needs a checked local list value" st)
+    other -> bad sp "NotNull needs a checked local list value" st
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else
@@ -4619,6 +4674,7 @@ module Bootstrap.Infer where
       convert-predicate external kinds locals (TInfix sp "Eq" a b) st
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
       if same name "Not" then (case convert-predicate external kinds locals input st of (predicate, checked) -> (UPropNot predicate, checked))
+      else if same name "NotNull" then convert-not-null sp locals input st
       else if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
       else let carrier = predicate-comparison-carrier locals input input in
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of

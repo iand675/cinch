@@ -79,9 +79,11 @@ module Bootstrap.Export where
     UPropOr a b -> type-measures a <> type-measures b
     UPropNot input -> type-measures input
     UPropNonZero input -> type-measures input
+    UPropNotNull input -> type-measures input
     UPropNonZeroPending input -> type-measures input
     URequire predicates body -> type-measures predicates <> type-measures body
     URefine id name carrier predicate -> type-measures carrier <> type-measures predicate
+    URefineFormer name ids body -> type-measures body
     UPi id name domain row result -> type-measures domain <> type-measures row <> type-measures result
     UApp a b -> type-measures a <> type-measures b
     UFun a b -> type-measures a <> type-measures b

@@ -11,12 +11,16 @@ See [the cutover checks](../bootstrap/current-schema10-family-and-cutover-result
 [the current bootstrap audit](../bootstrap/current-schema10-strict-named-proof-bootstrap-results.json)
 and [the first schema 10 fixed point](../bootstrap/current-schema10-bootstrap-results.json).
 
-The current published compiler source (`45bbfe94`) passed the independent
-bootstrap audit. Its rebuilt Stage2 and Stage3 executables, LLVM IR and
-all 46 compiler interfaces agree. The separate interface client and the
-changed-source rebuild passed with the same pinned library provider. The
-complete matching test suite remains open.
+The current published compiler source (`e2b88a55`) preserves structural
+refinements through specialization. Its rebuilt Stage2 and Stage3
+executables, LLVM IR and all 46 compiler interfaces agree. The independent
+audit checked all 55 library interfaces, the separate interface client and
+the changed-source rebuild. The complete matching test suite remains open.
 See [the published fixed-point audit](../bootstrap/current-schema10-published-bootstrap-results.json).
+
+The previous published compiler source (`45bbfe94`) also passed those four
+gates with its own pinned library. Its suite receipts apply to that snapshot.
+See [the previous fixed-point audit](../bootstrap/current-schema10-45bbfe94-bootstrap-results.json).
 
 The preceding published snapshot (`0b518fbd`) passed the independent
 fixed-point audit with the corrected library provider. Stage2 and Stage3
@@ -46,6 +50,13 @@ Category cases on that same object. Eleven programs ran with zero leaks.
 The refusal test exercised both original visitor diagnostics. The
 matching Stage3 library replay remains open.
 See [the compiled Category audit](../bootstrap/current-schema10-original-category-object-results.json).
+
+The published compiler sources built as Stage1 passed 20 of 22 original
+Algebra cases with an expanded object. The object adds ten concrete
+dictionary variants and preserves all 55 interface identities. Every
+passing program ran without leaks. The explicit source project and the
+`Text.Regex` proof check remain open.
+See [the Algebra replay](../bootstrap/current-schema10-algebra-object-results.json).
 
 The published Stage3 and Rust both passed the two original fixity tests.
 The project case preserves the declaring operator through a renamed
@@ -78,6 +89,15 @@ See [the compiled consumer audit](../bootstrap/current-schema10-compiled-library
 The package design calls for materializing missing variants from checked
 polymorphic IR and caching them by representation vector.
 See [the specialization design](layouts-and-specialization.md#2-words-specialization-over-three-representation-classes-option-c).
+
+The compiled library exports the checked `Data.Core.List` carrier and
+`NotNull` predicate for the `NonEmpty` refinement. Cinch checks that former
+at higher kind, preserves the erased list representation, and refuses a
+plain list without evidence. The original Foldable, Semigroup and
+Traversable clients linked and ran against the expanded object with zero
+leaks. All 55 library interface identities were preserved across the object
+expansion. The full selected-frontend replay remains open.
+See [the NonEmpty object audit](../bootstrap/current-schema10-compiled-nonempty-results.json).
 
 The runtime assigns Unit's word representation to private, unconstrained
 type variables after Core has checked their scope. The original `Result`

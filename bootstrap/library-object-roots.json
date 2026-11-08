@@ -38,6 +38,14 @@
     },
     {
       "classes": "",
+      "symbol": "Data.NonEmpty.Foldable_NonEmpty"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.NonEmpty.Traversable_NonEmpty"
+    },
+    {
+      "classes": "",
       "symbol": "Data.Option.Alternative_Option"
     },
     {
@@ -78,6 +86,10 @@
     },
     {
       "classes": "R",
+      "symbol": "Data.Const.Functor_Const"
+    },
+    {
+      "classes": "R",
       "symbol": "Data.List.FromList_List"
     },
     {
@@ -107,6 +119,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.NonEmpty.Semigroup_NonEmpty"
     },
     {
       "classes": "T",
@@ -162,6 +178,11 @@
     },
     {
       "class": "Category.Applicative.Applicative",
+      "own": "RR",
+      "slot": 1
+    },
+    {
+      "class": "Category.Applicative.Applicative",
       "own": "T",
       "slot": 0
     },
@@ -184,6 +205,61 @@
       "class": "Category.Applicative.Applicative",
       "own": "TTT",
       "slot": 2
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "O",
+      "slot": 2
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "O",
+      "slot": 3
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "O",
+      "slot": 4
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "OO",
+      "slot": 1
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "T",
+      "slot": 2
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "T",
+      "slot": 3
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "T",
+      "slot": 4
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "TO",
+      "slot": 0
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "TR",
+      "slot": 0
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "TT",
+      "slot": 0
+    },
+    {
+      "class": "Category.Foldable.Foldable",
+      "own": "TT",
+      "slot": 1
     },
     {
       "class": "Category.Functor.Functor",
@@ -219,6 +295,11 @@
       "class": "Category.Monad.Monad",
       "own": "O",
       "slot": 1
+    },
+    {
+      "class": "Category.Monad.Monad",
+      "own": "RR",
+      "slot": 0
     },
     {
       "class": "Category.Monad.Monad",
@@ -648,6 +729,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.transpose"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.NonEmpty.non-empty"
     },
     {
       "classes": "T",

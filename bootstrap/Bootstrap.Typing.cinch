@@ -211,7 +211,7 @@ module Bootstrap.Typing where
     CLocal sp ty id name actuals -> actual-types context scope actuals
     CQualifiedUse sp ty name role actuals evidence -> actual-types context scope actuals && evidences-types context scope evidence
     CMethod sp ty name owner slot actuals evidence -> actual-types context scope actuals && evidences-types context scope evidence
-    CInt sp ty value -> integer-carrier ty
+    CInt sp ty value -> number-literal-carrier ty
     CString sp ty value -> string-type ty
     CChar sp ty value -> type-is "Char" ty && char-value value
     CUnit sp ty -> type-is "Unit" ty
@@ -240,9 +240,9 @@ module Bootstrap.Typing where
     CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else primitive-types ty name args)
       && argument-terms context scope gamma facts args
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
-    CRefine sp ty certificate body -> (case ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
+    CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
     CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
-    CForget sp ty body -> (case core-type body of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
+    CForget sp ty body -> (case refinement-view (core-type body) of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
     CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
@@ -254,7 +254,7 @@ module Bootstrap.Typing where
   task-data :: String -> List CoreData -> Option CoreData
   task-data name datas = case datas of Nil -> None; Cons d rest -> if same name (core-data-name d) then Some d else task-data name rest
   task-base :: UType -> UType
-  task-base ty = case ty of URefine id name carrier predicate -> task-base carrier; URequire predicates body -> task-base body; other -> ty
+  task-base ty = case refinement-view ty of URefine id name carrier predicate -> task-base carrier; URequire predicates body -> task-base body; other -> ty
   task-type-spine :: UType -> List UType -> (UType, List UType)
   task-type-spine ty args = case task-base ty of UApp f x -> task-type-spine f (Cons x args); other -> (other, args)
   task-actuals :: List Quant -> List UType -> List (Nat, UType)

@@ -49,3 +49,25 @@ fn private_refinement_contracts_survive_value_only_facades() {
     }
     common::cleanup(&dir);
 }
+
+#[test]
+fn list_refinement_contracts_keep_the_checked_carrier_and_predicate() {
+    let dir = common::project("list_refinement_closure", &[
+        ("A.cinch", "module A where\n  export NonEmpty, as-list\n  type NonEmpty a = refine (xs :: List a) with NotNull xs\n  as-list :: forall a. NonEmpty a -> List a\n  as-list xs = unrefine xs\n"),
+        ("Facade.cinch", "module Facade where\n  import A (as-list as contents)\n  export contents\n"),
+        ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
+    ]);
+    common::check(&dir, "Main.cinch").expect("emit the checked list refinement");
+    let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
+    let owner = read("A");
+    let facade = read("Facade");
+    let template = owner.exports.types.iter().find(|row| row.name == "NonEmpty").unwrap().refinement.as_ref().unwrap();
+    assert_eq!(template.carrier, "Data.Core.List a");
+    assert_eq!(template.predicate, "NotNull xs");
+    let contract = facade.exports.values.iter().find(|row| row.name == "contents").unwrap().resolved.as_ref().unwrap();
+    assert!(facade.exports.types.is_empty());
+    assert!(contract.nominals.iter().any(|row| row.identity == "Data.Core.List" && row.kind == "data"));
+    let refinement = contract.nominals.iter().find(|row| row.identity == "A.NonEmpty").unwrap();
+    assert_eq!(refinement.refinement.as_ref(), Some(template));
+    common::cleanup(&dir);
+}

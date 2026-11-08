@@ -24,6 +24,7 @@ module Bootstrap.Core where
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
+  export core-float-literal-word
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, copy-out-type
@@ -130,6 +131,7 @@ module Bootstrap.Core where
     UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
     URefine id name carrier predicate -> effect-binder qs id name carrier predicate
+    URefineFormer name ids body -> valid-type ty && effect-type-scope (refinement-formals ids) body
     UPi id name domain row result -> effect-binder qs id name domain (UArg row (UArg result UEnd))
     UApp a b -> effect-type-scope qs a && effect-type-scope qs b
     UFun a b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs b
@@ -144,6 +146,7 @@ module Bootstrap.Core where
     UPropOr a b -> effect-type-scope qs a && effect-type-scope qs b
     UPropNot body -> effect-type-scope qs body
     UPropNonZero body -> effect-type-scope qs body
+    UPropNotNull body -> effect-type-scope qs body
     UPropNonZeroPending body -> effect-type-scope qs body
     URequire predicates body -> effect-type-scope qs predicates && effect-type-scope qs body
     UPropLit value -> True
@@ -786,6 +789,7 @@ module Bootstrap.Core where
     UPropOr left right -> UPropOr (freeze left) (freeze right)
     UPropNot body -> UPropNot (freeze body)
     UPropNonZero body -> UPropNonZero (freeze body)
+    UPropNotNull body -> UPropNotNull (freeze body)
     UPropNonZeroPending body -> UPropNonZeroPending (freeze body)
     URequire predicates body -> URequire (freeze predicates) (freeze body)
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
@@ -822,9 +826,11 @@ module Bootstrap.Core where
     UPropOr left right -> type-metas st left <> type-metas st right
     UPropNot body -> type-metas st body
     UPropNonZero body -> type-metas st body
+    UPropNotNull body -> type-metas st body
     UPropNonZeroPending body -> type-metas st body
     URequire predicates body -> type-metas st predicates <> type-metas st body
     URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
+    URefineFormer name ids body -> type-metas st body
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
     UIndexCall function args -> type-metas st args
@@ -954,12 +960,14 @@ module Bootstrap.Core where
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexMath op left right -> valid-type ty && typed-index-admissible ty && closed-type left && closed-type right
     URefine id name carrier predicate -> valid-type ty && closed-type carrier && closed-type predicate
+    URefineFormer name ids body -> valid-type ty && closed-type body
     UPropLit value -> valid-type ty && (True)
     UCompare relation left right -> valid-type ty && (closed-type left && closed-type right)
     UPropAnd left right -> valid-type ty && (closed-type left && closed-type right)
     UPropOr left right -> valid-type ty && (closed-type left && closed-type right)
     UPropNot body -> valid-type ty && (closed-type body)
     UPropNonZero body -> valid-type ty && (closed-type body)
+    UPropNotNull body -> valid-type ty && (closed-type body)
     UPropNonZeroPending body -> valid-type ty && (closed-type body)
     URequire predicates body -> valid-type ty && (closed-type predicates && closed-type body)
     UPi id name domain row result -> valid-type ty && closed-type domain && closed-type row && closed-type result
@@ -1044,7 +1052,7 @@ module Bootstrap.Core where
     CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
-    CInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
+    CInt s ty text -> closed-runtime-type ty && valid-number-literal ty text
     CString s ty text -> closed-runtime-type ty
     CChar s ty text -> closed-runtime-type ty
     CUnit s ty -> closed-runtime-type ty
@@ -1103,9 +1111,11 @@ module Bootstrap.Core where
     UPropOr left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
     UPropNot body -> type-index-scope bound rigid body
     UPropNonZero body -> type-index-scope bound rigid body
+    UPropNotNull body -> type-index-scope bound rigid body
     UPropNonZeroPending body -> type-index-scope bound rigid body
     URequire predicates body -> type-index-scope bound rigid predicates && type-index-scope bound rigid body
     URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (Cons id bound) rigid predicate
+    URefineFormer name ids body -> type-index-scope ids Nil body
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
     UIndexCall function args -> type-index-scope bound rigid args
@@ -1425,6 +1435,12 @@ module Bootstrap.Core where
     Nil -> None
   valid-integer-literal :: UType -> String -> Bool
   valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
+  valid-number-literal :: UType -> String -> Bool
+  valid-number-literal carrier text = case decimal-value text of Some value -> number-literal-valid carrier value; None -> False
+  core-float-literal-word :: UType -> String -> Option Int
+  core-float-literal-word carrier text = case decimal-value text of
+    Some value -> float-literal-bits carrier value (string-compare text "-0" == 0)
+    None -> None
   same-integer-carrier :: UType -> UType -> Bool
   same-integer-carrier first second = integer-carrier first && contract-equal first second
   ordered-id :: Nat -> List Nat -> List Nat
@@ -1455,7 +1471,7 @@ module Bootstrap.Core where
         None -> machine-facts rest gamma
       None -> machine-facts rest gamma
   byte-buffer-type :: UType -> Bool
-  byte-buffer-type ty = case ty of
+  byte-buffer-type ty = case refinement-view ty of
     UCon name KType -> string-compare name "Bytes" == 0
     URefine id name carrier predicate -> valid-type ty && byte-buffer-type carrier
     other -> False
@@ -1688,7 +1704,7 @@ module Bootstrap.Core where
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
-    CInt s ty text -> valid-integer-literal ty text
+    CInt s ty text -> valid-number-literal ty text
     CRequire s ty body -> False
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
     CProved s ty evidence body -> certified-operation gamma facts ty evidence body
@@ -1722,11 +1738,11 @@ module Bootstrap.Core where
         && proof-case-alternatives gamma (case-rest-facts gamma facts value pattern body) value rest
     other -> False
   is-refinement :: UType -> Bool
-  is-refinement ty = case ty of URefine id name carrier predicate -> True; other -> False
+  is-refinement ty = case refinement-view ty of URefine id name carrier predicate -> True; other -> False
   -- This view is for predicate checking only. It never changes a runtime
   -- local's declared type or licenses an unchecked CLocal projection.
   numeric-carrier-view :: UType -> UType
-  numeric-carrier-view ty = case ty of
+  numeric-carrier-view ty = case refinement-view ty of
     URefine id name carrier predicate -> if valid-type ty && integer-carrier carrier then carrier else ty
     other -> ty
   refinement-gamma :: List (Nat, UType) -> List (Nat, UType)
@@ -1734,15 +1750,15 @@ module Bootstrap.Core where
   refinement-facts :: ProofScope -> List (Nat, UType) -> List Proposition
   refinement-facts gamma remaining = case remaining of
     Nil -> Nil
-    Cons (local, URefine id name carrier predicate) rest ->
-      let more = refinement-facts gamma rest in
-      if valid-type (URefine id name carrier predicate) && (integer-index-carrier carrier || byte-buffer-type carrier) then
-        (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex (URefine id name carrier predicate) (IRigid local name 0)))] predicate) of
-          Some fact -> Cons fact more
-          None -> more) else more
-    Cons other rest -> refinement-facts gamma rest
+    Cons (local, ty) rest -> let more = refinement-facts gamma rest in case refinement-view ty of
+      URefine id name carrier predicate ->
+        if valid-type ty && (integer-index-carrier carrier || byte-buffer-type carrier) then
+          (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex ty (IRigid local name 0)))] predicate) of
+            Some fact -> Cons fact more
+            None -> more) else more
+      other -> more
   refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
-  refinement-goal gamma facts ty body = case ty of
+  refinement-goal gamma facts ty body = case refinement-view ty of
     URefine id name carrier predicate -> if valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body then
       (case core-predicate gamma predicate of
         Some independent -> Some independent
@@ -1792,7 +1808,7 @@ module Bootstrap.Core where
   -- refinement at the checked payload supplies the expected proposition;
   -- neither a source spelling nor an annotated witness can establish it.
   scoped-refinement-proof :: ProofScope -> List Proposition -> UType -> CoreTerm -> CoreTerm -> Bool
-  scoped-refinement-proof gamma facts ty witness body = case ty of
+  scoped-refinement-proof gamma facts ty witness body = case refinement-view ty of
     URefine id name carrier predicate -> valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body
       && (case actual-index gamma facts body of
         Some value -> scoped-proof-reference gamma (substitute-bound [(id, value)] predicate) witness
@@ -1803,7 +1819,7 @@ module Bootstrap.Core where
     Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence
     None -> False
   forgotten :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  forgotten gamma facts carrier body = case core-type body of
+  forgotten gamma facts carrier body = case refinement-view (core-type body) of
     URefine id name domain predicate -> valid-type (core-type body) && contract-equal carrier domain && proof-term gamma facts body
     other -> False
   -- Every path producing a refinement retains either its checked producer
@@ -1933,7 +1949,7 @@ module Bootstrap.Core where
     UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
-      Some declared -> if contract-equal carrier declared && (case carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
+      Some declared -> if contract-equal carrier declared && (case refinement-view carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
       None -> None
     UIndexPromote (UIndex carrier (IInteger n)) -> if integer-literal-valid carrier n then Some (AInteger n) else None
     UIndexPromote (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
@@ -1984,7 +2000,7 @@ module Bootstrap.Core where
     (Cons goal rest, Cons first more) -> check-proof hypotheses goal first && check-goals hypotheses rest more
     other -> False
   contains-required :: UType -> Bool
-  contains-required ty = case ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UProofFun predicate row result -> contains-required result; other -> False
+  contains-required ty = case refinement-view ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UProofFun predicate row result -> contains-required result; other -> False
   arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
   arithmetic-index gamma term = case term of
     AInteger n -> Some (IInteger n)
@@ -2122,7 +2138,7 @@ module Bootstrap.Core where
       && definition-clause-types (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
 
   proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  proof-expected gamma facts expected term = case expected of
+  proof-expected gamma facts expected term = case refinement-view expected of
     URefine id name carrier predicate -> contract-equal expected (core-type term) && proof-refined-term gamma facts term
     URequire predicates result -> case term of
       CRequire s ty body -> contract-equal expected ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected gamma (introduced <> facts) result body; None -> False)
@@ -2322,7 +2338,7 @@ module Bootstrap.Core where
   -- A checked result/local refinement keeps the same numeric runtime carrier.
   -- Domains remain plain sorts; this does not erase an input obligation.
   total-core-value-sort :: UType -> Option String
-  total-core-value-sort ty = case ty of
+  total-core-value-sort ty = case refinement-view ty of
     URefine id name carrier predicate -> case total-core-sort carrier of
       Some sort -> if total-core-has sort ["Nat", "Int", "I64"] then Some sort else None
       None -> None

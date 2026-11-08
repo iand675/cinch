@@ -80,7 +80,7 @@ module Bootstrap.RuntimeIr where
   symbol :: String -> String
   symbol name = cat ["@\"cinch.typed.", name, "\""]
   base :: UType -> UType
-  base ty = case ty of URefine id name carrier predicate -> base carrier; URequire predicates body -> base body; other -> ty
+  base ty = case refinement-view ty of URefine id name carrier predicate -> base carrier; URequire predicates body -> base body; other -> ty
   named :: UType -> String -> Bool
   named ty name = case base ty of UCon actual KType -> same actual name; other -> False
   number :: UType -> Bool
@@ -651,7 +651,10 @@ module Bootstrap.RuntimeIr where
     other -> term
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
-    CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text) else unsupported w sp "integer carrier needs runtime lowering"
+    CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text)
+      else (case core-float-literal-word ty text of
+        Some bits -> (w, int-to-string bits)
+        None -> unsupported w sp "integer carrier needs runtime lowering")
     CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
     CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")

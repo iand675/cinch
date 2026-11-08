@@ -6,7 +6,7 @@ module Bootstrap.ExportNominal where
   import Bootstrap.Core (CoreData, CoreConstructor, core-data-name, core-data-params, core-data-constructors, core-constructor-name)
   import Bootstrap.ExportType (export-global, export-parameters)
   import Bootstrap.Load (LoadedInterface, loaded-contract)
-  import Bootstrap.Nominal (kernel-type-name)
+  import Bootstrap.Nominal (kernel-type-name, interface-global)
   import Bootstrap.Instance (CoreClass, class-name, class-params)
   import Data.Json
   import Bootstrap.Ast (Decl, DRefine, DSig, DMethod, DFun, DData, DOpaque, DClass, DInstance, DForeign, decls-of, TypeExpr, TName, TIndex, TNegate, TInfix, TFun, TApp, TArg, TArgsEnd, TypeParam, param-name, param-kind, param-implicit, decl-name, type-expr-span)
@@ -88,6 +88,9 @@ module Bootstrap.ExportNominal where
     UPi id name a row b -> combine (type-references a) (combine (type-references row) (type-references b))
     URequire predicates body -> combine (type-references predicates) (type-references body)
     URefine id name carrier predicate -> combine (type-references carrier) (type-references predicate)
+    URefineFormer name ids body -> case export-global name of
+      Ok identity -> combine (Ok [identity]) (type-references body)
+      Err error -> Err error
     UIndex carrier index -> type-references carrier
     UIndexForget value -> type-references value
     UIndexPromote value -> type-references value
@@ -101,6 +104,7 @@ module Bootstrap.ExportNominal where
     UPropOr a b -> combine (type-references a) (type-references b)
     UPropNot value -> type-references value
     UPropNonZero value -> type-references value
+    UPropNotNull value -> type-references value
     URow labels -> type-references labels
     URowJoin a b -> combine (type-references a) (type-references b)
     UTuple fields -> type-references fields
@@ -172,7 +176,7 @@ module Bootstrap.ExportNominal where
     Cons other rest -> primitive-observer name rest
   template-text :: List Decl -> List String -> TypeExpr -> Result String String
   template-text declarations locals syntax = case syntax of
-    TName sp name -> if has-name name locals || kernel-type-name name || has-name name ["Type", "Prop", "Region", "Effect", "Row", "True", "False", "NonZero"] then Ok name else export-global name
+    TName sp name -> if has-name name locals || kernel-type-name name || has-name name ["Type", "Prop", "Region", "Effect", "Row", "True", "False", "NonZero", "NotNull"] then Ok name else export-global name
     TIndex sp literal -> Ok literal
     TNegate sp body -> case template-text declarations locals body of Ok text -> Ok (string-concat "-" text); Err error -> Err error
     TInfix sp op first second -> if has-name op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
@@ -185,10 +189,15 @@ module Bootstrap.ExportNominal where
       (Ok a, Ok b) -> Ok (string-concat-all ["(", a, " -> ", b, ")"])
       (Err error, other) -> Err error
       (other, Err error) -> Err error)
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then
-      (case template-text declarations locals input of
-        Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else "b.bytesLen", " ", value, ")"])
-        Err error -> Err error)
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if same name "NotNull" then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "NotNull " value); Err error -> Err error)
+      else if same name (interface-global "Data.Core.List") then
+        (case template-text declarations locals input of Ok value -> Ok (string-concat "Data.Core.List " value); Err error -> Err error)
+      else if same name "NonZero" || same name "#kernel.bytes-length" || primitive-observer name declarations then
+        (case template-text declarations locals input of
+          Ok value -> Ok (string-concat-all ["(", if same name "NonZero" then "NonZero" else "b.bytesLen", " ", value, ")"])
+          Err error -> Err error)
       else Err "refinement application needs its retained defining contract"
     other -> Err "refinement template has no portable checked representation"
   template-predicate :: List Decl -> List String -> TypeExpr -> Result String String
