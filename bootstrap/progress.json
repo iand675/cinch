@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "4 of 236 complete groups passed; 0 running, 0 failed and 232 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "4 of 236 complete groups passed; 1 running, 0 failed and 231 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "4 of 236 complete groups passed; 0 running, 0 failed and 232 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "4 of 236 complete groups passed; 1 running, 0 failed and 231 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -824,8 +824,8 @@
         "counts": {
           "verified": 4,
           "blocked": 0,
-          "running": 0,
-          "pending": 232,
+          "running": 1,
+          "pending": 231,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2403,21 +2403,25 @@
           {
             "id": "native:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "failed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:46:46.896490+00:00",
-              "finishedAt": "2026-11-06T20:55:41.252386+00:00",
-              "exitCode": 101,
-              "logSha256": "275afa1206f527734d35d8acad89ef186b88a3e4faf41632983bb81e3c8b98d2",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:08:28.524316+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
+                  "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
+                  "status": "passed"
+                },
+                {
                   "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "failed"
+                  "status": "running"
                 }
               ]
             },
@@ -19172,6 +19176,16 @@
         "auditPending": false
       },
       {
+        "title": "Current compiler: full Rust sweep",
+        "status": "running",
+        "phase": "bootstrap_pipeline",
+        "passed": 4,
+        "failed": 0,
+        "total": 236,
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "earlier": false
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -20441,8 +20455,8 @@
     "counts": {
       "verified": 286,
       "blocked": 11,
-      "running": 13,
-      "pending": 285,
+      "running": 14,
+      "pending": 284,
       "recheck": 83
     },
     "total": 678,
@@ -20451,5 +20465,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:07:45.135856+00:00"
+  "updatedAt": "2026-11-08T03:08:47.198570+00:00"
 }
