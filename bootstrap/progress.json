@@ -19848,20 +19848,31 @@
       },
       {
         "title": "Rebuild with the dependent Nat predicate repair",
-        "status": "running",
-        "phase": "building stage2",
+        "status": "failed",
+        "phase": "Stage2 checked the imported nat-rem signature, then refused the literal divisor in Text.Scan.",
         "passed": 2,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "unit": "stages",
         "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21",
         "auditPending": false
       },
       {
+        "title": "Resolve NonZero predicates during specialization and rebuild",
+        "status": "running",
+        "phase": "Waiting for one of the five build workers.",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "auditPending": false
+      },
+      {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_body_bindings",
-        "passed": 4,
+        "phase": "bootstrap_checked_program",
+        "passed": 5,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -19870,8 +19881,8 @@
       {
         "title": "Replay full Foldable and Category with the NonEmpty object",
         "status": "running",
-        "phase": "round 2 lib_foldable Round 1 passed 14/15 Foldable and 11/12 Category cases.",
-        "passed": 0,
+        "phase": "round 2 lib_category Round 1 passed 14/15 Foldable and 11/12 Category cases.",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "unit": "original test targets",
@@ -19890,8 +19901,8 @@
       {
         "title": "Check original Const and dictionary ABI clients",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules with generic factory ABI checks",
-        "passed": 0,
+        "phase": "function-family-laws",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "client cases",
@@ -19909,18 +19920,18 @@
       },
       {
         "title": "Run the original checked nat-rem contract and zero-divisor control",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
-        "passed": 0,
-        "failed": 0,
+        "status": "completed-with-nat-rem-client-failures",
+        "phase": "nat-rem-zero",
+        "passed": 1,
+        "failed": 1,
         "total": 2,
         "unit": "client cases",
         "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21"
       },
       {
         "title": "Replay Algebra with the numeric repair and expanded object",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "selected-lib_algebra",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -20006,5 +20017,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:23:56.980488+00:00"
+  "updatedAt": "2026-11-08T00:27:50.679741+00:00"
 }
