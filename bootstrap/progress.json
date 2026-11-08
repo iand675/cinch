@@ -20725,6 +20725,17 @@
         "evidence": null
       },
       {
+        "title": "Replay integration, concurrency, guards and codata on the combined compiler",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Combined candidate, starting from the pinned seed. Queued for a shared worker.",
+        "passed": 0,
+        "total": 74,
+        "failed": 0,
+        "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
+        "evidence": null
+      },
+      {
         "title": "Check Rust task sharing and transfer through reference fields",
         "unit": "targets",
         "status": "passed",
@@ -20760,5 +20771,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:46:25.749286+00:00"
+  "updatedAt": "2026-11-08T21:48:09.736965+00:00"
 }
