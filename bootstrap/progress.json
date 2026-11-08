@@ -21077,9 +21077,9 @@
       },
       {
         "title": "Verify erased value arguments and the repaired interface dependency scan",
-        "status": "running",
-        "phase": "emit and verify the annotated interface",
-        "passed": 33,
+        "status": "passed-erased-argument-controls",
+        "phase": "All 35 combined cases passed, including a zero-word call in emitted LLVM and a source-free interface consumer.",
+        "passed": 35,
         "failed": 0,
         "total": 35,
         "unit": "cases",
@@ -21087,8 +21087,8 @@
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
-        "status": "waiting-worker",
-        "phase": "The Rust fix and regression cases are committed locally. Validation is queued for a shared worker.",
+        "status": "running",
+        "phase": "Checking the worker signature, curried calls, shared closure captures, and effect preservation.",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -21184,5 +21184,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:27:32.799671+00:00"
+  "updatedAt": "2026-11-08T15:28:35.157816+00:00"
 }
