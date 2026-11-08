@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "1 of 236 complete groups passed; 1 running, 0 failed and 234 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "2 of 236 complete groups passed; 1 running, 0 failed and 233 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "1 of 236 complete groups passed; 1 running, 0 failed and 234 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "2 of 236 complete groups passed; 1 running, 0 failed and 233 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 1,
+          "verified": 2,
           "blocked": 0,
           "running": 1,
-          "pending": 234,
+          "pending": 233,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -5009,11 +5009,19 @@
           {
             "id": "native:jit",
             "title": "jit",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/jit.rs",
-            "observed": null,
+            "observed": {
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:45:09.909122+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
+            },
             "currentTests": null
           },
           {
@@ -9580,17 +9588,17 @@
           {
             "id": "native:repl",
             "title": "repl",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/repl.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:43:40.780813+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:45:09.905785+00:00",
+              "exitCode": 0,
+              "logSha256": "200a27d9576bd8f41883168f3d9df07c7001484e9a8b1a5feb8d2ab516b1fc49",
               "cases": [
                 {
                   "name": "a_failed_load_keeps_the_previous_session",
@@ -9622,7 +9630,35 @@
                 },
                 {
                   "name": "multi_line_input_continues_until_the_block_closes",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "plain_loop_handles_a_pipe",
+                  "status": "passed"
+                },
+                {
+                  "name": "runtime_backed_io_uses_the_native_compiler",
+                  "status": "passed"
+                },
+                {
+                  "name": "runtime_backed_probe_sees_a_loaded_module",
+                  "status": "passed"
+                },
+                {
+                  "name": "runtime_backed_probe_sees_a_session_definition",
+                  "status": "passed"
+                },
+                {
+                  "name": "runtime_backed_probe_uses_session_imports_and_the_project_directory",
+                  "status": "passed"
+                },
+                {
+                  "name": "type_kind_and_browse_outputs",
+                  "status": "passed"
+                },
+                {
+                  "name": "warm_expressions_reuse_the_checked_session",
+                  "status": "passed"
                 }
               ]
             },
@@ -12948,6 +12984,10 @@
               "cases": [
                 {
                   "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_emitted_ir_assembles_and_runs_to_the_fragments_meaning",
                   "status": "running"
                 }
               ]
@@ -19064,8 +19104,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "repl",
-        "passed": 1,
+        "phase": "jit",
+        "passed": 2,
         "failed": 0,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20339,10 +20379,10 @@
       }
     ],
     "counts": {
-      "verified": 256,
+      "verified": 257,
       "blocked": 10,
       "running": 14,
-      "pending": 295,
+      "pending": 294,
       "recheck": 102
     },
     "total": 677,
@@ -20351,5 +20391,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:44:54.155207+00:00"
+  "updatedAt": "2026-11-08T02:45:56.154510+00:00"
 }
