@@ -17944,8 +17944,8 @@
         "passed": 0,
         "total": 105,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker.",
+        "status": "running",
+        "phase": "bootstrap_guarded_calls",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20727,11 +20727,11 @@
       {
         "title": "Check erased record evidence and executable field layout",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. construct-and-project",
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. construct-and-match",
         "passed": 4,
         "total": 6,
-        "failed": 0,
+        "failed": 2,
         "source": "7b70c35da175c01d8aa9adf99f56ad23087a7d28550113c58ca5d48d4ef1d6ba",
         "evidence": null
       },
@@ -20815,5 +20815,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:09:42.864612+00:00"
+  "updatedAt": "2026-11-08T22:10:46.152743+00:00"
 }
