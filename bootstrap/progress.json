@@ -21056,8 +21056,8 @@
       },
       {
         "title": "Independently verify the repaired ABI 7 fixed point",
-        "status": "waiting-fixed-point",
-        "phase": "Waiting fixed point",
+        "status": "checking-artifacts",
+        "phase": "Checking artifacts",
         "passed": 0,
         "failed": 0,
         "total": 1,
@@ -21066,8 +21066,8 @@
       },
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
-        "status": "waiting-stage3",
-        "phase": "Queued across 3 workers after the changed-source check.",
+        "status": "running",
+        "phase": "Alloc_accounting, case_evidence",
         "passed": 0,
         "failed": 0,
         "total": 105,
@@ -21197,5 +21197,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:39:19.550961+00:00"
+  "updatedAt": "2026-11-08T13:40:22.722045+00:00"
 }
