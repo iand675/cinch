@@ -20933,8 +20933,8 @@
       {
         "title": "Compile guarded function equations in Rust Cinch",
         "status": "running",
-        "phase": "Surface. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
-        "passed": 2,
+        "phase": "Syntax_declarations. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
+        "passed": 3,
         "failed": 0,
         "total": 6,
         "unit": "targets",
@@ -20964,5 +20964,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:00:47.626422+00:00"
+  "updatedAt": "2026-11-08T08:01:50.071952+00:00"
 }
