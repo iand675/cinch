@@ -20684,8 +20684,8 @@
         "title": "Replay the original integration failures and guard coverage",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with integration diagnostics",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. integration (9 original tests)",
+        "passed": 1,
         "total": 15,
         "failed": 0,
         "source": "a498e06d14fab7d58ebc35afcb760a184c4482c64da940a35899bdbd4684fecf",
@@ -20738,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:27:57.427650+00:00"
+  "updatedAt": "2026-11-08T21:29:00.938001+00:00"
 }
