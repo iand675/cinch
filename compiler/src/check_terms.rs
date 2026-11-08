@@ -3428,7 +3428,7 @@ impl Checker {
                 Some(Reading { kind: ReadingKind::Value(it, names), end })
             })
         } else if matches!(&ty, Ty::Adt(n, _) if n == "Ordering") {
-            self.ordering_reading(env, scrut, end)
+            self.ordering_reading(env, scrut, &c, end)
         } else {
             None
         };
@@ -3440,28 +3440,31 @@ impl Checker {
     /// its `LT`/`EQ`/`GT` rows state `k x < k y`, `k x == k y`, `k x >
     /// k y`. The key is the identity lambda or a function a fact may
     /// name (a local, or a pure global) with a numeric result.
-    fn ordering_reading(&self, env: &Env, scrut: &ast::Term, end: usize) -> Option<Reading> {
-        let ast::Term::App(f, args, span) = scrut else { return None };
-        let ast::Term::Var(p) = &**f else { return None };
-        if args.len() != 3 || !p.quals.is_empty() || env.lookup_name(&p.name).is_some() {
-            return None;
-        }
-        let v = self.resolve_var(p, p.span()).ok()?;
-        if v.module != "Relation.Ord" || v.name != "comparing" {
-            return None;
-        }
-        let (k, x, y) = (&args[0], &args[1], &args[2]);
+    fn ordering_reading(&self, env: &Env, scrut: &ast::Term, core: &ECore, end: usize) -> Option<Reading> {
+        let ast::Term::App(_, args, span) = scrut else { return None };
+        let [k, x, y] = args.as_slice() else { return None };
+        let ECore::App(helper, arguments) = core else { return None };
+        let ECore::Global(id, _) = &**helper else { return None };
+        if id.0 != "Relation.Ord.comparing" { return None; }
+        let [ECore::Hole(want), key, _, _] = arguments.as_slice() else { return None };
+        let want = self.wants.iter().find(|entry| entry.id == *want)?;
+        if want.class.class != self.signature_key("Relation.Ord", "Ord") { return None; }
+        let [carrier] = want.class.args.as_slice() else { return None };
+        let carrier = self.uni.zonk(carrier);
+        if !fact_numeric(&carrier) { return None; }
+        let (less_slot, greater_slot) = self.checked_ordering_helper(id)?;
+        let mut less = self.checked_comparison_method(want, less_slot, &carrier, IdxCmp::Lt)?;
+        let mut greater = self.checked_comparison_method(want, greater_slot, &carrier, IdxCmp::Gt)?;
+        if less.comparison != IdxCmp::Lt || greater.comparison != IdxCmp::Gt { return None; }
         if !self.fact_term_ok(env, x) || !self.fact_term_ok(env, y) {
             return None;
         }
         let keyed = |a: &ast::Term| -> Option<(ast::Term, bool)> {
             match k {
-                ast::Term::Lam(pats, body, _) => {
-                    let [ast::Pat::Var(n, _)] = pats.as_slice() else { return None };
-                    let ast::Term::Var(b) = &**body else { return None };
-                    if !b.quals.is_empty() || b.name.text != n.text {
-                        return None;
-                    }
+                ast::Term::Lam(..) => {
+                    let ECore::Lam { params, body } = key else { return None };
+                    let [parameter] = params.as_slice() else { return None };
+                    if !matches!(&**body, ECore::Var(id) if id == parameter) { return None; }
                     Some((a.clone(), self.cond_operand_numeric(env, a)))
                 }
                 ast::Term::Var(kp) if kp.quals.is_empty() && env.lookup_name(&kp.name).is_some() => {
@@ -3489,11 +3492,15 @@ impl Checker {
         if !(nx || ny) {
             return None;
         }
-        let a = self.idx_of_term(&kx, env).ok()?.normalize();
-        let b = self.idx_of_term(&ky, env).ok()?.normalize();
+        if matches!(carrier, Ty::Prim(_)) && (has_arith(&kx) || has_arith(&ky)) { return None; }
+        let ((a, b), arithmetic) = self.with_runtime_arithmetic(|| {
+            Ok((self.idx_of_term(&kx, env)?.normalize(), self.idx_of_term(&ky, env)?.normalize()))
+        }).ok()?;
+        less.arithmetic = arithmetic.clone();
+        greater.arithmetic = arithmetic;
         let mut names = self.term_names(env, &a)?;
         names.extend(self.term_names(env, &b)?);
-        Some(Reading { kind: ReadingKind::Order(a, b, names), end })
+        Some(Reading { kind: ReadingKind::Order(a, b, names, vec![less, greater]), end })
     }
 
     /// The facts one branch of a match establishes about its column:
@@ -3512,14 +3519,16 @@ impl Checker {
             (ReadingKind::Value(it, names), key) => {
                 value_facts(it, key).into_iter().map(|p| mk(p, names)).collect()
             }
-            (ReadingKind::Order(a, b, names), BranchKey::Ctor { name, .. }) => {
+            (ReadingKind::Order(a, b, names, comparisons), BranchKey::Ctor { name, .. }) => {
                 let op = match name.as_str() {
                     "LT" => IdxCmp::Lt,
                     "EQ" => IdxCmp::Eq,
                     "GT" => IdxCmp::Gt,
                     _ => return Vec::new(),
                 };
-                vec![mk(PTerm::Cmp(op, Box::new(a.clone()), Box::new(b.clone())), names)]
+                let mut fact = mk(PTerm::Cmp(op, Box::new(a.clone()), Box::new(b.clone())), names);
+                fact.comparisons.clone_from(comparisons);
+                vec![fact]
             }
             _ => Vec::new(),
         }
@@ -9123,7 +9132,7 @@ pub(crate) struct Reading {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum ReadingKind {
+enum ReadingKind {
     /// A `Bool` read as a predicate: the facts of its two outcomes.
     Bool { pos: Vec<Fact>, neg: Vec<Fact> },
     /// A numeric or list-shaped value with an index reading: a literal
@@ -9132,7 +9141,7 @@ pub(crate) enum ReadingKind {
     Value(ITerm, Vec<(String, LocalId)>),
     /// `comparing k x y`: `LT`/`EQ`/`GT` state the comparison of the two
     /// keys.
-    Order(ITerm, ITerm, Vec<(String, LocalId)>),
+    Order(ITerm, ITerm, Vec<(String, LocalId)>, Vec<ComparisonCertificate>),
 }
 
 /// Which branch of a column's test a row set sits in.

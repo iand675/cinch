@@ -871,4 +871,29 @@ module Main where
 "#,
         0,
     );
+    expect_err(
+        "comparing-opaque-order",
+        &program(
+            r#"
+  probe :: using (ordering :: Ord Nat) => Nat -> Nat
+  probe d = case comparing (\x -> x) d 0 of
+    GT -> nat-div 10 d
+    _ -> 0
+"#,
+            "0",
+        ),
+        &["the obligation `NonZero d` needs"],
+    );
+    expect_checks(
+        "comparing-opaque-order-without-proof",
+        &program(
+            r#"
+  probe :: using (ordering :: Ord Nat) => Nat -> Nat
+  probe d = case comparing (\x -> x) d 0 of
+    GT -> 1
+    _ -> 0
+"#,
+            "0",
+        ),
+    );
 }

@@ -51,6 +51,24 @@ struct ComparisonCertificate {
 }
 
 impl Checker {
+    /// Recover the two dictionary slots from the actual checked three-way
+    /// helper. Its identity alone says nothing about a source replacement.
+    fn checked_ordering_helper(&self, id: &GlobalId) -> Option<(usize, usize)> {
+        let (parameters, body) = self.erasure_bodies.get(id)?;
+        let [dictionary, key, left, right] = parameters.as_slice() else { return None };
+        let (less, when_less, otherwise) = ordering_if(body)?;
+        let (greater, when_greater, when_equal) = ordering_if(otherwise)?;
+        if !ordering_constructor(when_less, "Data.Ordering.LT")
+            || !ordering_constructor(when_greater, "Data.Ordering.GT")
+            || !ordering_constructor(when_equal, "Data.Ordering.EQ")
+        {
+            return None;
+        }
+        let less = ordering_method(less, *dictionary, *key, *left, *right)?;
+        let greater = ordering_method(greater, *dictionary, *key, *left, *right)?;
+        (less != greater).then_some((less, greater))
+    }
+
     fn checked_comparison_method(&self, want: &Want, slot: usize, ty: &Ty, anticipated: IdxCmp) -> Option<ComparisonCertificate> {
         let wanted = self.uni.zonk_class(&want.class);
         if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) { return None }
@@ -298,6 +316,37 @@ impl Checker {
             _ => return None,
         })
     }
+}
+
+fn ordering_if(term: &ECore) -> Option<(&ECore, &ECore, &ECore)> {
+    match term {
+        ECore::If(test, yes, no) => Some((test, &yes.body, &no.body)),
+        // The match compiler may materialize the scrutinee once.
+        ECore::Let(local, value, body) => match &**body {
+            ECore::If(test, yes, no) if matches!(&**test, ECore::Var(id) if id == local) => {
+                Some((value, &yes.body, &no.body))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn ordering_constructor(term: &ECore, identity: &str) -> bool {
+    matches!(term, ECore::Ctor(id, actuals) if id.0 == identity && actuals.is_empty())
+}
+
+fn ordering_method(term: &ECore, dictionary: LocalId, key: LocalId, left: LocalId, right: LocalId) -> Option<usize> {
+    let ECore::App(method, arguments) = term else { return None };
+    let ECore::DictProj(receiver, slot, _, _) = &**method else { return None };
+    if !matches!(&**receiver, ECore::Var(id) if *id == dictionary) { return None; }
+    let [first, second] = arguments.as_slice() else { return None };
+    let keyed = |term: &ECore, value: LocalId| match term {
+        ECore::App(function, inputs) => matches!(&**function, ECore::Var(id) if *id == key)
+            && matches!(inputs.as_slice(), [ECore::Var(id)] if *id == value),
+        _ => false,
+    };
+    (keyed(first, left) && keyed(second, right)).then_some(*slot)
 }
 
 fn comparison_primitive(op: PrimOp, arguments: &[ComparisonReading]) -> Option<ComparisonReading> {
