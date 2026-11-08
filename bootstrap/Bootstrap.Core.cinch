@@ -9,7 +9,7 @@ module Bootstrap.Core where
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Proof
   import Bootstrap.Total
-  import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison)
+  import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison, total-boolean-negation)
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
   import Bootstrap.ExportType (export-global)
@@ -1581,6 +1581,11 @@ module Bootstrap.Core where
   comparison-name op = if string-compare op "<" == 0 then Some Less else if string-compare op "<=" == 0 then Some AtMost
     else if string-compare op "==" == 0 then Some Equal else if string-compare op "/=" == 0 then Some Unequal
     else if string-compare op ">=" == 0 then Some AtLeast else if string-compare op ">" == 0 then Some Greater else None
+  negated-condition-input :: ProofScope -> CoreTerm -> Option CoreTerm
+  negated-condition-input gamma term = case total-call-spine gamma term Nil of
+    Some (binding, [input]) ->
+      if bool-type (core-type input) && total-boolean-negation (binding-function binding) then Some input else None
+    other -> None
   scoped-core-condition :: ProofScope -> List Proposition -> CoreTerm -> Option Proposition
   scoped-core-condition gamma facts term = if not (bool-type (core-type term)) then None else case term of
     CPrimitive sp ty operation (CArgumentsEnd end) -> if string-compare operation "decision-true" == 0 then Some PTruth else if string-compare operation "decision-false" == 0 then Some PFalsehood else None
@@ -1594,6 +1599,9 @@ module Bootstrap.Core where
         (Some a, Some b) -> Some (PCompare relation a b)
         other -> None
       None -> None
+    CApply s ty function input -> (case negated-condition-input gamma term of
+      Some argument -> (case scoped-core-condition gamma facts argument of Some predicate -> Some (PNegate predicate); None -> None)
+      None -> None)
     CUse s ty name role Nil -> if string-compare role "constructor" == 0 then
       (if string-compare name "True" == 0 then Some PTruth else if string-compare name "False" == 0 then Some PFalsehood else None) else None
     CIf s ty condition yes no -> case scoped-core-condition gamma facts condition of
@@ -1619,6 +1627,9 @@ module Bootstrap.Core where
     case scoped-core-condition gamma facts condition of
       Some p -> Some (if positive then p else PNegate p)
       None -> case condition of
+        CApply s ty function input -> (case negated-condition-input gamma condition of
+          Some argument -> scoped-core-branch gamma facts argument (not positive)
+          None -> None)
         CIf sp ty test yes no -> if positive then
           (case scoped-core-condition gamma facts no of
             Some PFalsehood -> let first = scoped-core-branch gamma facts test True in
