@@ -54,5 +54,7 @@ module Main where
   main :: Int
   main = Alpha.accept @{dict = Beta.Dict} 1
 "#;
-    assert!(cinch::driver::check_sources(source, "wrong-class-evidence.cinch").is_err());
+    let dir = common::project("wrong_class_evidence", &[("Main.cinch", source)]);
+    assert!(common::check(&dir, "Main.cinch").is_err());
+    common::cleanup(&dir);
 }

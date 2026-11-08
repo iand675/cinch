@@ -66,10 +66,13 @@ module Shadow where
   identity :: Shadow.Scope -> Shadow.Scope
   identity value = value
 module Main where
+  import Scoped as Scopes
+  import Shadow as Local
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "scope-task-interface.cinch").unwrap();
+    let dir = common::project("scope_task_interface", &[("Main.cinch", source)]);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("emit scope and task contracts");
     let scoped = interfaces.iter().find(|i| i.module == "Scoped").unwrap();
     let readback = Iface::from_json(&scoped.to_json()).expect("real schema8 kernel-contract readback");
     assert_eq!(readback.to_json(), scoped.to_json());
@@ -85,4 +88,5 @@ module Main where
     assert!(identity.scheme.contains("Shadow.Scope"));
     assert!(identity.nominals.iter().any(|n| n.identity == "Shadow.Scope"));
     cinch::interface::verify_chain(&interfaces).expect("actual source owners and dependencies");
+    common::cleanup(&dir);
 }

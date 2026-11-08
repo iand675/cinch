@@ -36,6 +36,18 @@ and through the exact published Stage3. The portable round trips use
 Cinch-emitted interfaces and retain the original Rust Core assertions.
 See [the proof-interface audit](../bootstrap/current-schema10-published-proof-arrow-dispatch-results.json).
 
+Both parser tests passed on the exact published Stage3. The corpus table
+now covers all 112 modules and pins the lower measured counts of
+unmodeled syntax.
+See [the parser audit](../bootstrap/current-schema10-stage3-parser-corpus-results.json).
+
+All three class-identity cases and both region and effect interface cases
+passed on Rust and the exact published Stage3. The selected compiler
+checks the wrong-owner refusal and emits the region and effect contracts
+that the tests read back. The separate interface-kinds replay still has
+an opaque higher-kind spelling mismatch.
+See [the ownership audit](../bootstrap/current-schema10-stage3-class-and-region-ownership-results.json).
+
 The export-closure repair passed the original anonymous-interface and
 refinement-closure targets in Rust and with the development Stage1.
 See [the refinement-interface audit](../bootstrap/current-schema10-refinement-export-closure-results.json).

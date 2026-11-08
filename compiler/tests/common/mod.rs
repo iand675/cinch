@@ -179,6 +179,23 @@ pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
     drive(Mode::Check, dir, entry, None).map(|_| ())
 }
 
+/// Read checked contracts from the compiler that checked the project.
+pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
+    check(dir, entry)?;
+    let build = dir.join("build");
+    let mut interfaces = Vec::new();
+    for artifact in std::fs::read_dir(&build).map_err(|error| format!("{}: {error}", build.display()))? {
+        let path = artifact.map_err(|error| error.to_string())?.path();
+        if path.extension().is_some_and(|extension| extension == "cinchif") {
+            let text = std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+            let interface = cinch::interface::Iface::from_json(&text)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            interfaces.push(interface);
+        }
+    }
+    Ok(interfaces)
+}
+
 /// Produce Native library contracts used as input to a Cinch consumer test.
 /// This is an explicit fixture producer, independent of the selected frontend;
 /// a selected compiler's failure never reaches this path as a fallback.
