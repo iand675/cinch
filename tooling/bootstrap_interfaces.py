@@ -188,12 +188,18 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
         if "." not in declaration["identity"]:
             raise ValueError("unowned exported type")
         _parameters(declaration)
-        _list(declaration["fields"])
+        labels = _list(declaration["fields"])
         if declaration["kind"] not in ("data", "opaque", "signature", "record", "refinement"):
             raise ValueError("unknown exported type category")
         if "refinement" not in declaration:
             raise ValueError("missing refinement boundary")
-        for ctor in _list(declaration["ctors"]):
+        constructors = _list(declaration["ctors"])
+        if declaration["kind"] == "record":
+            for label in labels:
+                _text(label)
+            if len(set(labels)) != len(labels):
+                raise ValueError("record field labels must be nonempty and unique")
+        for ctor in constructors:
             for key in ("name", "symbol", "scheme"):
                 _text(ctor[key])
             _integer(ctor["tag"])
@@ -201,6 +207,9 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
             fields, erased = _list(ctor["fields"]), _list(ctor["erased"])
             if len(fields) != len(erased) or any(type(flag) is not bool for flag in erased):
                 raise ValueError("constructor field/erasure contract disagrees")
+            if declaration["kind"] == "record" and (
+                    ctor["symbol"] != declaration["identity"] or ctor["tag"] != 0 or len(fields) != len(labels)):
+                raise ValueError("record labels disagree with its constructor contract")
             _resolved(ctor)
     for signature in exports["signatures"]:
         _text(signature["identity"])

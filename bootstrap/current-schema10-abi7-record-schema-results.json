@@ -1,0 +1,32 @@
+{
+  "baseline_revision": "6cd57e196295edfb91aa0e9a58183f477e0cef78",
+  "compiler_source_sha256": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+  "evidence": {
+    "native-interface-codec": {
+      "exit_code": 0,
+      "log_sha256": "eebe00b27f13596a2ad2bf8b0ef56162079231395ff467016e05c17a100e9d21",
+      "name": "native-interface-codec",
+      "status": "passed"
+    },
+    "tooling-suite": {
+      "exit_code": 0,
+      "log_sha256": "342fb144b7875c71e83f15bab62ca81509fef6376916dadfa0bc213f37cfa1c6",
+      "name": "tooling-suite",
+      "status": "passed"
+    }
+  },
+  "full_goal_complete": false,
+  "input_sha256": {
+    "compiler/src/interface.rs": "7fff897cff7c0b50dc55371b146feae94a41f02fc3e29ef087bfe5ae151a2129",
+    "tooling/bootstrap_interfaces.py": "b211aebdd6596dc9c3d1e34ad4dc0131a5e0549a51360b65f0df16743bd0b86c",
+    "tooling/tests/test_bootstrap_interfaces.py": "47930535a48b78997203c82956475d5de14fef35d1448c9c2449b40b1d5f59a4"
+  },
+  "native_interface_tests": 18,
+  "native_source_sha256": "5e3f85a7cef141eed39dfcc97551d23f174ff59817c1e751d299e53a13a71d2b",
+  "runtime_abi": 7,
+  "schema": 1,
+  "scope": "Rust and Python compiled record label validation. The complete matching suites and Cinch record object transport remain separate gates.",
+  "state_sha256": "0f10abc72f05e99eefeb1431eb4a2d380ae9f741253471bc7f022c89aa950508",
+  "status": "passed-record-schema-readers",
+  "tooling_tests": 52
+}

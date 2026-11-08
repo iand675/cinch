@@ -99,6 +99,12 @@ interfaces remain a separate gate.
 See [the Stage 3 audit](../bootstrap/current-schema10-abi7-codata-stage3-results.json).
 See [the codata audit](../bootstrap/current-schema10-abi7-stage1-codata-results.json).
 
+Rust and Python now require unique nonempty compiled record field labels
+and check each advertised constructor's defining symbol, tag and arity.
+All 18 Rust interface codec tests and 52 tooling tests passed. The Cinch
+object transport replay remains a separate gate.
+See [the schema reader audit](../bootstrap/current-schema10-abi7-record-schema-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

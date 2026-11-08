@@ -46,6 +46,23 @@ class CompilerInterfaceGate(unittest.TestCase):
                 with self.assertRaises((KeyError, TypeError, ValueError)):
                     contracts.validate_contract(doc, 6)
 
+    def test_record_field_labels_match_constructor_contract(self):
+        constructor = {"name": "Pair", "symbol": "Main.Pair", "scheme": "Int -> Int -> Pair",
+                       "tag": 0, "fields": ["Int", "Int"], "erased": [False, False], "resolved": None}
+        record = {"name": "Pair", "identity": "Main.Pair", "kind": "record", "params": [],
+                  "parameters": [], "fields": ["first", "second"], "refinement": None,
+                  "ctors": [constructor, {**constructor, "name": "OtherPair"}]}
+        self.doc["exports"]["types"] = [record]
+        contracts.validate_contract(self.doc, 6)
+        for labels in (["first", "first"], ["", "second"], ["first"]):
+            with self.subTest(labels=labels), self.assertRaises(ValueError):
+                record["fields"] = labels
+                contracts.validate_contract(self.doc, 6)
+        record["fields"] = ["first", "second"]
+        constructor["symbol"] = "Other.Pair"
+        with self.assertRaisesRegex(ValueError, "constructor contract"):
+            contracts.validate_contract(self.doc, 6)
+
     def test_instance_metadata_uses_the_writer_encoding(self):
         declaration = {"resolved": {"scheme": "Nat", "nominals": [], "measures": []}}
         method = {"name": "operation", "slot": 0, "scheme": "Nat",

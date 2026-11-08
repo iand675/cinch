@@ -12,7 +12,7 @@
 //! caching and invalidation, not a security boundary. A later schema version
 //! may switch to a cryptographic hash behind the same field.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 /// 5: definition-site class contexts, method slots and resolved method schemes.
@@ -1153,6 +1153,17 @@ impl Iface {
             }
             if exported.ctors.iter().any(|c| c.symbol.is_empty() || c.scheme.is_empty() || c.fields.len() != c.erased.len()) {
                 return Err(ParseError("constructor contract is incomplete".into()));
+            }
+            if exported.kind == "record" {
+                let mut labels = BTreeSet::new();
+                if !exported.fields.iter().all(|name| !name.is_empty() && labels.insert(name)) {
+                    return Err(ParseError("record field labels must be nonempty and unique".into()));
+                }
+                if exported.ctors.iter().any(|ctor| {
+                    ctor.symbol != exported.identity || ctor.tag != 0 || ctor.fields.len() != exported.fields.len()
+                }) {
+                    return Err(ParseError("record labels disagree with its constructor contract".into()));
+                }
             }
             types.push(exported);
         }
@@ -2344,6 +2355,31 @@ mod tests {
         let mut mismatched = f;
         mismatched.exports.types[0].kind = "data".into();
         assert!(Iface::from_json(&mismatched.to_json()).is_err());
+    }
+
+    #[test]
+    fn record_field_labels_match_constructor_contract() {
+        let mut iface = sample();
+        let record = &mut iface.exports.types[0];
+        record.kind = "record".into();
+        record.fields = vec!["first".into(), "second".into()];
+        let mut constructor = record.ctors.pop().unwrap();
+        constructor.name = record.name.clone();
+        constructor.symbol = record.identity.clone();
+        constructor.tag = 0;
+        record.ctors = vec![constructor.clone()];
+        constructor.name = "OtherTree".into();
+        record.ctors.push(constructor);
+        assert_eq!(Iface::from_json(&iface.to_json()).unwrap(), iface);
+
+        for labels in [vec!["first", "first"], vec!["", "second"], vec!["first"]] {
+            let mut malformed = iface.clone();
+            malformed.exports.types[0].fields = labels.into_iter().map(String::from).collect();
+            assert!(Iface::from_json(&malformed.to_json()).is_err());
+        }
+        let mut forged = iface;
+        forged.exports.types[0].ctors[0].symbol = "Other.Tree".into();
+        assert!(Iface::from_json(&forged.to_json()).is_err());
     }
 
     #[test]
