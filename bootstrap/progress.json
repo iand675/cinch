@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "5/105 Stage 3 targets verified and 12/236 Rust targets verified on the preceding memo revision.",
+  "activity": "6/105 Stage 3 targets verified and 12/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17886,11 +17886,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 5,
+        "passed": 6,
         "total": 105,
         "failed": 1,
         "status": "running",
-        "phase": "alloc_accounting",
+        "phase": "bootstrap_body_bindings",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20794,8 +20794,8 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with the preceding compiler",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
+        "passed": 2,
         "total": 5,
         "failed": 0,
         "source": "ebb74360d498988e68ba9a901008638d9be4c675a11a36f4a86901c6194f3c8a",
@@ -20848,5 +20848,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:40:17.114260+00:00"
+  "updatedAt": "2026-11-08T23:41:20.371288+00:00"
 }
