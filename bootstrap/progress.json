@@ -11971,6 +11971,14 @@
                 },
                 {
                   "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
                   "status": "running"
                 }
               ]
@@ -20021,5 +20029,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:46:35.104075+00:00"
+  "updatedAt": "2026-11-08T01:47:37.126702+00:00"
 }
