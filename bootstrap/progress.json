@@ -12005,9 +12005,9 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 64,
+          "verified": 65,
           "blocked": 8,
-          "running": 1,
+          "running": 0,
           "pending": 24,
           "recheck": 8
         },
@@ -14249,21 +14249,21 @@
           {
             "id": "stage3:interface_byte_observations",
             "title": "interface_byte_observations",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_byte_observations.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T04:08:23.471039+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T04:16:41.705791+00:00",
+              "exitCode": 0,
+              "logSha256": "5d06751f2cf5f92f3c05cebc4011ef205a0ba5a5402be7bb49f262b13463e5e8",
               "cases": [
                 {
                   "name": "private_observations_close_over_the_kernel_and_actual_buffer_identity",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -20550,9 +20550,9 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "waiting-worker",
-        "phase": "checked total buffer selection",
-        "passed": 5,
+        "status": "running",
+        "phase": "regex-check",
+        "passed": 6,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20748,9 +20748,9 @@
       }
     ],
     "counts": {
-      "verified": 343,
+      "verified": 344,
       "blocked": 14,
-      "running": 12,
+      "running": 11,
       "pending": 248,
       "recheck": 63
     },
@@ -20760,5 +20760,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:16:18.720284+00:00"
+  "updatedAt": "2026-11-08T04:17:21.069504+00:00"
 }
