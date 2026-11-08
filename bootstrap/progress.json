@@ -11997,11 +11997,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 70,
+          "verified": 71,
           "blocked": 6,
           "running": 2,
           "pending": 21,
-          "recheck": 6
+          "recheck": 5
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12238,21 +12238,21 @@
           {
             "id": "stage3:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:23:34.520031+00:00",
-              "finishedAt": "2026-11-07T12:35:59.329921+00:00",
-              "exitCode": 0,
-              "logSha256": "73505516b57435abb2a149ba590980f9b6c83848e19648173a3461b2b45ee0f8",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:34:51.868422+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -13689,21 +13689,21 @@
           {
             "id": "stage3:bootstrap_source_decisions",
             "title": "bootstrap_source_decisions",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T04:27:12.661065+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T04:34:20.325013+00:00",
+              "exitCode": 0,
+              "logSha256": "9542b04620444dae1b3374a1401e9ace0e796abce5c80e27d8daa2a1caf6b168",
               "cases": [
                 {
                   "name": "source_decisions_preserve_predicates_and_check_authority",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14434,16 +14434,16 @@
             "id": "stage3:interface_kinds",
             "title": "interface_kinds",
             "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "detail": "1 of 4 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:56:02.027230+00:00",
-              "finishedAt": "2026-11-07T11:56:20.220386+00:00",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:34:22.327273+00:00",
+              "finishedAt": "2026-11-08T04:34:36.436954+00:00",
               "exitCode": 0,
-              "logSha256": "07debfa0bcb7130817dc7188fc0a92a2af9c9d96c102a093cbdf39dd38bb4cb2",
+              "logSha256": "0ca272e7745611c3c62135d63dcf0cd20c38edabf02410532aa4a23e251ce820",
               "cases": [
                 {
                   "name": "interfaces_preserve_indexed_constructors_and_method_visibility",
@@ -14451,6 +14451,10 @@
                 },
                 {
                   "name": "opaque_parameter_kinds_survive_checked_interfaces_and_facades",
+                  "status": "passed"
+                },
+                {
+                  "name": "ordering_instances_publish_definition_owned_headers",
                   "status": "passed"
                 },
                 {
@@ -20763,11 +20767,11 @@
       }
     ],
     "counts": {
-      "verified": 351,
+      "verified": 352,
       "blocked": 12,
       "running": 13,
       "pending": 243,
-      "recheck": 61
+      "recheck": 60
     },
     "total": 680,
     "acceptanceVerified": 4,
@@ -20775,5 +20779,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:33:59.458280+00:00"
+  "updatedAt": "2026-11-08T04:35:01.639822+00:00"
 }
