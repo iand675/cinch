@@ -21108,10 +21108,20 @@
       },
       {
         "title": "Rebuild the erased-arrow compiler through Stage 3",
-        "status": "superseded-redundant-stage1",
-        "phase": "BootstrapError('stage1 did not build (exit -15).\\n\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-erased-argument-ladder-1/build/stage1/build.log')",
+        "status": "running",
+        "phase": "build Stage 2 with the audited Stage 1",
         "passed": 1,
         "total": 4,
+        "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+      },
+      {
+        "title": "Run all 34 original language examples on the rebuilt Stage 3",
+        "status": "checking-stage3-agreement",
+        "phase": "Waiting for Stage 3 fixed-point verification.",
+        "passed": 0,
+        "total": 34,
         "unit": "gates",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
@@ -21215,5 +21225,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:38:33.509701+00:00"
+  "updatedAt": "2026-11-08T15:39:16.881745+00:00"
 }
