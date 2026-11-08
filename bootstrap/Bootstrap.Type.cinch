@@ -16,6 +16,7 @@ module Bootstrap.Type where
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
+  export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export core-list-type, core-list-element
   export borrow-constructor-kind, borrow-type-parts
@@ -47,6 +48,12 @@ module Bootstrap.Type where
     -- declaration in this bootstrap language. Always use value-kind and
     -- value-carrier; malformed trees are rejected by valid-kind.
     KValue :: Json -> Kind
+
+  data ArrowUsage where
+    UsageZero :: ArrowUsage
+    UsageOne :: ArrowUsage
+    UsageAffine :: ArrowUsage
+    UsageMany :: ArrowUsage
 
   data UType where
     UPropLit :: Bool -> UType
@@ -89,6 +96,9 @@ module Bootstrap.Type where
     UApp :: UType -> UType -> UType
     UFun :: UType -> UType -> UType
     UFunEff :: UType -> UType -> UType -> UType
+    -- Usage annotates a single computational arrow, preserving its row and
+    -- any dependent binder. The enclosed arrow must be unannotated.
+    UUsageArrow :: ArrowUsage -> UType -> UType
     -- The domain is a proposition, not a runtime carrier. Applying an
     -- erased argument still performs the call and its latent effects.
     UProofFun :: UType -> UType -> UType -> UType
@@ -98,6 +108,36 @@ module Bootstrap.Type where
     UArg :: UType -> UType -> UType
     UEnd :: UType
     UError :: UType
+
+  parse-arrow-usage :: String -> Option ArrowUsage
+  parse-arrow-usage text =
+    if same-tag text "%0" then Some UsageZero
+    else if same-tag text "%1" then Some UsageOne
+    else if same-tag text "%aff" then Some UsageAffine
+    else if same-tag text "%many" then Some UsageMany
+    else None
+
+  arrow-usage-text :: ArrowUsage -> String
+  arrow-usage-text usage = case usage of
+    UsageZero -> "%0"
+    UsageOne -> "%1"
+    UsageAffine -> "%aff"
+    UsageMany -> "%many"
+
+  same-arrow-usage :: ArrowUsage -> ArrowUsage -> Bool
+  same-arrow-usage first second = case (first, second) of
+    (UsageZero, UsageZero) -> True
+    (UsageOne, UsageOne) -> True
+    (UsageAffine, UsageAffine) -> True
+    (UsageMany, UsageMany) -> True
+    other -> False
+
+  computational-arrow :: UType -> Bool
+  computational-arrow ty = case ty of
+    UFun a b -> True
+    UFunEff a row b -> True
+    UPi id name domain row result -> True
+    other -> False
 
   value-kind :: UType -> Kind
   value-kind carrier = KValue (carrier-tree carrier)
@@ -145,6 +185,7 @@ module Bootstrap.Type where
     UApp f x -> tree "app" [carrier-tree f, carrier-tree x]
     UFun a b -> tree "fun" [carrier-tree a, carrier-tree b]
     UFunEff a row b -> tree "effect-fun" [carrier-tree a, carrier-tree row, carrier-tree b]
+    UUsageArrow usage arrow -> tree "usage-fun" [JStr (arrow-usage-text usage), carrier-tree arrow]
     UProofFun a row b -> tree "proof-fun" [carrier-tree a, carrier-tree row, carrier-tree b]
     URow labels -> tree "row" [carrier-tree labels]
     URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
@@ -184,6 +225,11 @@ module Bootstrap.Type where
       if same-tag tag "con" then (case (a, read-kind-tree b) of (JStr name, Some kind) -> Some (UCon name kind); other -> None)
       else if same-tag tag "meta" then (case (tree-natural a, read-kind-tree b) of (Some id, Some kind) -> Some (UMeta id kind); other -> None)
       else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
+      else if same-tag tag "usage-fun" then (case (a, read-carrier-tree b) of
+        (JStr marker, Some arrow) -> case parse-arrow-usage marker of
+          Some usage -> if computational-arrow arrow then Some (UUsageArrow usage arrow) else None
+          None -> None
+        other -> None)
       else case (read-carrier-tree a, read-carrier-tree b) of
         (Some left, Some right) -> if same-tag tag "app" then Some (UApp left right) else if same-tag tag "fun" then Some (UFun left right)
           else if same-tag tag "index-list" then Some (UIndexList left right)
@@ -257,6 +303,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (opaque-carrier f) (opaque-carrier x)
     UFun a b -> UFun (opaque-carrier a) (opaque-carrier b)
     UFunEff a row b -> UFunEff (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
+    UUsageArrow usage arrow -> UUsageArrow usage (opaque-carrier arrow)
     UProofFun a row b -> UProofFun (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
     URow labels -> URow (opaque-carrier labels)
     URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
@@ -307,6 +354,7 @@ module Bootstrap.Type where
     UApp f x -> carrier-node f && carrier-node x
     UFun a b -> carrier-type a && carrier-type b
     UFunEff a row b -> carrier-type a && carrier-node row && carrier-type b
+    UUsageArrow usage arrow -> computational-arrow arrow && carrier-type arrow
     UProofFun predicate row result -> carrier-node predicate && carrier-node row && carrier-type result
     URow labels -> carrier-spine labels False
     URowJoin a b -> carrier-node a && carrier-node b
@@ -486,6 +534,7 @@ module Bootstrap.Type where
     UApp f x -> type-application (normalize st f) (normalize st x)
     UFun a b -> UFun (normalize st a) (normalize st b)
     UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
+    UUsageArrow usage arrow -> UUsageArrow usage (normalize st arrow)
     UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
     URow labels -> URow (unique-effects (normalize st labels))
     URowJoin a b -> union-effects (normalize st a) (normalize st b)
@@ -631,6 +680,7 @@ module Bootstrap.Type where
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
+    UUsageArrow usage arrow -> computational-arrow arrow && valid-type arrow
     UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
     URow labels -> valid-effects labels
     URowJoin a b -> valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow
@@ -698,6 +748,11 @@ module Bootstrap.Type where
     UApp f x -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
     UFun a b -> string-concat-all ["(", type-text a, " -> ", type-text b, ")"]
     UFunEff a row b -> string-concat-all ["(", type-text a, " ->", type-text row, " ", type-text b, ")"]
+    UUsageArrow usage arrow -> let marker = arrow-usage-text usage in case arrow of
+      UFun a b -> string-concat-all ["(", type-text a, " ", marker, " -> ", type-text b, ")"]
+      UFunEff a row b -> string-concat-all ["(", type-text a, " ", marker, " ->", type-text row, " ", type-text b, ")"]
+      UPi id name domain row result -> string-concat-all ["((", name, " :: ", type-text domain, ") ", marker, " ->", type-text row, " ", type-text result, ")"]
+      other -> "<invalid usage-annotated arrow>"
     UProofFun predicate row result -> string-concat-all ["(erased ", type-text predicate, " ->", type-text row, " ", type-text result, ")"]
     URow labels -> string-concat-all ["{", type-text labels, "}"]
     URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
@@ -740,6 +795,7 @@ module Bootstrap.Type where
     UApp f x -> merge-ids (free-metas st f) (free-metas st x)
     UFun a b -> merge-ids (free-metas st a) (free-metas st b)
     UFunEff a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
+    UUsageArrow usage arrow -> free-metas st arrow
     UProofFun a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
     URow labels -> free-metas st labels
     URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
@@ -789,6 +845,7 @@ module Bootstrap.Type where
     UApp f x -> escapes level f || escapes level x
     UFun a b -> escapes level a || escapes level b
     UFunEff a row b -> escapes level a || escapes level row || escapes level b
+    UUsageArrow usage arrow -> escapes level arrow
     UProofFun a row b -> escapes level a || escapes level row || escapes level b
     URow labels -> escapes level labels
     URowJoin a b -> escapes level a || escapes level b
@@ -916,6 +973,9 @@ module Bootstrap.Type where
       UFunEff u effects v -> unify sp y v (unify sp x u (unify sp row effects st))
       UApp f result -> unify-pure-arrow-application sp b (UFun x y) row st
       other -> mismatch sp a b st
+    UUsageArrow usage arrow -> case b of
+      UUsageArrow other-usage other-arrow -> if same-arrow-usage usage other-usage then unify sp arrow other-arrow st else mismatch sp a b st
+      other -> mismatch sp a b st
     UProofFun predicate row result -> case b of
       UProofFun condition effects output -> unify sp result output (unify sp row effects (unify sp predicate condition st))
       other -> mismatch sp a b st
@@ -977,6 +1037,7 @@ module Bootstrap.Type where
     (UApp f x, UApp g y) -> same-shape f g && same-shape x y
     (UFun a b, UFun c d) -> same-shape a c && same-shape b d
     (UFunEff a e b, UFunEff c f d) -> same-shape a c && same-shape e f && same-shape b d
+    (UUsageArrow first a, UUsageArrow second b) -> same-arrow-usage first second && same-shape a b
     (UProofFun a e b, UProofFun c f d) -> same-shape a c && same-shape e f && same-shape b d
     (URow a, URow b) -> same-shape a b
     (URowJoin a b, URowJoin c d) -> same-shape a c && same-shape b d
@@ -1078,6 +1139,7 @@ module Bootstrap.Type where
     UApp f x -> type-application (substitute pairs f) (substitute pairs x)
     UFun a b -> UFun (substitute pairs a) (substitute pairs b)
     UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
+    UUsageArrow usage arrow -> UUsageArrow usage (substitute pairs arrow)
     UProofFun a row b -> UProofFun (substitute pairs a) (substitute pairs row) (substitute pairs b)
     URow labels -> URow (substitute pairs labels)
     URowJoin a b -> union-effects (substitute pairs a) (substitute pairs b)
@@ -1137,6 +1199,7 @@ module Bootstrap.Type where
     UApp f x -> type-application (replace-metas pairs f) (replace-metas pairs x)
     UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
     UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
+    UUsageArrow usage arrow -> UUsageArrow usage (replace-metas pairs arrow)
     UProofFun a row b -> UProofFun (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
     URow labels -> URow (replace-metas pairs labels)
     URowJoin a b -> union-effects (replace-metas pairs a) (replace-metas pairs b)
@@ -1206,8 +1269,14 @@ module Bootstrap.Type where
   scheme-arity :: Scheme -> Nat
   scheme-arity sc = arrow-count (scheme-body sc)
   arrow-count :: UType -> Nat
-  arrow-count ty = case ty of UPi id name domain row result -> 1 + arrow-count result; UFun a b -> 1 + arrow-count b; UFunEff a row b -> 1 + arrow-count b; UProofFun predicate row result -> 1 + arrow-count result; other -> 0
-  -- Source arity retains proof binders. Runtime arity drops those slots;
+  arrow-count ty = case ty of
+    UPi id name domain row result -> 1 + arrow-count result
+    UFun a b -> 1 + arrow-count b
+    UFunEff a row b -> 1 + arrow-count b
+    UUsageArrow usage arrow -> arrow-count arrow
+    UProofFun predicate row result -> 1 + arrow-count result
+    other -> 0
+  -- Source arity retains all binders. Runtime arity drops erased slots;
   -- this count alone is not permission to remove an effectful call.
   scheme-runtime-arity :: Scheme -> Nat
   scheme-runtime-arity sc = runtime-arrow-count (scheme-body sc)
@@ -1216,6 +1285,12 @@ module Bootstrap.Type where
     UPi id name domain row result -> 1 + runtime-arrow-count result
     UFun a b -> 1 + runtime-arrow-count b
     UFunEff a row b -> 1 + runtime-arrow-count b
+    UUsageArrow UsageZero arrow -> case arrow of
+      UFun domain result -> runtime-arrow-count result
+      UFunEff domain row result -> runtime-arrow-count result
+      UPi id name domain row result -> runtime-arrow-count result
+      other -> 0
+    UUsageArrow usage arrow -> runtime-arrow-count arrow
     UProofFun predicate row result -> runtime-arrow-count result
     other -> 0
 
@@ -1462,6 +1537,8 @@ module Bootstrap.Type where
     UApp a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UFun a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UFunEff a row b -> validate-type-indices sp b (validate-type-indices sp row (validate-type-indices sp a st))
+    UUsageArrow usage arrow -> if computational-arrow arrow then validate-type-indices sp arrow st
+      else add-error sp "usage annotation requires a computational arrow" st
     UProofFun predicate row result -> if valid-type ty then validate-type-indices sp result (validate-type-indices sp row (validate-type-indices sp predicate st)) else add-error sp "ill-formed erased proof arrow" st
     URow labels -> validate-type-indices sp labels st
     URowJoin a b -> validate-type-indices sp b (validate-type-indices sp a st)
@@ -1571,6 +1648,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UFun a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UFunEff a row b -> merge-ids (type-all-ids a) (merge-ids (type-all-ids row) (type-all-ids b))
+    UUsageArrow usage arrow -> type-all-ids arrow
     UProofFun a row b -> merge-ids (type-all-ids a) (merge-ids (type-all-ids row) (type-all-ids b))
     URow labels -> type-all-ids labels
     URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
@@ -1613,6 +1691,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UFun a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UFunEff a row b -> merge-ids (type-free-bound a) (merge-ids (type-free-bound row) (type-free-bound b))
+    UUsageArrow usage arrow -> type-free-bound arrow
     UProofFun a row b -> merge-ids (type-free-bound a) (merge-ids (type-free-bound row) (type-free-bound b))
     URow labels -> type-free-bound labels
     URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
@@ -1769,6 +1848,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UFun a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UFunEff a row b -> merge-ids (type-pi-ids a) (merge-ids (type-pi-ids row) (type-pi-ids b))
+    UUsageArrow usage arrow -> type-pi-ids arrow
     UProofFun a row b -> merge-ids (type-pi-ids a) (merge-ids (type-pi-ids row) (type-pi-ids b))
     URow labels -> type-pi-ids labels
     URowJoin a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
@@ -1793,6 +1873,7 @@ module Bootstrap.Type where
   pi-dependent :: UType -> Bool
   pi-dependent ty = case ty of
     UPi id name domain row result -> contains-id id (merge-ids (type-free-bound row) (type-free-bound result))
+    UUsageArrow usage arrow -> pi-dependent arrow
     other -> False
 
   -- Core compares contracts after lexical scope checking; binder levels are
@@ -1819,6 +1900,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (without-index-levels f) (without-index-levels x)
     UFun a b -> UFun (without-index-levels a) (without-index-levels b)
     UFunEff a row b -> UFunEff (without-index-levels a) (without-index-levels row) (without-index-levels b)
+    UUsageArrow usage arrow -> UUsageArrow usage (without-index-levels arrow)
     UProofFun a row b -> UProofFun (without-index-levels a) (without-index-levels row) (without-index-levels b)
     URow labels -> URow (without-index-levels labels)
     URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)

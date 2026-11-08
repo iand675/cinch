@@ -927,6 +927,7 @@ module Bootstrap.Core where
     UApp f x -> UApp (freeze f) (freeze x)
     UFun a b -> UFun (freeze a) (freeze b)
     UFunEff a row b -> UFunEff (freeze a) (freeze row) (freeze b)
+    UUsageArrow usage arrow -> UUsageArrow usage (freeze arrow)
     UProofFun a row b -> UProofFun (freeze a) (freeze row) (freeze b)
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
@@ -965,6 +966,7 @@ module Bootstrap.Core where
     UApp f x -> type-metas st f <> type-metas st x
     UFun a b -> type-metas st a <> type-metas st b
     UFunEff a row b -> type-metas st a <> type-metas st row <> type-metas st b
+    UUsageArrow usage arrow -> type-metas st arrow
     UProofFun a row b -> type-metas st a <> type-metas st row <> type-metas st b
     URow labels -> type-metas st labels
     URowJoin a b -> type-metas st a <> type-metas st b
@@ -1108,6 +1110,8 @@ module Bootstrap.Core where
     UApp f x -> closed-type f && closed-type x
     UFun a b -> closed-type a && closed-type b
     UFunEff a row b -> closed-type a && closed-type row && closed-type b
+    -- Admit this type to executable Core only once ownership is checked.
+    UUsageArrow usage arrow -> False
     UProofFun a row b -> valid-type ty && closed-type a && closed-type row && closed-type b
     URow labels -> closed-type labels
     URowJoin a b -> closed-type a && closed-type b

@@ -300,6 +300,7 @@ module Bootstrap.ExportType where
       join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]
     UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
     UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
+    UUsageArrow usage arrow -> Err "usage-annotated arrows require ownership checking before export"
     UProofFun predicate row result -> if valid-type ty then
       join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
       else Err "malformed erased proof arrow in interface"
