@@ -20402,8 +20402,8 @@
         "title": "Check source-only task forwarders and interface exports",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with source-only task forwarders",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. forwarded-bytes-capture",
+        "passed": 1,
         "total": 7,
         "failed": 0,
         "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d"
@@ -20452,5 +20452,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:07:36.220261+00:00"
+  "updatedAt": "2026-11-08T18:09:21.307114+00:00"
 }
