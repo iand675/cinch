@@ -421,7 +421,12 @@ fn manifest_error(path: &Path, detail: impl std::fmt::Display) -> Error {
 /// recorded object content hash must also match the bytes on disk, so a
 /// stale manifest never describes newer code.
 fn read_package_abi(object: &Path) -> Result<PackageAbi> {
-    let manifest_path = package_abi_path(object);
+    let execution = object
+        .parent()
+        .map(|parent| parent.join("build").join("package.cinchif"));
+    let manifest_path = execution
+        .filter(|path| path.exists())
+        .unwrap_or_else(|| package_abi_path(object));
     let text =
         std::fs::read_to_string(&manifest_path).map_err(|e| manifest_error(&manifest_path, e))?;
     let parsed = parse_json(&text).map_err(|e| manifest_error(&manifest_path, e))?;
