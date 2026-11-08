@@ -815,6 +815,8 @@ module Bootstrap.Core where
   opaque-symbol-writes sp name role =
     if string-compare name (interface-global "Data.Bytes.bytes-len") == 0 || string-compare name (interface-global "Data.Bytes.bytes-get") == 0 then Nil
     else if string-compare role "foreign" == 0 || string-compare name "b.eval" == 0
+      || (string-compare role "intrinsic" == 0 && (string-compare name "cinch.runtime.bytesSet" == 0
+        || string-compare name "cinch.runtime.bytesCopy" == 0 || string-compare name "cinch.runtime.bytesNew" == 0))
       || string-compare name (interface-global "Data.Bytes.bytes-set") == 0
       || string-compare name (interface-global "Data.Bytes.bytes-copy-range") == 0
       || string-compare name (interface-global "Data.Bytes.bytes-new") == 0 then [(sp, None)] else Nil
