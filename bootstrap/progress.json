@@ -17934,7 +17934,7 @@
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "clean-native-build",
+        "phase": "integration",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -17963,11 +17963,11 @@
         "title": "Run all 236 Rust targets on the preceding Rust memo revision",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 13,
+        "passed": 18,
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "bootstrap_pipeline",
+        "phase": "arrays",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20793,5 +20793,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:59:32.461314+00:00"
+  "updatedAt": "2026-11-08T22:00:35.372617+00:00"
 }
