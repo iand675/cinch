@@ -21004,8 +21004,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_boolean_branches",
-        "passed": 19,
+        "phase": "Bootstrap_buffer_aliases",
+        "passed": 20,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21087,9 +21087,9 @@
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
-        "status": "running",
-        "phase": "Checking the worker signature, curried calls, shared closure captures, and effect preservation.",
-        "passed": 0,
+        "status": "passed",
+        "phase": "The Rust ownership target passed the focused erased-argument regressions.",
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "unit": "target",
@@ -21184,5 +21184,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:31:20.283143+00:00"
+  "updatedAt": "2026-11-08T15:32:23.150793+00:00"
 }
