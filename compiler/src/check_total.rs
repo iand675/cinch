@@ -333,6 +333,10 @@ fn ordering_if(term: &ECore) -> Option<(&ECore, &ECore, &ECore)> {
 }
 
 fn ordering_constructor(term: &ECore, identity: &str) -> bool {
+    let term = match term {
+        ECore::App(constructor, arguments) if arguments.is_empty() => &**constructor,
+        other => other,
+    };
     matches!(term, ECore::Ctor(id, actuals) if id.0 == identity && actuals.is_empty())
 }
 
