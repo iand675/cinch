@@ -20053,8 +20053,8 @@
       {
         "title": "Transfer the owned parameter through erased unrefine",
         "status": "running",
-        "phase": "wrong-static-witness",
-        "passed": 4,
+        "phase": "false-static-list",
+        "passed": 6,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
@@ -20151,5 +20151,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:12:16.918293+00:00"
+  "updatedAt": "2026-11-08T01:13:18.738781+00:00"
 }
