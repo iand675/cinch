@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "0/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 25/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "1/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 25/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -17926,11 +17926,11 @@
         "title": "Run all 105 Stage 3 targets on the published compiler",
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
         "unit": "targets",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 105,
         "status": "running",
-        "phase": "bootstrap_load",
+        "phase": "bootstrap_nominals",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
@@ -20624,5 +20624,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:48:53.767932+00:00"
+  "updatedAt": "2026-11-08T19:53:18.470189+00:00"
 }
