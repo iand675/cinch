@@ -20208,13 +20208,13 @@
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
         "status": "running",
-        "phase": "Checking the fixed point and changed-source rebuild.",
+        "phase": "The ladder passed and the independent audit is pending.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "4a3a72968db350d25636cdb280880d7d00e03e24063788a0dbb1912d55f2e366",
-        "auditPending": false,
+        "auditPending": true,
         "evidence": null
       },
       {
@@ -20461,5 +20461,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:03:18.169830+00:00"
+  "updatedAt": "2026-11-08T03:04:20.181159+00:00"
 }
