@@ -25,6 +25,17 @@ interfaces, the separate client and the changed-source rebuild. This
 candidate still needs its matching complete suites.
 See [the combined candidate audit](../bootstrap/current-schema10-integrated-compiled-clients-bootstrap-results.json).
 
+The development compiler with the erased refinement and direct CLI repairs
+(`215d93eb`) also passed the independent fixed-point audit. Its Stage2 and
+Stage3 executables, LLVM IR and 46 interfaces match. The separate client
+and changed-source rebuild passed on the same inputs.
+See [the integrated audit](../bootstrap/current-schema10-integrated-erasure-bootstrap-results.json).
+
+The complete proof-interface target passed all four original cases in Rust
+and through the exact published Stage3. The portable round trips use
+Cinch-emitted interfaces and retain the original Rust Core assertions.
+See [the proof-interface audit](../bootstrap/current-schema10-published-proof-arrow-dispatch-results.json).
+
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and
@@ -34,9 +45,9 @@ See [the byte-observation audit](../bootstrap/current-schema10-total-byte-observ
 
 The current published Rust snapshot passed 205 compiler unit tests and
 171 runtime tests with ignored cases included. The current tooling suite
-passed 46 tests. The fixed-point command now also requires identical
-Stage2 and Stage3 executables. The original integration targets and the
-final Stage3 suite remain separate.
+passed 48 tests. The fixed-point command requires identical Stage2 and
+Stage3 executables. The frozen verification command also requires passing
+results and matching compiler receipts for the preserved Stage3 suite.
 See [the Rust, runtime and tooling audit](../bootstrap/current-schema10-published-native-core-results.json).
 
 The current syntax engine passed all 20 of its original cases. The full

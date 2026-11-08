@@ -103,7 +103,21 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let (program, interfaces) = cinch::driver::check_sources_ifaces(source, "portable-proof-contracts.cinch").unwrap();
+    let (program, native_interfaces) = cinch::driver::check_sources_ifaces(source, "portable-proof-contracts.cinch").unwrap();
+    let selected = common::external_frontend::configured().expect("frontend selection").is_some();
+    let interfaces = if selected {
+        let dir = common::project("portable_proof_contracts", &[("Main.cinch", source)]);
+        common::check(&dir, "Main.cinch").expect("emit the selected compiler's proof contracts");
+        let interfaces = std::fs::read_dir(dir.join("build")).unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().is_some_and(|suffix| suffix == "cinchif"))
+            .map(|path| Iface::from_json(&std::fs::read_to_string(path).unwrap()).unwrap())
+            .collect::<Vec<_>>();
+        common::cleanup(&dir);
+        interfaces
+    } else {
+        native_interfaces
+    };
     cinch::interface::verify_chain(&interfaces).expect("checked proof contract dependency chain");
     let evidence = interfaces.iter().find(|iface| iface.module == "Evidence").unwrap();
     assert_eq!(Iface::from_json(&evidence.to_json()).unwrap(), *evidence);
@@ -120,13 +134,20 @@ module Main where
             let readback = format!("module Main where\n  probe :: {}\n  probe h = {body}\n  main :: Int\n  main = 0\n", resolved.scheme);
             cinch::driver::check_sources(&readback, "proof-contract-readback.cinch")
                 .unwrap_or_else(|error| panic!("unreadable {name}: {}: {error:?}", resolved.scheme));
+            if selected {
+                let dir = common::project("proof_contract_readback", &[("Main.cinch", &readback)]);
+                common::check(&dir, "Main.cinch").unwrap_or_else(|error| {
+                    panic!("selected compiler cannot read {name}: {}: {error}", resolved.scheme)
+                });
+                common::cleanup(&dir);
+            }
         }
         if name == "effectful" {
             assert!(resolved.scheme.contains("r :: Region") && resolved.scheme.contains("io :: Io r")
                 && resolved.scheme.contains("->{IO r}"), "{}", resolved.scheme);
         }
-        // Interface arity counts source arrows and dictionaries. Actual
-        // checked Core omits the erased proof argument's runtime slot.
+        // Both interface producers count source arrows and dictionaries.
+        // Native Core separately checks the erased runtime slots.
         let runtime = program.fns.iter().find(|f| f.id.0 == value.symbol).unwrap();
         let dictionaries = if name == "effectful" { 1 } else { 0 };
         assert_eq!(value.arity, 1 + dictionaries);

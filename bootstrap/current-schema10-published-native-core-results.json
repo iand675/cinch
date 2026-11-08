@@ -1693,7 +1693,15 @@
           "status": "passed"
         },
         {
+          "name": "test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
           "name": "test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
           "status": "passed"
         },
         {
@@ -1713,10 +1721,10 @@
           "status": "passed"
         }
       ],
-      "log_sha256": "0bce653a011f445c012cf4eeb1fa0c68d99fdd049d3627ef603f21442daaa769",
+      "log_sha256": "2c8e2e6a22b860ba94c483484bcc972ac2f586b99856eb5237fb746425ab74f1",
       "name": "tooling",
       "status": "passed",
-      "tests": 46
+      "tests": 48
     }
   ],
   "runtime_archives": {
@@ -1730,7 +1738,7 @@
     "tooling/README.md": "bbb6579c66fd7335b458965c2c7b660c428f7e9f579ae238e76f5f272cc359a1",
     "tooling/bootstrap.py": "97953db46c950e20cdf897b564d8486b1f4349f36a3f99b59fa64f759bba7f6d",
     "tooling/bootstrap.sh": "6f4b7011cb7759c6825c2b4c056f30f5957804cc1819f3e09201dedbef1d42dc",
-    "tooling/bootstrap_checklist.py": "9f876157895d2fa2100e1801773daaed0c617162050d91072f89a779ed10c495",
+    "tooling/bootstrap_checklist.py": "4aae13ca65ed0ae8d7499242d979596f2dd870fb23e660eceae1931f32d1a44b",
     "tooling/bootstrap_interfaces.py": "20ab0eb9aff01ad89ed830c416b54f3aae6d266827b48cfa862ee49788bc8de2",
     "tooling/bootstrap_objects.py": "cde8729bbf0cbdb8523e56610d043b80eed494c158edd9f7575e9f84b2bc0a08",
     "tooling/check-grammar-drift.sh": "f6f9b923de09fc23d8c73e1cf75c47d95d963d59d35d4b44f45a8e330c40efaf",
@@ -1755,7 +1763,7 @@
     "tooling/tests/test_bootstrap.py": "059222ede7afeab7e4124371e67fdedfbe328662ca97c495832dd599389459a9",
     "tooling/tests/test_bootstrap_interfaces.py": "3591fc4705ad922241698471df0b5d173521126cc150f79e51b97e78e3e67093",
     "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054",
-    "tooling/tests/test_verify_bootstrap.py": "518e4b9d7b8742a451fc89ffca9e3fe8e0fba86dcab45845c5dd3b7d215f0961",
+    "tooling/tests/test_verify_bootstrap.py": "b3e22f965079f36e6221ea3c4c2ac50c77b7267a5436a400da5123ed04cd34bb",
     "tooling/tests/test_verify_malleable.py": "1fd6c91a87e43ca302a0a43f53902fc758d0efb18039615f97914e36d048aaed",
     "tooling/tree-sitter-cinch/.gitignore": "8ce08d40d1b347edf46eb176c1ec5c51370dfc914cadcb0159b74cb00212d6d9",
     "tooling/tree-sitter-cinch/corpus/declarations.txt": "297beed73343504a04b8a9dbfc5ed793e66841e990901c78ec41b507440e49b2",
@@ -1767,7 +1775,8 @@
     "tooling/tree-sitter-cinch/grammar.js": "9c19a705ac3afddf91f3d57c6f9d8397e62c80ddbc9f106e224068d5896248b1",
     "tooling/tree-sitter-cinch/src/scanner.c": "38428e00073669cd7d2a5afb54090b131b79acab75ac266c45e00911eb264ad8",
     "tooling/tree-sitter-cinch/tree-sitter.json": "715bd4eb56e73f9b99b6b211cdf9a511ec238e739955d63b3e918f7a13a519ad",
-    "tooling/verify_bootstrap.py": "11448e8b99da8c73414147f1765cd1ad90ca21e37fc9f7b4a9a503c7109346fe",
-    "tooling/verify_malleable.py": "3bbcc36c7a7f7680a8fd70a74181b20393652df38fe5060200acba0ce2f26cf6"
+    "tooling/verify_bootstrap.py": "4c27119ebec59f39c73454c0f066d1665355c19f93eed5a55c4facbe56be9b93",
+    "tooling/verify_malleable.py": "3bbcc36c7a7f7680a8fd70a74181b20393652df38fe5060200acba0ce2f26cf6",
+    "tooling/verify_stage3.py": "564eb4d4b1f6c3140c9695303110a046854ce4310bca2dacae9b44fae46ddd90"
   }
 }

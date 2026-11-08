@@ -20,6 +20,12 @@
       "cases": {
         "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
       }
+    },
+    "bootstrap_interface": {
+      "source_sha256": "add409e6ec81f9aea1e1a40953179a50b3729ec214cdeed6537641541a030915",
+      "cases": {
+        "sha256_is_sha256": "Checks the Rust test helper against two standard SHA-256 vectors. The interface reader case separately requires the selected frontend."
+      }
     }
   },
   "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",

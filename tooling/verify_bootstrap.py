@@ -94,6 +94,8 @@ def gates(snapshot: Path, evidence: Path) -> list[tuple[str, Path, list[str]]]:
         ("stage0-smoke", snapshot, [sys.executable, "tooling/bootstrap.py", "smoke", "--stage", "0"]),
         ("stage1-smoke", snapshot, [sys.executable, "tooling/bootstrap.py", "smoke", "--stage", "1"]),
         ("self-hosting", snapshot, [sys.executable, "tooling/bootstrap.py", "check"]),
+        ("stage3-frontend", snapshot, [sys.executable, "tooling/verify_stage3.py", "--evidence", str(evidence / "stage3"),
+                                      "--cargo-target", str(evidence / "cargo/compiler")]),
     ]
 
 
@@ -116,6 +118,9 @@ def verify(source: Path, evidence: Path) -> int:
     # Never inherit a Cargo cache shared with the live checkout. Embedded
     # env!(CARGO_MANIFEST_DIR) paths survive Cargo's content reuse otherwise.
     env.pop("CARGO_TARGET_DIR", None)
+    for name in tuple(env):
+        if name.startswith("CINCH_TEST_"):
+            del env[name]
     results = []
     for name, cwd, command in gates(snapshot, evidence):
         audit(snapshot, manifest)
@@ -132,8 +137,8 @@ def verify(source: Path, evidence: Path) -> int:
         row.update(exit_code=code, status="passed" if code == 0 else "failed", finished=now())
         bootstrap.write_json(evidence / "results.json", results)
         print(f"{name}: {row['status']} (exit {code})", flush=True)
-        if name == "source-paths" and code != 0:
-            # Do not spend a full run on tests whose input paths are wrong.
+        if name in ("source-paths", "self-hosting") and code != 0:
+            # The following gates require the verified sources and a built Stage3.
             audit(snapshot, manifest)
             return 1
     audit(snapshot, manifest)

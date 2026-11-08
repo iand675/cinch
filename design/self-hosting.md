@@ -1833,6 +1833,11 @@ changed compiler and requires the new label in an actual refusal.
    self-built frontend too; passing the Rust library's unit tests alone
    does not establish frontend parity.
 
+The frozen verification command in `tooling/verify_bootstrap.py` runs the
+preserved portable targets through Stage3 after the fixed-point checks.
+Each passing source test needs a receipt for the selected compiler.
+Direct Rust assertions are recorded separately against their test source.
+
 Keep `CINCH_HEAP_LIMIT` positive and at most 2G throughout. Run gates on
 frozen snapshots, with no time limit, as `next-steps.md` requires.
 Use at most five heavy jobs across every snapshot and stage chain: four

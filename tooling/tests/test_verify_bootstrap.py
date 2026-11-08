@@ -3,10 +3,12 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import verify_bootstrap as verify
 import bootstrap_checklist as checklist
+import verify_stage3
 
 
 class FrozenVerification(unittest.TestCase):
@@ -125,6 +127,65 @@ class FrozenVerification(unittest.TestCase):
             self.assertEqual(len(self_hosting), 1)
             self.assertEqual(self_hosting[0][1], evidence / "source")
             self.assertEqual(self_hosting[0][2][-2:], ["tooling/bootstrap.py", "check"])
+            self.assertEqual(plan[-2], self_hosting[0])
+            self.assertEqual(plan[-1][0], "stage3-frontend")
+            self.assertEqual(plan[-1][2][-2:], ["--cargo-target", str(evidence / "cargo/compiler")])
+
+    def test_stage3_gate_requires_a_selected_invocation_in_every_portable_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "bootstrap").mkdir()
+            (root / "compiler/tests").mkdir(parents=True)
+            scope = dict(portable_targets=["portable"], interface_api_targets=["api"],
+                         original_targets=["portable"], new_targets_beyond_original=["api"], current_total_targets=2)
+            (root / "bootstrap/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            compiler, manifest, objects, runtime = (root / name for name in ("cinch", "interfaces", "objects", "runtime"))
+            for path in (compiler, manifest, objects, runtime):
+                path.write_text(path.name)
+            hashes = {path: checklist.digest(path) for path in (compiler, manifest, objects, runtime)}
+            called = []
+            record_api = False
+
+            def cargo(command, cwd, env, stdout, stderr):
+                target = command[command.index("--test") + 1]
+                called.append(target)
+                self.assertIn("--include-ignored", command)
+                self.assertEqual(env["CINCH_TEST_API_EMIT_INTERFACES"], "1" if target == "api" else "0")
+                self.assertEqual(env["CINCH_TEST_INTERFACES"], str(manifest))
+                wrapper = Path(env["CINCH_TEST_COMPILER"])
+                self.assertIn(f"compiler={str(compiler)!r}", wrapper.read_text().splitlines())
+                if target != "api" or record_api:
+                    receipts = Path(env["CINCH_TEST_INVOCATIONS"])
+                    receipts.mkdir(parents=True)
+                    (receipts / "case.json").write_text(json.dumps({
+                        "test": "actual_case", "invocation": {"compiler": str(wrapper), "interfaces": str(manifest)}}))
+                stdout.write(b"test actual_case ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n")
+                return type("Result", (), {"returncode": 0})()
+
+            with patch.object(verify.bootstrap, "ROOT", root), \
+                    patch.object(verify_stage3, "stage3_artifacts", return_value=(compiler, manifest, objects, runtime, hashes)), \
+                    patch.object(verify_stage3.subprocess, "run", side_effect=cargo):
+                self.assertEqual(verify_stage3.verify(root / "missing", root / "cargo"), 1)
+                record_api = True
+                self.assertEqual(verify_stage3.verify(root / "complete", root / "cargo"), 0)
+            self.assertEqual(called, ["portable", "api", "portable", "api"])
+
+    def test_stage3_adapter_links_the_library_and_runtime_from_its_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            compiler, manifest, objects, runtime, library, source, ir, exe, report = [
+                root / name for name in ("cinch", "interfaces.json", "objects.json", "runtime.a", "library.o",
+                                         "Main.cinch", "Main.ll", "program", "link-report")]
+            objects.write_text(json.dumps({"object": str(library)}))
+            args = ["--compile-only", "--interfaces", *(str(path) for path in (manifest, source, ir, exe, report))]
+            with patch.object(verify_stage3.subprocess, "call", return_value=0) as run, \
+                    patch.dict(verify_stage3.os.environ, {"CINCH_TEST_API_EMIT_INTERFACES": "0", "CINCH_CLANG": "clang"}):
+                self.assertEqual(verify_stage3.compile_client(str(compiler), str(objects), str(runtime), args), 0)
+            frontend, link = (call.args[0] for call in run.call_args_list)
+            self.assertEqual(frontend, [str(compiler), "--emit-ir", "--interfaces", manifest,
+                                        "--objects", str(objects), source, ir])
+            self.assertEqual(link[:6], ["clang", ir, str(library), str(runtime), "-o", exe])
+            self.assertEqual(report.read_text(), "clang-exit: 0\n")
 
     def test_existing_cache_directory_cannot_be_reused_as_fresh_evidence(self):
         with tempfile.TemporaryDirectory() as temp:

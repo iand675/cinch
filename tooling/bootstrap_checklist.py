@@ -193,8 +193,9 @@ def published_stage3_status(row, directory, interfaces_hash, native_assertions=N
     if not selected or selected | direct != names:
         return 'recheck', f'{len(selected & names)} of {len(names)} cases recorded a matching Cinch invocation. Remaining cases need a coverage review.'
     if direct:
+        selected_suffix = '' if len(selected) == 1 else 's'
         suffix = '' if len(direct) == 1 else 's'
-        return 'verified', (f'{len(selected)} cases passed with matching Stage3 invocations. '
+        return 'verified', (f'{len(selected)} case{selected_suffix} passed with matching Stage3 invocations. '
                             f'The same run passed {len(direct)} reviewed direct Rust API assertion{suffix}.')
     return 'verified', f'All {len(names)} original cases passed with matching Stage3 invocation receipts.'
 
