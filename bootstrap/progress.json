@@ -11940,10 +11940,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 26,
+          "verified": 28,
           "blocked": 3,
           "running": 4,
-          "pending": 64,
+          "pending": 62,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12381,21 +12381,21 @@
           {
             "id": "stage3:bootstrap_collections",
             "title": "bootstrap_collections",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_collections.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:24:03.623009+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:36:08.231861+00:00",
+              "exitCode": 0,
+              "logSha256": "644f7e6e3e2cb7064d2c6bc92524e0e9cf68c439da60e513b0fba38b6b257fe4",
               "cases": [
                 {
                   "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12491,18 +12491,27 @@
           {
             "id": "stage3:bootstrap_driver",
             "title": "bootstrap_driver",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:36:09.107331+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "driver_links_a_fixed_ir_module_and_reports_both_exit_codes",
+                  "status": "passed"
+                },
+                {
+                  "name": "driver_refuses_incomplete_arguments_with_its_named_exit_code",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12719,17 +12728,17 @@
           {
             "id": "stage3:bootstrap_guarded_calls",
             "title": "bootstrap_guarded_calls",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_calls.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:17:13.115307+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:35:38.792340+00:00",
+              "exitCode": 0,
+              "logSha256": "4b3aa3976381ddcba29a1a994e08b53554e734e02e319bb8764fda7b799be9d8",
               "cases": [
                 {
                   "name": "compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds",
@@ -12819,18 +12828,23 @@
           {
             "id": "stage3:bootstrap_infer",
             "title": "bootstrap_infer",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:35:40.297634+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "schemes_constructor_instantiation_and_scope_facts_are_checked_in_cinch",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20276,10 +20290,10 @@
       }
     ],
     "counts": {
-      "verified": 248,
+      "verified": 250,
       "blocked": 8,
       "running": 14,
-      "pending": 305,
+      "pending": 303,
       "recheck": 102
     },
     "total": 677,
@@ -20288,5 +20302,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:35:38.682829+00:00"
+  "updatedAt": "2026-11-08T02:36:41.032983+00:00"
 }
