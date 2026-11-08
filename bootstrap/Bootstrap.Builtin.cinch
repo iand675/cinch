@@ -8,7 +8,13 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, intrinsic-contract, array-plan, array-type-name
+  export builtin-bindings, builtin-declarations, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
+
+  nat-arithmetic-extern :: String -> Option String
+  nat-arithmetic-extern symbol =
+    if string-compare symbol "cinch.runtime.natAdd" == 0 then Some "cinch_nat_add"
+    else if string-compare symbol "cinch.runtime.natMul" == 0 then Some "cinch_nat_mul"
+    else None
 
   -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
@@ -30,9 +36,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     else if string-compare symbol "cinch.runtime.bytesNew" == 0 then Some ("Nat -> Bytes", "cinch_bytes_new")
-    else case array-plan symbol of
-      Some (operation, format, scheme) -> Some (scheme, array-extern operation)
-      None -> None
+    else case nat-arithmetic-extern symbol of
+      Some external -> Some ("Nat -> Nat -> Nat", external)
+      None -> case array-plan symbol of
+        Some (operation, format, scheme) -> Some (scheme, array-extern operation)
+        None -> None
 
   -- Visible spelling and canonical kernel identity. Runtime.newIO is the
   -- native compiler's qualified alias; other IO operations are unqualified.
