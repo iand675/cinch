@@ -20738,8 +20738,8 @@
       {
         "title": "Check erased record evidence and executable field layout",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to build Stage 1 with erased record evidence.",
+        "status": "superseded",
+        "phase": "Isolated Stage 1 candidate. All five source cases share the combined record object Stage 1 build.",
         "passed": 0,
         "total": 6,
         "failed": 0,
@@ -20760,12 +20760,12 @@
       {
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
-        "status": "failed",
-        "phase": "Isolated Stage 1 candidate. record-object",
-        "passed": 2,
-        "total": 13,
-        "failed": 1,
-        "source": "a14539b1de062bab15656ec933e1383c7e8a0220bf4f0cac7924746de44f5149",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. native-record-contracts",
+        "passed": 0,
+        "total": 18,
+        "failed": 0,
+        "source": "c6320f4be12e902cc25ec25b146a12163d6e35b1905ddeeddd200847d8b4b68c",
         "evidence": null
       },
       {
@@ -20793,9 +20793,9 @@
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
-        "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. codata (10 original tests)",
-        "passed": 6,
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to codata (10 original tests).",
+        "passed": 16,
         "total": 74,
         "failed": 0,
         "source": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:31:46.999457+00:00"
+  "updatedAt": "2026-11-08T22:32:49.526233+00:00"
 }
