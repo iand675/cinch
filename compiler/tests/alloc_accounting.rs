@@ -321,11 +321,7 @@ fn normal_program_is_quiet_under_the_guarded_cap() {
     let (dir, exe) = built("alloc_quiet", LIST_1000);
     // The runtime unit tests check the unset/invalid default-setting rule.
     // Every generated program keeps an explicit guard, even this small one.
-    let out = Command::new(&exe)
-        .env("CINCH_HEAP_LIMIT", "256M")
-        .env_remove("CINCH_ALLOC_STATS")
-        .output()
-        .expect("spawn program");
+    let out = run_with(&exe, &[]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(out.stderr.is_empty());
     common::cleanup(&dir);
