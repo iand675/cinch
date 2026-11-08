@@ -20993,8 +20993,8 @@
       },
       {
         "title": "Run the complete ABI 7 Native suite",
-        "status": "waiting-disk-space",
-        "phase": "Waiting for enough free disk space to run the next target.",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared worker to run the next target.",
         "passed": 0,
         "failed": 0,
         "total": 236,
@@ -21036,5 +21036,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:51:16.678205+00:00"
+  "updatedAt": "2026-11-08T09:53:19.240094+00:00"
 }
