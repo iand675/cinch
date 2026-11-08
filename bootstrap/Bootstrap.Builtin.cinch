@@ -115,14 +115,14 @@ module Bootstrap.Builtin where
     , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
     ]
 
-  -- ABI6 primitive type identities never come from source declarations.
+  -- Array, Tensor and Columnar are primitive starting with ABI 6.
   array-type-name :: String -> Bool
-  array-type-name name = runtime-abi-int == 6 && (string-compare name "Array" == 0 || string-compare name "Tensor" == 0 || string-compare name "Columnar" == 0)
+  array-type-name name = runtime-abi-int >= 6 && (string-compare name "Array" == 0 || string-compare name "Tensor" == 0 || string-compare name "Columnar" == 0)
 
   -- Operation, packed format (zero means the actual element class), canonical scheme.
   -- Packed widths are the supported 64-bit bootstrap target's physical scalar widths.
   array-plan :: String -> Option (Nat, Nat, String)
-  array-plan symbol = if runtime-abi-int /= 6 then None else
+  array-plan symbol = if runtime-abi-int < 6 then None else
     if string-compare symbol "cinch.runtime.arrayFromList" == 0 then Some (0, 0, "forall a. List a -> Array a")
     else if string-compare symbol "cinch.runtime.arrayReplicate" == 0 then Some (1, 0, "forall a. Nat -> a -> Array a")
     else if string-compare symbol "cinch.runtime.arrayLen" == 0 then Some (2, 0, "forall a. Array a -> Nat")
