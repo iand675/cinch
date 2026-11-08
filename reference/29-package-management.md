@@ -1,6 +1,6 @@
 # Packages, manifests, and the registry
 
-<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg add` installs one public release from the registry prototype into a project.** It fetches the bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. It also walks registry dependencies using exact versions or caret ranges. Full range intersection, path/git dependencies, private-registry auth, publishing, and SLSA verification are still not implemented.
+<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg` installs, publishes, and verifies releases from the registry prototype.** `cinch pkg add` fetches a bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. It walks registry dependencies with exact versions and semver ranges, accepts bearer tokens for private packages, and checks conflicts against an already selected version. `cinch pkg publish` uploads a project `.cinchpkg` and its module files with the same token; `cinch pkg verify` rechecks lock identity, object hash, and interface files locally. Full backtracking resolution, path/git dependencies, and SLSA verification are still not implemented.
 
 This chapter separates three things that are easy to confuse:
 
@@ -12,14 +12,17 @@ The [package management design](../design/package-management.md) is the full des
 
 # Current compiler behavior
 
-Packages are currently a source distribution plus a single-release install path. Dependency ranges and resolution are not implemented.
+Packages are currently a source distribution plus a deterministic single-version install path. The client resolves exact versions and semver ranges from registry metadata; it does not backtrack when a later constraint would require selecting a different version.
 
 - A project imports module names. The compiler resolves imports against already loaded modules, source files below the entry (including installed packages), and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
-- `cinch pkg add NAME@VERSION --registry URL` fetches one public release from the registry prototype. It recursively installs registry dependencies using exact versions or caret ranges, writes each release under `vendor/<namespace>/<name>/<version>/`, verifies its identity, checks its sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records every release in `.cinchlock`.
+- `cinch pkg add NAME@VERSION --registry URL` fetches one release from the registry prototype. It recursively installs registry dependencies using exact versions or semver ranges, writes each release under `vendor/<namespace>/<name>/<version>/`, verifies its identity, checks its sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records every release in `.cinchlock`.
+- `--token` or `CINCH_REGISTRY_TOKEN` authenticates metadata and bundle reads for private packages. The token is not written to `.cinchlock`.
+- `cinch pkg publish --registry URL --project DIR --token TOKEN [--visibility public|private]` reads `.cinchpkg` and the module files, computes the release identity, and uploads the bundle. The registry still authorizes the namespace and visibility.
+- `cinch pkg verify --project DIR` checks every lock entry against its installed `.cinchpkg`, source files, object hash, and interface files. It is a local integrity check, not provenance.
 - Installed packages are importable by ordinary project source once the vendor tree is present. The source loader indexes the vendor tree recursively.
 - `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
 - The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
-- There is still no range resolver, dependency graph closure, private-registry authentication, publishing command, or provenance verification. An unsupported command prints usage and exits 2.
+- There is still no backtracking resolver, path/git dependency source, provenance verification, or package-object consumption by project builds. An unsupported command prints usage and exits 2.
 
 | Surface | Current status |
 | --- | --- |
@@ -28,12 +31,13 @@ Packages are currently a source distribution plus a single-release install path.
 | Verified local interface/artifact store | Available |
 | `CINCH_STORE` and `--rebuild` | Available |
 | Project `.cinchpkg` loading through the CLI | Not implemented |
-| Public registry install with `cinch pkg add` | Available for one release |
+| Public and private registry install with `cinch pkg add` | Available for one resolved release |
 | Vendored source install and package object/interface generation | Available |
-| Registry dependency closure with exact/caret ranges | Available for public registry dependencies |
-| Full range intersection and path/git dependencies | Not implemented |
-| Private package authentication | Not implemented |
-| Publishing, provenance, and SLSA verification | Not implemented |
+| Registry dependency closure with exact and semver ranges | Available with selected-version conflict checks |
+| Local lock and artifact verification with `cinch pkg verify` | Available |
+| Publishing with `cinch pkg publish` | Available for authorized namespaces |
+| Backtracking resolution and path/git dependencies | Not implemented |
+| Provenance and SLSA verification | Not implemented |
 | Registry HTTP prototype | Runnable in `registry/` |
 
 # Manifest format
@@ -274,27 +278,35 @@ The design addresses the hard semantic questions the prototype does not:
 
 Read the [package management design](../design/package-management.md) for the object model, schema 2, the one-version rule, lock format, registry protocol, private package policy, signing, SLSA mapping, rollout, and open decisions.
 
-# Proposed command surface
+# Command surface
 
-`cinch pkg add NAME@VERSION [--registry URL] [--project DIR]` is implemented for one public release. The remaining commands appear in the design and are **not implemented** by the current CLI:
+These commands are implemented by the current CLI:
+
+```text
+cinch pkg add NAME@VERSION [--registry URL] [--project DIR] [--token TOKEN]
+cinch pkg publish [--registry URL] [--project DIR] [--token TOKEN] [--visibility public|private]
+cinch pkg verify [--project DIR]
+```
+
+`CINCH_REGISTRY` sets the default registry URL and `CINCH_REGISTRY_TOKEN` supplies the default token. Tokens are sent only in the `authorization: Bearer` header; they are never written to `.cinchlock` or printed.
+
+The design still proposes these commands; they are **not implemented**:
 
 ```text
 cinch pkg init
 cinch pkg remove NAME
 cinch pkg fetch
 cinch pkg update [NAME]
-cinch pkg verify [--slsa] [--online]
 cinch pkg audit
 cinch pkg attest
 cinch pkg provenance NAME
 cinch pkg sbom
 cinch pkg vendor
 cinch pkg purge NAME
-cinch pkg publish
 cinch pkg yank VERSION
 ```
 
-Do not write these commands into build scripts yet. The current CLI's supported commands are in [using the Rust compiler](01-using-the-compiler.md). The design's producer flag `cinch build --emit-provenance` is also future work.
+`cinch pkg verify` is local. The design's `--slsa` and `--online` verification modes, the producer flag `cinch build --emit-provenance`, and a remote audit command remain future work. Do not write those into build scripts yet. The current CLI's supported commands are in [using the Rust compiler](01-using-the-compiler.md).
 
 # Verification
 
@@ -303,7 +315,8 @@ The current package surfaces are exercised by:
 - `compiler/tests/package_manifest.rs` for the embedded manifest and check order;
 - `compiler/tests/package_store.rs` for store keys, verification, and `--rebuild`;
 - `compiler/tests/canonical_artifacts.rs` for canonical artifact identity;
-- `compiler/src/pkg.rs` tests for bundle identity, vendoring, object emission, and lock updates;
+- `compiler/src/pkg.rs` tests for semver range intersection, bundle identity, vendoring, object emission, lock updates, and verification;
+- manual registry checks for private publish, authenticated install, and rejection of an unauthenticated private read;
 - `registry/test/` for the registry HTTP and signing behavior.
 
 Implementation: `compiler/src/pkg.rs`, `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, and `registry/lib/`. The registry source and its full request examples are in [`registry/README.md`](https://github.com/iand675/cinch/blob/main/registry/README.md).
