@@ -92,8 +92,11 @@ See [the host primitive audit](../bootstrap/current-schema10-abi7-stage1-primiti
 The combined codata and memo Stage 1 passed all ten original codata tests
 and two eager-recursion refusals. Both executable controls ran without leaks.
 The unchanged stream example checked, and ordinary construction and pattern
-matching were refused on codata. Checked observation interfaces and the
-combined Stage 2 and Stage 3 fixed point have separate gates.
+matching were refused on codata. Stage 2 and Stage 3 match on executable bytes, LLVM IR and all
+46 compiler interfaces. The smoke tests and the separate interface consumer
+passed. The changed-source rebuild is still running. Checked codata observation
+interfaces remain a separate gate.
+See [the Stage 3 audit](../bootstrap/current-schema10-abi7-codata-stage3-results.json).
 See [the codata audit](../bootstrap/current-schema10-abi7-stage1-codata-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
