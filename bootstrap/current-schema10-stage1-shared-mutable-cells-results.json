@@ -1,0 +1,99 @@
+{
+  "compiler_source_sha256": "0fe775e5aab0ec924d0243aa0347ddf75df064e799191a2b03718966de7e00c0",
+  "evidence_scope": "Stage 1 source parsing and seed build, local shared-cell execution, lexical handler execution, and source diagnostic controls. Stage 2, mutable-proof invalidation and cross-artifact mutable ABI admission are separate gates.",
+  "full_goal_complete": false,
+  "independently_reexecuted": [
+    "handled-condition",
+    "mutation-through-call"
+  ],
+  "native_source_sha256": "b87b5b5625f39768bbe16cf7efafa0e46a84c1b349f3327a700fd3a850c8068b",
+  "provider": {
+    "exports_mutable_borrows": false,
+    "interface_count": 55,
+    "object_sha256": "9c084483dbcd29f344104ca956bdcd71deed7d562027228c08a5fcd1a6d6bcc7",
+    "runtime_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5"
+  },
+  "revision": "3431961b10ef9b4051bf733452a243c1f07bf14c",
+  "rows": [
+    {
+      "log_sha256": "684ecbfefb0e6010b8ac3e52c70efd6de07686152c7a8882ec409ecc9a620511",
+      "name": "complete-source-parse",
+      "source_sha256": "bc081fe8258978efc776e9d2e04395dd24dfa7288ff21d40d0be180726692308",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "pinned-seed-check",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "81074fea8e9695d6fa9ec6f470bfcc4444d73c63735202a25d91563ac92c8581",
+      "name": "stage1",
+      "receipt_sha256": "947b0fac7cc6376f8fc229c99165b621f29a01d359c8a0770a5a2f0792cc1fe9",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "typed-write",
+      "source_sha256": "21ae9ea5ee2de80de34ed5ee74a769653c72deaba8a981357f84dc99b0be60ec",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "7e5810c6256b5ecf5d337cb3676777ac7d736d8da68f548faa13265f7c5d9eb2",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "immutable-write",
+      "source_sha256": "f12ce3ceba41f05860c38bb8892b7342e23a0faf8bc8a2f9cb030745b7ea13fa",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "6620facfc7b04e612ce25d8d75899b1f3d0f57d55d4ef817e37d8d06a09c7dad",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "wrong-write-carrier",
+      "source_sha256": "51045432bee99690950a4a50a405f295bac035f6586ae21242e410860d4cbac7",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "929be28fa7f0963e73f89c754ecd71f2765aa062c27cd0908a28c7aeceafb8e9",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "partial-write",
+      "source_sha256": "4e8038cb5737bd0859ce229be99b2a887fcd5fc25993e82b1ddb94f361948d29",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "37316db8fb3689d9fa73cabf7c2686a0d16793a45fa04336c938e862ecd711fb",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "wrong-named-proof",
+      "source_sha256": "27b707249f93ea2ccc3a7242a53307b2cd1b6dbb3cbad1e60a23c9a92a854fa3",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "ir_sha256": "fe3f357285bf2a715f152785b6bef8e78880166a4246d25f169d9040856dbe1b",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "handled-condition",
+      "program_exit": 0,
+      "program_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "def35b1a22954a043aeb0aa903e467e326f6407fb3010dcd102235499e6b9902",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "ir_sha256": "39349fa7030b40e002a2c72289138e35bf10739ea6bfeec03323c3aef1154624",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mutation-through-call",
+      "program_exit": 0,
+      "program_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "23ea4abd8d7fc2c944f85aa01284f477c5ae95ecd4a9cef12f1135aa1ebc048a",
+      "status": "passed"
+    }
+  ],
+  "source_module_count": 46,
+  "status": "audited-stage1-shared-mutable-cell-and-handler-controls"
+}

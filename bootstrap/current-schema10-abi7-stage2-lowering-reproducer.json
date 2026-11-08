@@ -1,0 +1,52 @@
+{
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "evidence_scope": "The earlier exact Stage 2 stopped on three untyped proof-invalidation lists. Its own Stage 1 reproduces the refusal on a small source case. The concrete annotation links and executes with return 42 and zero leaks. The full repaired ladder remains separate.",
+  "failed_revision": "6398b17ba1479c2e5544f1aa51171a49d5364b08",
+  "failed_stage2_sites": [
+    {
+      "bundle_line": 5183,
+      "column": 34,
+      "line": 2353,
+      "module": "Bootstrap.Core.cinch"
+    },
+    {
+      "bundle_line": 4955,
+      "column": 34,
+      "line": 2125,
+      "module": "Bootstrap.Core.cinch"
+    },
+    {
+      "bundle_line": 29677,
+      "column": 23,
+      "line": 233,
+      "module": "Bootstrap.Typing.cinch"
+    }
+  ],
+  "full_goal_complete": false,
+  "native_source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e",
+  "repair_revision": "50bd7d8b2300cf374c5c91d90a176254b80a628e",
+  "rows": [
+    {
+      "diagnostics_sha256": "e4a562463c8ed40d11040b7f747dae46b8823b41f10977ba2bbfe38a0178b113",
+      "name": "exact-failed-stage2-diagnostics",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "b3d6a0ee6222b5f2d9cfb8e597ba42c1bcabaa588cf3bcf7d1bc84782ae1d6ed",
+      "exit_code": 5,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "polymorphic-write-list-refused",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "ir_sha256": "6f09ae9a3b96d61cdc26c70748c474aee8e1749b9bb703c213ee37a7ae82c812",
+      "linked_exit_code": 42,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "monomorphic-write-list-lowers",
+      "source_sha256": "fdfbdd2ed470348f677a6ccc19513d636e0a72d002eefc796344f62b224305d4",
+      "status": "passed"
+    }
+  ],
+  "status": "audited-stage2-closure-proof-list-reproducer"
+}

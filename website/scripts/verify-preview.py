@@ -58,6 +58,18 @@ if catalogue['offline']:
     assert 'offline catalogue' in index_html, 'the offline page must say the catalogue is offline'
     assert 'sample data' not in index_html
     print(f'Checked {len(pages)} package/download pages and {links} local links for an offline catalogue.')
+elif catalogue.get('fallback'):
+    assert isinstance(catalogue.get('warning'), str) and catalogue['warning'], 'a fallback must explain the missing registry'
+    index_html = (root/'packages/index.html').read_text().lower()
+    assert 'cached catalogue' in index_html, 'the fallback page must say it used a cached catalogue'
+    assert 'sample data' not in index_html, 'the fallback page must not advertise sample data'
+    packages = catalogue['packages']
+    assert isinstance(packages, list)
+    for package in packages:
+        for release in package['releases']:
+            base = root/'packages'/package['name']/release['version']
+            assert (base/'index.html').exists(), (package['name'], release['version'], 'fallback package page missing')
+    print(f'Checked {len(pages)} package/download pages and {links} local links for a cached catalogue.')
 else:
     registry = catalogue.get('registry')
     assert isinstance(registry, str) and registry, 'a live catalogue must name its registry'
