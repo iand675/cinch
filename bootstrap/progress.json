@@ -20497,8 +20497,8 @@
         "title": "Bootstrap the combined frontend and provider repairs",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. wrong-bool-main",
-        "passed": 5,
+        "phase": "Combined candidate, starting from the pinned seed. first-class-source-forwarder",
+        "passed": 8,
         "total": 14,
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
@@ -20518,5 +20518,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:30:37.176997+00:00"
+  "updatedAt": "2026-11-08T18:31:40.142038+00:00"
 }
