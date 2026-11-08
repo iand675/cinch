@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "1/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 25/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "1/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 26/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12031,11 +12031,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 25,
+          "verified": 26,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 78
+          "recheck": 77
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12658,18 +12658,23 @@
           {
             "id": "stage3:bootstrap_effects",
             "title": "bootstrap_effects",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "6d5dc7998c0f48ffe9e440d6bcb6ba946aa4054d2d0272368ecf96e0b9e528b6",
+              "cases": [
+                {
+                  "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -12720,23 +12725,18 @@
           {
             "id": "stage3:bootstrap_export_types",
             "title": "bootstrap_export_types",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:37:01.582595+00:00",
-              "finishedAt": "2026-11-08T02:38:06.559255+00:00",
-              "exitCode": 0,
-              "logSha256": "125128483cb202b5a95aa7cd0a7d7510862075219f83097e365e1143e100de15",
-              "cases": [
-                {
-                  "name": "checked_schemes_have_portable_definition_owned_syntax",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20308,8 +20308,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_effects, bootstrap_export_interfaces",
-        "passed": 25,
+        "phase": "bootstrap_export_interfaces, bootstrap_export_types",
+        "passed": 26,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20612,11 +20612,11 @@
       }
     ],
     "counts": {
-      "verified": 388,
+      "verified": 389,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 310
+      "recheck": 309
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20624,5 +20624,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:53:18.470189+00:00"
+  "updatedAt": "2026-11-08T19:54:21.833479+00:00"
 }
