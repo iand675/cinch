@@ -12001,10 +12001,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 71,
+          "verified": 72,
           "blocked": 6,
           "running": 2,
-          "pending": 21,
+          "pending": 20,
           "recheck": 5
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13547,21 +13547,21 @@
           {
             "id": "stage3:bootstrap_resolve",
             "title": "bootstrap_resolve",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T04:29:10.212870+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T04:36:59.167721+00:00",
+              "exitCode": 0,
+              "logSha256": "d623ee3e5a2315bcaad479b8e83d43556fb2858d1b94fbccae5072529eed7cb6",
               "cases": [
                 {
                   "name": "source_module_imports_exports_and_lexical_scopes_resolve",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13652,18 +13652,23 @@
           {
             "id": "stage3:bootstrap_runtime_objects",
             "title": "bootstrap_runtime_objects",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_objects.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:37:00.611536+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "cinch_calls_actual_library_objects_with_checked_layout_authority",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20542,8 +20547,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_resolve. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 14,
+        "phase": "bootstrap_runtime_objects. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 15,
         "failed": 1,
         "total": 21,
         "unit": "original test targets",
@@ -20771,10 +20776,10 @@
       }
     ],
     "counts": {
-      "verified": 352,
+      "verified": 353,
       "blocked": 12,
       "running": 13,
-      "pending": 243,
+      "pending": 242,
       "recheck": 60
     },
     "total": 680,
@@ -20783,5 +20788,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:36:04.010821+00:00"
+  "updatedAt": "2026-11-08T04:37:06.075729+00:00"
 }
