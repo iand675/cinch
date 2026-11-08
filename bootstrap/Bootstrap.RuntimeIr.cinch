@@ -653,8 +653,8 @@ module Bootstrap.RuntimeIr where
     CArgument sp first rest -> CArgument sp (specialize-local id scheme value first) (specialize-local id scheme value rest)
     CAlternative sp pattern body rest -> CAlternative sp pattern (if pattern-binds id pattern then body else specialize-local id scheme value body) (specialize-local id scheme value rest)
     other -> term
-  -- The checked effect declaration gives the physical order of operation
-  -- closures. A handler owns the return closure followed by those slots.
+  -- The checked effect declaration numbers operation slots from one.
+  -- The handler stores its return closure in slot zero.
   handler-fields :: CoreTerm -> Nat -> Option CoreTerm
   handler-fields fields index = case fields of
     CHandlerEnd sp -> Some (CArgumentsEnd sp)
@@ -750,7 +750,7 @@ module Bootstrap.RuntimeIr where
             Err message -> Err message
             Ok (body, after) ->
               let continuation = CLambda sp (UFun response output) (CPVar sp response fresh "#resume-argument") body in
-              let clause = handler-field sp (handler-clause-type operation output row) frame (slot + 1) in
+              let clause = handler-field sp (handler-clause-type operation output row) frame slot in
               (case handler-apply sp clause (values <> [continuation]) of
                 Some called -> Ok (called, after)
                 None -> Err "handled operation arguments do not fit the checked clause")) cursor)
@@ -840,7 +840,7 @@ module Bootstrap.RuntimeIr where
     CWith sp ty given value body -> case expression definitions locals w value of
       (ready, word) -> case expression definitions (Cons (GivenLocal (given-symbol given) (given-type given) word) locals) ready body of
         (done, result) -> (count-op False (given-type given) word done, result)
-    CHandler sp ty returned operations -> case handler-fields operations 0 of
+    CHandler sp ty returned operations -> case handler-fields operations 1 of
       Some fields -> tuple definitions locals w sp (CArgument sp returned fields)
       None -> unsupported w sp "handler fields need their checked declaration order and runtime representations"
     CHandle sp ty label residual body handled-by -> case lower-handler (program-effects (writer-program w)) locals sp ty label body handled-by of
