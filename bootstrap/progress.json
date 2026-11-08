@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 78,
+          "verified": 79,
           "blocked": 6,
           "running": 2,
-          "pending": 15,
+          "pending": 14,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12611,17 +12611,17 @@
           {
             "id": "stage3:bootstrap_effects",
             "title": "bootstrap_effects",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:05:44.390890+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:12:20.570096+00:00",
+              "exitCode": 0,
+              "logSha256": "cdad6917c6158b3bed7131089065d80d87eddb349aa8fc3d7e5f361e48a47fa0",
               "cases": [
                 {
                   "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
@@ -12726,18 +12726,23 @@
           {
             "id": "stage3:bootstrap_globals",
             "title": "bootstrap_globals",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:12:21.848639+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18980,6 +18985,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-refinement-formation-results.json"
       },
       {
+        "title": "Development Stage1 and Rust: complete allocation target",
+        "status": "passed",
+        "phase": "All eight original tests passed on each compiler. The C probe linked a checked object emitted by Stage1. The matching Stage3 replay is separate.",
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "unit": "tests on each compiler",
+        "source": "4ed7e2fe9cb2f0e5e72c05100cd844d00a7c612c8372041025f0942b96aef235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-portable-allocation-results.json"
+      },
+      {
         "title": "Development Stage1: checked allocation object",
         "status": "passed",
         "phase": "All five ownership modes passed on compiler-emitted code. The kept structure counts 14 live blocks. Regular and escaped static constructor tags both ran without leaks. The complete allocation target is tracked separately.",
@@ -18988,6 +19004,17 @@
         "total": 5,
         "source": "4ed7e2fe9cb2f0e5e72c05100cd844d00a7c612c8372041025f0942b96aef235",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-static-constructor-results.json"
+      },
+      {
+        "title": "Integrated Stage0 through Stage3 rebuild",
+        "status": "running",
+        "phase": "checking pinned provider",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587",
+        "auditPending": false
       },
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
@@ -20837,10 +20864,10 @@
       }
     ],
     "counts": {
-      "verified": 362,
+      "verified": 363,
       "blocked": 12,
       "running": 13,
-      "pending": 234,
+      "pending": 233,
       "recheck": 59
     },
     "total": 680,
@@ -20849,5 +20876,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:12:20.615821+00:00"
+  "updatedAt": "2026-11-08T05:13:48.357267+00:00"
 }
