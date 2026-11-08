@@ -2608,13 +2608,13 @@ module Bootstrap.Core where
   projection-expression datas scope term = case term of
     CLocal sp (UCon name KType) id label Nil -> if string-compare name "Bytes" == 0 then projection-local id (UCon name KType) scope else None
     CCase sp result (CLocal at (UCon carrier KType) id label Nil)
-      (CAlternative arm (CPConstructor pat target constructor Nil signature fields) body (CAlternativesEnd end)) ->
+      (CAlternative arm (CPConstructor pat matched constructor Nil ctor-type fields) body (CAlternativesEnd end)) ->
         let input = UCon carrier KType in
-        if not (contract-equal target input && contract-equal result (core-type body)) then None else
+        if not (contract-equal matched input && contract-equal result (core-type body)) then None else
           (case (projection-local id input scope, projection-constructor datas carrier) of
             (Some path, Some definition) -> let sc = core-constructor-scheme definition in
-              if not (string-compare constructor (core-constructor-name definition) == 0 && contract-equal signature (scheme-body sc)) then None else
-                (case (scheme-params sc, scheme-requirements sc, projection-fields input signature) of
+              if not (string-compare constructor (core-constructor-name definition) == 0 && contract-equal ctor-type (scheme-body sc)) then None else
+                (case (scheme-params sc, scheme-requirements sc, projection-fields input ctor-type) of
                   (Nil, Nil, Some field-types) -> (case projection-bindings constructor path 0 field-types fields scope of
                     Some inner -> projection-expression datas inner body
                     None -> None)
