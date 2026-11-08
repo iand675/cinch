@@ -20333,8 +20333,8 @@
       },
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
-        "status": "running",
-        "phase": "bootstrap_imported_nonzero, bootstrap_imported_preconditions",
+        "status": "completed-superseded-snapshot",
+        "phase": "The current published revision has its own sweep. These historical logs were retained.",
         "passed": 35,
         "total": 105,
         "unit": "gates",
@@ -20377,8 +20377,8 @@
       },
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
-        "status": "running",
-        "phase": "bootstrap_collections",
+        "status": "completed-superseded-snapshot",
+        "phase": "The current published revision has its own sweep. These historical logs were retained.",
         "passed": 28,
         "total": 236,
         "unit": "gates",
@@ -20650,23 +20650,34 @@
       {
         "title": "Replay the three original guarded Later tests",
         "unit": "controls",
-        "status": "completed-with-failures",
-        "phase": "Isolated Stage 1 candidate. later_must_not_be_an_unrestricted_thunk",
-        "passed": 1,
+        "status": "passed",
+        "phase": "Stage 1 and all three original Later tests passed. The positive program ran without leaks.",
+        "passed": 4,
         "total": 4,
-        "failed": 3,
+        "failed": 0,
         "source": "120a0c96b6e10f9bd772c0f02f643bd0d17a181f727d08dc83a1e9fa4ab04ac3",
         "evidence": null
       },
       {
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
-        "status": "failed",
+        "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with codata",
         "passed": 0,
         "total": 13,
+        "failed": 0,
+        "source": "eada3295b82518ab22234e0b2ebabc54194ab768c7dbe8e5b2b7055dae1993ad",
+        "evidence": null
+      },
+      {
+        "title": "Compile and replay the host inline primitive cases",
+        "unit": "controls",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with inline primitives",
+        "passed": 0,
+        "total": 14,
         "failed": 1,
-        "source": "50b2fa011ae9d5f4f1ad6cc3de74ca759a40dd7418c008875d3e56bf75baa93c",
+        "source": "63b8d49a150bba7f6d08ef47d05acf8a537ab4bdb20ffd30710d4fbde9a4644f",
         "evidence": null
       },
       {
@@ -20705,5 +20716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:05:55.798160+00:00"
+  "updatedAt": "2026-11-08T21:06:39.650166+00:00"
 }
