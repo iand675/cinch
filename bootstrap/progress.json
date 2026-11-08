@@ -21101,8 +21101,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_pipeline",
-        "passed": 6,
+        "phase": "Alloc_accounting",
+        "passed": 8,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21112,9 +21112,9 @@
       {
         "title": "Verify the grouped proof-search and constructor-visibility repair",
         "status": "running",
-        "phase": "Tacticsmissing",
-        "passed": 2,
-        "failed": 0,
+        "phase": "Proof",
+        "passed": 5,
+        "failed": 1,
         "total": 7,
         "unit": "cases",
         "source": "a56061fac0128a681e2d048d74aeb7c1effda54747cb550c4f843177153a506f"
@@ -21208,5 +21208,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:04:23.514862+00:00"
+  "updatedAt": "2026-11-08T14:05:26.505388+00:00"
 }
