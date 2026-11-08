@@ -15,7 +15,7 @@ default, 1 of 8 law, 2 of 2 fixity, 1 of 5 guard coverage, 0 of 10 codata and
 resolution in its positive case and ten refusal cases. The retained
 integration diagnostics request one additional provider root,
 `Data.List.sum-list` with the tagged representation, from two independent
-fixtures. The current fixed point predates that wider integration demand.
+fixtures. The current fixed point uses the expanded provider.
 See [the original case results and checked object requests](../bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json).
 
 `Data.List.cinchif` already exported the generic `sum-list` scheme. The
@@ -64,6 +64,12 @@ passed all five original memo sources, explicit layout, lexical scope and
 both tuple-arity diagnostics. Checked memo semantics and runtime lowering
 are in a separate candidate.
 See [the layout and syntax audit](../bootstrap/current-abi7-explicit-let-layout-results.json).
+
+An isolated Cinch Stage 1 passed all 17 memo controls. Nine compiled and
+ran without leaks, including the original demand tests, a boxed cache,
+strict initialization, and teardown of mutually capturing unforced cells.
+The memo compiler has a separate Stage 2 and Stage 3 gate.
+See [the Stage 1 memo audit](../bootstrap/current-schema10-abi7-cinch-memo-stage1-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
