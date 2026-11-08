@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "3 of 236 complete groups passed; 1 running, 0 failed and 232 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "4 of 236 complete groups passed; 0 running, 0 failed and 232 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "3 of 236 complete groups passed; 1 running, 0 failed and 232 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "4 of 236 complete groups passed; 0 running, 0 failed and 232 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,9 +822,9 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 3,
+          "verified": 4,
           "blocked": 0,
-          "running": 1,
+          "running": 0,
           "pending": 232,
           "recheck": 0
         },
@@ -2840,17 +2840,17 @@
           {
             "id": "native:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:46:17.076570+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:07:30.380703+00:00",
+              "exitCode": 0,
+              "logSha256": "69b7033c0f5eec2df80bd20b9f17f21a0848228b486526e4f582b62867f2c9ba",
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
@@ -2862,7 +2862,7 @@
                 },
                 {
                   "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -19172,16 +19172,6 @@
         "auditPending": false
       },
       {
-        "title": "Current compiler: full Rust sweep",
-        "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 3,
-        "failed": 0,
-        "total": 236,
-        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-        "earlier": false
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -20449,9 +20439,9 @@
       }
     ],
     "counts": {
-      "verified": 285,
+      "verified": 286,
       "blocked": 11,
-      "running": 14,
+      "running": 13,
       "pending": 285,
       "recheck": 83
     },
@@ -20461,5 +20451,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:06:22.665677+00:00"
+  "updatedAt": "2026-11-08T03:07:45.135856+00:00"
 }
