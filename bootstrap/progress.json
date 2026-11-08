@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_pipeline, bootstrap_proof_terms, bootstrap_proposition_types",
-        "passed": 53,
+        "phase": "Bootstrap_pipeline, bootstrap_proposition_types, bootstrap_refinement_closure",
+        "passed": 54,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20990,8 +20990,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_collections",
-        "passed": 24,
+        "phase": "Bootstrap_conditional_methods",
+        "passed": 25,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21163,8 +21163,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "ownership",
-        "passed": 1,
+        "phase": "bootstrap_load",
+        "passed": 2,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:38:49.519711+00:00"
+  "updatedAt": "2026-11-08T16:39:53.022996+00:00"
 }
