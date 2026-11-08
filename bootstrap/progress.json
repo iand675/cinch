@@ -20717,8 +20717,8 @@
         "title": "Replay records, nominal types and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with compiled record transport",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. source-original-erased-field",
+        "passed": 3,
         "total": 20,
         "failed": 0,
         "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:14:51.009455+00:00"
+  "updatedAt": "2026-11-08T23:17:55.225083+00:00"
 }
