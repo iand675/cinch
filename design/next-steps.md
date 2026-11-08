@@ -85,6 +85,13 @@ an arithmetic line was refused. Cross-target selection, compiled primitive
 assumptions and a matching Stage 2 and Stage 3 have separate gates.
 See [the host primitive audit](../bootstrap/current-schema10-abi7-stage1-primitive-containment-results.json).
 
+The combined codata and memo Stage 1 passed all ten original codata tests
+and two eager-recursion refusals. Both executable controls ran without leaks.
+The unchanged stream example checked, and ordinary construction and pattern
+matching were refused on codata. Checked observation interfaces and the
+combined Stage 2 and Stage 3 fixed point have separate gates.
+See [the codata audit](../bootstrap/current-schema10-abi7-stage1-codata-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

@@ -1,0 +1,254 @@
+{
+  "compiler_source_sha256": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+  "controls": [
+    {
+      "diagnostic": "bootstrap.check:7:68: unguarded recursive call to `repeat`: a corec definition must use delay in a Later observation\n",
+      "diagnostic_sha256": "a814bc3f0666d969f835fc3b1ed46f8956cd34d8f6fbb8cff482c12a13d3f87b",
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "forced-before-later-field",
+      "source_sha256": "79b6870adfe8c254c9dfc0e6a21c6201d4f53086eb2ccdbf4138b50e5e9060e6",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:8:56: unguarded recursive call to `repeat`: a corec definition must use delay in a Later observation\n",
+      "diagnostic_sha256": "e7bbcdc74bcec2952c84e30c7fff37c00dfeed7cbb60624a13c71517aba4e0fb",
+      "exit_code": 4,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "guard-in-eager-local",
+      "source_sha256": "b0bc35904e4967653681fd50632f034576a4840373ad0d0ffbce2fe7795feabc",
+      "status": "passed"
+    }
+  ],
+  "full_goal_complete": false,
+  "native_source_sha256": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+  "original_harness_sha256": "bf7e3328933aba7c13ca3a2d9ac678d8f1e277999c2a6a0406c700c3814b97b1",
+  "original_stage3_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "original_test_sha256": "9a7bdee743880f453a9b484fcacb31dfa199bf9982a61c22b0d6c82d6cf73ad1",
+  "schema": 1,
+  "scope": "Ten unchanged original codata tests and two eager-recursion controls on an isolated combined Cinch Stage 1. Checked codata interface transport and the fixed point remain separate.",
+  "stage1_receipt_sha256": "49f32928ab46552d7330468baa5fddf29dd6738253e65c53ccb01b967c69c8c2",
+  "stage1_sha256": "732b9ceb8e34733c79779f8e658e70787cbade396a32eabd6a95dabf21a4c450",
+  "status": "audited-stage1-codata-and-guarded-recursion",
+  "tests": [
+    {
+      "invocations": [
+        {
+          "diagnostic": "",
+          "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "executable_sha256": "140cde1df87f1e52d11c91267aa83198c878e60a5fde13dc39e3b04db65927f0",
+          "exit_code": 0,
+          "fixture_sha256": "dec5eb8ab29c313891c2bf6da992aed74dac42e4696803e64c2502dc27bf4d79",
+          "invocation_sha256": "2f44c0f78e699f16b133f78967fa18402930c3189a6d05bba7768deb01069ff2",
+          "leaks": 0
+        }
+      ],
+      "log_sha256": "33229dceeb646b9455c3fcee615cdbce0ebfbd86665ddf1737778b8a018af395",
+      "name": "corec_stream_observes_head_and_tail"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "",
+          "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "executable_sha256": "3cd3df8411424e4d90ea5a0f742b737b030a6ca814febbc50adfecab0615895d",
+          "exit_code": 0,
+          "fixture_sha256": "e036473ce617e2933c6be3d3aba17fc1b77fd10a91d3156a26f990cdee16e49f",
+          "invocation_sha256": "cded776da20ffc3c407b9fec626c5251062e5e576a3e369e0d5f8d518620c8f0",
+          "leaks": 0
+        }
+      ],
+      "log_sha256": "ae4c79c25a77db5e9f23ab3211d4349047e3e8f4a810127a8bc4cb1dc4b97ccb",
+      "name": "guarded_delay_and_force_accepted"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:10:16: unguarded recursive call to `loop`: a corec definition must use delay in a Later observation (Main.cinch:9:16)",
+          "diagnostic_sha256": "6b779ff9cb03d0dac97f1e58db0e29354dd4cc80139f6d7740825ee66d68496d",
+          "exit_code": 4,
+          "fixture_sha256": "75014fcbd799075ac806edf43052ffb349663a2c5be3e625ad69cb98587b22b4",
+          "invocation_sha256": "9977dba3102b23062bd3663a81c086beb6bc827cb8249db26d8fac5568aa3a19"
+        },
+        {
+          "diagnostic": "bootstrap.check:10:33: unguarded recursive call to `bad`: a corec definition must use delay in a Later observation (Main.cinch:9:33)",
+          "diagnostic_sha256": "73cbacb99cee848cc0c14996fd3c3880eb6702ea16be708586ef23c4600e5ba9",
+          "exit_code": 4,
+          "fixture_sha256": "aebfa7fbe81d4d1efd35c3c1085c9dab1d829f3d5f0c3f0e27cc71c2756b7f4a",
+          "invocation_sha256": "b399ba2d34440085384cd9349d0c205f762d8bd8b2437b79fd7170702a7e9482"
+        },
+        {
+          "diagnostic": "bootstrap.check:10:19: unguarded recursive call to `worse`: a corec definition must use delay in a Later observation (Main.cinch:9:19)",
+          "diagnostic_sha256": "6b23f4cca257d498cbf85826ed90b5ade6be9e66bac0a781be668b89ada5c974",
+          "exit_code": 4,
+          "fixture_sha256": "b2826417717cf2a307f9e36a88f20f965fc17bb7771a358fccf6eb480640c11c",
+          "invocation_sha256": "0c564bb8fe1cfe047a1745df3717281a0956e8b282051b65a154301dd674d6e6"
+        }
+      ],
+      "log_sha256": "37fe07d59d7f82af46b5de8485fc5b9deac8187bb16ffd0c7b101934594b306d",
+      "name": "unproductive_corec_is_rejected_naming_the_call"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:13:19: a corec body must build its codata type at every step (Main.cinch:12:19)",
+          "diagnostic_sha256": "57de1a29026b9dea9aed07c2e065aa12fad0b7358cbe57c56d2f416e7acd0da0",
+          "exit_code": 4,
+          "fixture_sha256": "bf929cfee4b6c90cf5f2bcafdd30fb58e2361f2985db284acd88e14cbb52da0e",
+          "invocation_sha256": "dc2bc0a93aab16d8f96eeb342ee957f91aece0ffadc6d6470d75079750a8f9d3"
+        }
+      ],
+      "log_sha256": "28f9047d780aa8d0f2fa4f4000d24d9037249bd8713b038c72d275ba7d1ab8bf",
+      "name": "corec_needs_an_observation_layer_per_step"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:8:16: type mismatch: expected (Later Int), found ((Thunk e) Int) (Later and Thunk are distinct types) (Main.cinch:7:16)",
+          "diagnostic_sha256": "c35dd9d05a76aa1abb57a6a854d5044a49e66ad910d98436a74af340a1e73ae5",
+          "exit_code": 4,
+          "fixture_sha256": "4831419f0a947482a9d3da3a5ed0e689e1d36ac280632363a687022d1c9e63b3",
+          "invocation_sha256": "65c8c2ae9395b53fc523a3cf1df44a5fc9b81c2abc09bef6d4c3259652f00999"
+        },
+        {
+          "diagnostic": "bootstrap.check:8:16: type mismatch: expected ((Thunk ?19) Int), found (Later Int) (Later and Thunk are distinct types) (Main.cinch:7:16)",
+          "diagnostic_sha256": "66a1ccb59bbf34086dbbaa2fcc73641a2059b07496b494a5174a6ba301bd29bd",
+          "exit_code": 4,
+          "fixture_sha256": "79ceb103b7b7b3f419277bfb4a2bbcd346353020271c91d6208455e67382df2d",
+          "invocation_sha256": "c12c51080a7595c8a0b2630f50f0f250b9c176b1b71f534b511d918b767ae8c3"
+        },
+        {
+          "diagnostic": "bootstrap.check:4:8: Later must be applied to exactly one type and takes no effect row (Main.cinch:3:8)",
+          "diagnostic_sha256": "37857091258e459719120810b54c6d5342781203c4d413dbd34de33798bbdf57",
+          "exit_code": 4,
+          "fixture_sha256": "e27a465719e47d89785dbc5e0c92d7c6635ad1e19532c772003e341f334368ce",
+          "invocation_sha256": "5066893067427f2a7655c9b83d3b306c5abe3a1aa683f081f542fc1200e9fdd3"
+        }
+      ],
+      "log_sha256": "09ded7d1556a7c4aad2fdcd908fe5cd394992500aae6b6de457c716a5c4d3b92",
+      "name": "later_is_not_interchangeable_with_thunk"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:4:8: Later requires at most one use: %many would give it unrestricted-thunk semantics (Main.cinch:3:8)",
+          "diagnostic_sha256": "fc49aa0342c6061ffd4702e3748e92552d99d8017f2ebe24a07379d55ae030f0",
+          "exit_code": 4,
+          "fixture_sha256": "3092d6f5833e923290b8cfd199f634dafb50ba64822dece219903316c00eaf6a",
+          "invocation_sha256": "f94699854b58db0c533f6b3c56ad81fc96569350e3d97d3545543159852b4789"
+        },
+        {
+          "diagnostic": "bootstrap.check:5:7: multiplicity %aff: a thunk must be used at most once (Main.cinch:4:7)",
+          "diagnostic_sha256": "d3110e233719d779baa2cfb6c001ff17651337f5fa0256a37852fe6bc7dc75f2",
+          "exit_code": 4,
+          "fixture_sha256": "d96829ab4634f44e447d56b355f44bebbc2b7773ca459c771d6ad578a4bf2ee1",
+          "invocation_sha256": "b2a0435c582223b3b382133f57bd7776c2c2602fdb8dfc29c81e7bea5d63e010"
+        },
+        {
+          "diagnostic": "bootstrap.check:8:9: a `delay` building a `Later` must be pure (Main.cinch:7:9)",
+          "diagnostic_sha256": "48261fb1920e323080456a9a3fe7fe8aa0b1f8c214edfb8c86c3700548e42f21",
+          "exit_code": 4,
+          "fixture_sha256": "fd040685787d79742f830f05084677888ea7b63b4515c4e016fea34ee501b297",
+          "invocation_sha256": "a7b924fcb1f4b76ad71e7648b15dff4a2589dd6aae2c9ad15f2898b5ff5644e2"
+        }
+      ],
+      "log_sha256": "549d0c44769c4ccb3a8d56097dc601a47d8b1c620de41e1c549d6291ac7ed29d",
+      "name": "later_must_not_be_an_unrestricted_thunk"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:12:10: unguarded recursive call to `filter`: a corec definition must use delay in a Later observation (Main.cinch:11:10)",
+          "diagnostic_sha256": "092645aa696bbe7e0c974aec14ed7c7af9bd7b28cdef4f6e04b0252327cf50d5",
+          "exit_code": 4,
+          "fixture_sha256": "ccdd82e714b683a556da686550358cd3e1171f6b858bb8543aac7f78ec10c42d",
+          "invocation_sha256": "3667cffceb0654f5a388ddfb0f9f8984b0a700c0aacd4a30d9bbb95ce27bbc9b"
+        },
+        {
+          "diagnostic": "bootstrap.check:12:10: unguarded recursive call to `filter`: declare Diverge to reflect the loss of productivity or delay the recursive observation (Main.cinch:11:10)",
+          "diagnostic_sha256": "6bd513870d6b7ef552212b9f008d727ce21d091eec1f4bfdfd75ce518c7cbc1c",
+          "exit_code": 4,
+          "fixture_sha256": "4910cd170afd1207822a46a3476080a47ab726d049d939170288f8faefcca594",
+          "invocation_sha256": "bd17c0bb5be17d29b1cd373fc371fde1aa34499c5d4dc71cc4cf86d760660828"
+        },
+        {
+          "diagnostic": "bootstrap.check:11:42: a `delay` building a `Later` must be pure (Main.cinch:10:42)",
+          "diagnostic_sha256": "f46aa16255882cae18f6f7fa55a19ecc3bd7c065e40edb8f3ab61da163a3c54b",
+          "exit_code": 4,
+          "fixture_sha256": "7139d68c47b38d062ae950b30fc2a42600ef9f864b000397f4a149d27499688f",
+          "invocation_sha256": "10545cafc3fd31845a2ec0c0d8602a8d5d4b938bfe7e9fd370ee48612d2bb6c6"
+        },
+        {
+          "diagnostic": "",
+          "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit_code": 0,
+          "fixture_sha256": "39348b00c3580625183847d99cda047aa1d0fe554e1b06427500e04e7e4837e1",
+          "invocation_sha256": "4368af09fdac270df12507f25df9ea4f923412b7057879638c46218b1db6c9b1"
+        },
+        {
+          "diagnostic": "bootstrap.check:23:10: effect rows do not match: performed effects exceed the declared row (performed {Diverge}, declared {}) (Main.cinch:22:10)\nbootstrap.check:23:10: a nullary definition must be pure (Main.cinch:22:10)",
+          "diagnostic_sha256": "0ab404efe5faf80935936cab6e090e1d5384cad1582d58e59180e468584fc82b",
+          "exit_code": 4,
+          "fixture_sha256": "b5de1eb3d84c321741c200448d8684fdf29ac151d4871f40c942f415ec65850b",
+          "invocation_sha256": "f143072a8ede1709d17ee9c5fdf11fe53b8f7ffb8691da7b3f2f44db8f6803b8"
+        }
+      ],
+      "log_sha256": "70c2f0a80e6279ba5045aae12f191b7084dc26d7346780e062a4b4040d038efb",
+      "name": "unrestricted_filter_loses_productivity"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:8:8: multiplicity %1: the argument must be used exactly once on every path (captured by a closure that can use it unboundedly) (Main.cinch:7:8)",
+          "diagnostic_sha256": "2e337692409db93aea3e0ae9146aa709a39efdcfbd3cee5912b6524fbf524371",
+          "exit_code": 4,
+          "fixture_sha256": "bf0e7e5507d18df692ee5cd1c5592ce126f0ca67b2780bd9fd332db5884595b3",
+          "invocation_sha256": "30c6734b626ce4b8ebf741ab73cd7ddf68ec937ea48b8c64bd9d44ca412f7a23"
+        },
+        {
+          "diagnostic": "bootstrap.check:14:11: a memo cell cache requires structural Copy evidence (Main.cinch:13:11)",
+          "diagnostic_sha256": "40db1ac91a286e7947c08ce083c1da2d734090c243b9a6d5c0057340c3511bc3",
+          "exit_code": 4,
+          "fixture_sha256": "4e21b914e06fbd96e50531019189f8138bba6eb6ede857e85765e26d338b655b",
+          "invocation_sha256": "de9437642b6c55b4c728c35ea638638b004c367bc4f1bb1061aed69b33f01227"
+        }
+      ],
+      "log_sha256": "dc6333cc134f1b4558203a560e40fac3c8859d29502f53fa62d02fe5ce6066da",
+      "name": "codata_keeps_thunk_and_memo_discipline"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "bootstrap.check:10:12: non-exhaustive patterns: constructor 83_116_114_101_97_109_ is not covered by an unguarded row; add an unguarded final row (Main.cinch:9:12)\nbootstrap.check:11:5: a codata value is observed, not destructured: use .field projection (Main.cinch:10:5)\nbootstrap.check:11:28: unbound variable or constructor: h (Main.cinch:10:28)",
+          "diagnostic_sha256": "52b8f1d41330fd238295a9a5bb5b1fb51bf065c78e51fe93cccc3408a3469e9c",
+          "exit_code": 4,
+          "fixture_sha256": "15f1931d03b9f8ee72e9456a81479010023f4462fc95cc57ba47d8e78d315f35",
+          "invocation_sha256": "de2120a74b388bcadb8c282f6083fdf40137fe54b7e0235dbb0e07ed2b4665e4"
+        },
+        {
+          "diagnostic": "bootstrap.check:10:11: a codata value must use its observed construction form (Main.cinch:9:11)",
+          "diagnostic_sha256": "1efc26f32cd9a9c5436aa67342bcfe00145262fe6ef6d99aaaf6ec70f1462ae7",
+          "exit_code": 4,
+          "fixture_sha256": "eab30302e1503f76a11fe4163d22e25fadb865cb0fe9e8cc3103526144c05649",
+          "invocation_sha256": "58f04598e2c3b9e7a987ec23990ee8065413a486e70ae1661be91009c1675606"
+        }
+      ],
+      "log_sha256": "1d2f3accc0b460e0d66834fda70fa634db92ec16c9ee1b2a59e4db273b6448a1",
+      "name": "codata_is_observed_not_destructured"
+    },
+    {
+      "invocations": [
+        {
+          "diagnostic": "",
+          "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit_code": 0,
+          "fixture_sha256": "b3218de55dea8cfce785b9b71613e7fca613011ca24b1fd575e9e11e0877d988",
+          "invocation_sha256": "f760e1bc53183e9b0b6578b220469316351ec02104daed4166e677f46e49069a"
+        }
+      ],
+      "log_sha256": "db9f13df0668748485146a7eae1991c2d2ab0f288d2eb14f49a388abe77dc8d7",
+      "name": "acceptance_example_04_productive_stream_checks"
+    }
+  ],
+  "validator_state_sha256": "31e825ce4ae103b34375670aff45f60d46e46336485f5219032659c167cd78e7"
+}
