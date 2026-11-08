@@ -20761,8 +20761,8 @@
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. source-original-non-proposition",
-        "passed": 2,
+        "phase": "Isolated Stage 1 candidate. source-wrong-evidence",
+        "passed": 4,
         "total": 18,
         "failed": 0,
         "source": "c6320f4be12e902cc25ec25b146a12163d6e35b1905ddeeddd200847d8b4b68c",
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:48:17.874120+00:00"
+  "updatedAt": "2026-11-08T22:49:20.340610+00:00"
 }
