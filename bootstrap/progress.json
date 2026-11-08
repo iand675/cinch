@@ -11860,11 +11860,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 11,
+          "verified": 12,
           "blocked": 2,
           "running": 4,
           "pending": 75,
-          "recheck": 13
+          "recheck": 12
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13563,21 +13563,21 @@
           {
             "id": "stage3:bootstrap_type_syntax",
             "title": "bootstrap_type_syntax",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:58:42.533101+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:05:56.022846+00:00",
+              "exitCode": 0,
+              "logSha256": "9018feaf6dc31631f05303f8ab7a706c4fab324e7abf9b8dbb6d2bd2a225026c",
               "cases": [
                 {
                   "name": "predicates_indices_and_refined_results_keep_their_structure",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13897,21 +13897,21 @@
           {
             "id": "stage3:interface_nominals",
             "title": "interface_nominals",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:56:21.609525+00:00",
-              "finishedAt": "2026-11-07T11:56:38.038626+00:00",
-              "exitCode": 0,
-              "logSha256": "f9dee63e7b3bab3dcde903dc7f242fb355f8312ea766a2bcb2dd34c58f851581",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:05:57.308336+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19840,7 +19840,8 @@
         "total": 4,
         "unit": "stages",
         "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
-        "auditPending": false
+        "auditPending": false,
+        "evidence": null
       },
       {
         "title": "Rebuild with the dependent Nat predicate repair",
@@ -19851,18 +19852,20 @@
         "total": 4,
         "unit": "stages",
         "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21",
-        "auditPending": false
+        "auditPending": false,
+        "evidence": null
       },
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
-        "status": "running",
-        "phase": "The ladder passed and the independent audit is pending.",
+        "status": "passed",
+        "phase": "The Stage2 and Stage3 fixed point, separate interface client and changed-source rebuild passed the independent audit.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "3d334fcd786076738c9332221812ee2e42e0dbb2655f054ad6409a99d9f999c6",
-        "auditPending": true
+        "auditPending": false,
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-integrated-compiled-clients-bootstrap-results.json"
       },
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
@@ -19873,7 +19876,8 @@
         "total": 4,
         "unit": "stages",
         "source": "4a3a72968db350d25636cdb280880d7d00e03e24063788a0dbb1912d55f2e366",
-        "auditPending": false
+        "auditPending": false,
+        "evidence": null
       },
       {
         "title": "Run the first frontend shard on the audited published Stage3",
@@ -19897,20 +19901,31 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-45bbfe94-bootstrap-results.json"
       },
       {
+        "title": "Replay anonymous and list refinement interface contracts",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "frontend replays",
+        "source": "7468506391afe571a2c88a5b77ab62ec7c1fa4a2f5a58dc88d266b3785962387",
+        "evidence": null
+      },
+      {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "superseded-after-parser-preflight",
+        "status": "waiting-worker",
         "phase": "Waiting for a worker",
         "passed": 0,
         "failed": 0,
         "total": 9,
         "unit": "checks",
-        "source": "bd389c846d04fb4498e1225bba6c086865fc1478820d7e8a9af71903e5c06d05",
+        "source": "0bb5e1546676b41291a5b75a22500346427b4375b9b71f561b52f73962def721",
         "evidence": null
       },
       {
         "title": "Check byte lengths through checked total helper bodies",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules",
+        "phase": "checked total buffer selection",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -20096,11 +20111,11 @@
       }
     ],
     "counts": {
-      "verified": 16,
+      "verified": 17,
       "blocked": 7,
       "running": 14,
       "pending": 317,
-      "recheck": 321
+      "recheck": 320
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20108,5 +20123,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:05:03.022621+00:00"
+  "updatedAt": "2026-11-08T02:06:08.899747+00:00"
 }
