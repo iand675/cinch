@@ -506,7 +506,7 @@
   "candidatePublished": false,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "8/236 Rust targets and 0/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "9/236 Rust targets and 0/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -781,11 +781,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 8,
+          "verified": 9,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 227
+          "recheck": 226
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -2803,29 +2803,21 @@
           {
             "id": "native:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:46:17.076570+00:00",
-              "finishedAt": "2026-11-08T03:07:30.380703+00:00",
-              "exitCode": 0,
-              "logSha256": "69b7033c0f5eec2df80bd20b9f17f21a0848228b486526e4f582b62867f2c9ba",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T17:19:23.502745+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -3199,17 +3191,17 @@
           {
             "id": "native:case_evidence",
             "title": "case_evidence",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T17:18:19.983927+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T17:19:23.490046+00:00",
+              "exitCode": 0,
+              "logSha256": "d42e6cc2b6c4b966d7248cffd852bca857a4110127a153a1eea03803a35aea21",
               "cases": [
                 {
                   "name": "a_read_only_fact_survives_a_mutable_write",
@@ -3233,11 +3225,59 @@
                 },
                 {
                   "name": "case_on_a_three_way_comparison_binds_its_constructors",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_value_binds_literal_and_default_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "conditions_in_handled_computations_carry_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "else_branch_of_a_zero_test_discharges_non_zero",
+                  "status": "passed"
+                },
+                {
+                  "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
+                  "status": "passed"
+                },
+                {
+                  "name": "guards_carry_their_fact_and_their_refutation",
+                  "status": "passed"
+                },
+                {
+                  "name": "less_than_discharges_in_then_and_its_negation_in_else",
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_conditions_contribute_together",
+                  "status": "passed"
+                },
+                {
+                  "name": "obligations_the_condition_does_not_imply_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "prelude_division_takes_its_divisor_from_a_zero_test",
+                  "status": "passed"
+                },
+                {
+                  "name": "reading_a_condition_never_changes_how_it_typechecks",
+                  "status": "passed"
+                },
+                {
+                  "name": "short_circuit_operands_carry_the_left_outcome",
+                  "status": "passed"
+                },
+                {
+                  "name": "structural_predicate_as_a_condition",
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 18
           },
           {
             "id": "native:class_defaults",
@@ -20373,8 +20413,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "case_evidence",
-        "passed": 8,
+        "phase": "bootstrap_source_instances",
+        "passed": 9,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20468,11 +20508,11 @@
       }
     ],
     "counts": {
-      "verified": 294,
+      "verified": 295,
       "blocked": 0,
       "running": 4,
       "pending": 4,
-      "recheck": 404
+      "recheck": 403
     },
     "total": 706,
     "acceptanceVerified": 2,
@@ -20480,5 +20520,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:18:36.172947+00:00"
+  "updatedAt": "2026-11-08T17:19:38.483968+00:00"
 }
