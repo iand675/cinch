@@ -1963,6 +1963,7 @@ module Bootstrap.RuntimeIr where
     other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", Nil)
   guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   guarded-expression definitions locals w failed term = case term of
+    CRequire sp ty body -> guarded-expression definitions locals w failed body
     CGuard sp ty condition body -> case expression definitions locals w condition of
       (ready, value) -> guarded-expression definitions locals (continue-if ready value failed) failed body
     other -> expression definitions locals w term
