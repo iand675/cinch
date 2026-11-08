@@ -20967,6 +20967,16 @@
         "total": 10,
         "unit": "gates",
         "source": "0fe775e5aab0ec924d0243aa0347ddf75df064e799191a2b03718966de7e00c0"
+      },
+      {
+        "title": "Verify stale mutable proof rejection in the self-hosted checker",
+        "status": "running",
+        "phase": "The local checker tracks writes through lets, branch outcomes and call operands. The pinned seed check runs before the seven original and complementary proof controls.",
+        "passed": 1,
+        "failed": 0,
+        "total": 3,
+        "unit": "gates",
+        "source": "60de82d28692030daf29204bc6354176951f871fead2756829c4647b95d7e18c"
       }
     ],
     "counts": {
@@ -20982,5 +20992,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:08:23.565129+00:00"
+  "updatedAt": "2026-11-08T09:09:51.319838+00:00"
 }
