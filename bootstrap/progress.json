@@ -20524,7 +20524,7 @@
         "total": 44,
         "failed": 13,
         "source": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json"
       },
       {
         "title": "Verify shared borrows and task scope exits",
@@ -20560,15 +20560,26 @@
         "evidence": null
       },
       {
-        "title": "Check Rust task sharing against mutable reference payloads",
+        "title": "Check the Cinch memo parser and namespace rules on five original sources",
+        "unit": "controls",
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. replay five original sources and seven memo namespace controls",
+        "passed": 1,
+        "total": 2,
+        "failed": 1,
+        "source": "0bfb4f428894fadd029bf1c1c142ab98b2c3736f34b688c3507493024eb5285f",
+        "evidence": null
+      },
+      {
+        "title": "Check Rust task sharing and transfer through reference fields",
         "unit": "targets",
         "status": "passed",
         "phase": "Isolated Rust candidate. ownership",
         "passed": 2,
         "total": 2,
         "failed": 0,
-        "source": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
+        "source": "9dd2b45de58652076a5732ef609b6ebfe22ad590cc521c179a2acf096860dc57",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-task-transfer-reference-results.json"
       }
     ],
     "counts": {
@@ -20584,5 +20595,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:24:44.299841+00:00"
+  "updatedAt": "2026-11-08T19:26:58.440075+00:00"
 }
