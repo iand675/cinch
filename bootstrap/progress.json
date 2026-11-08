@@ -20769,6 +20769,17 @@
         "evidence": null
       },
       {
+        "title": "Replay class laws with checked numeric samples and U32 wrapping",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to build Stage 1 with typed numeric law sampling.",
+        "passed": 0,
+        "total": 11,
+        "failed": 0,
+        "source": "84d1da0d45f09501bcc3469721d5b895eb5ee87ad93b580b4f2191680efd2492",
+        "evidence": null
+      },
+      {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
@@ -20815,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:18:19.567412+00:00"
+  "updatedAt": "2026-11-08T22:22:24.804908+00:00"
 }
