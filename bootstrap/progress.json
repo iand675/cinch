@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "4/105 Stage 3 targets verified and 12/236 Rust targets verified on the preceding memo revision.",
+  "activity": "5/105 Stage 3 targets verified and 12/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17886,11 +17886,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 4,
+        "passed": 5,
         "total": 105,
         "failed": 1,
         "status": "running",
-        "phase": "case_evidence",
+        "phase": "alloc_accounting",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20848,5 +20848,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:36:50.489342+00:00"
+  "updatedAt": "2026-11-08T23:37:53.775762+00:00"
 }
