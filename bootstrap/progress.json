@@ -21056,13 +21056,13 @@
       {
         "title": "Rebuild ABI 7 with concrete closure proof lists",
         "status": "running",
-        "phase": "Fixed point. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
+        "phase": "Stage 2 and Stage 3 agree byte for byte. The changed-source control is building.",
         "passed": 11,
         "failed": 0,
         "total": 12,
         "unit": "gates",
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-repaired-stage2-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-repaired-stage3-agreement-results.json"
       },
       {
         "title": "Independently verify the repaired ABI 7 fixed point",
@@ -21086,8 +21086,8 @@
       },
       {
         "title": "Run the 14 external checks with the repaired Stage 3",
-        "status": "waiting-stage3",
-        "phase": "Waiting stage3",
+        "status": "running",
+        "phase": "Mixed emit",
         "passed": 0,
         "failed": 0,
         "total": 14,
@@ -21203,5 +21203,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:21:37.278030+00:00"
+  "updatedAt": "2026-11-08T13:24:44.001788+00:00"
 }
