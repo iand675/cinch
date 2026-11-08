@@ -19964,6 +19964,17 @@
         "auditPending": false
       },
       {
+        "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
+        "status": "running",
+        "phase": "Waiting for Stage2 on the preceding combined compiler.",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "4a3a72968db350d25636cdb280880d7d00e03e24063788a0dbb1912d55f2e366",
+        "auditPending": false
+      },
+      {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
         "phase": "bootstrap_named_refinements. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
@@ -20053,13 +20064,13 @@
       {
         "title": "Transfer the owned parameter through erased unrefine",
         "status": "passed-static-refinement-construction",
-        "phase": "undecided-static-list",
+        "phase": "Four programs ran without leaks. Four invalid constructions were refused. LLVM returns the owned list directly.",
         "passed": 8,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
         "source": "06152a32142942c55ef51b918c2320c22162a2e796389aa88773abea25189f0d",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-refinement-erasure-results.json"
       },
       {
         "title": "Run the original argv suite through the real Cinch CLI",
@@ -20151,5 +20162,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:14:20.626353+00:00"
+  "updatedAt": "2026-11-08T01:17:54.476015+00:00"
 }
