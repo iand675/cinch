@@ -13676,11 +13676,16 @@
             "observed": {
               "status": "running",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": null,
+              "startedAt": "2026-11-08T03:50:02.865051+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "decision_constructors_check_erasure_metadata_and_source_evidence",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20668,5 +20673,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:50:02.657818+00:00"
+  "updatedAt": "2026-11-08T03:51:04.940486+00:00"
 }
