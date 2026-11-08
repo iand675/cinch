@@ -20908,7 +20908,7 @@
         "title": "Replay the body and decision fixtures with their checked data context",
         "status": "running",
         "phase": "running",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "unit": "targets",
@@ -20937,8 +20937,8 @@
       {
         "title": "Compile guarded function equations in Rust Cinch",
         "status": "running",
-        "phase": "Incremental. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
-        "passed": 4,
+        "phase": "Repl. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
+        "passed": 5,
         "failed": 0,
         "total": 6,
         "unit": "targets",
@@ -20968,5 +20968,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:02:52.404805+00:00"
+  "updatedAt": "2026-11-08T08:03:54.732672+00:00"
 }
