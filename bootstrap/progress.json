@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "21/236 Rust targets and 15/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "21/236 Rust targets and 16/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12035,11 +12035,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 15,
+          "verified": 16,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 88
+          "recheck": 87
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12425,10 +12425,34 @@
           {
             "id": "stage3:bootstrap_check",
             "title": "bootstrap_check",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "c04df10656db43226cad814575e935f5c19a4b58c4eaa8d084ac03884953cd7a",
+              "cases": [
+                {
+                  "name": "the_fragment_checker_accepts_fib_and_names_every_refusal",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:bootstrap_checked_program",
+            "title": "bootstrap_checked_program",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12437,34 +12461,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:bootstrap_checked_program",
-            "title": "bootstrap_checked_program",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T01:45:33.857342+00:00",
-              "finishedAt": "2026-11-08T01:52:57.403800+00:00",
-              "exitCode": 0,
-              "logSha256": "1f57f0b7acc6673f44a5c5fede4a5dee203e8665e2d9dd7e2e7986ebea7fc185",
-              "cases": [
-                {
-                  "name": "checked_program_constructor_is_not_an_external_authority_bypass",
-                  "status": "passed"
-                },
-                {
-                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
-                  "status": "passed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20293,8 +20289,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_byte_observations, bootstrap_check",
-        "passed": 15,
+        "phase": "bootstrap_byte_observations, bootstrap_checked_program",
+        "passed": 16,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20510,11 +20506,11 @@
       {
         "title": "Replay the original guard and integration targets on the strict where compiler",
         "unit": "controls",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "Isolated Stage 1 candidate. integration",
-        "passed": 5,
+        "passed": 31,
         "total": 44,
-        "failed": 0,
+        "failed": 13,
         "source": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
         "evidence": null
       },
@@ -20564,11 +20560,11 @@
       }
     ],
     "counts": {
-      "verified": 374,
+      "verified": 375,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 324
+      "recheck": 323
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20576,5 +20572,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:06:52.605607+00:00"
+  "updatedAt": "2026-11-08T19:11:38.420213+00:00"
 }
