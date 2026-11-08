@@ -17103,488 +17103,352 @@
         "unit": "cases",
         "total": 34,
         "counts": {
-          "verified": 0,
+          "verified": 34,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 34
+          "recheck": 0
         },
         "detail": "13 valid programs and 21 required refusals.",
         "items": [
           {
             "id": "language:positive:Audio",
             "title": "Audio / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Choreography",
             "title": "Choreography / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Circuit",
             "title": "Circuit / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Differentiate",
             "title": "Differentiate / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Format",
             "title": "Format / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Html",
             "title": "Html / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Proof",
             "title": "Proof / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Protocol",
             "title": "Protocol / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Query",
             "title": "Query / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Reactive",
             "title": "Reactive / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Tactics",
             "title": "Tactics / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:Tasks",
             "title": "Tasks / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:positive:TensorAD",
             "title": "TensorAD / valid program",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Audio",
             "title": "Audio / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:ChoreographyBranch",
             "title": "ChoreographyBranch / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:ChoreographyForge",
             "title": "ChoreographyForge / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:ChoreographyReplay",
             "title": "ChoreographyReplay / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:ChoreographyState",
             "title": "ChoreographyState / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:ChoreographyWire",
             "title": "ChoreographyWire / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Circuit",
             "title": "Circuit / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Differentiate",
             "title": "Differentiate / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Format",
             "title": "Format / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Html",
             "title": "Html / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Once",
             "title": "Once / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Proof",
             "title": "Proof / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Protocol",
             "title": "Protocol / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Query",
             "title": "Query / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Reactive",
             "title": "Reactive / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:TacticsMissing",
             "title": "TacticsMissing / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:TacticsShadow",
             "title": "TacticsShadow / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:TacticsStale",
             "title": "TacticsStale / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:Tasks",
             "title": "Tasks / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:TensorADShape",
             "title": "TensorADShape / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           },
           {
             "id": "language:negative:TensorPrivate",
             "title": "TensorPrivate / required refusal",
-            "state": "recheck",
-            "detail": "Awaiting this language example on the integrated Stage 3.",
+            "state": "verified",
+            "detail": "Result from the integrated Stage 3 language suite.",
             "doneWhen": "Pass the original program or exact refusal-reason assertion through the final matching Stage3.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-external-language-results.json",
-            "observed": {
-              "status": "failed",
-              "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
-              "cases": []
-            },
+            "observed": null,
             "currentTests": null
           }
         ]
@@ -17797,8 +17661,8 @@
         "counts": {
           "verified": 0,
           "blocked": 1,
-          "running": 1,
-          "pending": 6,
+          "running": 2,
+          "pending": 5,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17958,8 +17822,8 @@
           {
             "id": "additional:fixity_interfaces",
             "title": "fixity_interfaces",
-            "state": "pending",
-            "detail": "Queued for the matching Stage 3. 2 original cases.",
+            "state": "running",
+            "detail": "Running all 2 original cases through the matching Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
@@ -20346,9 +20210,9 @@
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
-        "status": "running",
-        "phase": "Waiting for a shared compiler worker.",
-        "passed": 0,
+        "status": "passed",
+        "phase": "All 13 original positive and 21 original negative cases passed on the rebuilt Stage 3.",
+        "passed": 34,
         "total": 34,
         "unit": "gates",
         "failed": 0,
@@ -20497,11 +20361,11 @@
       }
     ],
     "counts": {
-      "verified": 313,
+      "verified": 347,
       "blocked": 2,
-      "running": 3,
-      "pending": 8,
-      "recheck": 385
+      "running": 4,
+      "pending": 7,
+      "recheck": 351
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20509,5 +20373,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:40:56.526051+00:00"
+  "updatedAt": "2026-11-08T17:43:00.071697+00:00"
 }
