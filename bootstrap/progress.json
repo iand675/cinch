@@ -17955,8 +17955,8 @@
         "passed": 15,
         "failed": 0,
         "total": 105,
-        "status": "running",
-        "phase": "bootstrap_byte_observations",
+        "status": "superseded",
+        "phase": "Retained completed results from the preceding revision.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
@@ -17966,8 +17966,8 @@
         "passed": 22,
         "failed": 0,
         "total": 236,
-        "status": "running",
-        "phase": "bootstrap_anonymous_contracts",
+        "status": "superseded",
+        "phase": "Retained completed results from the preceding revision.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20716,11 +20716,11 @@
       {
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to native-primitive-contract.",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. native-primitive-contract",
         "passed": 0,
         "total": 8,
-        "failed": 0,
+        "failed": 1,
         "source": "1e45838521fffaabffc68e66cd7b1215e2142bcceee6058d6abe2144c5bfc5c6",
         "evidence": null
       },
@@ -20771,9 +20771,9 @@
       {
         "title": "Check record interface shape in Rust and tooling",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to tooling-suite.",
-        "passed": 1,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. native-interface-codec",
+        "passed": 2,
         "total": 2,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
@@ -20782,19 +20782,19 @@
       {
         "title": "Replay class laws with checked numeric samples and U32 wrapping",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to build Stage 1 with typed numeric law sampling.",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with typed numeric law sampling",
         "passed": 0,
         "total": 11,
-        "failed": 0,
+        "failed": 1,
         "source": "84d1da0d45f09501bcc3469721d5b895eb5ee87ad93b580b4f2191680efd2492",
         "evidence": null
       },
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to codata (10 original tests).",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. integration (39 original tests)",
         "passed": 16,
         "total": 74,
         "failed": 0,
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:44:08.977195+00:00"
+  "updatedAt": "2026-11-08T22:45:11.367991+00:00"
 }
