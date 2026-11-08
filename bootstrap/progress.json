@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 83,
+          "verified": 84,
           "blocked": 6,
           "running": 1,
-          "pending": 11,
+          "pending": 10,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12960,21 +12960,21 @@
           {
             "id": "stage3:bootstrap_instance_resolution",
             "title": "bootstrap_instance_resolution",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_instance_resolution.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:24:39.093801+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:28:38.860481+00:00",
+              "exitCode": 0,
+              "logSha256": "691b874f2ad613ded86e4f7086a175f0ec3f1230f74a9cb59e6073925ab4ec73",
               "cases": [
                 {
                   "name": "instance_factories_preserve_scope_coherence_and_actual_method_semantics",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13083,18 +13083,31 @@
           {
             "id": "stage3:bootstrap_lexer",
             "title": "bootstrap_lexer",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_lexer.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:28:40.033697+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "lexer_reads_the_corpus_and_agrees_with_the_compiler",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_self_hosting_forms_lex_to_carrying_tokens",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_whole_prelude_lexes_and_agrees_with_the_compiler",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20898,10 +20911,10 @@
       }
     ],
     "counts": {
-      "verified": 370,
+      "verified": 371,
       "blocked": 12,
       "running": 12,
-      "pending": 227,
+      "pending": 226,
       "recheck": 59
     },
     "total": 680,
@@ -20910,5 +20923,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:28:36.834333+00:00"
+  "updatedAt": "2026-11-08T05:29:38.927534+00:00"
 }
