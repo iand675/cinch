@@ -20370,8 +20370,8 @@
         "title": "Check quantified term annotations and lexical scope",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with quantified term annotations",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. separate-term-namespace",
+        "passed": 2,
         "total": 5,
         "failed": 0,
         "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131"
@@ -20400,5 +20400,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:13:53.837526+00:00"
+  "updatedAt": "2026-11-08T18:14:56.949622+00:00"
 }
