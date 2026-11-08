@@ -20640,8 +20640,8 @@
         "title": "Rebuild the Cinch memo compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 2 with the previous Cinch compiler",
-        "passed": 3,
+        "phase": "Isolated Stage 1 candidate. build Stage 3 with the previous Cinch compiler",
+        "passed": 4,
         "total": 6,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
@@ -20716,5 +20716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:10:51.687550+00:00"
+  "updatedAt": "2026-11-08T21:13:35.816512+00:00"
 }
