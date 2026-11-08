@@ -11966,17 +11966,17 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "2 of 3 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:36:47.900048+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:37:36.341024+00:00",
+              "exitCode": 0,
+              "logSha256": "949783fba2a7f4c7a79aded29ffb8f955148988b5745d95a1f927290c5652167",
               "cases": [
                 {
                   "name": "a_program_reads_its_own_command_line",
@@ -11984,7 +11984,11 @@
                 },
                 {
                   "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "status": "passed"
                 }
               ]
             },
@@ -12187,25 +12191,21 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:48:44.509337+00:00",
-              "finishedAt": "2026-11-07T12:58:50.080906+00:00",
-              "exitCode": 101,
-              "logSha256": "b85c65e6d65644990e36939ce98db6dd50463a6216030ea3defc16b607ee5c80",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:37:37.609695+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
-                  "status": "failed"
-                },
-                {
-                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "failed"
+                  "status": "running"
                 }
               ]
             },
@@ -19890,8 +19890,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "argv",
-        "passed": 3,
+        "phase": "bootstrap_body_bindings. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 4,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -20098,5 +20098,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:37:21.230586+00:00"
+  "updatedAt": "2026-11-08T01:38:23.144704+00:00"
 }
