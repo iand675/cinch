@@ -5,9 +5,9 @@
   "manifest_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
   "native_source_sha256": "c229180e228ea35ce9e6b4b489244d9600c6ee4ac10bf80cb6a1396d1996a67c",
   "schema": 1,
-  "scope": "Combined Stage 1 with host primitives, guarded codata, memo and erased records. Concurrency, Stage 3 and complete suites have separate gates.",
+  "scope": "Combined Stage 1 with host primitives, guarded codata, memo and erased records. Stage 3 and complete suites have separate gates.",
   "stage1_receipt_sha256": "4f4ee5e6665f6e8626c95fdc3592fe96e2c70cd3669b6996272bd8b667034289",
-  "status": "audited-combined-stage1-original-integration",
+  "status": "audited-combined-stage1-original-host-targets",
   "targets": {
     "codata": {
       "exit_code": 0,
@@ -80,6 +80,143 @@
           "status": "passed"
         }
       ]
+    },
+    "concurrency": {
+      "original": {
+        "exit_code": 101,
+        "harness_sha256": "7a8c5e935536aea92c7e5aac7d943a4261feb8ed74790bfd84bac5895293765c",
+        "invocation_receipts": {
+          "90545-0.json": "8ec7b2a5773e7623970071c302313faaeecf02eae374038b9a9c038af8238c86",
+          "90545-1.json": "68914352103e29e3e0fb4411f6959134d0fb0a086efce9360e24a155b2cadeb0",
+          "90545-10.json": "8c47086415f9a5cadb3e5cf334f3208fbe338ad3e2f71e225cdfd9acfce30bc4",
+          "90545-11.json": "07fb645797e53d286cb8b4ec92f41e72154da955778e47867bdd6c819c8f92a7",
+          "90545-12.json": "1cc71ebe328463e36ab71ac3293d72808c996c99beeac26af63e060e5e33feaf",
+          "90545-13.json": "35b12a25e7643af2130e48f454f21fb46f06f6f2e51fea2549cb2897584656ef",
+          "90545-14.json": "a4486db2647a3f776bdf1ccef6ec170a053f4f0075ce4a76db0dd08072ccb0f5",
+          "90545-15.json": "13a7c3cb6ff86b589d47c9babb7fd29b5825330eefe099bd23e0dd01b5c605e9",
+          "90545-16.json": "47a817fe7385f88cc1f94c0d30db4b078cff57e6530e0666fc67fec21ca6426f",
+          "90545-17.json": "1e93ffafda30fe974f2c5e39ff7b1b93e9b75a29a3e4dc55bc0d7b5d51a407c1",
+          "90545-18.json": "8e23d1c1e4b49022d155ce4b1506d16fc813291018599a161eec54b4f8dab245",
+          "90545-19.json": "07f99603654d79e788b2d252d094135de9052dfb6bd6b38b5fcd007d554c8335",
+          "90545-2.json": "4394c7d22491bdadd2060524a9e407d3f1807e02810536b425671dc560e341fe",
+          "90545-20.json": "fa9a6b436ced66f20a01b83c5b796b37a555a4d2d163d9e57271c73968c3ca06",
+          "90545-21.json": "cc43189b2798108782bc76081ad41ab1fa923e974d4fce1caa06d965b370ff0e",
+          "90545-22.json": "7eb4883ff647ccdf05d872c04533d8f960c2dc3c35bc8ca2a881e00e1476d93f",
+          "90545-23.json": "f5511ba1edf8e9785b94596ebdfa61bb7a8474585eee65e9196177ee4ce27291",
+          "90545-24.json": "07957277e91da07c1b0e6f98d76b6d9f03d334e4b099e698cd78908a97055582",
+          "90545-25.json": "b5e02b18ffabd441675fcf63cd3ebe3befa913fbffacd93d1b3cf436dbcadc92",
+          "90545-26.json": "06bd69360cb3348d9be1cdf4b5043ea2b875cf67b64a414d425fa9a0852913d3",
+          "90545-27.json": "1806996c9d6fd043335ec64a59496489db774f0992895886afe96c6513e2d87b",
+          "90545-28.json": "7f694685b68b50859c1ef891d05919949a80ad32912d2ff17ba9a5bc7ab78bc6",
+          "90545-29.json": "e0c78809909127eefc0dece4566cc08482bf4f3ed1ff97b986cd8c9f009304be",
+          "90545-3.json": "7b21b5cd2989220b97763d0686bbe8124f8c71c9c229bae2f34cee119b1d59e0",
+          "90545-30.json": "6657b15de12bf8242ebda7710bab0686329ff15b2665b3c887bf1d49bc14e976",
+          "90545-31.json": "8e86fb686f497cf0bbd52fa14e326c7f4a382a7e44313f8a0b169befd45475b5",
+          "90545-32.json": "cfaa7873f0966912fb8020f7dba6cc85feab429d73dce3cd65cde41b731ee63a",
+          "90545-33.json": "336e921e83fd086d3355d4c104fdfa288ed365bd0eb221771638eae23db828f0",
+          "90545-34.json": "64c4d893b8ee07de93d5b0b785dadaf2b93ef53c31485bda8122e8f5ec778067",
+          "90545-4.json": "a53e9417ec74fdb56243ab1fdbe8b17d1cc4574d44188ddd256cf0ccbc6981a2",
+          "90545-5.json": "ec4eb77df9adf1f3fa19bdc87dbcdd2597b81ec338f3019edf2563a9a237223f",
+          "90545-6.json": "19a60c5fc90c3edfcc631e147d048de30a92485e7598aad956a807aa8b6e83bb",
+          "90545-7.json": "586af7b4020daa660a0ccaea778ea3587d0c60439556625f98f250101333de5b",
+          "90545-8.json": "56f7a7f461059ee5d0c0f93199d699ad73f522d62f812e97fb8aab0a2e089ef1",
+          "90545-9.json": "6abc2d853a463c6f710d088f65538d010552f005e4b59863e16e905ffabd0b3a"
+        },
+        "log_sha256": "2606bef2a5fb6882ff2f7c3bdd606165e347d5439db36e41b922007ec15f14ae",
+        "name": "concurrency"
+      },
+      "original_tests": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "failed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "passed"
+        }
+      ],
+      "passed": 19,
+      "replay": {
+        "exit_code": 0,
+        "invocation_receipts": {
+          "8050-0.json": "738a7657188af0c94703d456676abd8d88e23a3a469bb602de80f95eca4957f4",
+          "8050-1.json": "9c23e031ff362337cc9c526f5fd8c60bb6091447f1d3689ea659eb9e8914f40c",
+          "8050-2.json": "5941e3818022082ec280f3d649c6d0b0487d77fd168440eb3102d6b3af9c884e",
+          "8050-3.json": "a4114d2c14863ba6b0b78048afd162b4107768c097eea22dfcb10b68550b2296",
+          "8050-4.json": "89e9e941189b960c080c6b1813857c5bd1caa50e1192b1e6522871faf2f8a21f"
+        },
+        "log_sha256": "1ae9578540e819bffd2e628aefb434ebf04622c116e48760e03efcd9ec1f0cca",
+        "name": "source_task_forwarders_check_actual_captures",
+        "status": "passed"
+      }
     },
     "guard_coverage": {
       "exit_code": 0,

@@ -113,7 +113,9 @@ See [the schema reader audit](../bootstrap/current-schema10-abi7-record-schema-r
 
 The combined Stage 1 with codata, memo, host primitives and erased
 records passed all 39 original integration tests, five guard coverage
-tests and ten codata tests. Concurrency is running on the same build.
+tests, ten codata tests and all 19 original concurrency tests. The
+task forwarder case passed on the same compiler after enabling its
+required interface output. The receipt preserves both runs.
 The combined Stage 2 and Stage 3 rebuild remains separate.
 See [the original target audit](../bootstrap/current-schema10-abi7-combined-host-integration-results.json).
 
