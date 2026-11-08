@@ -21147,7 +21147,7 @@
         "unit": "gates",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-erased-list-provider-results.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage2-results.json"
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
@@ -21178,6 +21178,17 @@
         "passed": 0,
         "total": 14,
         "unit": "gates",
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+        "evidence": null
+      },
+      {
+        "title": "Run the 23 package and JIT tests on the integrated Rust compiler",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
+        "passed": 0,
+        "total": 23,
+        "unit": "tests",
         "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "evidence": null
@@ -21303,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:48:26.705207+00:00"
+  "updatedAt": "2026-11-08T16:49:50.387060+00:00"
 }
