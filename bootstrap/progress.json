@@ -20918,8 +20918,8 @@
       },
       {
         "title": "Require compiled dependencies for object clients",
-        "status": "running",
-        "phase": "Compile client only. The candidate removes source-copy compatibility and tests that a duplicate module is refused.",
+        "status": "failed",
+        "phase": "AssertionError(PosixPath('/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-objects-only-validation-1/fixtures/client-only/compile-client-only.log'))",
         "passed": 2,
         "failed": 0,
         "total": 4,
@@ -20959,8 +20959,8 @@
       },
       {
         "title": "Run shared mutable cells through the rebuilt Cinch compiler",
-        "status": "waiting-prior-validation",
-        "phase": "All 46 modules parsed. The rebuild follows the object-only validation and replays the original cross-call mutation, handler and named-proof cases.",
+        "status": "superseded-before-build",
+        "phase": "Schema10 objects only validation 1.",
         "passed": 1,
         "failed": 0,
         "total": 9,
@@ -20981,5 +20981,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:39:41.460600+00:00"
+  "updatedAt": "2026-11-08T08:40:43.950389+00:00"
 }
