@@ -131,6 +131,7 @@ module Bootstrap.Core where
     UIndexForget value -> effect-type-scope qs value
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
+    UIndexBorrowRead value -> effect-type-scope qs value
     UIndexList element fields -> effect-type-scope qs element && effect-type-scope qs fields
     UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -574,22 +575,16 @@ module Bootstrap.Core where
   core-givens :: CoreDefinition -> List CoreGiven
   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
 
-  borrow-kind :: Kind
-  borrow-kind = KFun KRegion (KFun KType KType)
   ownership-type-kinds :: List (String, Kind)
-  ownership-type-kinds = [("Ref", borrow-kind), ("Mut", borrow-kind), ("Thunk", KFun KRow (KFun KType KType))]
+  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", KFun KRow (KFun KType KType))]
   mutable-borrow :: UType -> Option (UType, UType)
-  mutable-borrow ty = case ty of
-    UApp (UApp (UCon name kind) region) carrier ->
-      if string-compare name "Mut" == 0 && kind-equal kind borrow-kind
-        && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType then Some (region, carrier) else None
+  mutable-borrow ty = case borrow-type-parts ty of
+    Some (True, region, carrier) -> Some (region, carrier)
     other -> None
   borrowed-carrier :: UType -> Option UType
-  borrowed-carrier ty = case ty of
-    UApp (UApp (UCon name kind) region) carrier ->
-      if (string-compare name "Ref" == 0 || string-compare name "Mut" == 0)
-        && kind-equal kind borrow-kind && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType then Some carrier else None
-    other -> None
+  borrowed-carrier ty = case borrow-type-parts ty of
+    Some (mutable, region, carrier) -> Some carrier
+    None -> None
   copy-out-type :: UType -> UType
   copy-out-type input = case borrowed-carrier input of Some carrier -> carrier; None -> input
 
@@ -731,6 +726,67 @@ module Bootstrap.Core where
     CAlternative s pattern body rest -> union-effects (core-effects body) (core-effects rest)
     other -> URow UEnd
 
+  -- Write targets belong to checked Core. A missing region is an opaque
+  -- write. A closure's body is latent and cannot write while it is created.
+  core-mutable-writes :: CoreTerm -> List (Span, Option UType)
+  core-mutable-writes term = case term of
+    CLambda sp ty pattern body -> Nil
+    CApply sp ty f x -> argument-writes sp x <> opaque-call-writes sp f <> child-writes [f, x]
+    CApplyEff sp ty row f x -> argument-writes sp x <> row-writes sp row <> opaque-call-writes sp f <> child-writes [f, x]
+    CErasedApply sp ty row f witness -> row-writes sp row <> opaque-call-writes sp f <> core-mutable-writes f
+    CPrimitive sp ty operation (CArgument at place rest) ->
+      (if string-compare operation "ref-set" == 0 then argument-writes sp place else Nil)
+        <> child-writes [place, rest]
+    CScope sp ty region evidence callback ->
+      (case scope-callback-parts (core-type callback) of
+        Some (owner, inner, row, result) -> row-writes sp row
+        None -> [(sp, None)]) <> core-mutable-writes callback
+    CHandle sp ty label residual body handled-by -> row-writes sp (core-effects term) <> child-writes [body, handled-by]
+    other -> child-writes (term-children term)
+  child-writes :: List CoreTerm -> List (Span, Option UType)
+  child-writes children = case children of Nil -> Nil; Cons first rest -> core-mutable-writes first <> child-writes rest
+  argument-writes :: Span -> CoreTerm -> List (Span, Option UType)
+  argument-writes sp term = case mutable-borrow (core-type term) of
+    Some (region, carrier) -> [(sp, Some region)]
+    None -> Nil
+  row-writes :: Span -> UType -> List (Span, Option UType)
+  row-writes sp row = case row of
+    URow labels -> label-writes sp labels
+    URowJoin a b -> row-writes sp a <> row-writes sp b
+    other -> [(sp, None)]
+  label-writes :: Span -> UType -> List (Span, Option UType)
+  label-writes sp labels = case labels of
+    UEnd -> Nil
+    UArg label rest -> effect-writes sp label <> label-writes sp rest
+    other -> [(sp, None)]
+  effect-writes :: Span -> UType -> List (Span, Option UType)
+  effect-writes sp label = case label of
+    UCon name KEffect -> effect-head-writes sp name None
+    UApp (UCon name (KFun KRegion KEffect)) region -> effect-head-writes sp name (Some region)
+    other -> [(sp, None)]
+  effect-head-writes :: Span -> String -> Option UType -> List (Span, Option UType)
+  effect-head-writes sp name region =
+    if string-compare name "Foreign" == 0 || string-compare name "Eval" == 0 then [(sp, None)]
+    else if string-compare name "Async" == 0 || string-compare name "Cancel" == 0 || string-compare name "Diverge" == 0
+      || string-compare name "Fail" == 0 || string-compare name "ThreadAffine" == 0 || string-compare name "Blocking" == 0 then Nil
+    else [(sp, region)]
+  opaque-call-writes :: Span -> CoreTerm -> List (Span, Option UType)
+  opaque-call-writes sp term = case term of
+    CUse at ty name role actuals -> opaque-symbol-writes sp name role
+    CQualifiedUse at ty name role actuals evidence -> opaque-symbol-writes sp name role
+    CApply at ty f x -> opaque-call-writes sp f
+    CApplyEff at ty row f x -> opaque-call-writes sp f
+    CErasedApply at ty row f witness -> opaque-call-writes sp f
+    CDischarge at ty evidence body -> opaque-call-writes sp body
+    other -> Nil
+  opaque-symbol-writes :: Span -> String -> String -> List (Span, Option UType)
+  opaque-symbol-writes sp name role =
+    if string-compare name (interface-global "Data.Bytes.bytes-len") == 0 || string-compare name (interface-global "Data.Bytes.bytes-get") == 0 then Nil
+    else if string-compare role "foreign" == 0 || string-compare name "b.eval" == 0
+      || string-compare name (interface-global "Data.Bytes.bytes-set") == 0
+      || string-compare name (interface-global "Data.Bytes.bytes-copy-range") == 0
+      || string-compare name (interface-global "Data.Bytes.bytes-new") == 0 then [(sp, None)] else Nil
+
   map-types :: (UType -> UType) -> List UType -> List UType
   map-types f types = case types of Nil -> Nil; Cons ty rest -> Cons (f ty) (map-types f rest)
   map-scheme :: (UType -> UType) -> Scheme -> Scheme
@@ -817,6 +873,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexBorrowRead value -> UIndexBorrowRead (freeze value)
     UIndexList element fields -> UIndexList (freeze element) (freeze fields)
     UIndexCall function args -> UIndexCall function (freeze args)
     UIndexPromote value -> UIndexPromote (freeze value)
@@ -856,6 +913,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-metas st body
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
+    UIndexBorrowRead value -> type-metas st value
     UIndexList element fields -> type-metas st element <> type-metas st fields
     UIndexCall function args -> type-metas st args
     UIndexPromote value -> type-metas st value
@@ -985,6 +1043,7 @@ module Bootstrap.Core where
   closed-type ty = case ty of
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexBorrowRead value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexList element fields -> valid-type ty && closed-type element && closed-type fields
     UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
@@ -1148,6 +1207,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-index-scope ids Nil body
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexBorrowRead value -> type-index-scope bound rigid value
     UIndexList element fields -> type-index-scope bound rigid element && type-index-scope bound rigid fields
     UIndexCall function args -> type-index-scope bound rigid args
     UIndexPromote value -> type-index-scope bound rigid value
@@ -1314,6 +1374,8 @@ module Bootstrap.Core where
   same-number-sort a b = case (number-sort a, number-sort b) of (Some x, Some y) -> string-compare x y == 0; other -> False
   proof-variable :: Nat -> Arithmetic
   proof-variable id = AVariable (string-concat "#value:" (nat-to-string id))
+  borrow-read-variable :: Nat -> Arithmetic
+  borrow-read-variable id = AVariable (string-concat "#borrow-read:" (nat-to-string id))
   -- Types and checked local definitions occupy separate context fields.
   -- Elaboration may supply checked witness hints; closed Core reconstructs
   -- every definition from the actual strict let RHS before checking its body.
@@ -1366,7 +1428,7 @@ module Bootstrap.Core where
     CRefineProof sp ty witness body -> stable-index-source body
     CForget sp ty body -> stable-index-source body
     CProved sp ty certificate body -> stable-index-source body
-    CDischarge sp ty certificates body -> True
+    CDischarge sp ty certificates body -> (case core-mutable-writes body of Nil -> True; other -> False)
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
     CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
@@ -1554,6 +1616,21 @@ module Bootstrap.Core where
 
   core-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   core-arithmetic gamma facts term = case checked-total-index gamma facts term of Some value -> typed-index-arithmetic gamma value; None -> ordinary-arithmetic gamma facts term
+  read-only-borrow-index :: ProofScope -> UType -> CoreTerm -> Option UType
+  read-only-borrow-index gamma result term = case term of
+    CLocal sp ty id name Nil -> (case (borrow-type-parts ty, proof-local id gamma) of
+      (Some (False, region, carrier), Some declared) ->
+        if integer-carrier carrier && contract-equal ty declared && contract-equal result carrier
+        then Some (UIndexBorrowRead (UIndex ty (IRigid id name 0))) else None
+      other -> None)
+    other -> None
+  borrow-observation-reading :: ProofScope -> UType -> Option Arithmetic
+  borrow-observation-reading gamma input = case input of
+    UIndex ty (IRigid id name level) -> (case (borrow-type-parts ty, proof-local id gamma) of
+      (Some (False, region, carrier), Some declared) ->
+        if integer-carrier carrier && contract-equal ty declared then Some (borrow-read-variable id) else None
+      other -> None)
+    other -> None
   ordinary-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   ordinary-arithmetic gamma facts term = case term of
     CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
@@ -1581,7 +1658,9 @@ module Bootstrap.Core where
           other -> None)
       else None
     CPrimitive s ty op (CArgument a first (CArgumentsEnd end)) ->
-      if string-compare op "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) then
+      if string-compare op "copy-out" == 0 then
+        (case read-only-borrow-index gamma ty first of Some reading -> typed-index-arithmetic gamma reading; None -> None)
+      else if string-compare op "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) then
         (case core-arithmetic gamma facts first of Some x -> Some (AMinus (AInteger 0) x); None -> None) else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
       Some op -> case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
@@ -2148,6 +2227,7 @@ module Bootstrap.Core where
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
     UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma (total-parameters function) args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
     UIndexByteLength input -> byte-observation-reading gamma input
+    UIndexBorrowRead input -> borrow-observation-reading gamma input
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if contract-equal carrier declared && (case refinement-view carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
@@ -2259,7 +2339,8 @@ module Bootstrap.Core where
       if same-number-sort ty ty && same-number-sort ty (core-type first) && same-number-sort ty (core-type second) && proof-term gamma facts term then
         actual-math-index gamma facts op first second else None
     CPrimitive s ty op (CArgument a input (CArgumentsEnd end)) ->
-      if string-compare op "negate" == 0 && same-number-sort ty (core-type input) && not (nat-type ty) && proof-term gamma facts input then
+      if string-compare op "copy-out" == 0 then read-only-borrow-index gamma ty input
+      else if string-compare op "negate" == 0 && same-number-sort ty (core-type input) && not (nat-type ty) && proof-term gamma facts input then
         actual-math-index gamma facts "-" (CInt s ty "0") input else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
       Some op -> if proof-term gamma facts first && proof-term gamma facts second then actual-math-index gamma facts op first second else None

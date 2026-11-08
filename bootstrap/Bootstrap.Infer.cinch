@@ -2813,7 +2813,7 @@ module Bootstrap.Infer where
       (case lookup-binding name env of
         Some (MkErasedBinding visible actual owner) ->
           let stated = normalize st actual in
-          if owner == id && not (contract-equal stated wanted) then
+          if owner == id && not (same-type (without-index-levels stated) (without-index-levels wanted)) then
             Some (string-concat-all ["`", visible, "` is evidence of `", obligation-text stated, "`, not of `", obligation-text wanted, "`"])
           else wrong-named-evidence rest env wanted st
         other -> wrong-named-evidence rest env wanted st)
@@ -2835,6 +2835,7 @@ module Bootstrap.Infer where
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexBorrowRead value -> UIndexBorrowRead (relocate-local-index binding new-level value)
     UIndexList element fields ->
       UIndexList (relocate-local-index binding new-level element) (relocate-local-index binding new-level fields)
     UIndexCall function args -> UIndexCall function (relocate-local-index binding new-level args)

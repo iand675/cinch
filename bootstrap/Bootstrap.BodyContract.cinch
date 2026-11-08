@@ -277,6 +277,7 @@ module Bootstrap.BodyContract where
     UIndexForget input -> body-type-authorized bindings input
     UIndexPromote input -> body-type-authorized bindings input
     UIndexByteLength input -> body-type-authorized bindings input
+    UIndexBorrowRead input -> body-type-authorized bindings input
     UIndexMath operation a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UCompare relation a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UPropAnd a b -> body-type-authorized bindings a && body-type-authorized bindings b

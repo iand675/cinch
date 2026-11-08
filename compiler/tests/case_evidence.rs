@@ -405,6 +405,20 @@ fn obligations_the_condition_does_not_imply_are_refused() {
 // ------------------------------------------------- mutable places (D192)
 
 #[test]
+fn a_read_only_fact_survives_a_mutable_write() {
+    expect_checks(
+        "read-only-fact-survives-write",
+        &program(
+            r#"
+  probe :: forall view changed. Ref view Nat -> Mut changed Nat -> Nat
+  probe r m = if copyOut r < 5 then (let u = refSet m 9 in small (copyOut r)) else 0
+"#,
+            "0",
+        ),
+    );
+}
+
+#[test]
 fn a_write_between_test_and_use_invalidates_the_fact() {
     expect_err(
         "write-then-use",

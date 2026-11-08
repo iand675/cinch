@@ -95,6 +95,7 @@ module Bootstrap.ExportNominal where
     UIndexForget value -> type-references value
     UIndexPromote value -> type-references value
     UIndexByteLength value -> type-references value
+    UIndexBorrowRead value -> type-references value
     -- Executable identities are emitted as checked measure contracts by
     -- Export. Only their argument types can add nominal type dependencies.
     UIndexCall function args -> type-references args

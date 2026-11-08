@@ -90,6 +90,7 @@ module Bootstrap.Kinds where
     UIndexForget body -> type-level body
     UIndexPromote body -> type-level body
     UIndexByteLength body -> type-level body
+    UIndexBorrowRead body -> type-level body
     UIndexList element fields -> highest (type-level element) (type-level fields)
     UIndexCall function args -> type-level args
     UIndexMath op a b -> highest (type-level a) (type-level b)
@@ -144,6 +145,7 @@ module Bootstrap.Kinds where
     UIndexForget value -> type-well-formed kinds scope value
     UIndexPromote value -> type-well-formed kinds scope value
     UIndexByteLength value -> type-well-formed kinds scope value
+    UIndexBorrowRead value -> type-well-formed kinds scope value
     UIndexList element fields -> type-well-formed kinds scope element && type-well-formed kinds scope fields
     UIndexCall function args -> valid-type ty && type-well-formed kinds scope args
     UIndexMath op a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
