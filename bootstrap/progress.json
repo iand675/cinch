@@ -21078,8 +21078,8 @@
       {
         "title": "Verify erased value arguments and the repaired interface dependency scan",
         "status": "running",
-        "phase": "TacticsShadow",
-        "passed": 29,
+        "phase": "emit and verify the annotated interface",
+        "passed": 33,
         "failed": 0,
         "total": 35,
         "unit": "cases",
@@ -21184,5 +21184,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:26:30.093011+00:00"
+  "updatedAt": "2026-11-08T15:27:32.799671+00:00"
 }
