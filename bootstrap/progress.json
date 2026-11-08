@@ -20989,9 +20989,9 @@
       },
       {
         "title": "Run all 236 integrated Native groups",
-        "status": "running",
-        "phase": "Bootstrap_core",
-        "passed": 27,
+        "status": "waiting-worker",
+        "phase": "Waiting worker",
+        "passed": 28,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21184,8 +21184,8 @@
       },
       {
         "title": "Run the 23 package and JIT tests on the integrated Rust compiler",
-        "status": "waiting-worker",
-        "phase": "Queued on shared slot 0 after its current test finishes.",
+        "status": "running",
+        "phase": "package-install-verify-and-native-link",
         "passed": 0,
         "total": 23,
         "unit": "tests",
@@ -21195,12 +21195,12 @@
       },
       {
         "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
-        "status": "waiting-worker",
-        "phase": "Queued on shared slot 0 after its current test finishes.",
+        "status": "failed",
+        "phase": "AssertionError()",
         "passed": 0,
         "total": 39,
         "unit": "gates",
-        "failed": 0,
+        "failed": 1,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "evidence": null
       },
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:59:09.992017+00:00"
+  "updatedAt": "2026-11-08T17:01:13.760696+00:00"
 }
