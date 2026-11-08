@@ -144,10 +144,12 @@ module Bootstrap.Export where
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   resolved-value-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
-  resolved-value-scheme typed interfaces symbol scheme = case (resolved-source-scheme typed interfaces symbol scheme, export-resolved-value-scheme scheme) of
-    (Ok resolved, Ok spelling) -> Ok (set-field "scheme" (JStr spelling) resolved)
-    (Err error, other) -> Err error
-    (other, Err error) -> Err error
+  resolved-value-scheme typed interfaces symbol scheme = case export-resolved-value-scheme scheme of
+    Ok None -> Ok JNull
+    Ok (Some spelling) -> case resolved-source-scheme typed interfaces symbol scheme of
+      Ok resolved -> Ok (set-field "scheme" (JStr spelling) resolved)
+      Err error -> Err error
+    Err error -> Err error
   imported-refinement-type :: List LoadedInterface -> String -> Option Json
   imported-refinement-type interfaces symbol = case export-global symbol of
     Err error -> None
@@ -184,6 +186,7 @@ module Bootstrap.Export where
         Err (string-concat "a task forwarding helper requires a portable checked transfer contract to be exported: " name)
       else if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
+        (Ok identity, Ok JNull, Ok spelling) -> opaque-value-row name symbol binding
         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
           (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
             (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))

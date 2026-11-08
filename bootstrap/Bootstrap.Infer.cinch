@@ -4690,7 +4690,9 @@ module Bootstrap.Infer where
     TApp sp (TName at name) arguments -> byte-length-binding name kinds || (case context-total-observation name kinds of
       Some binding -> has (total-result (binding-function binding)) ["Nat", "Int"]
       None -> False)
-    TName sp name -> case lookup-local name locals of Some value -> (case value-carrier (type-kind value) of Some carrier -> math-carrier (predicate-base-carrier carrier); None -> False); None -> False
+    -- A local fixed-width value can be read as mathematical Int in a type
+    -- expression. This does not make its runtime operators proof terms.
+    TName sp name -> case lookup-local name locals of Some value -> (case value-carrier (type-kind value) of Some carrier -> predicate-math-carrier carrier; None -> False); None -> False
     TInfix sp op left right -> predicate-arithmetic-input kinds locals left && predicate-arithmetic-input kinds locals right
     TNegate sp body -> predicate-arithmetic-input kinds locals body
     TIndex sp text -> True
