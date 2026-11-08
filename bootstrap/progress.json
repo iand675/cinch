@@ -20877,7 +20877,7 @@
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
         "status": "checking-fixed-point-and-source-change",
-        "phase": "checking fixed point and source change",
+        "phase": "Stage2 and Stage3 agree on the executable, LLVM IR and all 46 interfaces. The changed-source build is running. The independent audit follows it.",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -20916,13 +20916,23 @@
       },
       {
         "title": "Compile and execute lexical effect handlers",
-        "status": "completed-with-lexical-handler-failures",
-        "phase": "Compile. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
-        "passed": 2,
-        "failed": 4,
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
+        "passed": 0,
+        "failed": 0,
         "total": 6,
         "unit": "gates",
-        "source": "bd33d3f6385ab1c17683349e95511d541d13be2f9456f09b75414a3bd7c4486a"
+        "source": "0f58c64dc7ba7ddf62ddacb2f87e04e2c1e21d5a07298087475fa03218775f45"
+      },
+      {
+        "title": "Verify Rust tests on the current main integration",
+        "status": "running",
+        "phase": "case_evidence. All 50 tooling tests passed on the exact local merge. These Rust gates cover ordering, evidence and current package behavior.",
+        "passed": 1,
+        "failed": 0,
+        "total": 5,
+        "unit": "targets",
+        "source": "b06d070f2f136f4908d61194970306de0aaa883188e87217da63fe1aa596e4db"
       },
       {
         "title": "Rust mutable writes through calls",
@@ -20948,5 +20958,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:42:04.712723+00:00"
+  "updatedAt": "2026-11-08T07:44:17.597272+00:00"
 }
