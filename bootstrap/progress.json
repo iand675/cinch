@@ -20672,12 +20672,12 @@
       {
         "title": "Compile and replay the host inline primitive cases",
         "unit": "controls",
-        "status": "failed",
+        "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with inline primitives",
         "passed": 0,
         "total": 14,
-        "failed": 1,
-        "source": "0d8798c10506aac597bcd2c0d9d13cd61055a6f2bbe55814aa77ed87b6dba20f",
+        "failed": 0,
+        "source": "d1313796d53f42bd0bdd9d9875f44a80f0d5dd3214cf5b8ec09cdd18b1a60bf7",
         "evidence": null
       },
       {
@@ -20727,5 +20727,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:16:00.693919+00:00"
+  "updatedAt": "2026-11-08T21:17:03.273165+00:00"
 }
