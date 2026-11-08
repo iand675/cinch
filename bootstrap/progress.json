@@ -20662,8 +20662,8 @@
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with codata",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. corec_stream_observes_head_and_tail",
+        "passed": 1,
         "total": 13,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20738,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:29:00.938001+00:00"
+  "updatedAt": "2026-11-08T21:30:24.366385+00:00"
 }
