@@ -1633,22 +1633,65 @@ module Bootstrap.Core where
       (if positive then case-value-alias gamma facts value ty id else Nil)
         <> scoped-core-case-facts gamma facts value inner positive
     CPVar sp ty id name -> if positive then case-value-alias gamma facts value ty id else Nil
-    CPConstructor sp ty name Nil constructor (CPDone end) ->
-      if not (bool-type ty && bool-type constructor && bool-type (core-type value)) then Nil else
-        if string-compare name "True" == 0 || string-compare name "False" == 0 then
-          (case scoped-core-branch gamma facts value (if positive then string-compare name "True" == 0 else string-compare name "False" == 0) of
-            Some fact -> [fact]
-            None -> Nil)
-          else Nil
+    CPConstructor sp ty name Nil constructor (CPDone end) | bool-type ty && bool-type constructor && bool-type (core-type value) ->
+      if string-compare name "True" == 0 || string-compare name "False" == 0 then
+        (case scoped-core-branch gamma facts value (if positive then string-compare name "True" == 0 else string-compare name "False" == 0) of
+          Some fact -> [fact]
+          None -> Nil)
+        else Nil
+    CPConstructor sp ty name actuals constructor fields -> case-list-shape gamma facts value ty name constructor fields positive
     CPInt sp ty text -> if not (contract-equal ty (core-type value)) then Nil else
       (case (core-arithmetic gamma facts value, core-arithmetic gamma facts (CInt sp ty text)) of
         (Some actual, Some literal) -> [PCompare (if positive then Equal else Unequal) actual literal]
         other -> Nil)
     other -> Nil
   case-value-alias :: ProofScope -> List Proposition -> CoreTerm -> UType -> Nat -> List Proposition
-  case-value-alias gamma facts value ty id = if not (integer-carrier ty && contract-equal ty (core-type value)) then Nil else
-    case core-arithmetic gamma facts value of
-      Some actual -> [PCompare Equal (proof-variable id) actual]
+  case-value-alias gamma facts value ty id = if not (contract-equal ty (core-type value)) then Nil else
+    if integer-carrier ty then
+      (case core-arithmetic gamma facts value of
+        Some actual -> [PCompare Equal (proof-variable id) actual]
+        None -> Nil)
+    else case core-list-element ty of
+      Some element -> (case actual-index gamma facts value of
+        Some index -> (case list-shape-reading gamma index of
+          Some actual -> [PCompare Equal (list-shape-variable id) actual]
+          None -> Nil)
+        None -> Nil)
+      None -> Nil
+  -- A list shape has its own proof identity. It is either empty (0) or
+  -- nonempty (1) and never serves as a reading of the list's elements.
+  list-shape-variable :: Nat -> Arithmetic
+  list-shape-variable id = AVariable (string-concat "#list-shape:" (nat-to-string id))
+  list-shape-reading :: ProofScope -> UType -> Option Arithmetic
+  list-shape-reading gamma index = if not (typed-index-admissible index) then None else case index of
+    UIndexList element UEnd -> Some (AInteger 0)
+    UIndexList element (UArg first rest) -> Some (AInteger 1)
+    UIndex carrier (IRigid id name level) -> (case (core-list-element carrier, proof-local id gamma) of
+      (Some element, Some declared) -> if contract-equal carrier declared then Some (list-shape-variable id) else None
+      other -> None)
+    other -> None
+  irrefutable-list-field :: UType -> CorePattern -> Bool
+  irrefutable-list-field expected pattern = case pattern of
+    CPWild sp ty -> contract-equal expected ty
+    CPVar sp ty id name -> contract-equal expected ty
+    CPAs sp ty id name inner -> contract-equal expected ty && irrefutable-list-field expected inner
+    other -> False
+  list-pattern-shape :: UType -> String -> UType -> CorePattern -> Bool -> Option Int
+  list-pattern-shape ty name constructor fields positive = case (core-list-element ty, fields) of
+    (Some element, CPDone end) ->
+      if string-compare name (interface-global "Data.Core.Nil") == 0 && contract-equal constructor ty then Some (if positive then 0 else 1) else None
+    (Some element, CPField sp head (CPField tail-at tail (CPDone end))) ->
+      if string-compare name (interface-global "Data.Core.Cons") == 0 && contract-equal constructor (UFun element (UFun ty ty))
+        && (positive || (irrefutable-list-field element head && irrefutable-list-field ty tail)) then Some (if positive then 1 else 0) else None
+    other -> None
+  case-list-shape :: ProofScope -> List Proposition -> CoreTerm -> UType -> String -> UType -> CorePattern -> Bool -> List Proposition
+  case-list-shape gamma facts value ty name constructor fields positive = if not (contract-equal ty (core-type value)) then Nil else
+    case list-pattern-shape ty name constructor fields positive of
+      Some shape -> (case actual-index gamma facts value of
+        Some index -> (case list-shape-reading gamma index of
+          Some actual -> [PCompare Equal actual (AInteger shape)]
+          None -> Nil)
+        None -> Nil)
       None -> Nil
   core-alternative-covers :: CoreTerm -> Bool
   core-alternative-covers body = case body of
@@ -1996,6 +2039,9 @@ module Bootstrap.Core where
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
     UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
     UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
+    UPropNotNull value -> case list-shape-reading gamma value of
+      Some actual -> Some (PCompare Equal actual (AInteger 1))
+      None -> None
     UPropNonZeroPending value -> None
     other -> None
   scoped-core-predicates :: ProofScope -> UType -> Option (List Proposition)
