@@ -11904,11 +11904,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 5,
+          "verified": 6,
           "blocked": 0,
           "running": 3,
           "pending": 79,
-          "recheck": 18
+          "recheck": 17
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -12047,21 +12047,21 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:19:05.631525+00:00",
-              "finishedAt": "2026-11-07T12:23:32.997126+00:00",
-              "exitCode": 101,
-              "logSha256": "c8863fdbf23423300e1981dfeb79e7432f9e0c8ee2bc1296ba4df0bb8d819db7",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:45:35.294570+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "failed"
+                  "status": "running"
                 }
               ]
             },
@@ -12139,17 +12139,17 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:37:37.609695+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:45:32.808905+00:00",
+              "exitCode": 0,
+              "logSha256": "235e29e25081e6129f145512b9c8b8271927192028f630d9becdce75e29fc81f",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -12157,7 +12157,7 @@
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12266,20 +12266,24 @@
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "interrupted-superseded",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T13:53:35.352454+00:00",
-              "finishedAt": "2026-11-07T14:52:40.042514+00:00",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:45:33.857342+00:00",
+              "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
                   "status": "running"
                 }
               ]
@@ -13957,17 +13961,17 @@
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "3 of 4 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:44:28.170961+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:45:34.490500+00:00",
+              "exitCode": 0,
+              "logSha256": "6413e2fb70ab9a130fabff1e07914690457488b3ea71bacf8bfdddb3c2d5648e",
               "cases": [
                 {
                   "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
@@ -13975,7 +13979,15 @@
                 },
                 {
                   "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "logical_literal_proof_contracts_round_trip_without_becoming_boolean_values",
+                  "status": "passed"
+                },
+                {
+                  "name": "portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners",
+                  "status": "passed"
                 }
               ]
             },
@@ -19812,7 +19824,7 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "Waiting for one of the five build workers.",
+        "phase": "Checking the fixed point and changed-source rebuild.",
         "passed": 4,
         "failed": 0,
         "total": 4,
@@ -19834,8 +19846,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_body_bindings. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 4,
+        "phase": "bootstrap_checked_program. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 5,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -20021,7 +20033,7 @@
       },
       {
         "title": "Rerun the full Native suite after the clean-build fix",
-        "status": "running",
+        "status": "superseded-by-exact-published-native",
         "phase": "bootstrap_imported_nonzero",
         "passed": 41,
         "failed": 0,
@@ -20030,11 +20042,11 @@
       }
     ],
     "counts": {
-      "verified": 10,
+      "verified": 11,
       "blocked": 5,
       "running": 13,
       "pending": 86,
-      "recheck": 561
+      "recheck": 560
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20042,5 +20054,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:45:09.749583+00:00"
+  "updatedAt": "2026-11-08T01:46:11.952740+00:00"
 }
