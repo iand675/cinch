@@ -20971,8 +20971,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_ir, bootstrap_ladder, bootstrap_machine_values",
-        "passed": 40,
+        "phase": "Bootstrap_ladder, bootstrap_machine_values, bootstrap_manifest",
+        "passed": 41,
         "failed": 1,
         "total": 105,
         "unit": "groups",
@@ -21110,20 +21110,20 @@
       },
       {
         "title": "Repair checked ordering fields in bootstrap_load and bootstrap_nominals",
-        "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "status": "failed",
+        "phase": "AssertionError()",
         "passed": 0,
         "total": 4,
         "unit": "gates",
-        "failed": 0,
+        "failed": 2,
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
         "evidence": null
       },
       {
         "title": "Replay the permanent library object regression",
-        "status": "running",
-        "phase": "run-exact-object-test",
-        "passed": 1,
+        "status": "passed",
+        "phase": "The original library object target passed with physical %0 signature and erased LLVM checks.",
+        "passed": 2,
         "total": 2,
         "unit": "gates",
         "failed": 0,
@@ -21251,5 +21251,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:03:15.286852+00:00"
+  "updatedAt": "2026-11-08T16:04:17.910423+00:00"
 }
