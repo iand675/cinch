@@ -1,0 +1,27 @@
+{
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "foreign_clients_without_leaks": 17,
+  "full_goal_complete": false,
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "revision": "fb9fc9308120de0bbfc6f709f27e3ee81bf203c0",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "f1e5191b04b9fbb7652ec0f1d539e38292ceeeec29080b592d833ac2cbdb29a5",
+      "name": "build-exact-object-test",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "1ecd5eddcab505a46d7cb42049134ac5f3ef912f1197470eac913793dbc55531",
+      "name": "run-exact-object-test",
+      "status": "passed"
+    }
+  ],
+  "runtime_abi": 7,
+  "rust_library_sha256": "5a70341a78858bd9b1608f59cdb4ae3c5a2a8eb9e0326d179b34bf4287e6e951",
+  "stage1_compiler_sha256": "5dc2faa3467207f8f810ccbdb22b464027de67f8aabbea9ec08dd94cd6674c65",
+  "staged_object_scope": "The complete original library-object target passed on the audited Stage 1. It checks the exported %0 schemes, zero- and one-word physical worker signatures, absence of both erased operand literals, and a zero-word application in emitted LLVM.",
+  "status": "audited-abi7-permanent-erased-object-regression",
+  "test_source_sha256": "7954e42e5fe51942b930ac9c7d7920d391f19fba0cdc2b27206a8d5f31efce3e"
+}
