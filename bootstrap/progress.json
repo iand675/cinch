@@ -20927,9 +20927,9 @@
       {
         "title": "Verify Rust tests on the current main integration",
         "status": "running",
-        "phase": "case_evidence. All 50 tooling tests passed on the exact local merge. These Rust gates cover ordering, evidence and current package behavior.",
-        "passed": 1,
-        "failed": 0,
+        "phase": "package-unit. All 50 tooling tests passed on the exact local merge. These Rust gates cover ordering, evidence and current package behavior.",
+        "passed": 3,
+        "failed": 1,
         "total": 5,
         "unit": "targets",
         "source": "b06d070f2f136f4908d61194970306de0aaa883188e87217da63fe1aa596e4db"
@@ -20958,5 +20958,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:44:17.597272+00:00"
+  "updatedAt": "2026-11-08T07:45:19.905052+00:00"
 }
