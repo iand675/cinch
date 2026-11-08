@@ -1,0 +1,65 @@
+{
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "full_goal_complete": false,
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "rows": [
+    {
+      "cases": [
+        "pkg::tests::bundle_materializes_sources_and_an_object",
+        "pkg::tests::git_dependency_installs_from_a_local_repository",
+        "pkg::tests::missing_and_dirty_path_dependencies_are_named",
+        "pkg::tests::native_build_consumes_package_objects_and_dependencies",
+        "pkg::tests::one_package_name_cannot_resolve_to_two_contents",
+        "pkg::tests::path_dependencies_install_sources_and_lock_entries",
+        "pkg::tests::path_dependency_cycles_are_named",
+        "pkg::tests::registry_and_path_dependencies_share_one_closure",
+        "pkg::tests::registry_releases_cannot_disclose_path_dependencies",
+        "pkg::tests::semver_ranges_intersect_and_reject_incompatible_versions"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a09287eff93e188f732cb770b93b8369e742452c85a80aa7b65c64e564761529",
+      "name": "package-install-verify-and-native-link",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "cases": [
+        "jit::tests::cross_object_references_resolve_in_one_jit_engine",
+        "jit::tests::embedded_orc_runs_a_module",
+        "jit::tests::installed_package_object_loads_and_runs_a_unit"
+      ],
+      "exit_code": 0,
+      "log_sha256": "7e73c6cd637d2b562a2f70376db885b6e702fb054b8702b03cf2c15a66928ce7",
+      "name": "jit-package-admission",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "cases": [
+        "a_corrupt_artifact_is_a_hard_error_to_load_and_a_repair_to_write",
+        "a_missing_entry_is_reported_as_missing",
+        "abi5_artifacts_cannot_load_into_the_array_runtime",
+        "an_entry_from_another_build_is_refreshed_not_fatal",
+        "interfaces_that_are_not_the_packages_are_not_cached",
+        "object_and_ir_artifacts_ride_in_the_entry",
+        "the_cli_repairs_a_corrupt_entry_and_accepts_rebuild",
+        "the_package_key_is_stable_and_covers_its_inputs",
+        "the_root_follows_cinch_store_and_has_a_documented_default",
+        "writing_twice_is_idempotent_and_the_entry_reads_back"
+      ],
+      "exit_code": 0,
+      "log_sha256": "40ef688009e326ef27b3723e2a750f7ef88bdecbcaf0107a5e3aea96f0186019",
+      "name": "package-store-integration",
+      "status": "passed",
+      "tests": 10
+    }
+  ],
+  "runner_sha256": "64b0e1d35d2a4abac0e097ea76c931df40204e5021a3552f36a9ec420e0e5880",
+  "runtime_abi": 7,
+  "scope": "All 23 original package installation, Native object linking, JIT and package store cases on the integrated candidate.",
+  "skipped": 0,
+  "source_snapshot_sha256": "c4e66a5cb32595158ff87120943e80010687ebbac0d54dd7615e04e6c6e83d9c",
+  "status": "audited-exact-abi7-single-package-execution-interface",
+  "tests": 23
+}
