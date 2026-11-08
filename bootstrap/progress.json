@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "34 of 236 complete groups passed; 1 running, 1 failed and 200 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "35 of 236 complete groups passed; 1 running, 1 failed and 199 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "34 of 236 complete groups passed; 1 running, 1 failed and 200 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "35 of 236 complete groups passed; 1 running, 1 failed and 199 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 34,
+          "verified": 35,
           "blocked": 1,
           "running": 1,
-          "pending": 200,
+          "pending": 199,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1727,17 +1727,17 @@
           {
             "id": "native:bootstrap_globals",
             "title": "bootstrap_globals",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:58:35.122720+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T06:02:53.443774+00:00",
+              "exitCode": 0,
+              "logSha256": "f9b64653a0a3539d692b8ca86d48292a5b2bc51e4b91d1c5b6711ac469364387",
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
@@ -1745,7 +1745,7 @@
                 },
                 {
                   "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1754,21 +1754,21 @@
           {
             "id": "native:bootstrap_guarded_arithmetic",
             "title": "bootstrap_guarded_arithmetic",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_arithmetic.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T17:28:44.212377+00:00",
-              "finishedAt": "2026-11-06T17:35:46.937154+00:00",
-              "exitCode": 0,
-              "logSha256": "65ac4b98bb4594e41e1e16d2850583c5cbd3ed4805ba994186ef89dacddc56f9",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:02:53.446655+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "guarded_nat_subtraction_uses_actual_branch_facts",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -12008,8 +12008,8 @@
           "verified": 91,
           "blocked": 6,
           "running": 1,
-          "pending": 3,
-          "recheck": 4
+          "pending": 4,
+          "recheck": 3
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -14198,87 +14198,18 @@
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "recheck",
-            "detail": "1 of 17 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
+            "state": "pending",
+            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:40:04.669605+00:00",
-              "finishedAt": "2026-11-08T03:42:13.869579+00:00",
-              "exitCode": 0,
-              "logSha256": "9f65d7d91efe75c80c0d50a22bf0b8547472e777866193b6eedafc08a0ec8efc",
-              "cases": [
-                {
-                  "name": "a_write_between_test_and_use_invalidates_the_fact",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_facts_go_stale_on_the_path_only",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_comparison_binds_its_rows",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_list_binds_non_emptiness",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_three_way_comparison_binds_its_constructors",
-                  "status": "passed"
-                },
-                {
-                  "name": "case_on_a_value_binds_literal_and_default_rows",
-                  "status": "passed"
-                },
-                {
-                  "name": "conditions_in_handled_computations_carry_facts",
-                  "status": "passed"
-                },
-                {
-                  "name": "else_branch_of_a_zero_test_discharges_non_zero",
-                  "status": "passed"
-                },
-                {
-                  "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
-                  "status": "passed"
-                },
-                {
-                  "name": "guards_carry_their_fact_and_their_refutation",
-                  "status": "passed"
-                },
-                {
-                  "name": "less_than_discharges_in_then_and_its_negation_in_else",
-                  "status": "passed"
-                },
-                {
-                  "name": "nested_conditions_contribute_together",
-                  "status": "passed"
-                },
-                {
-                  "name": "obligations_the_condition_does_not_imply_are_refused",
-                  "status": "passed"
-                },
-                {
-                  "name": "prelude_division_takes_its_divisor_from_a_zero_test",
-                  "status": "passed"
-                },
-                {
-                  "name": "reading_a_condition_never_changes_how_it_typechecks",
-                  "status": "passed"
-                },
-                {
-                  "name": "short_circuit_operands_carry_the_left_outcome",
-                  "status": "passed"
-                },
-                {
-                  "name": "structural_predicate_as_a_condition",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -19024,28 +18955,6 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
-        "title": "Development Stage1: Boolean and NonZero conditions",
-        "status": "passed",
-        "phase": "Both original programs ran without leaks. The checks cover short-circuiting, negation, constructor shadowing, and NonZero in if, case, and guards.",
-        "passed": 9,
-        "failed": 0,
-        "total": 9,
-        "unit": "client cases",
-        "source": "41f4a2c737f29632b9b3a4cb6ea5455d37462a8e5710798ef960b1fd52c0a36d",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-structural-branch-conditions-results.json"
-      },
-      {
-        "title": "Development Stage1: equation fallthrough and guarded runtime",
-        "status": "passed",
-        "phase": "The original literal equations ran without leaks and seven original refusal diagnostics matched. The guard took both runtime branches and rejected a call that violated its precondition.",
-        "passed": 12,
-        "failed": 0,
-        "total": 12,
-        "unit": "client cases",
-        "source": "5fcebec4597ef49423baf26126ee049cd5b19655af252b9c278f5b3747ab978e",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-guarded-equation-results.json"
-      },
-      {
         "title": "Published Stage3 and Rust: complete CLI emitter target",
         "status": "passed",
         "phase": "Both runs passed the original emitter target, including the C closure ABI, the higher-kinded client, and checked object linking.",
@@ -19055,17 +18964,6 @@
         "unit": "compiler runs",
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-cli-emitter-parity-results.json"
-      },
-      {
-        "title": "Development Stage1: list and guard branch evidence",
-        "status": "passed",
-        "phase": "Both original programs ran without leaks. The checker refused evidence from an empty list, a different list, and a shadowed guard variable.",
-        "passed": 5,
-        "failed": 0,
-        "total": 5,
-        "unit": "client cases",
-        "source": "1355f5a501cd7e76434d8ea9f316529f875fbf87c55230c3273680c453483a0f",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-list-and-guard-results.json"
       },
       {
         "title": "Development Stage1: machine contracts and source refinements",
@@ -19704,8 +19602,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_globals",
-        "passed": 34,
+        "phase": "bootstrap_guarded_arithmetic",
+        "passed": 35,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20976,14 +20874,25 @@
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
+      },
+      {
+        "title": "Rust ordering evidence and package regression tests",
+        "status": "passed",
+        "phase": "Rust now derives comparison facts from the checked helper and the selected dictionary. All 17 case-evidence and 8 package tests passed on the published source. Cinch Stage3 ordering evidence is tracked separately.",
+        "passed": 25,
+        "failed": 0,
+        "total": 25,
+        "unit": "tests",
+        "source": "0a5c28600c2bee15e21f95641a5eca96f3a5a2d131a2e195ff8b1f8dd88d42d3",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-native-comparing-authority-results.json"
       }
     ],
     "counts": {
-      "verified": 388,
+      "verified": 389,
       "blocked": 12,
       "running": 12,
       "pending": 209,
-      "recheck": 59
+      "recheck": 58
     },
     "total": 680,
     "acceptanceVerified": 4,
@@ -20991,5 +20900,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:02:31.061858+00:00"
+  "updatedAt": "2026-11-08T06:04:18.738236+00:00"
 }
