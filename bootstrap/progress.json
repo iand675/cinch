@@ -19955,8 +19955,8 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "building stage1",
-        "passed": 1,
+        "phase": "building stage2",
+        "passed": 2,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20052,9 +20052,9 @@
       },
       {
         "title": "Transfer the owned parameter through erased unrefine",
-        "status": "running",
-        "phase": "false-static-list",
-        "passed": 6,
+        "status": "passed-static-refinement-construction",
+        "phase": "undecided-static-list",
+        "passed": 8,
         "failed": 0,
         "total": 8,
         "unit": "client cases",
@@ -20130,8 +20130,8 @@
       },
       {
         "title": "Rerun the full Native suite after the clean-build fix",
-        "status": "waiting-worker",
-        "phase": "bootstrap_guarded_bodies",
+        "status": "running",
+        "phase": "bootstrap_guarded_calls",
         "passed": 39,
         "failed": 0,
         "total": 236,
@@ -20151,5 +20151,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:13:18.738781+00:00"
+  "updatedAt": "2026-11-08T01:14:20.626353+00:00"
 }
