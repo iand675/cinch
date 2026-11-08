@@ -627,6 +627,10 @@
       "symbol": "Relation.Ord.comparing"
     },
     {
+      "classes": "TT",
+      "symbol": "Relation.Ord.comparing"
+    },
+    {
       "classes": "OTO",
       "symbol": "Category.Foldable.fold-map"
     },
