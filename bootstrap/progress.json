@@ -21096,12 +21096,12 @@
       },
       {
         "title": "Repair checked ordering fields in bootstrap_load and bootstrap_nominals",
-        "status": "failed",
-        "phase": "AssertionError()",
-        "passed": 0,
+        "status": "running",
+        "phase": "bootstrap_load",
+        "passed": 2,
         "total": 4,
         "unit": "gates",
-        "failed": 2,
+        "failed": 0,
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
         "evidence": null
       },
@@ -21117,24 +21117,24 @@
         "evidence": null
       },
       {
-        "title": "Rebuild the erased-arrow compiler through Stage 3",
-        "status": "failed",
-        "phase": "BootstrapError('stage2 did not build (exit 5).\\nbootstrap.runtime-ir:34767:49: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_114_101_118_101_114_115_101_ [T]\\nbootstrap.runtime-ir:34766:21: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_105_115_45_101_109_112_116_121_ [T]\\nbootstrap.runtime-ir:34763:75: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_114_101_118_101_114_115_101_ [T]\\nbootstrap.runtime-ir:34763:24: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_105_115_45_101_109_112_116_121_ [T]\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-erased-argument-ladder-2/build/stage2/compiler.ll.diagnostics')",
+        "title": "Rebuild with the expanded pinned object through Stage 3",
+        "status": "running",
+        "phase": "replay both tagged List variants through the audited Stage 1",
         "passed": 1,
-        "total": 4,
+        "total": 5,
         "unit": "gates",
-        "failed": 1,
+        "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "evidence": null
       },
       {
         "title": "Run all 34 original language examples on the rebuilt Stage 3",
-        "status": "failed",
-        "phase": "RuntimeError(\"Erased-arrow ladder failed: BootstrapError('stage2 did not build (exit 5).\\\\nbootstrap.runtime-ir:34767:49: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_114_101_118_101_114_115_101_ [T]\\\\nbootstrap.runtime-ir:34766:21: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_105_115_45_101_109_112_116_121_ [T]\\\\nbootstrap.runtime-ir:34763:75: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_114_101_118_101_114_115_101_ [T]\\\\nbootstrap.runtime-ir:34763:24: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_105_115_45_101_109_112_116_121_ [T]\\\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-erased-argument-ladder-2/build/stage2/compiler.ll.diagnostics')\")",
+        "status": "checking-stage3-agreement",
+        "phase": "Waiting for Stage 3 fixed-point verification.",
         "passed": 0,
         "total": 34,
         "unit": "gates",
-        "failed": 1,
+        "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "evidence": null
       },
@@ -21237,5 +21237,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:11:12.090698+00:00"
+  "updatedAt": "2026-11-08T16:13:27.960238+00:00"
 }
