@@ -21045,9 +21045,9 @@
       },
       {
         "title": "Rebuild ABI 7 with concrete closure proof lists",
-        "status": "running",
-        "phase": "Stage 2 and Stage 3 agree byte for byte. The changed-source control is building.",
-        "passed": 11,
+        "status": "passed-abi7-fixed-point-and-package-abi-admission",
+        "phase": "Fixed point. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
+        "passed": 12,
         "failed": 0,
         "total": 12,
         "unit": "gates",
@@ -21197,5 +21197,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:37:16.248704+00:00"
+  "updatedAt": "2026-11-08T13:39:19.550961+00:00"
 }
