@@ -19984,9 +19984,9 @@
       },
       {
         "title": "Check direct refinement construction and erased LLVM",
-        "status": "running",
-        "phase": "false-static-number",
-        "passed": 4,
+        "status": "completed-with-static-refinement-failures",
+        "phase": "undecided-static-list",
+        "passed": 7,
         "failed": 1,
         "total": 8,
         "unit": "client cases",
@@ -19994,8 +19994,8 @@
       },
       {
         "title": "Run the original argv suite through the real Cinch CLI",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules with direct CLI execution",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -20051,8 +20051,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_external_frontend",
-        "passed": 33,
+        "phase": "bootstrap_function_preconditions",
+        "passed": 34,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -20071,5 +20071,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:52:27.309036+00:00"
+  "updatedAt": "2026-11-08T00:53:29.341489+00:00"
 }
