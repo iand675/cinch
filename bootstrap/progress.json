@@ -20497,8 +20497,8 @@
         "title": "Replay strict equation-local bindings and guarded fallthrough",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with equation-local bindings",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. original-strict-where",
+        "passed": 1,
         "total": 6,
         "failed": 0,
         "source": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
@@ -20529,5 +20529,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:35:57.123120+00:00"
+  "updatedAt": "2026-11-08T18:40:01.925345+00:00"
 }
