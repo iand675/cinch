@@ -357,3 +357,31 @@ module Main where
         0,
     );
 }
+
+#[test]
+fn mutation_is_observable_after_passing_the_borrow_to_a_callee() {
+    expect_run(
+        "mutation-through-call",
+        r#"
+module Main where
+  overwrite :: forall region. Mut region Nat -> Unit
+  overwrite m = refSet m 18446744073709551617
+
+  preserve :: forall region. Mut region Nat -> Unit
+  preserve m = refSet m (copyOut m)
+
+  through :: forall region. Mut region Nat -> Nat
+  through m = let first = overwrite m in let second = preserve m in copyOut m
+
+  overwriteRaw :: forall region. Mut region I64 -> Unit
+  overwriteRaw m = refSet m (7 :: I64)
+
+  throughRaw :: forall region. Mut region I64 -> I64
+  throughRaw m = let u = overwriteRaw m in copyOut m
+
+  main :: Int
+  main = if through (mutBorrow 18446744073709551615) == 18446744073709551617 && throughRaw (mutBorrow (3 :: I64)) == (7 :: I64) then 0 else 1
+"#,
+        0,
+    );
+}

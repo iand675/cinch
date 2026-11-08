@@ -236,7 +236,7 @@ impl Pass {
                     s.extend(self.fv(&a.body).iter().filter(|y| !bound.contains(y)));
                 }
             }
-            Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v) => {
+            Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v, _) => {
                 add(&mut s, l, self);
                 s.extend(self.fv(v).iter());
             }
@@ -419,20 +419,21 @@ impl Pass {
             }
             Core::BoxInit(l, v, class) => {
                 let (l, class) = (self.resolve(l.0), *class);
-                self.write_through(l, v, owned, live, false, class, move |v| {
+                self.write_through(l, v, owned, live, class, move |v| {
                     Core::BoxInit(LocalId(l), Box::new(v), class)
                 })
             }
             Core::LazyInit(l, v) => {
                 let l = self.resolve(l.0);
-                self.write_through(l, v, owned, live, false, Class::Raw, move |v| {
+                self.write_through(l, v, owned, live, Class::Raw, move |v| {
                     Core::LazyInit(LocalId(l), Box::new(v))
                 })
             }
-            Core::RefSet(l, v) => {
+            Core::RefSet(l, v, payload) => {
                 let l = self.resolve(l.0);
-                self.write_through(l, v, owned, live, true, Class::Raw, move |v| {
-                    Core::RefSet(LocalId(l), Box::new(v))
+                let payload = *payload;
+                self.write_through(l, v, owned, live, Class::Raw, move |v| {
+                    Core::RefSet(LocalId(l), Box::new(v), payload)
                 })
             }
             // Leaves: constants, unit values, allocations, compile-time
@@ -569,8 +570,8 @@ impl Pass {
     }
 
     /// A node that writes through the binder `l` (borrowed) after
-    /// evaluating `v` (owned). `replace` marks `RefSet`, whose old value
-    /// dies during `v` and whose binder owns the new one.
+    /// evaluating `v` (owned). Keep the cell live while `v` runs, even if
+    /// the write is the last use of the cell.
     #[allow(clippy::too_many_arguments)]
     fn write_through(
         &mut self,
@@ -578,20 +579,15 @@ impl Pass {
         v: &Core,
         owned: &Set,
         live: &Set,
-        replace: bool,
         class: Class,
         make: impl FnOnce(Core) -> Core,
     ) -> Core {
         let mut keep = live.clone();
-        if replace {
-            keep.remove(&l);
-        } else {
-            keep.insert(l);
-        }
+        keep.insert(l);
         let lv: Set = owned.intersection(&keep).copied().collect();
         let v2 = self.go(v, owned, &lv);
         let node = make(v2);
-        let holds = if replace { self.counted(l) } else { self.counted(l) && owned.contains(&l) };
+        let holds = self.counted(l) && owned.contains(&l);
         if holds && !live.contains(&l) {
             let class = concrete(class);
             let t = self.fresh(class);
@@ -614,7 +610,7 @@ fn pat_binders(p: &CPat) -> Vec<usize> {
 
 /// Re-derive the ownership of a transformed body: every counted binder
 /// starts with the references its binding gives it (one for a parameter,
-/// a `let` and a `RefSet`; none for a pattern binder, which borrows from
+/// a `let`; none for a pattern binder, which borrows from
 /// its live scrutinee until a `Dup`), an owned use or `Drop` takes one, a
 /// `Dup` adds one, a borrowed read needs one, and every path that returns
 /// ends with none held.
@@ -809,23 +805,11 @@ impl Verifier {
                     Err(format!("a projection from an unbound container {}", short(other)))
                 }
             },
-            Core::BoxInit(l, v, _) | Core::LazyInit(l, v) => {
+            Core::BoxInit(l, v, _) | Core::LazyInit(l, v) | Core::RefSet(l, v, _) => {
                 if !self.value(v, st)? {
                     return Ok(false);
                 }
                 self.read(st, l.0)?;
-                Ok(true)
-            }
-            Core::RefSet(l, v) => {
-                if !self.value(v, st)? {
-                    return Ok(false);
-                }
-                if self.counted(l.0) {
-                    if st.cnt.get(&l.0).copied().unwrap_or(0) != 0 {
-                        return Err(format!("v{}'s old value survives its replacement", l.0));
-                    }
-                    st.cnt.insert(l.0, 1);
-                }
                 Ok(true)
             }
             _ => Ok(true),

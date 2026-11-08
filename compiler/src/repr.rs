@@ -146,8 +146,10 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             miss(ty);
             Class::Raw
         }
-        // A borrow elaborates to its operand's own word.
-        Ty::Ref(_, a) | Ty::Mut(_, a) => repr_of(a, params, types, miss),
+        // Shared access preserves the referent word. Exclusive access
+        // carries the owned mutable cell so a call preserves its identity.
+        Ty::Ref(_, a) => repr_of(a, params, types, miss),
+        Ty::Mut(..) => Class::Obj,
         Ty::Adt(name, args) => match name.as_str() {
             "refined" => match args.as_slice() {
                 [_, base] => repr_of(base, params, types, miss),

@@ -1795,12 +1795,9 @@ pub enum Core {
     BoxGet(Box<Core>, Class),
     /// Write through a `Mut` borrow: evaluate `val`, store it into the
     /// mutable cell the exclusive borrow `local` names, and yield `Unit`.
-    /// This is the mutation that invalidates evidence about the location
-    /// (evidence invalidation over mutable state). It is a memory write to
-    /// `local`'s slot, so the optimizer treats it as opaque and never
-    /// reorders or propagates a read of `local` across it; later reads of
-    /// `local` observe the new value.
-    RefSet(LocalId, Box<Core>),
+    /// The binder carries the shared cell word. The payload class controls
+    /// releasing its old contents, independently of the cell's ownership.
+    RefSet(LocalId, Box<Core>, Class),
     /// The runtime fault path: exit 70 through `__cinch_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
@@ -2137,6 +2134,8 @@ pub enum Value {
     /// [`Core::ConstBytes`] is its target form). The buffer is shared
     /// and mutated in place, like the runtime's `Bytes` words.
     Bytes(std::rc::Rc<std::cell::RefCell<Vec<u8>>>),
+    /// A shared mutable place in the compile-time evaluator.
+    MutCell(std::rc::Rc<std::cell::RefCell<Value>>),
     /// An interned symbol: the name stands for the process-wide interned
     /// cell (compile-time identity is name identity: the interpreter
     /// never exposes a cell address as data).
@@ -2636,13 +2635,20 @@ pub struct ProjField {
     pub slot: usize,
     pub access: Option<FieldAccess>,
     pub class: Class,
+    pub mutable: bool,
 }
+
+pub(crate) const MUTABLE_CELL: &str = "<builtin>.MutCell";
 
 impl ProjField {
     /// A uniform-word slot projection (no recorded layout) of a field of
     /// class `class`.
+    pub(crate) fn mutable_cell() -> ProjField {
+        ProjField { mutable: true, ..Self::slot(0, Class::Raw) }
+    }
+
     pub fn slot(slot: usize, class: Class) -> ProjField {
-        ProjField { slot, access: None, class }
+        ProjField { slot, access: None, class, mutable: false }
     }
 }
 
@@ -3338,7 +3344,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                 all_calls(body, fns, insts, foreigns, out);
             }
             Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
-            Core::RefSet(_, v) => all_calls(v, fns, insts, foreigns, out),
+            Core::RefSet(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
             Core::Dup(_, _, body) | Core::Drop(_, _, body) => all_calls(body, fns, insts, foreigns, out),
             Core::If(c, t, fe) => {
@@ -3629,7 +3635,7 @@ fn calls_walk(
             calls_walk(v, false, fns, insts, foreigns, callees, out);
             calls_walk(body, tail, fns, insts, foreigns, callees, out);
         }
-        Core::BoxInit(_, v, _) | Core::LazyInit(_, v) | Core::RefSet(_, v) => {
+        Core::BoxInit(_, v, _) | Core::LazyInit(_, v) | Core::RefSet(_, v, _) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out)
         }
         Core::Dup(_, _, body) | Core::Drop(_, _, body) => {
@@ -4004,7 +4010,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(v, f);
         }
-        Core::RefSet(l, v) => {
+        Core::RefSet(l, v, _) => {
             f(*l);
             walk_locals(v, f);
         }
@@ -4099,7 +4105,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 use_range(v, l)
             }
         }
-        Core::RefSet(x, v) => {
+        Core::RefSet(x, v, _) => {
             if *x == l {
                 (0, 0)
             } else {
@@ -4203,7 +4209,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(v, map, next);
             }
-            Core::RefSet(l, v) => {
+            Core::RefSet(l, v, _) => {
                 note(*l, map, next);
                 assign(v, map, next);
             }
@@ -4290,8 +4296,8 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::BoxInit(l, v, c) => {
             Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
         }
-        Core::RefSet(l, v) => {
-            Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
+        Core::RefSet(l, v, class) => {
+            Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)), *class)
         }
         Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
         Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
@@ -4438,11 +4444,8 @@ fn instantiate(
                 ren.remove(l);
                 Core::BoxInit(nl, Box::new(v), *c)
             }
-            Core::RefSet(l, v) => {
-                let nl = fresh(*l, ren, next);
-                let v = go(v, holes, binds, ren, next);
-                ren.remove(l);
-                Core::RefSet(nl, Box::new(v))
+            Core::RefSet(l, v, class) => {
+                Core::RefSet(*ren.get(l).unwrap_or(l), Box::new(go(v, holes, binds, ren, next)), *class)
             }
             Core::BoxGet(v, c) => Core::BoxGet(Box::new(go(v, holes, binds, ren, next)), *c),
             Core::Dup(l, c, body) => {
@@ -5075,10 +5078,11 @@ fn has_alloc(e: &Core) -> bool {
         }
         match e {
             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
-            | Core::RefSet(_, _)
+            | Core::RefSet(_, _, _)
             | Core::BoxGet(..) | Core::Demand(..) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
+            Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
@@ -5158,7 +5162,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
         Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_calls(body, f),
         Core::LazyInit(_, t) => scan_calls(t, f),
         Core::BoxInit(_, v, _) => scan_calls(v, f),
-        Core::RefSet(_, v) => scan_calls(v, f),
+        Core::RefSet(_, v, _) => scan_calls(v, f),
         Core::BoxGet(v, _) => scan_calls(v, f),
         Core::If(c, t, fe) => {
             scan_calls(c, f);
@@ -5190,7 +5194,7 @@ fn memo_count(e: &Core) -> usize {
 fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
-        | Core::RefSet(_, _)
+        | Core::RefSet(_, _, _)
         | Core::BoxGet(..) | Core::Demand(..) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
@@ -5260,7 +5264,7 @@ fn weights_ok(e: &Core) -> bool {
             }
             Core::BoxInit(_, v, _) => go(v, ok),
             Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, ok),
-            Core::RefSet(_, v) => go(v, ok),
+            Core::RefSet(_, v, _) => go(v, ok),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, ok);
@@ -5301,12 +5305,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 ok
             }
             Core::Dup(l, _, body) | Core::Drop(l, _, body) => bound.contains(l) && go(body, bound),
-            Core::RefSet(l, v) => {
-                bound.insert(*l);
-                let ok = go(v, bound);
-                bound.remove(l);
-                ok
-            }
+            Core::RefSet(l, v, _) => bound.contains(l) && go(v, bound),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 args.iter().all(|a| go(a, bound))
             }
@@ -5413,10 +5412,10 @@ fn body_impure(e: &Core) -> bool {
             // A real foreign call is opaque and effectful by contract
             // (foreign function interface specification section 4).
             Core::Foreign(_) => *bad = true,
-            // A `RefSet` write is an opaque mutation of the borrow's
-            // cell: the optimizer must not reorder, drop, or duplicate
-            // it, so it is impure like a foreign call.
-            Core::RefSet(_, _) => *bad = true,
+            // Reads and writes observe one mutable location. Treat them
+            // as opaque to prevent motion or duplication across a write.
+            Core::RefSet(..) | Core::Proj(_, ProjField { mutable: true, .. }) => *bad = true,
+            Core::Ctor(id, _) if id.0 == MUTABLE_CELL => *bad = true,
             Core::Prim(op) => {
                 if !prim_is_pure(*op) {
                     *bad = true;
@@ -6282,7 +6281,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
         }
         Core::BoxInit(_, v, _) => out.push(&mut **v),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&mut **body),
-        Core::RefSet(_, v) => out.push(&mut **v),
+        Core::RefSet(_, v, _) => out.push(&mut **v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);
@@ -6330,7 +6329,7 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
             *c = c.subst(cv);
         }
         Core::Proj(_, f) => f.class = f.class.subst(cv),
-        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) => *c = c.subst(cv),
+        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
         Core::Case { alts, .. } => {
@@ -6877,7 +6876,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
         }
         Core::BoxInit(_, v, _) => out.push(&**v),
         Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&**body),
-        Core::RefSet(_, v) => out.push(&**v),
+        Core::RefSet(_, v, _) => out.push(&**v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);

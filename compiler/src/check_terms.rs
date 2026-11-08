@@ -1444,6 +1444,7 @@ impl Checker {
                                         &field_ty,
                                     ),
                                     class: Class::Raw,
+                                    mutable: false,
                                 },
                                 // The stored observation closure.
                                 Ty::fun(Ty::Unit, field_ty.clone()),
@@ -1465,6 +1466,7 @@ impl Checker {
                                 &field_ty,
                             ),
                             class: Class::Raw,
+                            mutable: false,
                         },
                         field_ty.clone(),
                     ),
@@ -2499,9 +2501,10 @@ impl Checker {
                 // usage design, sections 2 and 3).
                 let (arg_core, arg_ty) = self.infer(env, &args[0])?;
                 let arg_ty = self.uni.zonk(&arg_ty);
-                let (copied, from_borrow) = match &arg_ty {
-                    Ty::Ref(_, inner) | Ty::Mut(_, inner) => ((**inner).clone(), true),
-                    t => (t.clone(), false),
+                let (arg_core, copied, from_borrow) = match arg_ty {
+                    Ty::Mut(_, inner) => (Self::read_mutable_cell(arg_core, &inner), *inner, true),
+                    Ty::Ref(_, inner) => (arg_core, *inner, true),
+                    other => (arg_core, other, false),
                 };
                 if !from_borrow && Self::is_place(&args[0]) {
                     if let Some(l) = self.place_local(env, &args[0]) {
@@ -2730,7 +2733,7 @@ impl Checker {
         let v_idx = self.idx_of_term(&args[1], env).ok();
         self.note_ev_write_loc(region, span, v_idx);
         // Lower to a write through the borrow's cell that yields `Unit`.
-        Ok((ECore::RefSet(m_local, Box::new(v_core)), Ty::Unit))
+        Ok((ECore::RefSet(m_local, Box::new(v_core), inner), Ty::Unit))
     }
 
     /// A compound proposition under `decide` (`P && Q`, `P || Q`,
@@ -5979,7 +5982,43 @@ impl Checker {
         };
         let _ = region;
         self.check_misaligned_place(env, &args[0], is_mut)?;
-        self.check(env, &args[0], &inner)
+        let value = self.check(env, &args[0], &inner)?;
+        if is_mut { self.make_mutable_cell(value, inner, span) } else { Ok(value) }
+    }
+
+    fn make_mutable_cell(&mut self, value: ECore, payload: Ty, span: ast::Span) -> Result<ECore> {
+        let id = self.word_block_ctor(GlobalId(crate::core::MUTABLE_CELL.into()), 1, span)?;
+        Ok(app_spine(ECore::Ctor(id, vec![payload]), vec![value]))
+    }
+
+    fn read_mutable_cell(cell: ECore, payload: &Ty) -> ECore {
+        ECore::Proj(Box::new(cell), ProjField::mutable_cell(), payload.clone())
+    }
+
+    // Structural matches already give each mutable field its own local
+    // value. Keep that copy model, but bind each field's own cell so the
+    // location survives calls from the branch.
+    fn mutable_pattern_fields(
+        &mut self,
+        fields: Vec<LocalId>,
+        types: &[Ty],
+        span: ast::Span,
+        body: ECore,
+    ) -> Result<(Vec<LocalId>, ECore)> {
+        let mut slots = Vec::with_capacity(fields.len());
+        let mut cells = Vec::new();
+        for (field, ty) in fields.into_iter().zip(types) {
+            if let Ty::Mut(_, payload) = ty {
+                let slot = self.fresh_local();
+                self.note_local_ty(slot, payload);
+                let cell = self.make_mutable_cell(ECore::Var(slot), (**payload).clone(), span)?;
+                cells.push((field, cell));
+                slots.push(slot);
+            } else {
+                slots.push(field);
+            }
+        }
+        Ok((slots, wrap_lets(cells, body)))
     }
 
     /// The packed-borrow safety rule (attribute annotations
@@ -7807,6 +7846,11 @@ impl Checker {
                 _ => (None, other.clone()),
             },
         };
+        let observed = if matches!(ty0, Ty::Mut(..)) {
+            Self::read_mutable_cell(col0.clone(), &inner_ty)
+        } else {
+            col0.clone()
+        };
         let wrap = |t: &Ty| -> Ty {
             match &borrow {
                 Some((r, true)) => Ty::Mut(r.clone(), Box::new(t.clone())),
@@ -8006,7 +8050,7 @@ impl Checker {
                         )
                     })?;
                     branch_maps.push(m);
-                    let cmp = literal_eq_cond(&inner_ty, col0.clone(), node);
+                    let cmp = literal_eq_cond(&inner_ty, observed.clone(), node);
                     // One binary decision point per comparison: the
                     // literal's alternative against everything left.
                     let (tw, fw) = pair_weights(lit_sums[i], rest_w);
@@ -8118,7 +8162,7 @@ impl Checker {
                     ECore::Var(l) => self.inline_cols.remove(l),
                     _ => None,
                 };
-                let test = held.unwrap_or(col0);
+                let test = held.unwrap_or(observed);
                 Ok(ECore::If(
                     Box::new(test),
                     CBranch::weighted(tw, t),
@@ -8429,9 +8473,15 @@ impl Checker {
                             &format!("constructor {name}"),
                         )
                     })?;
+                    let (slots, core) = if matches!(ty0, Ty::Mut(..)) {
+                        let carriers = runtime_fields.iter().map(|(_, ty)| wrap(&subst_idx_names(ty, &bmap))).collect::<Vec<_>>();
+                        self.mutable_pattern_fields(fields, &carriers, ctx_span, core)?
+                    } else {
+                        (fields, core)
+                    };
                     branch_lists.push(branch);
                     alt_maps.push(m);
-                    alt_pats.push(CPat::con(tag, fields));
+                    alt_pats.push(CPat::con(tag, slots));
                     alts.push(core);
                 }
                 self.merge_branches(alt_maps);
@@ -8453,7 +8503,7 @@ impl Checker {
                     .zip(sums)
                     .map(|((pat, body), w)| CAlt::weighted(pat, w, body))
                     .collect();
-                Ok(ECore::Case { scrut: Box::new(col0), alts })
+                Ok(ECore::Case { scrut: Box::new(observed), alts })
             }
             Ty::Tuple(items) => {
                 // A tuple is a boxed product: one block, tag 0, elements
@@ -8526,6 +8576,7 @@ impl Checker {
                 for (f, t) in fields.iter().zip(&branch_tys) {
                     self.note_local_ty(*f, t);
                 }
+                let field_types = branch_tys.clone();
                 branch_tys.extend(types[1..].iter().cloned());
                 let core = self.compile_rows(
                     branch,
@@ -8535,9 +8586,14 @@ impl Checker {
                     ctx_span,
                     uncovered,
                 )?;
+                let (slots, core) = if matches!(ty0, Ty::Mut(..)) {
+                    self.mutable_pattern_fields(fields, &field_types, ctx_span, core)?
+                } else {
+                    (fields, core)
+                };
                 Ok(ECore::Case {
-                    scrut: Box::new(col0),
-                    alts: vec![CAlt::new(CPat::con(0, fields), core)],
+                    scrut: Box::new(observed),
+                    alts: vec![CAlt::new(CPat::con(0, slots), core)],
                 })
             }
             Ty::Param(p) => Err(Error::at(
@@ -8724,6 +8780,7 @@ impl Checker {
                 for (f, t) in fields.iter().zip(&branch_tys) {
                     self.note_local_ty(*f, t);
                 }
+                let field_types = branch_tys.clone();
                 branch_tys.extend(types[1..].iter().cloned());
                 let core = self.compile_rows(
                     branch,
@@ -8733,9 +8790,14 @@ impl Checker {
                     ctx_span,
                     uncovered,
                 )?;
+                let (slots, core) = if matches!(ty0, Ty::Mut(..)) {
+                    self.mutable_pattern_fields(fields, &field_types, ctx_span, core)?
+                } else {
+                    (fields, core)
+                };
                 Ok(ECore::Case {
-                    scrut: Box::new(col0),
-                    alts: vec![CAlt::new(CPat::con(0, fields), core)],
+                    scrut: Box::new(observed),
+                    alts: vec![CAlt::new(CPat::con(0, slots), core)],
                 })
             }
             Ty::Pi { .. } => Err(Error::at(
@@ -11684,7 +11746,7 @@ fn rec_walk(
             rec_walk(v, guard, owner, by_local, edges);
             rec_walk(body, guard, owner, by_local, edges);
         }
-        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v, _) => {
             rec_walk(v, guard, owner, by_local, edges)
         }
         ECore::If(c, t, f) => {
@@ -11758,7 +11820,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
             rec_collect_refs(v, by_local, out);
             rec_collect_refs(body, by_local, out);
         }
-        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v, _) => {
             rec_collect_refs(v, by_local, out)
         }
         ECore::If(c, t, f) => {
@@ -11837,7 +11899,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
             top_rec_walk(v, guard, owner, edges);
             top_rec_walk(body, guard, owner, edges);
         }
-        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v, _) => {
             top_rec_walk(v, guard, owner, edges)
         }
         ECore::If(c, t, f) => {
@@ -11936,7 +11998,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             subst_rec_refs(v, subs);
             subst_rec_refs(body, subs);
         }
-        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v, _) => {
             subst_rec_refs(v, subs)
         }
         ECore::If(c, t, f) => {

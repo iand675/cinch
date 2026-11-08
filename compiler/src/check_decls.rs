@@ -19487,6 +19487,7 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Big { nat: true, .. } => "a `Nat`",
         Big { nat: false, .. } => "an `Int`",
         Bytes(_) => "a `Bytes` buffer",
+        MutCell(_) => "a mutable cell",
         Sym(_) => "an interned symbol",
         Bool(_) => "a `Bool`",
         Unit => "Unit",
@@ -20352,6 +20353,7 @@ impl Checker {
             }
             Core::DictProj(d, i, ..) => self.eval_dictionary_projection(cx, d, *i, frame)?,
             Core::Proj(d, i) => match self.eval_core(cx, d, frame)? {
+                Value::MutCell(cell) if i.mutable => cell.borrow().clone(),
                 Value::Adt { fields, .. } => fields.get(i.slot).cloned().ok_or_else(|| {
                     Error::plain("internal error: record projection out of range")
                 })?,
@@ -20437,9 +20439,12 @@ impl Checker {
                 restore_local(frame, l.0, saved);
                 r?
             }
-            Core::RefSet(l, v) => {
+            Core::RefSet(l, v, _) => {
                 let val = self.eval_core(cx, v, frame)?;
-                set_local(frame, l.0, val);
+                let Some(Value::MutCell(cell)) = frame.get(l.0) else {
+                    return Err(Error::plain("internal error: refSet requires a mutable cell"));
+                };
+                cell.replace(val);
                 Value::Unit
             }
             Core::If(c, t, f) => {
@@ -20645,7 +20650,11 @@ impl Checker {
                     return Ok(Value::CtorFn { unit, tag, arity, args: acc });
                 }
                 let (now, rest) = acc.split_at(arity);
-                let r = Value::Adt { ctor: unit, tag, fields: now.to_vec() };
+                let r = if unit == crate::core::MUTABLE_CELL {
+                    Value::MutCell(std::rc::Rc::new(std::cell::RefCell::new(now[0].clone())))
+                } else {
+                    Value::Adt { ctor: unit, tag, fields: now.to_vec() }
+                };
                 if rest.is_empty() {
                     Ok(r)
                 } else {
