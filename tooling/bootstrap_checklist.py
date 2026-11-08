@@ -683,6 +683,24 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    guarded_equation_path = 'bootstrap/current-schema10-guarded-equation-results.json'
+    guarded_equation = read(root / guarded_equation_path)
+    if (guarded_equation.get('status') == 'audited-stage1-equation-proofs-and-guarded-runtime'
+            and guarded_equation.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/case_evidence.rs', guarded_equation['original_case_test_sha256'])):
+        active.append(dict(title='Development Stage1: equation fallthrough and guarded runtime',
+            status='passed', phase='The original literal equations ran without leaks and seven original refusal diagnostics matched. The guard took both runtime branches and rejected a call that violated its precondition.',
+            passed=len(guarded_equation['rows']), failed=0, total=len(guarded_equation['rows']), unit='client cases',
+            source=guarded_equation['compiler_source_sha256'], evidence=link(guarded_equation_path)))
+    cli_emit_path = 'bootstrap/current-schema10-cli-emitter-parity-results.json'
+    cli_emit = read(root / cli_emit_path)
+    if (cli_emit.get('status') == 'audited-complete-cli-emitter-stage3-and-native'
+            and cli_emit.get('compiler_source_sha256') == compiler and cli_emit.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/bootstrap_runtime_emit.rs', cli_emit['rows'][0]['test_source_sha256'])):
+        active.append(dict(title='Published Stage3 and Rust: complete CLI emitter target',
+            status='passed', phase='Both runs passed the original emitter target, including the C closure ABI, the higher-kinded client, and checked object linking.',
+            passed=len(cli_emit['rows']), failed=0, total=len(cli_emit['rows']), unit='compiler runs',
+            source=cli_emit['compiler_source_sha256'], evidence=link(cli_emit_path)))
     list_guard_path = 'bootstrap/current-schema10-list-and-guard-results.json'
     list_guard = read(root / list_guard_path)
     if (list_guard.get('status') == 'audited-original-list-and-guard-stage1-cases'

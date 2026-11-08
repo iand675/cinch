@@ -1721,7 +1721,7 @@
           "status": "passed"
         }
       ],
-      "log_sha256": "362fb319bca3895481a309df455252d04a1b04313ccd753893b63fb7e426b890",
+      "log_sha256": "f0052b424ca12208d6b96017e594bdbeb697f29c4fe56c60ee3e629e409b7597",
       "name": "tooling",
       "status": "passed",
       "tests": 48
@@ -1738,7 +1738,7 @@
     "tooling/README.md": "bbb6579c66fd7335b458965c2c7b660c428f7e9f579ae238e76f5f272cc359a1",
     "tooling/bootstrap.py": "97953db46c950e20cdf897b564d8486b1f4349f36a3f99b59fa64f759bba7f6d",
     "tooling/bootstrap.sh": "6f4b7011cb7759c6825c2b4c056f30f5957804cc1819f3e09201dedbef1d42dc",
-    "tooling/bootstrap_checklist.py": "390624edf2392abb7509d8603dbd900be29458d1ab3909ecf897c75f66a5e296",
+    "tooling/bootstrap_checklist.py": "03d11a07b361065acceb1ffde396d53c19107d586a5d81324202ce8c0e85cba0",
     "tooling/bootstrap_interfaces.py": "20ab0eb9aff01ad89ed830c416b54f3aae6d266827b48cfa862ee49788bc8de2",
     "tooling/bootstrap_objects.py": "cde8729bbf0cbdb8523e56610d043b80eed494c158edd9f7575e9f84b2bc0a08",
     "tooling/check-grammar-drift.sh": "f6f9b923de09fc23d8c73e1cf75c47d95d963d59d35d4b44f45a8e330c40efaf",

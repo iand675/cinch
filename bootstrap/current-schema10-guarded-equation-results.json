@@ -1,0 +1,153 @@
+{
+  "compiler_sha256": "283053229a5f6eaee9ba08a68830cde91ca867bf496190b5111e944c687df5ba",
+  "compiler_source_sha256": "5fcebec4597ef49423baf26126ee049cd5b19655af252b9c278f5b3747ab978e",
+  "full_goal_complete": false,
+  "guard_runtime_baseline_sha256": "a63285ef60b5fb67461962c2a57fbf87ed00d78dd5e85689cba569db03ea5af3",
+  "guard_runtime_test_sha256": "e5222569c87e816176fa7a9a82d0e2297a0ecfad827339fd5340eac47d81a7b0",
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_case_test_sha256": "02e587188ca04f04cf263f0aed74ab447dba8604a64293785b3e3a5493ee1c01",
+  "original_refusal_cases": 7,
+  "original_run_cases": 1,
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "88808ec35c555d7097387258b57cec477efdfc23",
+  "rows": [
+    {
+      "diagnostic": "bootstrap.check:30:22: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d` (Main.cinch:29:22)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `NonZero d` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "case-bool-wrong-row",
+      "source_sha256": "d39d959aab592e2d411655ea209fca686a5242ca63e07a8fa7e25fd6f94bb802",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:29:36: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d` (Main.cinch:28:36)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `NonZero d` needs",
+        "no evidence for `NonZero d`"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "wrong-branch",
+      "source_sha256": "0e8529e63edddbae2b7e9ec68f7b3eaea9fd16efd3c02aeb0650d6fbefc22d61",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:29:33: function precondition is not established at this call because the obligation `x < 5` needs evidence and the checker found no evidence for `x < 5` (Main.cinch:28:33)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `x < 5` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "weaker-bound",
+      "source_sha256": "b70c6a88377f0c55c674ed9b9c2ead8dfc9ce17853fc8ae6c763f267fccb39a9",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:29:43: function precondition is not established at this call because the obligation `i < n` needs evidence and the checker found no evidence for `i < n` (Main.cinch:28:43)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `i < n` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "else-negation",
+      "source_sha256": "b22d2a4a065ac3382d59cd788470874e276baa0e2435d0f81c893935c1508ade",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:29:36: function precondition is not established at this call because the obligation `b < a` needs evidence and the checker found no evidence for `b < a` (Main.cinch:28:36)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `b < a` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "swapped-names",
+      "source_sha256": "2c047082158df0b4800ef6b8086e78c55d6cc41f3c4400ce61c5af6599f676ca",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:31:19: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero e` needs evidence and the checker found no evidence for `NonZero e` (Main.cinch:30:19)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `NonZero e` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "default-other-name",
+      "source_sha256": "9bd9f6a8491e1e98fff70ade63b93a80e63d2a52e0551a5761299db298035112",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:31:19: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d` (Main.cinch:30:19)\n",
+      "exit_code": 4,
+      "expected_fragments": [
+        "the obligation `NonZero d` needs"
+      ],
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "guarded-literal-no-leak",
+      "source_sha256": "05ce74bda75aa01da1c94c196c10289d239364d4c58bcfab65b3683fa327adac",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "executable_sha256": "23014c7859f4bc91376dd3e597cb84e04dca3b0eb69ee6410580fcb358dcf9f2",
+      "exit_code": 0,
+      "ir_sha256": "56dc40c2870b1ae5366ef23ad96dab307a3cbe1e38fc52b9b691c597deb03c80",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "case-literal",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "2830d7ec7f020b5f43f302c77d22f471d6de463df5300cb3e2711fc1b0ce4c5e",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:27:22: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d`\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "two-refutable-columns",
+      "source_sha256": "eb6a8a6822eff2312a1d0a8ab972e1c0fe5a6e0fddcfc96db8a004785202298c",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:27:22: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d`\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "fallible-equation-guard",
+      "source_sha256": "bbf605ffdc59cf722e03af5442861d86916b6af6dcbea845172b605217e14105",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "executable_sha256": "e676d2a2dbc8d520720296c599d26c4a93cec4d76f4c8508cd75a4c8c16ab25a",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "cc5c7b4da302a0638efedc94b4eef1fcfc49f92d276042784502b20624b222c9",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "both-runtime-paths",
+      "program_exit": 149,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "df1a8ff8ea6c6eea1a7607d62df2c2eba6ada142413ac643a0a8de72afd7b2b2",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:8:55: function precondition is not established at this call because the obligation `0 > 0` needs evidence and the checker found no evidence for `0 > 0`\nbootstrap.check:8:68: type mismatch: integer literal cannot have type _\nbootstrap.check:8:55: equality needs an Eq dictionary for this type\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "zero-precondition-refusal",
+      "source_sha256": "98c0b6dae08d20101acfb13775b5814d0ba63acaf0b24b69a2c9556cff2ad263",
+      "status": "passed"
+    }
+  ],
+  "run_receipt_sha256": "2e92cfef2ad30a0bf374f5fa71c45653118d3edf94ca490a5176ee336a2d2e9b",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "a298aeb63012b7326fff7a1fe63985cbce4fbc0ca416dd3d011fc56e40495779",
+  "status": "audited-stage1-equation-proofs-and-guarded-runtime"
+}
