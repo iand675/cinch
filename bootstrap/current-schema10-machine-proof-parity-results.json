@@ -1,0 +1,91 @@
+{
+  "compiler_sha256": "1c11be761ab017d2d5410d92623c488554ce090c1b75852cf993b92950d8271a",
+  "compiler_source_sha256": "29d407dbb2842f9cb45b49a5a10ea03c5873a60b4d58fbd8a31188600f578306",
+  "compiler_stage": 1,
+  "full_goal_complete": false,
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_rust_tests": 3,
+  "original_targets": 2,
+  "producer_control": {
+    "interface_sha256": {
+      "A": "2df5d23cf5b6cb0ff6b2c7ac29d25650759d773acf17f88c96e14978fd308405",
+      "Facade": "b30257e650e4bb6bcc3aecc25a74fef665f8ce08bebb004c2c7b89000973a720"
+    },
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "source_sha256": "48420db1ddf36f87de3f292b646449c9253bca4c677cc3f754175a6313d9a351",
+    "status": "passed"
+  },
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "cfa804ba44e494f6bc86a3750791c7c21c9afea9",
+  "rows": [
+    {
+      "diagnostics": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "greater",
+      "source_sha256": "d25a040c8ea2389e9e1fa79507755c85c4411fb3c303616eb54b5de11382f0a5",
+      "status": "passed"
+    },
+    {
+      "diagnostics": "bootstrap.check:5:17: function precondition is not established at this call\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "not-greater",
+      "source_sha256": "29e00868678be6fdcba817499d5b73ab051e20cd3ec0d10445ee20f960e5bb81",
+      "status": "passed"
+    },
+    {
+      "cases": [
+        "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+        "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {
+        "8584-0.json": {
+          "compiler_exit_code": 0,
+          "sha256": "a662c2d011ba4cf12ae2186c73809f7774867e64c042944e5c4973e1766404db",
+          "test": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque"
+        },
+        "8584-1.json": {
+          "compiler_exit_code": 0,
+          "sha256": "d055377d42beb2d8b21c61431953ebf88a569e82c4330cd3d37da90f751e8a23",
+          "test": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers"
+        }
+      },
+      "log_sha256": "bf261f93ca96ab987275646f0a2e52314615812ed9dd98dce6638490ec388361",
+      "name": "interface_machine_contracts selected",
+      "original_test_source_sha256": "77e59a8a09b81ef0d02fe41720658ef2abd133af33fe3578020b326be2d087a6",
+      "runner_sha256": "bd5654d90cc287a66251c2e9bb9184a145ae456ae528036ead98bace59886cdc",
+      "status": "passed",
+      "test_source_sha256": "e0a7f77b4350b51d9da717fc2b912d825c5f6bd9ace9d89d22f18fc20aedc9be"
+    },
+    {
+      "cases": [
+        "source_refinements_check_actual_values_and_preserve_effects"
+      ],
+      "exit_code": 0,
+      "invocation_receipts": {
+        "24134-0.json": {
+          "compiler_exit_code": 0,
+          "sha256": "ef98c7fdc3519d5c179db53eac26323ccc8711e05b5fba8de1f9497b8e89e531",
+          "test": "source_refinements_check_actual_values_and_preserve_effects"
+        }
+      },
+      "log_sha256": "2c340c97b049e6225616ebe6743daa86f5d7ff64db71dd8df3c45fdd99fc2be9",
+      "name": "bootstrap_source_refinements selected",
+      "original_test_source_sha256": "d1fcf8e1cbb917c6ab521e7f63a6c4649f4b1fc6eafad29aca6ecb66221b85d2",
+      "runner_sha256": "d7f3afec22f938e2c7d974c821e754e18b6b0ec5efa0bb54e1bf68e19ffe3a37",
+      "status": "passed",
+      "test_source_sha256": "a27ff86aae007435816c8288b69bcd797a4f7a3bf056c8ddc276000db697a5ca"
+    }
+  ],
+  "run_receipt_sha256": "b5fc8089cb32b139e61eb046bb3c87e0bc5a0ec70835c24f5b8654b5bfac5eed",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "7eaff41808e3808934adcf7861e19004e011a75addfe9380ad4ad09a88e4ed54",
+  "status": "audited-stage1-machine-contracts-and-source-refinements",
+  "wrapper_sha256": "4a590f8c6ffa28558427e5ff08df61070766fab88ab5a3a0698244b6e94a6c52"
+}

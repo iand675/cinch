@@ -1,0 +1,107 @@
+{
+  "compiler_sha256": "fc2deb1ba1dbe75de232390efe3594b06ae67968cf7644ad4e550bbdf2300b4f",
+  "compiler_source_sha256": "02bc9e65269a971d086d5de44158e6aa0ba5337e1f63692e15486d3a40a7bb67",
+  "full_goal_complete": false,
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_rust_tests": 2,
+  "original_test_source_sha256": "7d1bf677bf0f01145d2e1b417e257308648c1a40dcbc3a7012c14636cacea3ec",
+  "provider_interface_count": 55,
+  "provider_manifest_sha256": "80ca97b4db9b6e8a8ee5ed15e77b9a71e45559d90f787c23efcb73d8d2256ca3",
+  "provider_metadata_sha256": "5e45a050f239b168b0cbfb6d4b38bfb33b2f209b2ae55eb2025774e1ef252356",
+  "provider_object_sha256": "7db1f219e128d5d2dc0e9ec289dc98324274b8f107eefcb9c7b6fb44d2eb741f",
+  "revision": "cfb8ddd12803cdd7d9fe9b43f6dd7b9b9d89c362",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "3177be379d414fb7d81dc5ba5a4bb94d5da02d73f1894f5a5fa35595360fce93",
+      "name": "build-lib-algebra",
+      "runner_sha256": "a995f1cb9959ad8050f0a20beed5604bf474e7171e8157a71b2a5588cf92244d",
+      "source_sha256": "540845511db49f5aa09ab629eeaccab709d52faac5312f49b976de03966c16a7",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "invocation_sha256": "df01080deafb11af8a84943e4c9d1a7cb3e4986c84b59afd824d528e9257b812",
+      "log_sha256": "8cdb40a53567bb4492a56243141ffd237932827cf56732928e5824fcdc0474ca",
+      "name": "modules_load_as_a_multi_file_project",
+      "selected_inputs": [
+        "Main.cinch",
+        "Monoid.cinch",
+        "Semigroup.cinch"
+      ],
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "invocation_sha256": "6994ab68aedaae717f47275ffeaf4435e1014e6c3a7c828d11fda9e03952ff05",
+      "log_sha256": "d600388e873cfd2ea23dab912e2d8b3ccd9762f83a8b650df86844b3909a9a84",
+      "name": "list_append_is_associative",
+      "selected_inputs": [
+        "Main.cinch"
+      ],
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "exact",
+      "source_sha256": "102dd3777ece5d0d114ecd39480aa17abdcd15337ee3bc3744833fb59f6e61b6",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.object: rebuild the library object for changed source module Data.Bool",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "edited",
+      "source_sha256": "7f351efe9493861cef2a8dc7617e182cc0e7b17b8903a07043ad8b14776f8e64",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.object: rebuild the library object for changed source module Data.Bool",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "appended",
+      "source_sha256": "7cc2c417b22c46b25afbbc3d443e6a06cbce74c4700004df68acb5e78d7592ca",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.object: rebuild the library object for changed source module Data.Bool",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "forged-separator",
+      "source_sha256": "dc8eab9426b4e247e9105ef28c29811c4e879db4c86fa6b1a7faa79d16ce9d67",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.object: duplicate source module Data.Bool",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "duplicate",
+      "source_sha256": "c99f154a851a1ddeaa5e42d8dadf6e29190a268585cfe150a524a622f14b3bbd",
+      "status": "passed"
+    },
+    {
+      "executable_sha256": "ad34abbf78891ebb652074a4f6628f7216ed11bb3c1ccd7ff49cdad43c317d92",
+      "exit_code": 0,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "direct-cli",
+      "source_sha256": "102dd3777ece5d0d114ecd39480aa17abdcd15337ee3bc3744833fb59f6e61b6",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "metadata_sha256": "fdac8bed813b1e3afc8cafe13377c01168d5d5e366160a8dc8c7c6849459b518",
+      "name": "library-object",
+      "object_sha256": "294c196fa4b1e1cfde8381fcfbea7d7cde669807858fe3175f9cd3b858f26086",
+      "source_sha256": "437b75956128c01a88c2c2f2d82a1348be3612bac138b5d425e26014b2b252be",
+      "status": "passed"
+    }
+  ],
+  "run_receipt_sha256": "234b8846ea22bcac3118e9d2e672a95097c6aab35c88591764008aa99be39ec6",
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "a7fa6d12c91a2a276213ef8322bc0199685acb8cf055b503057b5c9b5d231cdf",
+  "status": "audited-stage1-checked-library-object-reuse"
+}

@@ -683,6 +683,26 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    machine_path = 'bootstrap/current-schema10-machine-proof-parity-results.json'
+    machine = read(root / machine_path)
+    if (machine.get('status') == 'audited-stage1-machine-contracts-and-source-refinements'
+            and machine.get('native_source_sha256') == native
+            and all(matches_digest(root / 'compiler/tests' / (row['name'].split()[0] + '.rs'),
+                                   row['original_test_source_sha256']) for row in machine['rows'][2:])):
+        active.append(dict(title='Development Stage1: machine contracts and source refinements',
+            status='passed', phase='Both complete targets passed. The signed-limit controls distinguish mathematical type indices from wrapping runtime arithmetic.',
+            passed=machine['original_targets'], failed=0, total=machine['original_targets'],
+            unit='target groups', source=machine['compiler_source_sha256'], evidence=link(machine_path)))
+    checked_object_path = 'bootstrap/current-schema10-checked-library-object-reuse-results.json'
+    checked_object = read(root / checked_object_path)
+    if (checked_object.get('status') == 'audited-stage1-checked-library-object-reuse'
+            and checked_object.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/lib_algebra.rs', checked_object['original_test_source_sha256'])):
+        client_cases = checked_object['rows'][1:]
+        active.append(dict(title='Development Stage1: compiled library object reuse',
+            status='passed', phase='Both Algebra clients, exact source reuse, direct run and object emission passed. Edited, appended, forged and duplicate module inputs were refused. All 55 provider interface identities match.',
+            passed=len(client_cases), failed=0, total=len(client_cases), unit='client cases',
+            source=checked_object['compiler_source_sha256'], evidence=link(checked_object_path)))
     refinement_path = 'bootstrap/current-schema10-refinement-formation-results.json'
     refinement_audit = read(root / refinement_path)
     if (refinement_audit.get('status') == 'audited-five-original-refinement-targets-stage1'
