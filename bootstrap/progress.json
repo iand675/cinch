@@ -21163,7 +21163,7 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "waiting-stage3-artifacts",
-        "phase": "Waiting for a shared compiler worker.",
+        "phase": "Waiting for the Stage 2 and Stage 3 executables, LLVM IR and interfaces to match.",
         "passed": 0,
         "total": 105,
         "unit": "gates",
@@ -21185,7 +21185,7 @@
       {
         "title": "Run the 23 package and JIT tests on the integrated Rust compiler",
         "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "phase": "Queued on shared slot 0 after its current test finishes.",
         "passed": 0,
         "total": 23,
         "unit": "tests",
@@ -21196,7 +21196,7 @@
       {
         "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
         "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "phase": "Queued on shared slot 0 after its current test finishes.",
         "passed": 0,
         "total": 39,
         "unit": "gates",
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:56:00.094591+00:00"
+  "updatedAt": "2026-11-08T16:56:23.592585+00:00"
 }
