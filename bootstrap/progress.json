@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "55 of 236 complete groups passed; 1 running, 2 failed and 178 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "55 of 236 complete groups passed; 1 running, 3 failed and 177 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -482,7 +482,7 @@
     },
     {
       "title": "Investigate the recorded failure",
-      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_abstract_nonzero_methods; Native compiler tests: bootstrap_infer; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
+      "detail": "repair checks: original interface/API13of14; Native compiler tests: bootstrap_abstract_nonzero_methods; Native compiler tests: bootstrap_infer; Native compiler tests: bootstrap_named_refinements; self-built tests: arrays; self-built tests: interface_prelude_overrides; self-built tests: bootstrap_pipeline; Two original array cases remain open: ownership/copyOut and staging; 1 interface/API groups remain open: source-Prelude replacement"
     },
     {
       "title": "Finish the repair gates",
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "55 of 236 complete groups passed; 1 running, 2 failed and 178 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "55 of 236 complete groups passed; 1 running, 3 failed and 177 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -823,9 +823,9 @@
         "total": 236,
         "counts": {
           "verified": 55,
-          "blocked": 2,
+          "blocked": 3,
           "running": 1,
-          "pending": 178,
+          "pending": 177,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2261,21 +2261,21 @@
           {
             "id": "native:bootstrap_named_refinements",
             "title": "bootstrap_named_refinements",
-            "state": "running",
+            "state": "blocked",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T08:22:33.419975+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T08:29:17.403636+00:00",
+              "exitCode": 101,
+              "logSha256": "7320e32d5b249f0aa86fe6de92eee1a0c0c0502a589dd81a60fcd4a442e43e2c",
               "cases": [
                 {
                   "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             },
@@ -2284,21 +2284,21 @@
           {
             "id": "native:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T20:21:28.454390+00:00",
-              "finishedAt": "2026-11-06T20:33:24.738389+00:00",
-              "exitCode": 0,
-              "logSha256": "d02d1242ae775c0d515552dedbb4a969aabae677c20f103f46d40d4c99c0e2b4",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T08:29:17.406626+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,9 +19568,9 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_named_refinements",
+        "phase": "bootstrap_nominals",
         "passed": 55,
-        "failed": 2,
+        "failed": 3,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
         "earlier": false
@@ -20959,9 +20959,9 @@
     ],
     "counts": {
       "verified": 365,
-      "blocked": 13,
+      "blocked": 14,
       "running": 11,
-      "pending": 185,
+      "pending": 184,
       "recheck": 101
     },
     "total": 675,
@@ -20970,5 +20970,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:28:05.530517+00:00"
+  "updatedAt": "2026-11-08T08:29:28.743065+00:00"
 }
