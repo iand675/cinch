@@ -102,6 +102,8 @@ npm run catalogue:snapshot
 
 Run that refresh periodically, or point a scheduled CI job at the same commands. Vercel's static build then has a real last-known catalogue when the registry is unavailable.
 
+`.github/workflows/catalogue-refresh.yml` triggers the Vercel production deploy hook daily when the `VERCEL_DEPLOY_HOOK_URL` repository secret is set. Each build fetches the registry live. A failed fetch keeps the site deployable through the cached fallback.
+
 `node scripts/verify-catalogue.mjs` starts `registry/server.mjs` with a temporary data directory, publishes `fixture/hello@1.2.3`, builds the site against it, checks the package, module, and source pages, and runs `verify-preview.py`.
 
 Package, module, module-source, and download pages share `PlatformLayout.astro`. Their Light / Dark / System selector uses the same `starlight-theme` preference as the docs, initializes before first paint, and follows system changes in System mode. `src/styles/platform-theme.css` defines the warm paper and dark olive palettes; the header, footer, and instrument wells retain their dark surfaces in both modes. Native controls and scrollbars follow their surrounding surfaces.

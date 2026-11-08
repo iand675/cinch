@@ -1,0 +1,19 @@
+name: Refresh catalogue
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Trigger the Vercel production build
+        if: env.VERCEL_DEPLOY_HOOK_URL != ''
+        run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+      - name: Explain the missing hook
+        if: env.VERCEL_DEPLOY_HOOK_URL == ''
+        run: echo "Set the VERCEL_DEPLOY_HOOK_URL repository secret to refresh the live catalogue."
