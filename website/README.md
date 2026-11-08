@@ -6,7 +6,7 @@ Astro + Starlight documentation for the Rust Cinch compiler. `/documentation/` i
 
 ```sh
 cd website
-npm install
+npm ci
 npm run dev      # http://localhost:4321
 npm run build    # static output in website/dist/
 npm run preview  # serve the build
@@ -15,6 +15,8 @@ npm run verify:preview # audit registry-derived package routes, links, and downl
 ```
 
 The devenv shell provides Node 24 and npm from nixpkgs. Astro 7 requires Node 22.23 or newer; `website/.node-version` pins 24.21.0 for fnm and asdf when working outside devenv.
+
+Enter `devenv shell` from the repository root to use the public npm registry and install the `prek` commit hook. The hook checks the staged `.npmrc` and lockfile. When updating dependencies outside devenv, pass `--registry=https://registry.npmjs.org/` to `npm install`.
 
 ## Visual design
 
