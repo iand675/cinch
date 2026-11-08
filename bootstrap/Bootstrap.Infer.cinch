@@ -420,7 +420,7 @@ module Bootstrap.Infer where
             Some refined | valid-type (refinement-view refined) -> (refined, checked)
             -- A predicate checked over an abstract carrier may fail at the
             -- supplied arguments. Report it through the source checker.
-            other -> if list-length actuals < list-length params then (value, st)
+            other -> if list-length actuals < list-length params then bad sp "unsaturated refinement alias needs a checked type former" st
               else case refinement-arguments sp scoped params actuals Nil Nil st of
                 (locals, prepared) -> instantiate-refinement sp scoped locals binder predicate prepared
       other -> (value, st)
