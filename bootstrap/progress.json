@@ -20876,9 +20876,9 @@
       },
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
-        "status": "building-stage3",
-        "phase": "building stage3",
-        "passed": 3,
+        "status": "checking-fixed-point-and-source-change",
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20919,7 +20919,7 @@
         "status": "running",
         "phase": "Compile. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
         "passed": 1,
-        "failed": 0,
+        "failed": 3,
         "total": 6,
         "unit": "gates",
         "source": "bd33d3f6385ab1c17683349e95511d541d13be2f9456f09b75414a3bd7c4486a"
@@ -20948,5 +20948,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:39:59.916157+00:00"
+  "updatedAt": "2026-11-08T07:41:02.246483+00:00"
 }
