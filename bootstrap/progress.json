@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "68 of 236 complete groups passed; 1 running, 7 failed and 160 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "69 of 236 complete groups passed; 1 running, 7 failed and 159 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "68 of 236 complete groups passed; 1 running, 7 failed and 160 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "69 of 236 complete groups passed; 1 running, 7 failed and 159 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 68,
+          "verified": 69,
           "blocked": 7,
           "running": 1,
-          "pending": 160,
+          "pending": 159,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2706,21 +2706,21 @@
           {
             "id": "native:bootstrap_runtime_library_abi",
             "title": "bootstrap_runtime_library_abi",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T10:08:59.122196+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T10:17:04.457583+00:00",
+              "exitCode": 0,
+              "logSha256": "6010a7b7254c2ffb8bf18146b08b08add5539ff20bf05f4c76e07916b11f0f6a",
               "cases": [
                 {
                   "name": "library_abi_entries_describe_actual_workers_and_owned_closure_accessors",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2729,21 +2729,21 @@
           {
             "id": "native:bootstrap_runtime_objects",
             "title": "bootstrap_runtime_objects",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_objects.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T22:01:23.248402+00:00",
-              "finishedAt": "2026-11-06T22:18:15.240275+00:00",
-              "exitCode": 0,
-              "logSha256": "78163e43a67c4fd547f80e12e8ee8d92dc6a50566ddc9bce9b90ecdce71133b6",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T10:17:04.460387+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "cinch_calls_actual_library_objects_with_checked_layout_authority",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "93 passed, 2 running, 7 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 93,
+        "phase": "94 passed, 2 running, 6 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 94,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_runtime_library_abi",
-        "passed": 68,
+        "phase": "bootstrap_runtime_objects",
+        "passed": 69,
         "failed": 7,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20982,10 +20982,10 @@
       },
       {
         "title": "Verify the ABI 7 library and mutable object boundary",
-        "status": "running",
-        "phase": "Build stage2. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
+        "status": "failed",
+        "phase": "BootstrapError('stage2 did not build (exit 5).\\nbootstrap.runtime-ir:5183:34: polymorphic or aggregate let needs runtime lowering\\nbootstrap.runtime-ir:4955:34: polymorphic or aggregate let needs runtime lowering\\nbootstrap.runtime-ir:29677:23: polymorphic or aggregate let needs runtime lowering\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-stage-target-abi-validation-1/build/stage2/compiler.ll.diagnostics')",
         "passed": 10,
-        "failed": 0,
+        "failed": 1,
         "total": 13,
         "unit": "gates",
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
@@ -21003,8 +21003,8 @@
       },
       {
         "title": "Run all required ABI 7 Stage 3 frontend groups",
-        "status": "waiting-stage3",
-        "phase": "Waiting for the ABI 7 fixed point and matching Native runtime archives.",
+        "status": "failed",
+        "phase": "RuntimeError(\"ABI 7 ladder failed: BootstrapError('stage2 did not build (exit 5).\\\\nbootstrap.runtime-ir:5183:34: polymorphic or aggregate let needs runtime lowering\\\\nbootstrap.runtime-ir:4955:34: polymorphic or aggregate let needs runtime lowering\\\\nbootstrap.runtime-ir:29677:23: polymorphic or aggregate let needs runtime lowering\\\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-stage-target-abi-validation-1/build/stage2/compiler.ll.diagnostics')\")",
         "passed": 0,
         "failed": 0,
         "total": 105,
@@ -21013,8 +21013,8 @@
       },
       {
         "title": "Run the original ABI 7 external acceptance checks",
-        "status": "waiting-stage3",
-        "phase": "Waiting for the ABI 7 fixed point. Includes both imported fixity refusals.",
+        "status": "failed",
+        "phase": "RuntimeError(\"ABI 7 ladder failed: BootstrapError('stage2 did not build (exit 5).\\\\nbootstrap.runtime-ir:5183:34: polymorphic or aggregate let needs runtime lowering\\\\nbootstrap.runtime-ir:4955:34: polymorphic or aggregate let needs runtime lowering\\\\nbootstrap.runtime-ir:29677:23: polymorphic or aggregate let needs runtime lowering\\\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-stage-target-abi-validation-1/build/stage2/compiler.ll.diagnostics')\")",
         "passed": 0,
         "failed": 0,
         "total": 14,
@@ -21023,8 +21023,8 @@
       },
       {
         "title": "Run the 34 original ABI 7 language examples",
-        "status": "waiting-matching-stage3-audit",
-        "phase": "Waiting for the independent Stage 3 audit. Preserves 13 program outcomes and 21 rejection reasons with source locations.",
+        "status": "failed",
+        "phase": "RuntimeError('Matching Stage3 or its independent audit failed')",
         "passed": 0,
         "failed": 0,
         "total": 34,
@@ -21055,8 +21055,8 @@
       },
       {
         "title": "Consolidate installed package execution metadata",
-        "status": "waiting-worker",
-        "phase": "Waiting worker. The candidate uses build/package.cinchif for package verification, Native linking and JIT.",
+        "status": "running",
+        "phase": "Package install verify and native link. The candidate uses build/package.cinchif for package verification, Native linking and JIT.",
         "passed": 0,
         "failed": 0,
         "total": 3,
@@ -21065,10 +21065,10 @@
       }
     ],
     "counts": {
-      "verified": 378,
+      "verified": 379,
       "blocked": 18,
       "running": 11,
-      "pending": 167,
+      "pending": 166,
       "recheck": 101
     },
     "total": 675,
@@ -21077,5 +21077,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:15:53.364477+00:00"
+  "updatedAt": "2026-11-08T10:17:16.160594+00:00"
 }
