@@ -479,6 +479,7 @@
     "class_defaults / actual Cinch frontend",
     "concurrency",
     "laws",
+    "codata",
     "guard_coverage"
   ],
   "milestones": [
@@ -511,7 +512,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "9/236 Rust targets and 2/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "10/236 Rust targets and 2/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -590,7 +591,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | guard_coverage",
+        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | codata | guard_coverage",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -794,11 +795,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 9,
+          "verified": 10,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 226
+          "recheck": 225
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -2375,17 +2376,17 @@
           {
             "id": "native:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:08:28.524316+00:00",
-              "finishedAt": "2026-11-08T03:21:06.306886+00:00",
-              "exitCode": 0,
-              "logSha256": "50dd39365e0b9b085c5e517800809ff44e461296a0b23b1d4fbc2d3b592db719",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T17:48:45.076735+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
@@ -2393,7 +2394,7 @@
                 },
                 {
                   "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -2816,17 +2817,17 @@
           {
             "id": "native:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T17:19:23.502745+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T17:48:45.062357+00:00",
+              "exitCode": 0,
+              "logSha256": "c533caf551f3eb6eed57e9324128e0d05be3f37441c4ba553e9a25d3df61c8f4",
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
@@ -2838,11 +2839,11 @@
                 },
                 {
                   "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 3
           },
           {
             "id": "native:bootstrap_source_paths",
@@ -17668,9 +17669,9 @@
         "total": 8,
         "counts": {
           "verified": 1,
-          "blocked": 4,
+          "blocked": 5,
           "running": 1,
-          "pending": 2,
+          "pending": 1,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17822,8 +17823,8 @@
           {
             "id": "additional:codata",
             "title": "codata",
-            "state": "running",
-            "detail": "Running all 10 original cases through the matching Stage 3.",
+            "state": "blocked",
+            "detail": "The original target reported a failure on the matching Stage3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
@@ -17846,8 +17847,8 @@
           {
             "id": "additional:integration",
             "title": "integration",
-            "state": "pending",
-            "detail": "Queued for the matching Stage 3. 39 original cases.",
+            "state": "running",
+            "detail": "Running all 39 original cases through the matching Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           }
@@ -20274,8 +20275,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_source_instances",
-        "passed": 9,
+        "phase": "bootstrap_pipeline",
+        "passed": 10,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20369,11 +20370,11 @@
       }
     ],
     "counts": {
-      "verified": 349,
-      "blocked": 5,
+      "verified": 350,
+      "blocked": 6,
       "running": 4,
-      "pending": 4,
-      "recheck": 349
+      "pending": 3,
+      "recheck": 348
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20381,5 +20382,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:48:29.700104+00:00"
+  "updatedAt": "2026-11-08T17:49:32.633148+00:00"
 }
