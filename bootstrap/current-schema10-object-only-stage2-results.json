@@ -1,0 +1,45 @@
+{
+  "compiler_source_sha256": "1eb7eb299a7559b147455ac913030d86e503fd540efb8ad9e50c44792ef9e1ec",
+  "full_goal_complete": false,
+  "native_source_sha256": "0f2d68fca8ab9a11ba85828e98f01b7a0e1072c7ae6415351b7c93d8b9fd7d37",
+  "provider_interfaces": 55,
+  "revision": "17cea6d85aa16762ef4683cfb45ba47120c791e0",
+  "rows": [
+    {
+      "compiler_sha256": "184be37e070272bfe50cda4f7005babe225535b898c739814353b3ed4fcd2b2d",
+      "name": "stage1",
+      "receipt_sha256": "08b712ade132dae6c8c302ed41f6887d1f9e0500261d869de995b967cadf7741",
+      "status": "passed",
+      "verified_build_receipt": true
+    },
+    {
+      "compiler_sha256": "ef3ca45b0b85891fb10df05f5701885b36bb80e17c062ab6af3431ad834f84c2",
+      "name": "stage2",
+      "receipt_sha256": "4c77394efb2c844886f6a6ddeccd050eb0f4587ccbe25aa9cd8ec65f69fcd340",
+      "status": "passed",
+      "verified_build_receipt": true
+    },
+    {
+      "compile_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "client-only",
+      "original_ir_sha256": "4e38e9d41c11474905a2685854ea3058b1600023c6ac6871966b1f58b109fbea",
+      "program_exit": 17,
+      "program_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "ddd247f2c6c62440947227c526b3428464cf52e6fafceeb32689a2054f0471fe",
+      "status": "passed"
+    },
+    {
+      "diagnostics_sha256": "061b134862c3ed25e5b37604feea9746a62266d9ab8139febbe17ed5688db356",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "duplicate-library-module",
+      "source_sha256": "7922875eeb26ee96ae54a2f00d758cbabe21660e2c2ca2a21222fef691e7a41c",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "One compiled object client and one source duplicate refusal on the exact Stage2. Stage3 and the matching full suites are separate.",
+  "stage2_sha256": "ef3ca45b0b85891fb10df05f5701885b36bb80e17c062ab6af3431ad834f84c2",
+  "stage2_smokes": 3,
+  "status": "audited-stage2-compiled-object-clients"
+}
