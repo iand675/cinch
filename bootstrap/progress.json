@@ -19941,7 +19941,7 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "Waiting for one of the five build workers.",
+        "phase": "checking pinned provider",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -20011,10 +20011,10 @@
       },
       {
         "title": "Replay Algebra with the numeric repair and expanded object",
-        "status": "running",
+        "status": "completed-with-selected-algebra-failures",
         "phase": "selected-lib_algebra",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "unit": "original test target",
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
@@ -20051,7 +20051,7 @@
       },
       {
         "title": "Rebuild requested Algebra object variants and rerun all original cases",
-        "status": "waiting-previous-algebra",
+        "status": "waiting-worker",
         "phase": "Waiting for the previous Algebra replay.",
         "passed": 0,
         "failed": 0,
@@ -20128,5 +20128,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:03:11.361299+00:00"
+  "updatedAt": "2026-11-08T01:04:33.440362+00:00"
 }
