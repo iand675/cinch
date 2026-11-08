@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "10/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "11/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -797,11 +797,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 10,
+          "verified": 11,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 225
+          "recheck": 224
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -2378,17 +2378,17 @@
           {
             "id": "native:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T17:48:45.076735+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T18:04:44.165028+00:00",
+              "exitCode": 0,
+              "logSha256": "2721dd55e5865dfacd6e45a9fa984cced71c7d9150a30df56f05d3816e914423",
               "cases": [
                 {
                   "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
@@ -2396,11 +2396,11 @@
                 },
                 {
                   "name": "the_ladder_compiles_the_fib_example_with_itself",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 2
           },
           {
             "id": "native:bootstrap_proof",
@@ -5189,17 +5189,17 @@
           {
             "id": "native:laws",
             "title": "laws",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/laws.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:21:18.920795+00:00",
-              "finishedAt": "2026-11-08T03:21:32.234323+00:00",
-              "exitCode": 0,
-              "logSha256": "22b85128c61c46cbc585a2795ea74bde9ea0b8d1c4fcfe1ecdc1f95aa1006691",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:04:44.189229+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "checked_class_laws_travel_with_the_defining_interfaces",
@@ -5231,7 +5231,7 @@
                 },
                 {
                   "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20341,8 +20341,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_pipeline",
-        "passed": 10,
+        "phase": "laws",
+        "passed": 11,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20436,11 +20436,11 @@
       }
     ],
     "counts": {
-      "verified": 353,
+      "verified": 354,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 345
+      "recheck": 344
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20448,5 +20448,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:03:11.522808+00:00"
+  "updatedAt": "2026-11-08T18:04:54.912945+00:00"
 }
