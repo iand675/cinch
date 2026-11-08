@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "1/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 26/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "1/105 Stage 3 targets verified on the published compiler. 25/236 Rust targets and 27/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -1308,6 +1308,10 @@
                 },
                 {
                   "name": "imported_observation_identity_survives_a_renamed_facade",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
                   "status": "running"
                 }
               ]
@@ -12031,11 +12035,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 26,
+          "verified": 27,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 77
+          "recheck": 76
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12725,10 +12729,34 @@
           {
             "id": "stage3:bootstrap_export_types",
             "title": "bootstrap_export_types",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "80222aa6cb12d3ba8097f9f7a5e8b1171e95e3522f5660a413174ac8a128f1e6",
+              "cases": [
+                {
+                  "name": "checked_schemes_have_portable_definition_owned_syntax",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:bootstrap_function_preconditions",
+            "title": "bootstrap_function_preconditions",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12737,30 +12765,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:bootstrap_function_preconditions",
-            "title": "bootstrap_function_preconditions",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:10:19.369370+00:00",
-              "finishedAt": "2026-11-08T02:17:11.716403+00:00",
-              "exitCode": 0,
-              "logSha256": "1969aa69e0bdc6c70ec2e631bdaf381a9807eeb3421fa63e8842860f63081e8b",
-              "cases": [
-                {
-                  "name": "function_preconditions_use_actual_arguments_and_cannot_be_ignored",
-                  "status": "passed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20308,8 +20312,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_export_interfaces, bootstrap_export_types",
-        "passed": 26,
+        "phase": "bootstrap_export_interfaces, bootstrap_function_preconditions",
+        "passed": 27,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20580,9 +20584,9 @@
       {
         "title": "Type-check memo groups, effects and task capture in Cinch",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. unused-effect",
-        "passed": 7,
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. owned-bytes-cache",
+        "passed": 10,
         "total": 12,
         "failed": 2,
         "source": "56d8fcb7b99a75b0d7819bb1b8af2b2b936240a2b9012134d42ada2f3af8d9b3",
@@ -20612,11 +20616,11 @@
       }
     ],
     "counts": {
-      "verified": 389,
+      "verified": 390,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 309
+      "recheck": 308
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20624,5 +20628,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:57:29.060573+00:00"
+  "updatedAt": "2026-11-08T19:58:31.406335+00:00"
 }
