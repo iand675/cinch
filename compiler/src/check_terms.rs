@@ -808,50 +808,51 @@ impl Checker {
                     // Only a direct global carries a temporal call-step identity.
                     // Do not copy an arbitrarily large partial application.
                     let write_core = matches!(&core, ECore::Global(..)).then(|| core.clone());
+                    let mut apply_erased = false;
                     let (arg_core, cod) = match ty {
                         Ty::Fun(dom, m, eff, cod) => {
                             self.perform(&eff)?;
-                            let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
-                            let (c, reading) = self.check_call_argument(
-                                env, a, &dom, &prefix_ty, &mut core,
-                                &mut call_binds, &mut retained_method, !callee_obligs.is_empty(),
-                            )?;
-                            call_args.push((
-                                reading,
-                                self.uni.zonk(&dom),
-                                a.span(),
-                            ));
-                            // Record writes after the argument, so the
-                            // domain's region has unified with the passed
-                            // borrow's region.
-                            self.note_call_arg_writes(env, args, &dom, &eff, *span, write_core.as_ref().unwrap_or(&core));
-                            // A task handle is consumed exactly once by
-                            // its function: a sink that could drop it is
-                            // refused (concurrency specification,
-                            // section 2). Checked after the argument so
-                            // an inferred domain is resolved.
-                            self.check_handle_param(&dom, m, a.span())?;
-                            (if erased { None } else { Some(c) }, *cod)
+                            let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+                            apply_erased = m == Mult::Zero && !logical;
+                            let (c, reading) = if apply_erased {
+                                (None, self.check_erased_value_argument(env, a, &dom, false)?)
+                            } else {
+                                let (c, reading) = self.check_call_argument(
+                                    env, a, &dom, &prefix_ty, &mut core,
+                                    &mut call_binds, &mut retained_method, !callee_obligs.is_empty(),
+                                )?;
+                                (if logical { None } else { Some(c) }, reading)
+                            };
+                            call_args.push((reading, self.uni.zonk(&dom), a.span()));
+                            // An erased parameter does not give the callee a
+                            // runtime borrow. The callee's row still applies.
+                            let write_domain = if apply_erased { &Ty::Unit } else { &dom };
+                            self.note_call_arg_writes(env, args, write_domain, &eff, *span, write_core.as_ref().unwrap_or(&core));
+                            if !apply_erased {
+                                self.check_handle_param(&dom, m, a.span())?;
+                            }
+                            (c, *cod)
                         }
-                        Ty::Pi { var, dom, eff, cod, .. } => {
+                        Ty::Pi { var, dom, mult, eff, cod } => {
                             self.perform(&eff)?;
-                            let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
-                            let (c, reading) = self.check_call_argument(
-                                env, a, &dom, &prefix_ty, &mut core,
-                                &mut call_binds, &mut retained_method, true,
-                            )?;
-                            self.note_call_arg_writes(env, args, &dom, &eff, *span, write_core.as_ref().unwrap_or(&core));
-                            let subst = reading.ok_or_else(|| Error::at(a.span(), "this argument has no index reading")).map_err(|e| {
-                                Error::at(
-                                    a.span(),
-                                    format!(
-                                        "{} (this function's result type mentions its argument)",
-                                        e.message
-                                    ),
-                                )
-                            })?;
+                            let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+                            apply_erased = mult == Mult::Zero && !logical;
+                            let (c, reading) = if apply_erased {
+                                (None, self.check_erased_value_argument(env, a, &dom, true)?)
+                            } else {
+                                let (c, reading) = self.check_call_argument(
+                                    env, a, &dom, &prefix_ty, &mut core,
+                                    &mut call_binds, &mut retained_method, true,
+                                )?;
+                                (if logical { None } else { Some(c) }, reading)
+                            };
+                            let write_domain = if apply_erased { &Ty::Unit } else { &dom };
+                            self.note_call_arg_writes(env, args, write_domain, &eff, *span, write_core.as_ref().unwrap_or(&core));
+                            let subst = reading.ok_or_else(|| Error::at(
+                                a.span(), "this argument has no index reading (this function's result type mentions its argument)",
+                            ))?;
                             call_args.push((Some(subst.clone()), self.uni.zonk(&dom), a.span()));
-                            (if erased { None } else { Some(c) }, cod.subst_idx(&var, &subst))
+                            (c, cod.subst_idx(&var, &subst))
                         }
                         Ty::Meta(_) => {
                             let dom = self.uni.fresh();
@@ -893,7 +894,9 @@ impl Checker {
                             .map(|frame| frame.outer.clone()).unwrap_or_default();
                         self.note_spawned_closure(callback, &scope, &outer, a.span(), &env.dicts, false)?;
                     }
-                    if let Some(c) = arg_core {
+                    if apply_erased {
+                        core = app_spine(ECore::Prim(PrimOp::ApplyErased), vec![core]);
+                    } else if let Some(c) = arg_core {
                         core = app_spine(core, vec![c]);
                     }
                     ty = cod;
@@ -1881,6 +1884,47 @@ impl Checker {
                 Ok(core)
             }
         }
+    }
+
+    /// Check the discarded operand in its own usage and effect scope. It
+    /// supplies an index when needed, but never commits a runtime use or a
+    /// strict argument binding to the surrounding call.
+    fn check_erased_value_argument(
+        &mut self,
+        env: &Env,
+        argument: &ast::Term,
+        expected: &Ty,
+        dependent: bool,
+    ) -> Result<Option<ITerm>> {
+        let outer: HashSet<_> = self.obligations.keys().copied().collect();
+        let effects = self.enter_perf();
+        let writes = self.ev_writes.len();
+        let captures = self.task_captures.len();
+        let checked = self.isolate(|checker| {
+            checker.check(&mut env.clone(), argument, expected)?;
+            if dependent {
+                let carrier = checker.uni.zonk(expected);
+                checker.checked_term_index(argument, env, Some(&carrier)).map(Some)
+            } else {
+                Ok(checker.idx_of_term(argument, env).ok())
+            }
+        });
+        let performed = self.exit_perf(effects);
+        let wrote = self.ev_writes.len() != writes;
+        self.ev_writes.truncate(writes);
+        self.task_captures.truncate(captures);
+        let (reading, uses) = checked?;
+        if wrote || self.uni.unify_rows(&performed, &EffRow::pure()).is_err() {
+            return Err(Error::at(
+                argument.span(), "multiplicity %0: an erased argument cannot perform effects or writes",
+            ));
+        }
+        for (local, usage) in uses {
+            if !outer.contains(&local) {
+                self.uses.entry(local).or_default().seq_add(&usage);
+            }
+        }
+        Ok(reading)
     }
 
     /// Keep an opaque refined argument's actual value, rather than naming
@@ -6145,7 +6189,8 @@ impl Checker {
                 }
             };
             let l = self.fresh_local();
-            let erased_dom = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+            let logical = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+            let computational_erased = !logical && mult == Mult::Zero;
             match p {
                 ast::Pat::Var(n, _) => {
                     self.bind_syntax_local(
@@ -6175,7 +6220,7 @@ impl Checker {
                     self.register_obligation(l, "_", Some(mult), dom, p.span());
                 }
                 other => {
-                    if erased_dom {
+                    if logical || computational_erased {
                         return Err(Error::at(other.span(), "an erased lambda parameter needs a variable or wildcard pattern"));
                     }
                     self.register_obligation(l, "a lambda pattern", Some(mult), dom.clone(), p.span());
@@ -6189,8 +6234,8 @@ impl Checker {
             self.obligations.get_mut(&l).expect("registered lambda parameter").lam = self.lam_depth + 1;
             // An erased parameter takes no runtime slot (core
             // specification section 3).
-            if !erased_dom {
-                params.push(l);
+            if !logical {
+                params.push(if computational_erased { None } else { Some(l) });
             }
             effs.push(eff);
         }
@@ -6226,7 +6271,11 @@ impl Checker {
             }
             None => {}
         }
-        Ok(ECore::Lam { params, body: Box::new(bcore) })
+        if params.is_empty() {
+            Ok(ECore::Lam { params: Vec::new(), body: Box::new(bcore) })
+        } else {
+            Ok(erased_parameter_stages(&params, bcore))
+        }
     }
 
     /// The baked measure shape of a `decide` operand read from the

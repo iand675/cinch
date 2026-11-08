@@ -1438,7 +1438,7 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
-        PrimOp::Delay | PrimOp::Force | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
+        PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
@@ -1461,7 +1461,7 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
 /// block takes over.
 fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
-        PrimOp::Delay | PrimOp::Force => i == 0,
+        PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
         _ => false,
     }
@@ -2174,7 +2174,7 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
 /// carry no boundary signature.
 fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     use PrimOp::*;
-    if matches!(op, Delay | Force | Demand | Eval | Conc(_)) {
+    if matches!(op, Delay | Force | ApplyErased | Demand | Eval | Conc(_)) {
         return None;
     }
     Some(op.sig())
@@ -2698,7 +2698,9 @@ fn stub_take_saved(
     if !b.reclaim {
         return;
     }
-    let classes: Vec<Class> = (0..arity.saturating_sub(1))
+    // A zero-argument application can enter a closure with every worker
+    // parameter already saved. Move or duplicate all of those words.
+    let classes: Vec<Class> = (0..arity)
         .map(|i| {
             reg.unit_params
                 .get(name)
@@ -4140,6 +4142,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!(
                 "{r} = call i64 @__apply(i64 %p0, i64 1, ptr {argv})"
             ));
+            ret(b, &r);
+        }
+        ApplyErased => {
+            let argv = b.alloca_words(0);
+            let r = b.reg();
+            b.line(&format!("{r} = call i64 @__apply(i64 %p0, i64 0, ptr {argv})"));
             ret(b, &r);
         }
         Demand => {

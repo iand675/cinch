@@ -938,6 +938,8 @@ pub enum PrimOp {
     Delay,
     /// `force t`: apply the thunk closure to Unit.
     Force,
+    /// Apply a closure at a computational %0 argument boundary with zero words.
+    ApplyErased,
     /// `demand d`: run the memo cell state machine.
     Demand,
     /// `minBound`/`maxBound` (section 4), nullary values.
@@ -1170,6 +1172,7 @@ impl PrimOp {
             OrBool => return "cinch.prim.orBool".to_string(),
             Delay => return "cinch.prim.delay".to_string(),
             Force => return "cinch.prim.force".to_string(),
+            ApplyErased => return "cinch.prim.applyErased".to_string(),
             Demand => return "cinch.prim.demand".to_string(),
             CharToU32 => return "cinch.prim.charToU32".to_string(),
             U32ToChar => return "cinch.prim.u32ToChar".to_string(),
@@ -1242,7 +1245,7 @@ impl PrimOp {
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
-            | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool | Eval => 1,
+            | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | Demand | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             _ => 2,
         }
@@ -1363,7 +1366,7 @@ impl PrimOp {
             Pty(PtyOp::Resize) => (vec![i64t.clone(), Ty::Nat, Ty::Nat], res(Ty::Unit)),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
-            Delay | Force | Demand | Eval => {
+            Delay | Force | ApplyErased | Demand | Eval => {
                 unreachable!("deferral and code-generation forms are builtin, not foreign imports")
             }
             Bound { ty, .. } => (vec![], prim(ty)),

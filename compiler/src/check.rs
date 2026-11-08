@@ -1468,9 +1468,30 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
     }
 }
 
+/// A computational %0 binder creates a call boundary but takes no word.
+/// Group adjacent runtime binders so ordinary saturated calls keep their
+/// existing ABI. The erased stage itself is a zero-parameter lambda.
+fn erased_parameter_stages(parameters: &[Option<LocalId>], body: ECore) -> ECore {
+    match parameters.split_first() {
+        None => body,
+        Some((None, rest)) => ECore::Lam {
+            params: Vec::new(),
+            body: Box::new(erased_parameter_stages(rest, body)),
+        },
+        Some((Some(_), _)) => {
+            let prefix = parameters.iter().take_while(|parameter| parameter.is_some()).count();
+            let params = parameters[..prefix].iter().flatten().copied().collect();
+            ECore::Lam {
+                params,
+                body: Box::new(erased_parameter_stages(&parameters[prefix..], body)),
+            }
+        }
+    }
+}
+
 fn app_spine(head: ECore, args: Vec<ECore>) -> ECore {
     match head {
-        ECore::App(f, mut existing) => {
+        ECore::App(f, mut existing) if !matches!(&*f, ECore::Prim(PrimOp::ApplyErased)) => {
             existing.extend(args);
             ECore::App(f, existing)
         }
@@ -4855,7 +4876,7 @@ impl Checker {
             // A task handle is consumed exactly once by joining, whatever
             // its annotation says (concurrency specification, section 2):
             // its multiplicity cannot be relaxed to dropping.
-            let handle = crate::types::mentions_task(&t);
+            let handle = ob.mult != Some(Mult::Zero) && crate::types::mentions_task(&t);
             let mult = if handle {
                 Mult::One
             } else {

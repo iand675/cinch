@@ -165,6 +165,82 @@ module Main where
 }
 
 #[test]
+fn erased_argument_has_no_worker_word() {
+    let src = r#"
+module Main where
+  discard-word :: I64 %0 -> Int
+  discard-word _ = 7
+
+  main :: Int
+  main = discard-word 928374615
+"#;
+    let program = check_sources(src, "<test>").expect("check erased worker");
+    let ir = cinch::codegen::emit(&program).expect("emit erased worker");
+    assert!(ir.lines().any(|line| line.starts_with(r#"define i64 @"Main.discard-word"()"#)));
+    assert!(ir.lines().any(|line| line.contains("@__apply(i64 %p0, i64 0,")));
+    assert!(!ir.contains("928374615"));
+    expect_ok("zero-word-worker", src, 7);
+}
+
+#[test]
+fn erased_arrows_preserve_curried_stages_and_counted_captures() {
+    expect_ok(
+        "curried-erasure",
+        r#"
+module Main where
+  data Packet where
+    Packet :: Nat -> Packet
+
+  hold :: Packet -> Unit %0 -> Nat -> Packet
+  hold packet _ value = case packet of
+    Packet stored -> Packet (stored + value)
+
+  read-packet :: Packet -> Nat
+  read-packet (Packet n) = n
+
+  replay :: (Unit %0 -> Nat -> Packet) -> Nat
+  replay call = read-packet (call () 2) + read-packet (call () 3)
+
+  make :: Unit %0 -> Nat -> Nat
+  make = \_ n -> n + 1
+
+  main :: Unit %0 -> Int
+  main () = if replay (hold (Packet 10)) == 25
+              then if make () 5 == 6 then 0 else 1
+              else 2
+"#,
+        0,
+    );
+}
+
+#[test]
+fn erased_operand_must_typecheck_and_be_pure() {
+    expect_err(
+        "wrong-erased-operand-type",
+        r#"
+module Main where
+  discard-word :: I64 %0 -> Int
+  discard-word _ = 7
+  main :: Int
+  main = discard-word True
+"#,
+        &["I64", "Bool"],
+    );
+    expect_err(
+        "effectful-erased-operand",
+        r#"
+module Main where
+  foreign import ccall "fix_read" read-word :: I64 ->{Foreign Fix, IO} I64
+  discard-word :: I64 %0 -> Int
+  discard-word _ = 7
+  main :: Int
+  main = discard-word (read-word 0)
+"#,
+        &["multiplicity %0", "erased argument cannot perform effects"],
+    );
+}
+
+#[test]
 fn affine_double_use_is_rejected() {
     expect_err(
         "affine-double-use",

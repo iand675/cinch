@@ -3586,6 +3586,12 @@ impl Checker {
                         for (fname, fty, _) in &fields {
                             check_positivity(&nominal_identity(&module, &data.name), fname, fty, &c.name, c.ty.span())?;
                         }
+                        if fields.iter().any(|(_, ty, mult)| *mult == Mult::Zero && !erased_ty(ty)) {
+                            return Err(Error::at(
+                                c.ty.span(),
+                                "a computational %0 parameter is not supported on a data constructor",
+                            ));
+                        }
                         let field_tys: Vec<Ty> =
                             fields.iter().map(|(_, t, _)| t.clone()).collect();
                         let field_erased: Vec<bool> =
@@ -7038,13 +7044,38 @@ impl Checker {
         for _ in 0..n_pats {
             value_params.push(self.fresh_local());
         }
-        // Erased parameters (evidence, types) take no runtime slot (core
-        // specification section 3).
-        for (i, l) in value_params.iter().enumerate() {
-            if !matches!(self.uni.zonk(&doms[i]), Ty::Prp(_) | Ty::Sort(_)) {
-                param_ids.push(*l);
+        // Proof and type binders are transparent. A computational %0
+        // binder instead separates two application stages without
+        // contributing an argument word.
+        let mut source_params = Vec::new();
+        let mut ghost_columns = HashSet::new();
+        for (i, local) in value_params.iter().enumerate() {
+            let domain = self.uni.zonk(&doms[i]);
+            if matches!(domain, Ty::Prp(_) | Ty::Sort(_)) {
+                continue;
+            }
+            if !logical && mults[i] == Mult::Zero {
+                for equation in eqs {
+                    let pattern = &equation.pats[i];
+                    if !matches!(pattern, ast::Pat::Var(..) | ast::Pat::Wild(_))
+                        && !(domain == Ty::Unit && matches!(pattern, ast::Pat::Unit(_)))
+                    {
+                        return Err(Error::at(
+                            pattern.span(),
+                            "an erased parameter needs a variable or wildcard pattern",
+                        ));
+                    }
+                }
+                ghost_columns.insert(i);
+                source_params.push(None);
+            } else {
+                source_params.push(Some(*local));
             }
         }
+        let runtime_prefix = source_params.iter().take_while(|param| param.is_some());
+        param_ids.extend(runtime_prefix.flatten().copied());
+        let erased_suffix = source_params.iter().position(Option::is_none)
+            .map(|first| &source_params[first..]);
         // Usage obligations for the parameters: the arrow's declared
         // multiplicity, with the parameter's source name for diagnostics
         // (ownership and usage design, section 2).
@@ -7091,7 +7122,14 @@ impl Checker {
                     pats: e
                         .pats
                         .iter()
-                        .map(|p| self.expand_pat(p))
+                        .enumerate()
+                        .map(|(i, p)| {
+                            if ghost_columns.contains(&i) && matches!(p, ast::Pat::Unit(_)) {
+                                Ok(ast::Pat::Wild(p.span()))
+                            } else {
+                                self.expand_pat(p)
+                            }
+                        })
                         .collect::<Result<Vec<_>>>()?,
                     guard,
                     guard_locals,
@@ -7193,7 +7231,7 @@ impl Checker {
         }
         }
         self.check_usage()?;
-        meta.pure = self.uni.resolve_row(&performed).is_pure();
+        meta.pure = erased_suffix.is_some() || self.uni.resolve_row(&performed).is_pure();
         // P20: the safety assertions are verified at the definition
         // (attribute annotations specification section 10; decision
         // D112): a violation is a compile error naming the attribute,
@@ -7204,7 +7242,9 @@ impl Checker {
             let module = self.current_module.clone();
             let mut sig_tys: Vec<Ty> = doms_safety.iter().map(|t| self.uni.zonk(t)).collect();
             sig_tys.push(self.uni.zonk(&rest));
-            meta.contract.result_range = sig_tys.last().and_then(|t| t.value_range());
+            if erased_suffix.is_none() {
+                meta.contract.result_range = sig_tys.last().and_then(|t| t.value_range());
+            }
             let mut pcs = vec![crate::core::ParamContract::default(); param_ids.len()];
             for (i, l) in value_params.iter().enumerate() {
                 if let Some(pos) = param_ids.iter().position(|p| p == l) {
@@ -7261,9 +7301,16 @@ impl Checker {
             );
         }
         self.cur_tparams = tparams;
-        let total_result = self.total_sort(&self.uni.zonk(&rest), &mut Vec::new());
+        let (body, total_result) = match erased_suffix {
+            Some(suffix) => (erased_parameter_stages(suffix, body), None),
+            None => (body, self.total_sort(&self.uni.zonk(&rest), &mut Vec::new())),
+        };
         self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)?;
-        let result = crate::repr::repr_of(&self.uni.zonk(&rest), &self.cur_tparams, self, &mut |_| {});
+        let result = if erased_suffix.is_some() {
+            Class::Obj
+        } else {
+            crate::repr::repr_of(&self.uni.zonk(&rest), &self.cur_tparams, self, &mut |_| {})
+        };
         if let Some(unit) = self.fns.iter_mut().find(|unit| unit.id == *id) {
             unit.repr.result = Some(result);
         }
@@ -10131,13 +10178,16 @@ impl Checker {
             let user_module = main_info.module.clone();
             let main_id = fn_id(&user_module, "main");
             let exit_id = GlobalId(format!("{user_module}.main.exit"));
-            let main_word = if effectful {
+            let entry = crate::core::Core::Global(main_id, Vec::new());
+            let main_word = if matches!(&main_ty, Ty::Fun(_, Mult::Zero, _, _)) {
                 crate::core::Core::App(
-                    Box::new(crate::core::Core::Global(main_id, Vec::new())),
-                    vec![crate::core::Core::Unit],
+                    Box::new(crate::core::Core::Prim(PrimOp::ApplyErased)),
+                    vec![entry],
                 )
+            } else if effectful {
+                crate::core::Core::App(Box::new(entry), vec![crate::core::Core::Unit])
             } else {
-                crate::core::Core::Global(main_id, Vec::new())
+                entry
             };
             self.fns.push(FnDef {
                 id: exit_id.clone(),
@@ -10185,7 +10235,10 @@ impl Checker {
         let mut cur = ty;
         loop {
             match cur {
-                Ty::Fun(d, _, e, b) | Ty::Pi { dom: d, eff: e, cod: b, .. } => {
+                Ty::Fun(d, m, e, b) | Ty::Pi { dom: d, mult: m, eff: e, cod: b, .. } => {
+                    if *m == Mult::Zero {
+                        return Err(Error::at(p.span, "a prim argument must occupy a machine ABI slot"));
+                    }
                     rows.push(e);
                     args.push((**d).clone());
                     cur = b;
@@ -10645,7 +10698,10 @@ impl Checker {
         let mut cur = ty;
         loop {
             match cur {
-                Ty::Fun(_, _, e, b) | Ty::Pi { eff: e, cod: b, .. } => {
+                Ty::Fun(_, m, e, b) | Ty::Pi { mult: m, eff: e, cod: b, .. } => {
+                    if *m == Mult::Zero {
+                        return Err(Error::at(f.span, "a foreign argument must occupy an ABI slot"));
+                    }
                     n += 1;
                     rows.push(e);
                     cur = b;
