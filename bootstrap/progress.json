@@ -18915,6 +18915,16 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
+        "title": "Development Stage1: refinement formation",
+        "status": "passed",
+        "phase": "Five complete refinement targets and the higher-kinded NonEmpty control passed. The structural NonZero fixture checks explicit projection and implicit refusal.",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "source": "5bfe02dbf3167bf3255e720b7f6a39744fdc93a2e721d84401f3a55d477c7b92",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-refinement-formation-results.json"
+      },
+      {
         "title": "Development Stage1: checked allocation object",
         "status": "passed",
         "phase": "All five ownership modes passed on compiler-emitted code. The kept structure counts 14 live blocks. Regular and escaped static constructor tags both ran without leaks. The complete allocation target is tracked separately.",
@@ -20784,5 +20794,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:45:01.362645+00:00"
+  "updatedAt": "2026-11-08T04:46:42.085823+00:00"
 }
