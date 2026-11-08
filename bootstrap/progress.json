@@ -17875,11 +17875,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate",
         "source": "e91197eb5f3d8fc8f680fb375675fd3268b469ebe7e1bec785633dce66d30d43",
         "unit": "targets",
-        "passed": 2,
+        "passed": 3,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "ownership",
+        "phase": "lib",
         "evidence": null
       },
       {
@@ -20892,5 +20892,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:55:11.897963+00:00"
+  "updatedAt": "2026-11-08T23:56:14.983951+00:00"
 }
