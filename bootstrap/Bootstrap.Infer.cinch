@@ -4512,20 +4512,26 @@ module Bootstrap.Infer where
     UFunEff domain (URow UEnd) result -> source-total-atom domain && source-total-type result
     URefine id name (UCon carrier KType) predicate -> has carrier ["Nat", "Int", "I64"]
     other -> source-total-atom ty
-  source-total-candidate :: List (String, Kind) -> TypeContext -> TypeExpr -> Bool
-  source-total-candidate classes kinds syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+  source-projection-domain :: UType -> Option String
+  source-projection-domain ty = case ty of
+    UFun (UCon domain KType) (UCon result KType) -> if same result "Bytes" && not (primitive domain) then Some domain else None
+    other -> None
+  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> TypeExpr -> Bool
+  source-total-candidate classes kinds declarations syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
     (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil, Nil) -> source-total-type (scheme-body sc)
+      (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case source-projection-domain (scheme-body sc) of
+        Some name -> (case source-total-find-data name declarations of Some decl -> True; None -> False)
+        None -> False)
       other -> False
-  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List String
-  source-total-names classes kinds declarations = case declarations of
+  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List Decl -> List String
+  source-total-names classes kinds all declarations = case declarations of
     Nil -> Nil
-    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds syntax then Cons name (source-total-names classes kinds rest) else source-total-names classes kinds rest
-    Cons other rest -> source-total-names classes kinds rest
-  source-total-select :: List String -> List String -> List Decl -> List Decl
-  source-total-select names aliases declarations = case declarations of
+    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all syntax then Cons name (source-total-names classes kinds all rest) else source-total-names classes kinds all rest
+    Cons other rest -> source-total-names classes kinds all rest
+  source-total-select :: List String -> List String -> List String -> List Decl -> List Decl
+  source-total-select names aliases datas declarations = case declarations of
     Nil -> Nil
-    Cons declaration rest -> let more = source-total-select names aliases rest in
+    Cons declaration rest -> let more = source-total-select names aliases datas rest in
       case declaration of
         DSig sp name syntax -> if has name names then Cons declaration more else more
         DFun sp name clauses -> if has name names then Cons declaration more else more
@@ -4534,6 +4540,7 @@ module Bootstrap.Infer where
         DSource sp name metadata -> Cons declaration more
         DProof sp body -> Cons declaration more
         DRefine sp name parameters binder predicate -> if has name aliases then Cons declaration more else more
+        DData sp name parameters constructors -> if has name datas then Cons declaration more else more
         DForeign sp direction abi symbol name syntax -> (case intrinsic-contract symbol of Some specification -> Cons declaration more; None -> more)
         other -> more
   source-total-selected-references :: List String -> List Decl -> List String
@@ -4550,6 +4557,28 @@ module Bootstrap.Infer where
     Cons declaration rest -> case declaration of
       DRefine sp symbol parameters binder predicate -> if same symbol name then Some declaration else source-total-find-alias name rest
       other -> source-total-find-alias name rest
+  source-total-find-data :: String -> List Decl -> Option Decl
+  source-total-find-data name declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case declaration of
+      DData sp symbol Nil constructors -> if same symbol name then Some declaration else source-total-find-data name rest
+      other -> source-total-find-data name rest
+  source-total-data-closure :: List Decl -> List String -> List String -> (List String, List String)
+  source-total-data-closure declarations pending seen = case pending of
+    Nil -> (seen, Nil)
+    Cons name rest -> if has name seen then source-total-data-closure declarations rest seen else
+      (case source-total-find-data name declarations of
+        Some declaration -> let refs = declaration-references [declaration] in
+          let (datas, more) = source-total-data-closure declarations (refs <> rest) (Cons name seen) in
+          (datas, refs <> more)
+        None -> source-total-data-closure declarations rest seen)
+  source-total-data-roots :: List String -> List Decl -> List String
+  source-total-data-roots names declarations = case declarations of
+    Nil -> Nil
+    Cons (DSig sp name (TFun arrow (TName at domain) (TName end result))) rest ->
+      if same result "Bytes" && has name names then Cons domain (source-total-data-roots names rest)
+      else source-total-data-roots names rest
+    Cons other rest -> source-total-data-roots names rest
   source-total-parameter-references :: List TypeParam -> List String
   source-total-parameter-references parameters = case parameters of
     Nil -> Nil
@@ -4582,12 +4611,15 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons name rest -> let more = source-total-from-checked rest preliminary in
       (case export-global name of
-        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) native of Some binding -> Cons binding more; None -> more)
+        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) (elaboration-data preliminary) native of Some binding -> Cons binding more; None -> more)
         Err error -> more)
   source-total-preliminary :: String -> Module -> List String -> Elaboration
-  source-total-preliminary label m names = elaborate-module-with-source-bodies False (label <> " total bodies")
-    (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names
-      (source-total-alias-closure (module-decls m) (source-total-selected-references names (module-decls m)) Nil) (module-decls m))))
+  source-total-preliminary label m names = let declarations = module-decls m in
+    let refs = source-total-selected-references names declarations in
+    let (datas, data-refs) = source-total-data-closure declarations (source-total-data-roots names declarations) Nil in
+    let aliases = source-total-alias-closure declarations (refs <> data-refs) Nil in
+    elaborate-module-with-source-bodies False (label <> " total bodies")
+      (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
   source-total-individual :: String -> Module -> List String -> List String -> List BodyBinding
   source-total-individual label m all names = case names of
     Nil -> Nil
@@ -4596,7 +4628,8 @@ module Bootstrap.Infer where
       let preliminary = source-total-preliminary label m needed in
       (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
   source-total-bodies :: String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
-  source-total-bodies label m classes kinds = let names = source-total-names classes kinds (module-decls m) in
+  source-total-bodies label m classes kinds = let declarations = module-decls m in
+    let names = source-total-names classes kinds declarations declarations in
     case names of
       Nil -> Nil
       other -> let preliminary = source-total-preliminary label m names in

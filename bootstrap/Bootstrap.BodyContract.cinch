@@ -188,7 +188,7 @@ module Bootstrap.BodyContract where
   check-body-binding :: String -> String -> String -> Scheme -> TotalFunction -> Option BodyBinding
   check-body-binding name native role sc function =
     if string-length name == 0 || not (same native (total-identity function))
-      || not (same role "external") then None
+      || not (same role "external") || total-source-projection function then None
     else case (scheme-params sc, scheme-requirements sc) of
       (Nil, Nil) -> if class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
       other -> None

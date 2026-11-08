@@ -11,11 +11,13 @@ module Bootstrap.Total where
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
   export total-decimal-value, total-function-closure
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
+  export source-total-projection, total-source-projection, read-total-function
 
   data TotalGraph where
     MkTotalGraph :: Json -> TotalGraph
   data TotalFunction where
     MkTotalFunction :: TotalGraph -> String -> TotalFunction
+    MkSourceProjection :: String -> String -> Json -> TotalFunction
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -146,16 +148,47 @@ module Bootstrap.Total where
   total-function graph name = case graph of MkTotalGraph doc -> (case find name (field "definitions" doc) of Some row -> Some (MkTotalFunction graph name); None -> None)
   total-document :: TotalGraph -> Json
   total-document graph = case graph of MkTotalGraph doc -> doc
+  -- Projections are reconstructed against the checked source constructors.
+  -- Their carrier-tree representation carries no imported body authority.
+  source-total-projection :: String -> String -> List (String, Nat) -> Option TotalFunction
+  source-total-projection name domain steps = read-source-projection name
+    (JObj "domain" (JStr domain) (JObj "fields" (projection-steps steps) JObjEnd))
+  projection-steps :: List (String, Nat) -> Json
+  projection-steps steps = case steps of
+    Nil -> JArrEnd
+    Cons (constructor, index) rest -> JArr (JArr (JStr constructor) (JArr (JNum (nat-to-int index)) JArrEnd)) (projection-steps rest)
+  valid-projection-steps :: Json -> Bool
+  valid-projection-steps steps = case steps of
+    JArr (JArr (JStr constructor) (JArr (JNum index) JArrEnd)) rest ->
+      string-length constructor > 0 && index >= 0 && valid-projection-steps rest
+    JArrEnd -> True
+    other -> False
+  read-source-projection :: String -> Json -> Option TotalFunction
+  read-source-projection name doc = if not (fields ["domain", "fields"] doc && string-length name > 0) then None else
+    case (field "domain" doc, field "fields" doc) of
+      (JStr domain, JArr first rest) -> if string-length domain > 0 && not (valid-sort domain) && valid-projection-steps (JArr first rest) then Some (MkSourceProjection name domain (JArr first rest)) else None
+      other -> None
+  read-total-function :: Json -> String -> Option TotalFunction
+  read-total-function doc name = if fields ["source_projection"] doc then read-source-projection name (field "source_projection" doc) else
+    case check-total-graph doc of Some graph -> total-function graph name; None -> None
+  total-source-projection :: TotalFunction -> Bool
+  total-source-projection function = case function of MkSourceProjection name domain steps -> True; other -> False
   total-identity :: TotalFunction -> String
-  total-identity function = case function of MkTotalFunction graph name -> name
+  total-identity function = case function of MkTotalFunction graph name -> name; MkSourceProjection name domain steps -> name
   function-row :: TotalFunction -> Json
-  function-row function = case function of MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
+  function-row function = case function of
+    MkTotalFunction (MkTotalGraph doc) name -> (case find name (field "definitions" doc) of Some row -> row; None -> JNull)
+    MkSourceProjection name domain steps -> JNull
   total-parameters :: TotalFunction -> List String
-  total-parameters function = case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil
+  total-parameters function = case function of
+    MkSourceProjection name domain steps -> [domain]
+    other -> (case sorts (field "parameters" (function-row function)) of Some parameters -> parameters; None -> Nil)
   total-result :: TotalFunction -> String
-  total-result function = text (field "result" (function-row function))
+  total-result function = if total-source-projection function then "Bytes" else text (field "result" (function-row function))
   total-function-document :: TotalFunction -> Json
-  total-function-document function = case function of MkTotalFunction graph name -> total-document graph
+  total-function-document function = case function of
+    MkTotalFunction graph name -> total-document graph
+    MkSourceProjection name domain steps -> JObj "source_projection" (JObj "domain" (JStr domain) (JObj "fields" steps JObjEnd)) JObjEnd
   closure-rows :: List String -> Json -> Json
   closure-rows names rows = case rows of
     JArr row rest -> if has (text (field "identity" row)) names then JArr row (closure-rows names rest) else closure-rows names rest
@@ -218,6 +251,7 @@ module Bootstrap.Total where
     MkTotalFunction (MkTotalGraph doc) name -> (case literal-results (field "definitions" doc) (unknown-domains (total-parameters function)) (total-body function) 4096 of
       (Some (Cons value rest), remaining) -> Some (result-envelope rest value value)
       other -> None)
+    MkSourceProjection name domain steps -> None
 
   total-owned-rows :: Json -> List String -> Bool
   total-owned-rows rows reachable = case rows of
@@ -237,7 +271,15 @@ module Bootstrap.Total where
     JArrEnd -> True
     other -> False
   total-functions-compatible :: TotalFunction -> TotalFunction -> Bool
-  total-functions-compatible first second = compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))
+  total-functions-compatible first second = case (total-source-projection first, total-source-projection second) of
+    (False, False) -> compatible-definitions (field "definitions" (total-function-document first)) (field "definitions" (total-function-document second))
+    (True, True) -> not (same (total-identity first) (total-identity second)) || total-function-equal first second
+    (True, False) -> projection-compatible first second
+    (False, True) -> projection-compatible second first
+  projection-compatible :: TotalFunction -> TotalFunction -> Bool
+  projection-compatible projection graph = case find (total-identity projection) (field "definitions" (total-function-document graph)) of
+    None -> True
+    Some row -> False
 
   total-decimal-value :: String -> Option Int
   total-decimal-value text = decimal-value text

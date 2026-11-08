@@ -9,7 +9,7 @@ module Bootstrap.Type where
   import Data.Int (int-div, int-rem)
   import Bootstrap.Index
   import Bootstrap.Nominal (interface-global)
-  import Bootstrap.Total (TotalFunction, check-total-graph, total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
+  import Bootstrap.Total (TotalFunction, read-total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
   import Algebra.Semigroup
 
@@ -187,8 +187,8 @@ module Bootstrap.Type where
           else if same-tag tag "row-join" then Some (URowJoin left right) else if same-tag tag "arg" then Some (UArg left right) else if same-tag tag "prop-and" then Some (UPropAnd left right) else if same-tag tag "prop-or" then Some (UPropOr left right) else if same-tag tag "required" then Some (URequire left right) else None
         other -> None
     JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) ->
-      if same-tag tag "index-total-call" then (case (check-total-graph a, b, read-carrier-tree c) of
-        (Some graph, JStr identity, Some args) -> (case total-function graph identity of Some function -> Some (UIndexCall function args); None -> None)
+      if same-tag tag "index-total-call" then (case (b, read-carrier-tree c) of
+        (JStr identity, Some args) -> (case read-total-function a identity of Some function -> Some (UIndexCall function args); None -> None)
         other -> None)
       else if same-tag tag "refinement-former" then (case (a, read-former-ids b, read-carrier-tree c) of
         (JStr name, Some ids, Some body) -> Some (URefineFormer name ids body)

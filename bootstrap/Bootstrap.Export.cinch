@@ -10,7 +10,7 @@ module Bootstrap.Export where
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
   import Bootstrap.Type
-  import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
+  import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
@@ -133,7 +133,9 @@ module Bootstrap.Export where
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   value-total-body :: CheckedBinding -> Json
-  value-total-body binding = case checked-body-binding binding of Some body -> total-function-document (binding-function body); None -> JNull
+  value-total-body binding = case checked-body-binding binding of
+    Some body -> if total-source-projection (binding-function body) then JNull else total-function-document (binding-function body)
+    None -> JNull
   resolved-source-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
   resolved-source-scheme typed interfaces symbol scheme = case (resolved-scheme typed interfaces scheme, binding-refinements (elaboration-declarations typed) symbol) of
     (Ok resolved, Ok refinements) -> (case merge-nominals refinements (field "nominals" resolved) of

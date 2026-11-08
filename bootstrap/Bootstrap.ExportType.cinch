@@ -4,7 +4,7 @@ module Bootstrap.ExportType where
   import Algebra.Semigroup
   import Bootstrap.Type
   import Bootstrap.Index
-  import Bootstrap.Total (total-identity)
+  import Bootstrap.Total (total-identity, total-source-projection)
   import Data.Char (char-from-code)
   import Data.String
   import Text.Show (nat-to-string, int-to-string)
@@ -267,7 +267,8 @@ module Bootstrap.ExportType where
     UIndexForget value -> type-in-style display scope value
     UIndexPromote value -> type-in-style display scope value
     UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
-    UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
+    UIndexCall function args -> if total-source-projection function && not display then Err "source nominal projection requires a local proof context"
+      else join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
     UIndexMath op a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
     UPropLit value -> Ok (if value then "True" else "False")
     UCompare relation a b -> if same relation "Eq" then
