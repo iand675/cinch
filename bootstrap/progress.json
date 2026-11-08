@@ -21062,7 +21062,8 @@
         "failed": 0,
         "total": 1,
         "unit": "audit",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-independent-bootstrap-results.json"
       },
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
@@ -21107,6 +21108,16 @@
         "unit": "groups",
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
         "evidence": null
+      },
+      {
+        "title": "Verify the grouped proof-search and constructor-visibility repair",
+        "status": "running",
+        "phase": "Build all 46 compiler modules and smoke test stage1",
+        "passed": 0,
+        "failed": 0,
+        "total": 7,
+        "unit": "cases",
+        "source": "a56061fac0128a681e2d048d74aeb7c1effda54747cb550c4f843177153a506f"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21197,5 +21208,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:56:09.893985+00:00"
+  "updatedAt": "2026-11-08T13:56:32.663181+00:00"
 }
