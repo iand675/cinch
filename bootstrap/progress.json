@@ -19897,7 +19897,7 @@
         "title": "Earlier Stage3 suite on compiler 45bbfe94",
         "status": "historical",
         "phase": "These invocation receipts apply to the earlier published compiler.",
-        "passed": 14,
+        "passed": 15,
         "failed": 0,
         "total": 105,
         "unit": "original test targets",
@@ -20094,5 +20094,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:33:11.336968+00:00"
+  "updatedAt": "2026-11-08T01:34:13.299630+00:00"
 }
