@@ -476,6 +476,7 @@
     }
   ],
   "blockers": [
+    "class_defaults / actual Cinch frontend",
     "concurrency"
   ],
   "milestones": [
@@ -587,7 +588,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "concurrency",
+        "detail": "class_defaults / actual Cinch frontend | concurrency",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -17665,9 +17666,9 @@
         "total": 8,
         "counts": {
           "verified": 1,
-          "blocked": 1,
+          "blocked": 2,
           "running": 2,
-          "pending": 4,
+          "pending": 3,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17675,8 +17676,8 @@
           {
             "id": "additional:class_defaults",
             "title": "class_defaults / actual Cinch frontend",
-            "state": "running",
-            "detail": "7 original tests. Running on the matching Stage 3.",
+            "state": "blocked",
+            "detail": "6/7 passed on this candidate. annotations_keep_definition_and_default_parameter_identities",
             "doneWhen": "Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "observed": {
@@ -17801,8 +17802,8 @@
           {
             "id": "additional:laws",
             "title": "laws",
-            "state": "pending",
-            "detail": "8 original tests. Queued for a shared worker.",
+            "state": "running",
+            "detail": "8 original tests. Running on the matching Stage 3.",
             "doneWhen": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "currentTests": null
@@ -20367,9 +20368,9 @@
     ],
     "counts": {
       "verified": 349,
-      "blocked": 2,
+      "blocked": 3,
       "running": 4,
-      "pending": 6,
+      "pending": 5,
       "recheck": 350
     },
     "total": 711,
@@ -20378,5 +20379,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:44:03.137759+00:00"
+  "updatedAt": "2026-11-08T17:46:26.481636+00:00"
 }
