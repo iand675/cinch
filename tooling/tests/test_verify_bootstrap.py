@@ -170,6 +170,25 @@ class FrozenVerification(unittest.TestCase):
                 self.assertEqual(verify_stage3.verify(root / "complete", root / "cargo"), 0)
             self.assertEqual(called, ["portable", "api", "portable", "api"])
 
+    def test_stage3_preflights_the_source_of_reviewed_rust_assertions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "bootstrap").mkdir()
+            (root / "compiler/tests").mkdir(parents=True)
+            source = root / "compiler/tests/portable.rs"
+            source.write_text("changed direct assertion")
+            scope = dict(portable_targets=["portable"], interface_api_targets=[],
+                         original_targets=["portable"], new_targets_beyond_original=[],
+                         current_total_targets=1, native_api_assertions={
+                             "portable": {"source_sha256": "0" * 64, "cases": {"direct": "Rust-only assertion"}}
+                         })
+            (root / "bootstrap/current-frontend-acceptance-scope.json").write_text(json.dumps(scope))
+            with patch.object(verify.bootstrap, "ROOT", root), \
+                    patch.object(verify_stage3, "stage3_artifacts") as artifacts:
+                with self.assertRaisesRegex(ValueError, "source review for portable"):
+                    verify_stage3.verify(root / "evidence", root / "cargo")
+                artifacts.assert_not_called()
+
     def test_stage3_adapter_links_the_library_and_runtime_from_its_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
