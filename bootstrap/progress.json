@@ -20525,8 +20525,8 @@
         "title": "Bootstrap the combined frontend and provider repairs",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 3 using the previous Cinch compiler",
-        "passed": 12,
+        "phase": "Combined candidate, starting from the pinned seed. check the fixed point, interface consumer, and changed-source control",
+        "passed": 13,
         "total": 14,
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
@@ -20568,5 +20568,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:17:47.019671+00:00"
+  "updatedAt": "2026-11-08T19:18:50.014682+00:00"
 }
