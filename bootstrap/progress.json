@@ -20695,8 +20695,8 @@
         "title": "Rebuild the codata and memo compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Cinch codata and memo compiler ladder. build Stage 2 with the previous Cinch compiler.",
-        "passed": 3,
+        "phase": "Cinch codata and memo compiler ladder. build Stage 3 with the previous Cinch compiler.",
+        "passed": 4,
         "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20815,5 +20815,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:14:12.702224+00:00"
+  "updatedAt": "2026-11-08T22:15:56.354393+00:00"
 }
