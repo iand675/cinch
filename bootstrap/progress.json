@@ -20672,8 +20672,8 @@
       {
         "title": "Rebuild the codata and memo compiler through Stage 3",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Isolated Stage 1 candidate. Queued for a shared worker.",
+        "status": "running",
+        "phase": "Cinch codata and memo compiler ladder. build Stage 2 with the previous Cinch compiler.",
         "passed": 3,
         "total": 6,
         "failed": 0,
@@ -20694,11 +20694,11 @@
       {
         "title": "Replay the original integration failures and guard coverage",
         "unit": "controls",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "Isolated Stage 1 candidate. guard_coverage (5 original tests)",
-        "passed": 9,
+        "passed": 13,
         "total": 15,
-        "failed": 1,
+        "failed": 2,
         "source": "a498e06d14fab7d58ebc35afcb760a184c4482c64da940a35899bdbd4684fecf",
         "evidence": null
       },
@@ -20760,5 +20760,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:43:41.447461+00:00"
+  "updatedAt": "2026-11-08T21:46:25.749286+00:00"
 }
