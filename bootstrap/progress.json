@@ -20749,11 +20749,11 @@
       {
         "title": "Check rewrite syntax and resolve defining law signatures",
         "unit": "controls",
-        "status": "failed",
+        "status": "running",
         "phase": "Isolated Stage 1 candidate. build the rewrite parser and namespace probe",
         "passed": 0,
         "total": 2,
-        "failed": 1,
+        "failed": 0,
         "source": "5913c5ddcbe8967d9276ecffc04b146350d941bc57e045c00446d1f1fcc370ad",
         "evidence": null
       },
@@ -20804,5 +20804,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:02:30.829825+00:00"
+  "updatedAt": "2026-11-08T23:03:33.703875+00:00"
 }
