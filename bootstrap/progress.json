@@ -20967,8 +20967,8 @@
       },
       {
         "title": "Compile and execute lexical effect handlers",
-        "status": "waiting-disk-space",
-        "phase": "Waiting disk space. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -20999,5 +20999,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:20:33.689788+00:00"
+  "updatedAt": "2026-11-08T07:23:36.593528+00:00"
 }
