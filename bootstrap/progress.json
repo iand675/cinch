@@ -543,8 +543,8 @@
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "pending",
-        "detail": "Awaiting the independent Stage 3 audit.",
+        "state": "verified",
+        "detail": "Stage 2 and Stage 3 agreement and executable smokes audited.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage3-admission.json",
         "observed": {
@@ -556,8 +556,8 @@
       {
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
-        "state": "running",
-        "detail": "Awaiting the changed-source rebuild and its behavior check.",
+        "state": "verified",
+        "detail": "The changed-source rebuild produced the expected diagnostic.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
         "observed": {
@@ -2817,6 +2817,10 @@
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
                   "status": "running"
                 }
               ]
@@ -18007,12 +18011,12 @@
         "title": "Build and verify the integrated ABI 7 compiler",
         "unit": "stages",
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-        "passed": 4,
+        "passed": 5,
         "total": 5,
-        "status": "waiting-independent-audit",
+        "status": "passed",
         "phase": "check the fixed point, compiler interface consumer and changed-source control",
         "failed": 0,
-        "auditPending": true,
+        "auditPending": false,
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-expanded-provider-stage2-results.json"
       },
       {
@@ -20388,8 +20392,8 @@
       },
       {
         "title": "Run the 14 external Stage 3 acceptance checks",
-        "status": "waiting-stage3",
-        "phase": "Waiting for the independent Stage 2 and Stage 3 audit.",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 14,
         "unit": "gates",
@@ -20517,17 +20521,17 @@
       }
     ],
     "counts": {
-      "verified": 296,
+      "verified": 298,
       "blocked": 0,
-      "running": 3,
-      "pending": 5,
+      "running": 2,
+      "pending": 4,
       "recheck": 402
     },
     "total": 706,
-    "acceptanceVerified": 2,
+    "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:20:41.596010+00:00"
+  "updatedAt": "2026-11-08T17:22:44.224605+00:00"
 }
