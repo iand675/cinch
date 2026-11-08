@@ -17941,11 +17941,11 @@
         "title": "Run all 236 targets on the published Rust compiler",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "bootstrap_library_object",
+        "phase": "staging",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20661,11 +20661,11 @@
       {
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Isolated Stage 1 candidate. Queued for a shared worker.",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with codata",
         "passed": 0,
         "total": 13,
-        "failed": 0,
+        "failed": 1,
         "source": "50b2fa011ae9d5f4f1ad6cc3de74ca759a40dd7418c008875d3e56bf75baa93c",
         "evidence": null
       },
@@ -20705,5 +20705,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:48:33.899823+00:00"
+  "updatedAt": "2026-11-08T20:49:36.193984+00:00"
 }
