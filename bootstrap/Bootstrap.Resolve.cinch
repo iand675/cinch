@@ -335,6 +335,7 @@ module Bootstrap.Resolve where
   argument-names t = case t of
     TFun s domain result -> bound-names domain <> argument-names result
     TFunEff s domain row result -> bound-names domain <> argument-names result
+    TUsageArrow s usage arrow -> argument-names arrow
     TUsing s bounds body -> argument-names body
     TForall s binders body -> argument-names body
     other -> Nil
@@ -367,6 +368,7 @@ module Bootstrap.Resolve where
     TApp s head args -> TApp s (rename-type visible locals head) (rename-type visible locals args)
     TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
+    TUsageArrow s usage arrow -> TUsageArrow s usage (rename-type visible locals arrow)
     TRow s labels tail -> TRow s (rename-type visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)

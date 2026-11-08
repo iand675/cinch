@@ -184,6 +184,7 @@ module Bootstrap.Infer where
     TForall s qs body -> True
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
+    TUsageArrow s usage arrow -> True
     TBound s name carrier rest -> True
     TInfix s op a b -> True
     TApp s f xs -> predicate-syntax ty || needs-type f || needs-type xs
@@ -528,6 +529,7 @@ module Bootstrap.Infer where
     TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
+    TUsageArrow s usage arrow -> bad s "usage-annotated arrow requires ownership checking" st
     TRow s labels tail -> convert-row kinds locals ty st
     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
@@ -999,6 +1001,7 @@ module Bootstrap.Infer where
         max-arity direct (constructor-arity-arguments kinds locals params sought (known-head-kind kinds locals params actual) arguments)
     TFun sp a b -> max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b)
     TFunEff sp a row b -> max-arity (constructor-arity-in kinds locals params sought 0 row) (max-arity (constructor-arity-in kinds locals params sought 0 a) (constructor-arity-in kinds locals params sought 0 b))
+    TUsageArrow s usage arrow -> constructor-arity-in kinds locals params sought 0 arrow
     TUsing sp bounds body -> max-arity (constructor-arity-in kinds locals params sought 0 bounds) (constructor-arity-in kinds locals params sought 0 body)
     TBound sp name annotation rest -> max-arity (constructor-arity-in kinds locals params sought 0 annotation) (constructor-arity-in kinds locals params sought 0 rest)
     TArg sp first rest -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-in kinds locals params sought 0 rest)
@@ -1022,6 +1025,7 @@ module Bootstrap.Infer where
     TRow sp labels tail -> row-parameter-names labels <> (case tail of None -> Nil; Some name -> [name])
     TFun sp a b -> row-parameter-names a <> row-parameter-names b
     TFunEff sp a row b -> row-parameter-names a <> row-parameter-names row <> row-parameter-names b
+    TUsageArrow s usage arrow -> row-parameter-names arrow
     TApp sp f xs -> row-parameter-names f <> row-parameter-names xs
     TArg sp first rest -> row-parameter-names first <> row-parameter-names rest
     TTuple sp fields -> row-parameter-names fields
@@ -1097,6 +1101,7 @@ module Bootstrap.Infer where
     TApp s f xs -> region-names f <> region-names xs
     TFun s a b -> region-names a <> region-names b
     TFunEff s a row b -> region-names a <> region-names row <> region-names b
+    TUsageArrow s usage arrow -> region-names arrow
     TRow s labels tail -> region-names labels
     TUsing s bounds body -> region-names bounds <> region-names body
     TBound s name app rest -> region-names app <> region-names rest
@@ -1107,6 +1112,7 @@ module Bootstrap.Infer where
   latent-regions ty = case ty of
     TFun s a b -> latent-regions a <> latent-regions b
     TFunEff s a row b -> latent-regions a <> region-names row <> latent-regions b
+    TUsageArrow s usage arrow -> latent-regions arrow
     TUsing s bounds body -> latent-regions body
     TApp s f xs -> latent-regions f <> latent-regions xs
     TArg s x rest -> latent-regions x <> latent-regions rest
@@ -2054,6 +2060,7 @@ module Bootstrap.Infer where
     TArg sp first rest -> TArg sp (qualify-foreign-type declarations first) (qualify-foreign-type declarations rest)
     TFun sp domain result -> TFun sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations result)
     TFunEff sp domain row result -> TFunEff sp (qualify-foreign-type declarations domain) (qualify-foreign-type declarations row) (qualify-foreign-type declarations result)
+    TUsageArrow s usage arrow -> TUsageArrow s usage (qualify-foreign-type declarations arrow)
     TForall sp params body -> TForall sp params (qualify-foreign-type declarations body)
     TRow sp labels tail -> TRow sp (qualify-foreign-type declarations labels) tail
     other -> syntax

@@ -172,6 +172,8 @@ module Bootstrap.Nominal where
       ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
     TFunEff s a row b -> case (qualify refs locals a, qualify-row locals row, qualify refs locals b) of
       ((x, ex), (effects, ee), (y, ey)) -> (TFunEff s x effects y, ex <> ee <> ey)
+    TUsageArrow s usage arrow -> case qualify refs locals arrow of
+      (renamed, errors) -> (TUsageArrow s usage renamed, errors)
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
       qualify-predicate refs locals ty
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
@@ -226,6 +228,7 @@ module Bootstrap.Nominal where
     TFunEff s (TBound b name carrier (TBoundsEnd end)) row body -> Cons name (contract-argument-names body)
     TFun s domain body -> contract-argument-names body
     TFunEff s domain row body -> contract-argument-names body
+    TUsageArrow s usage arrow -> contract-argument-names arrow
     other -> Nil
 
   resolved-predicate-syntax :: TypeExpr -> Bool

@@ -304,6 +304,7 @@ module Bootstrap.Check where
       (ta, da) -> case type-to-ty b of
         (tb, db) -> (TyFun ta tb, da <> db)
     TFunEff s a row b -> (TyHole, fail s "unsupported type: effect arrow")
+    TUsageArrow s usage arrow -> (TyHole, fail s "usage-annotated arrow requires ownership checking")
     TRow s labels tail -> (TyHole, fail s "unsupported type: effect row")
     TTuple s xs -> case ty-spine-to-ty xs of
       (args, ds) -> (TyTuple args, ds)

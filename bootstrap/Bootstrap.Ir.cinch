@@ -583,6 +583,7 @@ module Bootstrap.Ir where
       None -> sig-unsupported b
       Some why -> Some why
     TFunEff s a row b -> Some "an effect arrow the fragment does not lower"
+    TUsageArrow s usage arrow -> Some "a usage-annotated arrow the fragment does not lower"
     other -> word-type t
 
   word-type :: TypeExpr -> Option String
@@ -595,6 +596,7 @@ module Bootstrap.Ir where
   sig-arity t = case t of
     TFun s a b -> 1 + sig-arity b
     TFunEff s a row b -> 1 + sig-arity b
+    TUsageArrow s usage arrow -> sig-arity arrow
     other -> 0
 
   find-sig :: List Decl -> String -> Option TypeExpr

@@ -140,6 +140,7 @@ module Bootstrap.Contracts where
     TApp s f args -> type-references f <> type-references args
     TFun s a b -> type-references a <> type-references b
     TFunEff s a row b -> type-references a <> type-references row <> type-references b
+    TUsageArrow s usage arrow -> type-references arrow
     TRow s labels tail -> type-references labels
     TTuple s args -> type-references args
     TForall s binders body -> type-references binders <> type-references body

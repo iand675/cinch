@@ -93,6 +93,7 @@ module Bootstrap.Ast where
     TApp :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TFun :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TFunEff :: Span -> TypeExpr -> TypeExpr -> TypeExpr -> TypeExpr
+    TUsageArrow :: Span -> String -> TypeExpr -> TypeExpr
     TRow :: Span -> TypeExpr -> Option String -> TypeExpr
     TTuple :: Span -> TypeExpr -> TypeExpr
     TForall :: Span -> TypeExpr -> TypeExpr -> TypeExpr
@@ -139,6 +140,7 @@ module Bootstrap.Ast where
     TApp s h args -> s
     TFun s a b -> s
     TFunEff s a row b -> s
+    TUsageArrow s usage arrow -> s
     TRow s labels tail -> s
     TTuple s xs -> s
     TForall s vs body -> s
@@ -521,6 +523,7 @@ module Bootstrap.Ast where
     TApp s h args -> type-unmodeled-count h + type-unmodeleds (type-args-of args)
     TFun s a b -> type-unmodeled-count a + type-unmodeled-count b
     TFunEff s a row b -> type-unmodeled-count a + type-unmodeled-count row + type-unmodeled-count b
+    TUsageArrow s usage arrow -> type-unmodeled-count arrow
     TRow s labels tail -> type-unmodeled-count labels
     TTuple s xs -> type-unmodeleds (type-args-of xs)
     TForall s vs body -> type-unmodeled-count vs + type-unmodeled-count body
@@ -720,6 +723,7 @@ module Bootstrap.Ast where
     TApp part0 part1 part2 -> JArr (JStr "TApp") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
     TFun part0 part1 part2 -> JArr (JStr "TFun") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
     TFunEff part0 part1 part2 part3 -> JArr (JStr "TFunEff") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
+    TUsageArrow sp usage arrow -> JArr (JStr "TUsageArrow") (JArr (JStr usage) (JArr (source-identity-type arrow) JArrEnd))
     TRow part0 part1 part2 -> JArr (JStr "TRow") (JArr (source-identity-type part1) (JArr (source-identity-optional part2) (JArrEnd)))
     TTuple part0 part1 -> JArr (JStr "TTuple") (JArr (source-identity-type part1) (JArrEnd))
     TForall part0 part1 part2 -> JArr (JStr "TForall") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
