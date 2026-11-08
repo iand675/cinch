@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "76 of 236 complete groups passed; 1 running, 7 failed and 152 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "77 of 236 complete groups passed; 1 running, 7 failed and 151 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "76 of 236 complete groups passed; 1 running, 7 failed and 152 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "77 of 236 complete groups passed; 1 running, 7 failed and 151 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 76,
+          "verified": 77,
           "blocked": 7,
           "running": 1,
-          "pending": 152,
+          "pending": 151,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2929,21 +2929,21 @@
           {
             "id": "native:bootstrap_source_projection",
             "title": "bootstrap_source_projection",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T12:59:02.807853+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T13:08:55.022979+00:00",
+              "exitCode": 0,
+              "logSha256": "971fe152245ae37e787d5e191c90f96753d1f384771b283610913ed29c304da0",
               "cases": [
                 {
                   "name": "source_projection_preserves_carriers_and_kernel_authority",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2952,21 +2952,21 @@
           {
             "id": "native:bootstrap_source_proofs",
             "title": "bootstrap_source_proofs",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_proofs.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T23:12:02.884700+00:00",
-              "finishedAt": "2026-11-06T23:17:00.004805+00:00",
-              "exitCode": 0,
-              "logSha256": "ab54fb6eb80bf0f620c0bfe7547cd1b5e4067704444f678d5244d466858e74e8",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T13:08:55.027339+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_proofs_stay_erased_scoped_and_distinct_from_runtime_values",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_source_projection",
-        "passed": 76,
+        "phase": "bootstrap_source_proofs",
+        "passed": 77,
         "failed": 7,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -21107,8 +21107,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Jit",
-        "passed": 2,
+        "phase": "Evidence_invalidation",
+        "passed": 3,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21137,14 +21137,26 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-editor-results.json"
       },
       {
+        "title": "Run integrated Native unit, runtime, and tooling tests",
+        "status": "passed",
+        "phase": "214 compiler unit, 171 runtime, and 51 tooling tests passed.",
+        "passed": 436,
+        "failed": 0,
+        "total": 436,
+        "unit": "tests",
+        "source": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-native-core-results.json"
+      },
+      {
         "title": "Replay case evidence on repaired Stage 1",
-        "status": "completed-with-failures",
-        "phase": "Case_evidence. Diagnostic replay before the full Stage 3 suite.",
-        "passed": 0,
-        "failed": 1,
+        "status": "passed-stage1-diagnostic",
+        "phase": "17 unchanged cases passed, and the revised refusal passed all eight negative checks. The full Stage 3 replay is separate.",
+        "passed": 1,
+        "failed": 0,
         "total": 1,
         "unit": "groups",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-regression-results.json"
       },
       {
         "title": "Replay body binding and decision fixtures on repaired Stage 1",
@@ -21179,10 +21191,10 @@
       }
     ],
     "counts": {
-      "verified": 386,
+      "verified": 387,
       "blocked": 18,
       "running": 11,
-      "pending": 159,
+      "pending": 158,
       "recheck": 101
     },
     "total": 675,
@@ -21191,5 +21203,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:08:10.663317+00:00"
+  "updatedAt": "2026-11-08T13:10:00.233426+00:00"
 }
