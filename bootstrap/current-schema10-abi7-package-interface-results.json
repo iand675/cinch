@@ -1,0 +1,36 @@
+{
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "frozen_inputs_sha256": "d7252e86e813613023d424890f7a5a6386198ca96640d05d23007afed70ffeab",
+  "full_goal_complete": false,
+  "integrated_revision": "723cce50ca27c388b23132aaa6c44cd8b9609785",
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "8820ca86a94d8c74ba1432afd22aa882908baae6",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "1794d3a60965baa270d5e901a54b02e89d202b25121c17f71a2f937faf0b7fdf",
+      "name": "package-install-verify-and-native-link",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b1c8243411190d03a3c05168cfe8d7ce4546adc24c57ee896d347223ccbb0aee",
+      "name": "jit-package-admission",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0bdd05d1e5458f73433a9c249ef59d6cc5b9c3a9bd6b9012e85b2fd512fccb73",
+      "name": "package-store-integration",
+      "status": "passed",
+      "tests": 10
+    }
+  ],
+  "runtime_abi": 7,
+  "schema": 1,
+  "scope": "Package installation and verification, Native linking, JIT, and store tests. Native linking rejects both an older runtime ABI and metadata present only under the retired sidecar name. The integrated compiler source hash and Native source hash match the tested inputs.",
+  "status": "audited-abi7-single-package-execution-interface",
+  "tests_passed": 23
+}
