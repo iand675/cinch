@@ -11904,10 +11904,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 11,
+          "verified": 12,
           "blocked": 0,
           "running": 1,
-          "pending": 72,
+          "pending": 71,
           "recheck": 21
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12991,21 +12991,21 @@
           {
             "id": "stage3:bootstrap_named_refinements",
             "title": "bootstrap_named_refinements",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
               "startedAt": "2026-11-08T01:10:28.320915+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:19:06.305810+00:00",
+              "exitCode": 0,
+              "logSha256": "6366cc1d9e62d0c5ebb21468913acb991e555b7ded4885c3e19f2dcfe97898ee",
               "cases": [
                 {
                   "name": "named_refinements_preserve_scope_bounds_and_proof_obligations",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13086,18 +13086,23 @@
           {
             "id": "stage3:bootstrap_pi",
             "title": "bootstrap_pi",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pi.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T01:19:07.442475+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "dependent_functions_preserve_binding_scope_effects_and_application",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -19977,8 +19982,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_named_refinements. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 12,
+        "phase": "bootstrap_pi. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 13,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -20150,10 +20155,10 @@
       }
     ],
     "counts": {
-      "verified": 17,
+      "verified": 18,
       "blocked": 5,
       "running": 11,
-      "pending": 79,
+      "pending": 78,
       "recheck": 564
     },
     "total": 676,
@@ -20162,5 +20167,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:17:54.476015+00:00"
+  "updatedAt": "2026-11-08T01:19:16.359426+00:00"
 }
