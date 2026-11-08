@@ -21056,8 +21056,8 @@
       {
         "title": "Rebuild ABI 7 with concrete closure proof lists",
         "status": "running",
-        "phase": "Build stage1. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
-        "passed": 3,
+        "phase": "Emit mutable library. Three polymorphic lets blocked Stage 2. Each now has a concrete proof-list type.",
+        "passed": 6,
         "failed": 0,
         "total": 12,
         "unit": "gates",
@@ -21129,5 +21129,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:32:40.780528+00:00"
+  "updatedAt": "2026-11-08T10:37:24.913743+00:00"
 }
