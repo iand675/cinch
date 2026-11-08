@@ -477,7 +477,9 @@
   ],
   "blockers": [
     "class_defaults / actual Cinch frontend",
-    "concurrency"
+    "concurrency",
+    "laws",
+    "guard_coverage"
   ],
   "milestones": [
     {
@@ -588,7 +590,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "class_defaults / actual Cinch frontend | concurrency",
+        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | guard_coverage",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -12032,9 +12034,9 @@
         "counts": {
           "verified": 2,
           "blocked": 0,
-          "running": 1,
+          "running": 2,
           "pending": 0,
-          "recheck": 102
+          "recheck": 101
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -13352,13 +13354,13 @@
           {
             "id": "stage3:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -17666,9 +17668,9 @@
         "total": 8,
         "counts": {
           "verified": 1,
-          "blocked": 2,
-          "running": 2,
-          "pending": 3,
+          "blocked": 4,
+          "running": 1,
+          "pending": 2,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17802,8 +17804,8 @@
           {
             "id": "additional:laws",
             "title": "laws",
-            "state": "running",
-            "detail": "8 original tests. Running on the matching Stage 3.",
+            "state": "blocked",
+            "detail": "1/8 passed on this candidate. class_laws_state_the_equations, law_abiding_instance_passes_sample_wise, law_breaking_instance_is_rejected_naming_the_law, mathematical_law_indices_promote_integer_literals, mathematical_law_samples_use_the_checked_numeric_representation, rewrite_citing_a_law_by_identity_records_the_assumption, rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
             "doneWhen": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "currentTests": null
@@ -17820,8 +17822,8 @@
           {
             "id": "additional:codata",
             "title": "codata",
-            "state": "pending",
-            "detail": "Queued for the matching Stage 3. 10 original cases.",
+            "state": "running",
+            "detail": "Running all 10 original cases through the matching Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
@@ -17836,8 +17838,8 @@
           {
             "id": "additional:guard_coverage",
             "title": "guard_coverage",
-            "state": "running",
-            "detail": "Running all 5 original cases through the matching Stage 3.",
+            "state": "blocked",
+            "detail": "The original target reported a failure on the matching Stage3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
@@ -20228,7 +20230,7 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "case_evidence",
+        "phase": "bootstrap_nominals, case_evidence",
         "passed": 2,
         "total": 105,
         "unit": "gates",
@@ -20368,10 +20370,10 @@
     ],
     "counts": {
       "verified": 349,
-      "blocked": 3,
+      "blocked": 5,
       "running": 4,
-      "pending": 5,
-      "recheck": 350
+      "pending": 4,
+      "recheck": 349
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20379,5 +20381,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:46:26.481636+00:00"
+  "updatedAt": "2026-11-08T17:48:29.700104+00:00"
 }
