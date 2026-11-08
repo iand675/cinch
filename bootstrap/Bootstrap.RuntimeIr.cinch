@@ -242,7 +242,7 @@ module Bootstrap.RuntimeIr where
     Some place -> Some 1
     None -> case borrowed-carrier (base ty) of
       Some carrier -> word-class context carrier
-      None -> value-word-class context ty
+      None -> case thunk-parts (base ty) of Some parts -> Some 1; None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -787,7 +787,10 @@ module Bootstrap.RuntimeIr where
           Ok (lowered, after) -> Ok (CWith sp output given word lowered, after)
           Err message -> Err message) cursor
         CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
-        CPrimitive sp ty operation fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
+        CPrimitive sp ty operation fields -> if same operation "thunk-force" && (case fields of
+          CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
+          other -> True) then Err "handled effect needs a direct checked operation call"
+          else handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CPrimitive sp ty operation values) next fresh) cursor
         CDecision sp ty predicate test -> handler-cps context sp test (\value fresh -> handler-bind sp (CDecision sp ty predicate value) next fresh) cursor
         CProved sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CProved sp ty evidence value) fresh) cursor
         CRefine sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefine sp ty evidence value) fresh) cursor
@@ -2191,6 +2194,9 @@ module Bootstrap.RuntimeIr where
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
+      else if same op "thunk-delay" then expression definitions locals w input
+      else if same op "thunk-force" then (case expression definitions locals w input of
+        (ready, closure-word) -> apply-one ready closure-word "0")
       else if same op "mut-borrow" then (case expression definitions locals w input of
         (ready, value) -> let (planned, descriptor) = request-layout sp [input] ready in allocate planned descriptor [value])
       else if same op "negate" && named (core-type input) "Int" then

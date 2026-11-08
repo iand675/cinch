@@ -141,6 +141,7 @@ module Bootstrap.Kinds where
     UApp f x -> type-well-formed kinds scope f && type-well-formed kinds scope x
     UFun a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UFunEff a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
+    UUsageArrow usage arrow -> type-well-formed kinds scope arrow
     UProofFun a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
     UIndexForget value -> type-well-formed kinds scope value
     UIndexPromote value -> type-well-formed kinds scope value

@@ -52,6 +52,7 @@ module Bootstrap.Builtin where
     , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
+    , ("delay", "b.delay"), ("force", "b.force")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Proof.search", "b.Proof.search")
     ]
@@ -121,6 +122,8 @@ module Bootstrap.Builtin where
     , task-rule "copyOut" "CopyOut" 1 False
     , task-rule "mutBorrow" "MutBorrow" 1 False
     , task-rule "refSet" "RefSet" 2 False
+    , task-rule "delay" "Delay" 1 False
+    , task-rule "force" "Force" 1 False
     , decision-rule
     , task-rule "Proof.search" "ProofSearch" 1 False
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"

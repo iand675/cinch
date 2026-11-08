@@ -147,6 +147,7 @@ module Bootstrap.Typing where
     UFun a b -> Some (a, empty-row)
     UFunEff a row b -> Some (a, row)
     UProofFun predicate row result -> Some (predicate, row)
+    UUsageArrow usage arrow -> if valid-type ty then arrow-domain arrow else None
     UPi id name a row b -> Some (a, row)
     other -> None
   constructor-fields :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
@@ -191,7 +192,14 @@ module Bootstrap.Typing where
   primitive-types :: UType -> String -> CoreTerm -> Bool
   primitive-types ty name arguments = case arguments of
     CArgumentsEnd sp -> type-is "Bool" ty && has name ["decision-true", "decision-false"]
-    CArgument sp first (CArgumentsEnd end) -> same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
+    CArgument sp first (CArgumentsEnd end) ->
+      if same name "thunk-delay" then (case thunk-function-parts (core-type first) of
+        Some (row, result) -> equal-type ty (thunk-type row result)
+        None -> False)
+      else if same name "thunk-force" then (case thunk-parts (core-type first) of
+        Some (row, result) -> equal-type ty result
+        None -> False)
+      else same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
     CArgument sp first (CArgument at second (CArgumentsEnd end)) -> let carrier = core-type first in
       equal-type carrier (core-type second) && (if has name ["+", "-", "*", "/"] then mathematical carrier && equal-type ty carrier
         else if has name ["<", "<=", ">", ">="] then integer-carrier carrier && type-is "Bool" ty
@@ -236,7 +244,7 @@ module Bootstrap.Typing where
       (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
         Some bound -> let writes = [(sp, (None :: Option UType))] in equal-type result (core-type body)
           && checked-term context bound (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body
-          && effects-fit (core-effects body) row
+          && effects-fit (core-effects body) row && pattern-usage-allowed context ty pattern body
         None -> False)
       other -> False)
     CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
@@ -459,46 +467,112 @@ module Bootstrap.Typing where
   task-free-scopes env free = case free of
     Nil -> True
     Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of Some (TaskLocal key declared regions shared) -> (case regions of Nil -> True; other -> False); None -> True) && task-free-scopes env rest
-  task-count-add :: Option Nat -> Option Nat -> Option Nat
-  task-count-add a b = case (a, b) of (Some x, Some y) -> Some (x + y); other -> None
-  task-count-same :: Option Nat -> Option Nat -> Option Nat
-  task-count-same a b = case (a, b) of (Some x, Some y) -> if x == y then Some x else None; other -> None
-  task-count-list :: Nat -> List CoreTerm -> Option Nat
-  task-count-list id terms = case terms of Nil -> Some 0; Cons first rest -> task-count-add (task-use-count id first) (task-count-list id rest)
-  task-once-count :: Nat -> CoreTerm -> Option Nat
-  task-once-count id callback = case callback of CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some 0 else task-use-count id body; other -> task-use-count id callback
-  task-use-count :: Nat -> CoreTerm -> Option Nat
-  task-use-count id term = case term of
-    CLocal sp ty key name actuals -> Some (if id == key then 1 else 0)
-    CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some 0 else (case task-use-count id body of Some 0 -> Some 0; other -> None)
-    CLet sp ty key name sc rhs body -> task-count-add (task-use-count id rhs) (if id == key then Some 0 else task-use-count id body)
-    CIf sp ty condition yes no -> task-count-add (task-use-count id condition) (task-count-same (task-use-count id yes) (task-use-count id no))
-    CCase sp ty value alts -> task-count-add (task-use-count id value) (task-alternative-count id alts)
-    CScope sp ty region evidence callback -> task-once-count id callback
-    CSpawn sp ty token callback -> task-count-add (task-use-count id token) (task-once-count id callback)
-    other -> task-count-list id (term-children term)
-  task-pattern-total :: CorePattern -> Bool
-  task-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> task-pattern-total inner; other -> False
-  task-row-count :: Nat -> CoreTerm -> CoreTerm -> Option Nat
-  task-row-count id body rest = case body of
-    CGuard sp ty guard value -> if core-alternative-covers body then task-count-add (task-use-count id guard) (task-use-count id value) else task-count-add (task-use-count id guard) (task-count-same (task-use-count id value) (task-alternative-count id rest))
-    CLet sp ty key name sc rhs value -> task-count-add (task-use-count id rhs) (task-row-count id value rest)
-    other -> task-use-count id body
-  task-alternative-count :: Nat -> CoreTerm -> Option Nat
-  task-alternative-count id alts = case alts of
-    CAlternative sp p body (CAlternativesEnd end) -> task-use-count id body
-    CAlternative sp p body rest -> if task-id-present id (task-pattern-ids p) then task-alternative-count id rest else if task-pattern-total p then task-row-count id body rest else task-count-same (task-row-count id body rest) (task-alternative-count id rest)
+  -- The bounds describe the least and most uses on the reachable paths.
+  -- None marks a use captured by a closure with unknown invocation count.
+  use-count-sequence :: Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
+  use-count-sequence a b = case (a, b) of (Some (low, high), Some (more-low, more-high)) -> Some (low + more-low, high + more-high); other -> None
+  use-count-choice :: Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
+  use-count-choice a b = case (a, b) of
+    (Some (left-low, left-high), Some (right-low, right-high)) ->
+      Some (if left-low < right-low then left-low else right-low, if left-high > right-high then left-high else right-high)
     other -> None
+  -- Effects can stop before their one-shot continuation. Count that path
+  -- too when checking multiplicities. The task trace has its own rules for
+  -- transferring captures to an independently running callback.
+  use-count-after :: Bool -> CoreTerm -> Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
+  use-count-after interrupted first uses next = use-count-sequence uses
+    (if interrupted && not (effects-fit (core-effects first) empty-row) then use-count-choice (Some (0, 0)) next else next)
+  use-count-list :: Bool -> Nat -> List CoreTerm -> Option (Nat, Nat)
+  use-count-list interrupted id terms = case terms of
+    Nil -> Some (0, 0)
+    Cons first rest -> use-count-after interrupted first (use-count interrupted id first) (use-count-list interrupted id rest)
+  use-count-once :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-once interrupted id callback = case callback of
+    CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else use-count interrupted id body
+    other -> use-count interrupted id callback
+  use-count :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count interrupted id term = case term of
+    CLocal sp ty key name actuals -> if id == key then Some (1, 1) else Some (0, 0)
+    CLambda sp ty p body -> if task-id-present id (task-pattern-ids p) then Some (0, 0) else (case use-count interrupted id body of Some (0, 0) -> Some (0, 0); other -> None)
+    CLet sp ty key name sc rhs body -> use-count-after interrupted rhs (use-count interrupted id rhs) (if id == key then Some (0, 0) else use-count interrupted id body)
+    CIf sp ty condition yes no -> use-count-after interrupted condition (use-count interrupted id condition) (use-count-choice (use-count interrupted id yes) (use-count interrupted id no))
+    CCase sp ty value alts -> use-count-after interrupted value (use-count interrupted id value) (use-count-alternatives interrupted id alts)
+    CScope sp ty region evidence callback -> use-count-once interrupted id callback
+    CSpawn sp ty token callback ->
+      let uses = use-count-once interrupted id callback in
+      use-count-after interrupted token (use-count interrupted id token) (if interrupted then use-count-choice (Some (0, 0)) uses else uses)
+    CHandle sp ty label residual body handled-by -> use-count-list interrupted id [handled-by, body]
+    CErasedApply sp ty row f witness -> use-count interrupted id f
+    CRefineProof sp ty witness body -> use-count interrupted id body
+    other -> use-count-list interrupted id (term-children term)
+  use-pattern-total :: CorePattern -> Bool
+  use-pattern-total p = case p of CPWild sp ty -> True; CPVar sp ty id name -> True; CPAs sp ty id name inner -> use-pattern-total inner; other -> False
+  use-count-row :: Bool -> Nat -> CoreTerm -> CoreTerm -> Option (Nat, Nat)
+  use-count-row interrupted id body rest = case body of
+    CGuard sp ty guard value ->
+      let branch = use-count interrupted id value in
+      let next = if core-alternative-covers body then branch else use-count-choice branch (use-count-alternatives interrupted id rest) in
+      use-count-after interrupted guard (use-count interrupted id guard) next
+    CLet sp ty key name sc rhs value -> use-count-after interrupted rhs (use-count interrupted id rhs) (use-count-row interrupted id value rest)
+    CRequire sp ty value -> use-count-row interrupted id value rest
+    CDischarge sp ty evidence value -> use-count-row interrupted id value rest
+    CProved sp ty evidence value -> use-count-row interrupted id value rest
+    CRefine sp ty evidence value -> use-count-row interrupted id value rest
+    CRefineProof sp ty witness value -> use-count-row interrupted id value rest
+    CForget sp ty value -> use-count-row interrupted id value rest
+    other -> use-count interrupted id body
+  use-count-alternatives :: Bool -> Nat -> CoreTerm -> Option (Nat, Nat)
+  use-count-alternatives interrupted id alts = case alts of
+    CAlternative sp p body (CAlternativesEnd end) -> use-count interrupted id body
+    CAlternative sp p body rest -> if task-id-present id (task-pattern-ids p) then use-count-alternatives interrupted id rest
+      else if use-pattern-total p then use-count-row interrupted id body rest
+      else use-count-choice (use-count-row interrupted id body rest) (use-count-alternatives interrupted id rest)
+    other -> None
+  -- Pattern matching consumes the outer value of a destructuring pattern.
+  -- A variable, or an alias for a wildcard, instead exposes that value to
+  -- the body. Other alias forms need joint accounting for the alias and
+  -- the inner pattern before they can check a restricted argument.
+  pattern-use-count :: CorePattern -> CoreTerm -> Option (Nat, Nat)
+  pattern-use-count pattern body = case pattern of
+    CPVar sp ty id name -> use-count True id body
+    CPWild sp ty -> Some (0, 0)
+    CPAs sp ty id name (CPWild at inner) -> use-count True id body
+    CPAs sp ty id name inner -> None
+    CPConstructor sp ty name actuals ctor fields -> Some (1, 1)
+    CPTuple sp ty fields -> Some (1, 1)
+    CPInt sp ty text -> Some (1, 1)
+    CPString sp ty text -> Some (1, 1)
+    CPChar sp ty text -> Some (1, 1)
+    other -> None
+  pattern-usage-allowed :: TypingContext -> UType -> CorePattern -> CoreTerm -> Bool
+  pattern-usage-allowed context function pattern body = case function of
+    UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (pattern-type pattern)
+    UUsageArrow usage arrow -> case (usage, pattern-use-count pattern body) of
+      (UsageZero, Some (0, 0)) -> True
+      (UsageOne, Some (1, 1)) -> True
+      (UsageAffine, Some (low, high)) -> high <= 1
+      other -> False
+    other -> True
+  affine-thunk :: UType -> Bool
+  affine-thunk ty = case thunk-parts (task-base ty) of Some parts -> True; None -> False
+  thunk-use-error :: Span -> Option (Span, String)
+  thunk-use-error sp = Some (sp, "multiplicity %aff: a thunk must be used at most once")
   task-bound-error :: Span -> Nat -> UType -> CoreTerm -> Option (Span, String)
-  task-bound-error sp id ty body = if not (task-handle-type ty) then None else case task-use-count id body of
-    Some 1 -> None
-    Some 0 -> task-drop-error sp
-    other -> task-use-error sp
+  task-bound-error sp id ty body =
+    if task-handle-type ty then (case use-count False id body of
+      Some (1, 1) -> None
+      Some (0, 0) -> task-drop-error sp
+      other -> task-use-error sp)
+    else if affine-thunk ty then (case use-count True id body of
+      Some (low, high) -> if high <= 1 then None else thunk-use-error sp
+      None -> thunk-use-error sp)
+    else None
   task-pattern-use-error :: CorePattern -> CoreTerm -> Option (Span, String)
   task-pattern-use-error p body = case p of
     CPVar sp ty id name -> task-bound-error sp id ty body
     CPWild sp ty -> if task-handle-type ty then task-drop-error sp else None
-    CPAs sp ty id name inner -> first-task-error (task-bound-error sp id ty body) (task-pattern-use-error inner body)
+    CPAs sp ty id name inner -> if affine-thunk ty && (case inner of CPWild at carrier -> False; other -> True) then thunk-use-error sp
+      else first-task-error (task-bound-error sp id ty body) (task-pattern-use-error inner body)
     CPConstructor sp ty name actuals constructor fields -> task-pattern-use-error fields body
     CPTuple sp ty fields -> task-pattern-use-error fields body
     CPField sp first rest -> first-task-error (task-pattern-use-error first body) (task-pattern-use-error rest body)
@@ -639,14 +713,17 @@ module Bootstrap.Typing where
   task-alternatives-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> TaskTrace -> CoreTerm -> TaskTrace
   task-alternatives-trace context env scopes consuming input alts = case alts of
     CAlternativesEnd sp -> TaskTrace None Nil True
-    CAlternative sp p body rest -> task-traces-merge (task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body) (task-alternatives-trace context env scopes consuming input rest)
+    CAlternative sp p body rest ->
+      let inside = task-trace context (task-pattern-env p (task-trace-regions input) (task-trace-shared input) env) scopes consuming body in
+      let failure = first-task-error (task-pattern-use-error p body) (task-trace-error inside) in
+      task-traces-merge (TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)) (task-alternatives-trace context env scopes consuming input rest)
     other -> TaskTrace (Some (Span 0 0 1 1, "malformed task case alternatives")) Nil False
   task-code-present :: TypingContext -> CoreTerm -> Bool
-  task-code-present context term = task-scoped-type (core-type term) || (case term of
+  task-code-present context term = task-scoped-type (core-type term) || affine-thunk (core-type term) || (case term of
     CScope sp ty region evidence callback -> True
     CSpawn sp ty token callback -> True
     CJoin sp ty token handles -> True
-    CPrimitive sp ty op args -> same op "copy-out" || task-code-present context args
+    CPrimitive sp ty op args -> has op ["copy-out", "thunk-force", "thunk-delay"] || task-code-present context args
     CUse sp ty name role actuals -> task-reference-forwarder context term || task-code-list context (term-children term)
     CQualifiedUse sp ty name role actuals evidence -> task-reference-forwarder context term || task-code-list context (term-children term)
     other -> task-code-list context (term-children term))
@@ -766,7 +843,8 @@ module Bootstrap.Typing where
   clause-typed context scope gamma expected allowed patterns body = case patterns of
     Nil -> equal-type expected (core-type body) && checked-term context scope gamma Nil body && effects-fit (core-effects body) allowed
     Cons pattern rest -> effects-fit allowed empty-row && (case (arrow-domain expected, pattern-result expected pattern) of
-      (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
+      (Some (domain, row), Some result) -> pattern-usage-allowed context expected pattern body
+        && (case pattern-scope context scope domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
       other -> False)
   value-parameters-scope :: TypeScope -> List (Nat, UType) -> Option TypeScope
   value-parameters-scope scope values = case values of

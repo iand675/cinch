@@ -2149,7 +2149,7 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -2203,6 +2203,22 @@ module Bootstrap.Infer where
             (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at cell-term (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
           other -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
     other -> term-error sp "refSet takes a Mut borrow and a value" st
+  thunk-syntax-operation :: List CheckedBinding -> Expr -> Option String
+  thunk-syntax-operation env head = case head of
+    EVar sp name -> if has name ["b.delay", "b.force"] then
+      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some name else None; other -> None)
+      else None
+    other -> None
+  infer-thunk :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Store -> (CoreTerm, Store)
+  infer-thunk classes kinds families env locals sp operation input st = case fresh-meta KRow st of
+    (row, fresh) -> case fresh-meta KType fresh of
+      (result, ready) -> if same operation "b.delay" then
+        (case check classes kinds families env locals input (UFunEff (primitive-type "Unit") row result) ready of
+          (value, checked) -> (CPrimitive sp (thunk-type row result) "thunk-delay" (CArgument sp value (CArgumentsEnd sp)), checked))
+        else case infer classes kinds families env locals input ready of
+          (value, checked) -> let expected = thunk-type row result in
+            let applied = unify (expr-span input) (core-type value) expected checked in
+            (CPrimitive sp result "thunk-force" (CArgument sp value (CArgumentsEnd sp)), applied)
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -2625,13 +2641,15 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> case ownership-syntax-arguments "b.refSet" env expr of
-      Some args -> infer-ref-set classes kinds families env locals s args st
-      None -> case projection-syntax-head env f of
-        Some operation -> infer-projection classes kinds families env locals s operation x st
-        None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
-          (case infer classes kinds families env locals f st of
-            (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
+    EApp s f x -> case thunk-syntax-operation env f of
+      Some operation -> infer-thunk classes kinds families env locals s operation x st
+      None -> case ownership-syntax-arguments "b.refSet" env expr of
+        Some args -> infer-ref-set classes kinds families env locals s args st
+        None -> case projection-syntax-head env f of
+          Some operation -> infer-projection classes kinds families env locals s operation x st
+          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+            (case infer classes kinds families env locals f st of
+              (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
@@ -2762,9 +2780,11 @@ module Bootstrap.Infer where
       Some args -> infer-mutable-borrow classes kinds families env locals sp args expected st
       None -> if projection-syntax-spine env expr || (case ownership-syntax-arguments "b.refSet" env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
         (case application-spine expr Nil of
-          (head, args) -> case infer classes kinds families env locals head st of
-            (fun, opened) -> apply-spine classes kinds families env locals fun args
-              (hint-application-result sp (core-type fun) args expected opened))
+          (head, args) -> case thunk-syntax-operation env head of
+            Some operation -> infer classes kinds families env locals expr st
+            None -> case infer classes kinds families env locals head st of
+              (fun, opened) -> apply-spine classes kinds families env locals fun args
+                (hint-application-result sp (core-type fun) args expected opened))
     other -> infer classes kinds families env locals expr st
   comparison-predicate :: UType -> Bool
   -- Only comparisons and their conjunctions widen to a carrier. Structural

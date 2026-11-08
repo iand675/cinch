@@ -28,6 +28,7 @@ module Bootstrap.Core where
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, mutable-borrow, copy-out-type
+  export thunk-function-parts
   export core-mutable-writes, scoped-branch-writes, guard-fallthrough-writes
   export mutable-fact-write, mutable-predicate-write, facts-after-writes, proof-after-writes, volatile-borrow-index
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
@@ -145,6 +146,7 @@ module Bootstrap.Core where
     UApp a b -> effect-type-scope qs a && effect-type-scope qs b
     UFun a b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs b
     UFunEff a row b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
+    UUsageArrow usage arrow -> valid-type ty && effect-type-scope qs arrow
     UProofFun a row b -> valid-type a && kind-equal (type-kind a) KProp && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -581,7 +583,13 @@ module Bootstrap.Core where
   core-givens d = case d of MkCoreDefinition s name sc openings givens private clauses -> givens
 
   ownership-type-kinds :: List (String, Kind)
-  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", KFun KRow (KFun KType KType))]
+  ownership-type-kinds = [("Ref", borrow-constructor-kind), ("Mut", borrow-constructor-kind), ("Thunk", thunk-kind)]
+  thunk-function-parts :: UType -> Option (UType, UType)
+  thunk-function-parts ty = case ty of
+    UFun (UCon name KType) result -> if string-compare name "Unit" == 0 then Some (URow UEnd, result) else None
+    UFunEff (UCon name KType) row result -> if string-compare name "Unit" == 0 then Some (row, result) else None
+    UPi id name (UCon domain KType) row result -> if string-compare domain "Unit" == 0 && not (pi-dependent ty) then Some (row, result) else None
+    other -> None
   mutable-borrow :: UType -> Option (UType, UType)
   mutable-borrow ty = case borrow-type-parts ty of
     Some (True, region, carrier) -> Some (region, carrier)
@@ -720,7 +728,11 @@ module Bootstrap.Core where
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
     CCase s ty value alternatives -> union-effects (core-effects value) (core-effects alternatives)
     CTuple s ty fields -> core-effects fields
-    CPrimitive s ty name args -> core-effects args
+    CPrimitive s ty name args -> if string-compare name "thunk-force" == 0 then
+      (case args of
+        CArgument at thunk (CArgumentsEnd end) -> (case thunk-parts (core-type thunk) of Some (row, result) -> union-effects (core-effects thunk) row; None -> UError)
+        other -> UError)
+      else core-effects args
     CProved s ty evidence body -> core-effects body
     CRefine s ty evidence body -> core-effects body
     CRefineProof s ty witness body -> core-effects body
@@ -741,7 +753,8 @@ module Bootstrap.Core where
     CApplyEff sp ty row f x -> child-writes [f, x] <> argument-writes sp x <> row-writes sp row <> opaque-call-writes sp f
     CErasedApply sp ty row f witness -> core-mutable-writes f <> row-writes sp row <> opaque-call-writes sp f
     CPrimitive sp ty operation (CArgument at place rest) ->
-      child-writes [place, rest] <> (if string-compare operation "ref-set" == 0 then argument-writes sp place else Nil)
+      child-writes [place, rest] <> (if string-compare operation "ref-set" == 0 then argument-writes sp place
+        else if string-compare operation "thunk-force" == 0 then forced-thunk-writes sp place else Nil)
     CIf sp ty condition yes no -> core-mutable-writes condition <> (case write-branch-literal condition of
       Some True -> core-mutable-writes yes
       Some False -> core-mutable-writes no
@@ -753,6 +766,13 @@ module Bootstrap.Core where
     CSpawn sp ty token body -> child-writes [token, body] <> row-writes sp (core-effects term)
     CHandle sp ty label residual body handled-by -> child-writes [handled-by, body] <> row-writes sp (core-effects term)
     other -> child-writes (term-children term)
+  -- A locally constructed thunk exposes the closure's writes. An opaque
+  -- thunk can capture an exclusive borrow even when its row is empty.
+  forced-thunk-writes :: Span -> CoreTerm -> List (Span, Option UType)
+  forced-thunk-writes sp term = case term of
+    CPrimitive at ty operation (CArgument argument (CLambda fn closure pattern body) (CArgumentsEnd end)) ->
+      if string-compare operation "thunk-delay" == 0 then core-mutable-writes body else [(sp, None)]
+    other -> [(sp, None)]
   write-branch-literal :: CoreTerm -> Option Bool
   write-branch-literal term = case term of
     CUse sp ty name role Nil -> if bool-type ty && string-compare role "constructor" == 0 then
@@ -1266,6 +1286,7 @@ module Bootstrap.Core where
     UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UFun a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UFunEff a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
+    UUsageArrow usage arrow -> valid-type ty && type-index-scope bound rigid arrow
     UProofFun a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
     URow labels -> type-index-scope bound rigid labels
     URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
@@ -1545,6 +1566,7 @@ module Bootstrap.Core where
     UApp f x -> borrow-index-regions f <> borrow-index-regions x
     UFun a b -> borrow-index-regions a <> borrow-index-regions b
     UFunEff a row b -> borrow-index-regions a <> borrow-index-regions row <> borrow-index-regions b
+    UUsageArrow usage arrow -> borrow-index-regions arrow
     UProofFun a row b -> borrow-index-regions a <> borrow-index-regions row <> borrow-index-regions b
     URow labels -> borrow-index-regions labels
     URowJoin a b -> borrow-index-regions a <> borrow-index-regions b
@@ -2496,7 +2518,7 @@ module Bootstrap.Core where
     (Cons goal rest, Cons first more) -> check-proof hypotheses goal first && check-goals hypotheses rest more
     other -> False
   contains-required :: UType -> Bool
-  contains-required ty = case refinement-view ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UProofFun predicate row result -> contains-required result; other -> False
+  contains-required ty = case refinement-view ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UUsageArrow usage arrow -> contains-required arrow; UProofFun predicate row result -> contains-required result; other -> False
   arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
   arithmetic-index gamma term = case term of
     AInteger n -> Some (IInteger n)
@@ -2634,6 +2656,7 @@ module Bootstrap.Core where
       else if pi-dependent fun then (case pattern-index pattern of Some index -> Some (substitute-bound [(id, index)] result); None -> None) else Some result
     UFun domain result -> if contract-equal domain (pattern-type pattern) then Some result else None
     UFunEff domain row result -> if contract-equal domain (pattern-type pattern) then Some result else None
+    UUsageArrow usage arrow -> if valid-type fun then pattern-result arrow pattern else None
     other -> None
   patterns-result :: UType -> List CorePattern -> Option UType
   patterns-result expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result expected p of Some result -> patterns-result result rest; None -> None
