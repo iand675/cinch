@@ -1,7 +1,7 @@
 {
-  "description": "ABI 6 Native library producer with checked structural List and NotNull refinement contracts.",
-  "revision": "de5c023fb800ebe9a46269ed694fb614279e61c8",
+  "description": "ABI 6 Native library producer with checked keyed ordering bodies and structural list contracts.",
+  "revision": "2486dae3143a6c2ac4e1a0298f4c300cc54b558f",
   "runtime_abi": 6,
   "schema": 1,
-  "source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe"
+  "source_sha256": "283b2ee186ea3c51aad3252fe9bc7eae980d0513229155e9dc3d6ee2801eac3a"
 }
