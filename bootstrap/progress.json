@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "9 of 236 complete groups passed; 1 running, 0 failed and 226 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "10 of 236 complete groups passed; 1 running, 0 failed and 225 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "9 of 236 complete groups passed; 1 running, 0 failed and 226 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "10 of 236 complete groups passed; 1 running, 0 failed and 225 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 9,
+          "verified": 10,
           "blocked": 0,
           "running": 1,
-          "pending": 226,
+          "pending": 225,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -915,17 +915,17 @@
           {
             "id": "native:arrays",
             "title": "arrays",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:22:12.125791+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:30:25.256504+00:00",
+              "exitCode": 0,
+              "logSha256": "3f94d23eb47df0e01c9aa5fc482ffda0ef6a5458737b1102b40bb484991dc68d",
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -949,7 +949,43 @@
                 },
                 {
                   "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "column_projection_returns_the_original_typed_buffers",
+                  "status": "passed"
+                },
+                {
+                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+                  "status": "passed"
+                },
+                {
+                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_scalars_roundtrip_through_generic_operations",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_word_storage_resolves_width_from_the_target",
+                  "status": "passed"
+                },
+                {
+                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+                  "status": "passed"
                 }
               ]
             },
@@ -958,17 +994,17 @@
           {
             "id": "native:attributes",
             "title": "attributes",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/attributes.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T13:12:42.042309+00:00",
-              "finishedAt": "2026-11-06T13:13:18.629393+00:00",
-              "exitCode": 0,
-              "logSha256": "7627785c4c62f789d2dff0ac8464ce69677569093f85a02766581a60e06e7b9d",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:30:25.259759+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "hints_do_not_change_type_checking_outcomes",
@@ -1064,7 +1100,7 @@
                 },
                 {
                   "name": "wrapper_expansions_match_manual_weights",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19228,8 +19264,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "arrays",
-        "passed": 9,
+        "phase": "attributes",
+        "passed": 10,
         "failed": 0,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20503,10 +20539,10 @@
       }
     ],
     "counts": {
-      "verified": 321,
+      "verified": 322,
       "blocked": 13,
       "running": 14,
-      "pending": 271,
+      "pending": 270,
       "recheck": 61
     },
     "total": 680,
@@ -20515,5 +20551,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:29:58.876879+00:00"
+  "updatedAt": "2026-11-08T03:31:01.109655+00:00"
 }
