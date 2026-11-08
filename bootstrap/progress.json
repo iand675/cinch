@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "39 passed, 3 running, 60 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 39,
+        "phase": "40 passed, 3 running, 59 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 40,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20916,10 +20916,10 @@
       },
       {
         "title": "Compile and execute lexical effect handlers",
-        "status": "running",
+        "status": "completed-with-lexical-handler-failures",
         "phase": "Compile. The original case-evidence program, abort, operation slot order, first-class handlers and repeated-resume refusal are queued after the Stage1 build.",
-        "passed": 1,
-        "failed": 3,
+        "passed": 2,
+        "failed": 4,
         "total": 6,
         "unit": "gates",
         "source": "bd33d3f6385ab1c17683349e95511d541d13be2f9456f09b75414a3bd7c4486a"
@@ -20948,5 +20948,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:41:02.246483+00:00"
+  "updatedAt": "2026-11-08T07:42:04.712723+00:00"
 }
