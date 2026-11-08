@@ -2747,9 +2747,31 @@ module Bootstrap.Infer where
   introduce-refinement :: List CheckedBinding -> Span -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
   introduce-refinement env sp expected term st = case store-errors st of
     Cons error rest -> (CError sp, st)
-    Nil -> case scoped-prove-refinement (proof-context env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
-      Some evidence -> (CRefine sp expected evidence term, st)
-      None -> term-error sp "refinement predicate is not established for this value (undischarged refinement obligation)" st
+    Nil -> let gamma = proof-context env st in
+      let facts = proof-facts env in
+      let refined = normalize st expected in
+      let value = map-term-types (normalize st) term in
+      case scoped-prove-refinement gamma facts refined value of
+        Some evidence -> (CRefine sp expected evidence term, st)
+        None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
+          case scoped-refinement-predicate gamma facts refined value of
+            Some predicate -> term-error sp (missing-obligation message predicate) st
+            None -> term-error sp message st
+
+  obligation-text :: UType -> String
+  obligation-text ty = case ty of
+    UCompare relation left right -> if same relation "Eq" then
+      string-concat-all ["Eq ", obligation-text left, " ", obligation-text right]
+      else string-concat-all [obligation-text left, " ", relation, " ", obligation-text right]
+    UPropNonZero body -> "NonZero " <> obligation-text body
+    UPropNonZeroPending body -> "NonZero " <> obligation-text body
+    UPropNotNull body -> "NotNull " <> obligation-text body
+    UIndexForget value -> obligation-text value
+    UIndexPromote value -> obligation-text value
+    other -> type-text ty
+  missing-obligation :: String -> UType -> String
+  missing-obligation message predicate = let shown = obligation-text predicate in
+    string-concat-all [message, " because the obligation `", shown, "` needs evidence and the checker found no evidence for `", shown, "`"]
   -- Hoisting an actual strict value binding out of a let-generalization
   -- level changes that binding's inference depth, not its identity. Retarget
   -- only references to that witnessed local; unrelated indices and all type
@@ -4833,13 +4855,18 @@ module Bootstrap.Infer where
   discharge-call classes sp env input before = case resolve-ready-term classes (env-instances env) (env-givens env) input before of
     (term, st) -> discharge-checked-call sp env term st
   discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
-  discharge-checked-call sp env term st = case normalize st (core-type term) of
-    URequire predicates result -> case store-errors st of
-      Nil -> case scoped-prove-predicates (proof-context env st) (proof-facts env) (normalize st (core-type term)) of
-        Some evidence -> (CDischarge sp (required-body (normalize st (core-type term))) evidence term, st)
-        None -> term-error sp "function precondition is not established at this call" st
+  discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
+    case ty of
+      URequire predicates result -> case store-errors st of
+        Nil -> case scoped-prove-predicates (proof-context env st) (proof-facts env) ty of
+          Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
+          None -> let message = "function precondition is not established at this call" in
+            case (predicates, result) of
+              (UArg predicate UEnd, URequire more body) -> term-error sp message st
+              (UArg predicate UEnd, other) -> term-error sp (missing-obligation message predicate) st
+              other -> term-error sp message st
+        other -> (term, st)
       other -> (term, st)
-    other -> (term, st)
 
   apply-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-dependent classes sp env fun value st = case reify-argument sp env value st of

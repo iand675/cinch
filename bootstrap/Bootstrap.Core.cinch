@@ -38,6 +38,7 @@ module Bootstrap.Core where
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
+  export scoped-refinement-predicate
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export term-children
@@ -1835,15 +1836,24 @@ module Bootstrap.Core where
             Some fact -> Cons fact more
             None -> more) else more
       other -> more
-  refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
-  refinement-goal gamma facts ty body = case refinement-view ty of
+  refinement-obligation :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, Proposition)
+  refinement-obligation gamma facts ty body = case refinement-view ty of
     URefine id name carrier predicate -> if valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body then
       (case core-predicate gamma predicate of
-        Some independent -> Some independent
+        Some independent -> Some (predicate, independent)
         None -> case actual-index gamma facts body of
-          Some value -> core-predicate gamma (substitute-bound [(id, value)] predicate)
+          Some value -> let opened = substitute-bound [(id, value)] predicate in
+            (case core-predicate gamma opened of Some goal -> Some (opened, goal); None -> None)
           None -> None) else None
     other -> None
+  refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
+  refinement-goal gamma facts ty body = case refinement-obligation gamma facts ty body of
+    Some (predicate, goal) -> Some goal
+    None -> None
+  scoped-refinement-predicate :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option UType
+  scoped-refinement-predicate gamma facts ty body = case refinement-obligation gamma facts ty body of
+    Some (predicate, goal) -> Some predicate
+    None -> None
   -- The runtime allocator returns a Bytes buffer whose immutable length is
   -- exactly the checked Nat input. Validate a foreign declaration's proposed
   -- refinement against that kernel fact; source text supplies no assumption.
