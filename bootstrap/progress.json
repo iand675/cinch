@@ -17712,7 +17712,7 @@
             "state": "blocked",
             "detail": "6/7 passed on this candidate. annotations_keep_definition_and_default_parameter_identities",
             "doneWhen": "Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
             "observed": {
               "status": "failed",
               "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
@@ -17755,7 +17755,7 @@
             "state": "blocked",
             "detail": "11/19 passed on this candidate. a_linear_capture_transfers_into_a_task_exactly_once, a_mut_borrow_capture_is_rejected, a_thread_shared_memo_cell_is_rejected, an_affine_thunk_moves_into_a_task_by_transfer, double_capture_of_a_linear_value_is_rejected, ref_and_copy_captures_are_accepted, source_task_forwarders_check_actual_captures, task_handles_cannot_escape_their_scope",
             "doneWhen": "Run the complete original target through matching Stage3, including original runtime, I/O, foreign fixture and exact refusal reasons.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
             "observed": {
               "status": "failed",
               "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
@@ -17838,25 +17838,25 @@
             "state": "blocked",
             "detail": "1/8 passed on this candidate. class_laws_state_the_equations, law_abiding_instance_passes_sample_wise, law_breaking_instance_is_rejected_naming_the_law, mathematical_law_indices_promote_integer_literals, mathematical_law_samples_use_the_checked_numeric_representation, rewrite_citing_a_law_by_identity_records_the_assumption, rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
             "doneWhen": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
             "currentTests": null
           },
           {
             "id": "additional:prim",
             "title": "prim",
             "state": "blocked",
-            "detail": "Inline-primitive probe failures on this candidate: bodies, escape, extra-params, unwind, effects, clr, jvm, io-prim, unsafe-stores, asm-trust-required, pop-missing",
+            "detail": "0/11 passed. All cases stopped in namespace resolution.",
             "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
             "currentTests": null
           },
           {
             "id": "additional:codata",
             "title": "codata",
             "state": "blocked",
-            "detail": "The original target reported a failure on the matching Stage3.",
+            "detail": "0/10 original cases passed on this Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json"
           },
           {
             "id": "additional:fixity_interfaces",
@@ -17864,23 +17864,23 @@
             "state": "verified",
             "detail": "All 2 original cases passed with matching Stage 3 receipts.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json"
           },
           {
             "id": "additional:guard_coverage",
             "title": "guard_coverage",
             "state": "blocked",
-            "detail": "The original target reported a failure on the matching Stage3.",
+            "detail": "1/5 original cases passed on this Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json"
           },
           {
             "id": "additional:integration",
             "title": "integration",
             "state": "blocked",
-            "detail": "The original target reported a failure on the matching Stage3.",
+            "detail": "18/39 original cases passed on this Stage 3. Two cases need the tagged Data.List.sum-list object entry.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json"
           }
         ]
       }
@@ -20397,6 +20397,46 @@
         "unit": "gates",
         "source": "025657d61dead7aacb46050ad8dc0a09732c7e91aa1eac037599fc4e09425c37",
         "evidence": "https://github.com/iand675/cinch/commit/f5431e81c933b14873d2d28c0ff66ec7b7ceacf0"
+      },
+      {
+        "title": "Check source-only task forwarders and interface exports",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with source-only task forwarders",
+        "passed": 0,
+        "total": 7,
+        "failed": 0,
+        "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d"
+      },
+      {
+        "title": "Check linear and affine task capture transfers",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked task transfers",
+        "passed": 0,
+        "total": 6,
+        "failed": 0,
+        "source": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10"
+      },
+      {
+        "title": "Check quantified term annotations and lexical scope",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with quantified term annotations",
+        "passed": 0,
+        "total": 5,
+        "failed": 0,
+        "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131"
+      },
+      {
+        "title": "Rebuild the pinned object for the tagged List integration cases",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Pinned provider rebuild. Queued for a shared worker.",
+        "passed": 0,
+        "total": 3,
+        "failed": 0,
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
       }
     ],
     "counts": {
@@ -20412,5 +20452,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:05:57.576049+00:00"
+  "updatedAt": "2026-11-08T18:07:36.220261+00:00"
 }
