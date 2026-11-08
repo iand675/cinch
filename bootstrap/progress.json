@@ -24,7 +24,7 @@
     {
       "name": "Stage 3",
       "state": "passed",
-      "label": "Smoke tests passed",
+      "label": "Fixed point audited",
       "description": "Rebuild with Stage2 and audit the fixed point."
     }
   ],
@@ -547,7 +547,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "Main includes the higher-kinded runtime, pure arrow inference and checked String layout.",
-  "activity": "Checking the fixed point and changed-source rebuild. The full suite remains open.",
+  "activity": "The fixed point, separate client and changed-source rebuild passed the independent audit. The full suite remains open.",
   "checklist": {
     "version": 1,
     "target": {
@@ -558,52 +558,52 @@
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler 3fb1b3d3.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
           "cases": []
         }
       },
       {
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler 3fb1b3d3.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
           "cases": []
         }
       },
       {
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler 3fb1b3d3.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
           "cases": []
         }
       },
       {
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
-        "state": "recheck",
-        "detail": "The audit passed for earlier compiler 3fb1b3d3.",
+        "state": "verified",
+        "detail": "The independent audit passed for the published compiler.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-repaired-bootstrap-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-bootstrap-results.json",
         "observed": {
           "status": "passed",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
           "cases": []
         }
       },
@@ -616,7 +616,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/design/self-hosting.md#acceptance",
         "observed": {
           "status": "pending",
-          "source": "3fb1b3d375dae6847e26f37ed60f393055bcc8016e15cdd0960b33780f9dc53a",
+          "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
           "cases": []
         }
       }
@@ -18230,15 +18230,15 @@
     "active": [
       {
         "title": "Bootstrap the exact published compiler and corrected library",
-        "status": "running",
-        "phase": "Checking the fixed point and changed-source rebuild",
+        "status": "passed",
+        "phase": "The fixed point, separate client and changed-source rebuild passed the independent audit",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
         "auditPending": false,
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-bootstrap-results.json"
       },
       {
         "title": "Bootstrap the stricter schema 10 candidate",
@@ -19838,7 +19838,7 @@
       {
         "title": "Bootstrap the candidate with the pinned NonEmpty library",
         "status": "failed",
-        "phase": "failed",
+        "phase": "Stage2 refused the original nat-mod predicate over a NonZero Nat divisor. The provider reproduced the object and all 55 interfaces.",
         "passed": 2,
         "failed": 1,
         "total": 4,
@@ -19847,11 +19847,32 @@
         "auditPending": false
       },
       {
+        "title": "Rebuild with the dependent Nat predicate repair",
+        "status": "running",
+        "phase": "building stage1",
+        "passed": 1,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "e1885b09e8b8e67d7ec1d4475c8ba03e887195b6fe5a2ba12531fe895e45ff21",
+        "auditPending": false
+      },
+      {
+        "title": "Run the first frontend shard on the audited published Stage3",
+        "status": "running",
+        "phase": "bootstrap_total_semantics",
+        "passed": 1,
+        "failed": 0,
+        "total": 21,
+        "unit": "original test targets",
+        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
+      },
+      {
         "title": "Replay full Foldable and Category with the NonEmpty object",
         "status": "running",
-        "phase": "round 1 lib_category",
+        "phase": "round 2 lib_foldable",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 2,
         "unit": "original test targets",
         "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e"
@@ -19859,12 +19880,32 @@
       {
         "title": "Check executable NotNull with scoped witness controls",
         "status": "passed-scoped-notnull-decisions",
-        "phase": "wrong-carrier",
-        "passed": 3,
+        "phase": "Two programs ran with zero leaks. The wrong-list witness and wrong carrier were refused for their actual types.",
+        "passed": 4,
         "failed": 0,
-        "total": 3,
+        "total": 4,
         "unit": "client cases",
-        "source": "bb2d475412fab71620ecf9e0d982f87ebe11b1d988592d6e7f1328c68b2adbdf"
+        "source": "859f62ba333d3294ea124d8194ceb65e6a8b0396e781ec8a242ed30aef3cfb16"
+      },
+      {
+        "title": "Check original Const and dictionary ABI clients",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 4,
+        "unit": "client cases",
+        "source": "50a6a95518aa20e8562636d3dd1ba57f9cca0816acbff0925aba76ff4d43c704"
+      },
+      {
+        "title": "Run original Algebra on Rust and the selected Cinch frontend",
+        "status": "running",
+        "phase": "selected-lib_algebra",
+        "passed": 1,
+        "failed": 0,
+        "total": 2,
+        "unit": "frontend replays",
+        "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e"
       },
       {
         "title": "Check original NonEmpty clients against compiled contracts",
@@ -19915,25 +19956,25 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_checked_program",
-        "passed": 21,
+        "phase": "bootstrap_collections",
+        "passed": 22,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
       }
     ],
     "counts": {
-      "verified": 1,
+      "verified": 5,
       "blocked": 5,
       "running": 10,
       "pending": 86,
-      "recheck": 573
+      "recheck": 569
     },
     "total": 675,
-    "acceptanceVerified": 0,
+    "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:04:47.584214+00:00"
+  "updatedAt": "2026-11-08T00:12:29.900130+00:00"
 }
