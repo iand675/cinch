@@ -18938,6 +18938,28 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
+        "title": "Development Stage1: machine contracts and source refinements",
+        "status": "passed",
+        "phase": "Both complete targets passed. The signed-limit controls distinguish mathematical type indices from wrapping runtime arithmetic.",
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "unit": "target groups",
+        "source": "29d407dbb2842f9cb45b49a5a10ea03c5873a60b4d58fbd8a31188600f578306",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-machine-proof-parity-results.json"
+      },
+      {
+        "title": "Development Stage1: compiled library object reuse",
+        "status": "passed",
+        "phase": "Both Algebra clients, exact source reuse, direct run and object emission passed. Edited, appended, forged and duplicate module inputs were refused. All 55 provider interface identities match.",
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "unit": "client cases",
+        "source": "02bc9e65269a971d086d5de44158e6aa0ba5337e1f63692e15486d3a40a7bb67",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-checked-library-object-reuse-results.json"
+      },
+      {
         "title": "Development Stage1: refinement formation",
         "status": "passed",
         "phase": "Five complete refinement targets and the higher-kinded NonEmpty control passed. The structural NonZero fixture checks explicit projection and implicit refusal.",
@@ -20817,5 +20839,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:06:47.581690+00:00"
+  "updatedAt": "2026-11-08T05:08:34.225021+00:00"
 }
