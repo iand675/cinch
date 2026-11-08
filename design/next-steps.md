@@ -33,6 +33,14 @@ Foldable and 12 Category cases passed through Native. All 26 executed
 programs reported zero leaks. Both fixtures use the shared frontend harness
 for the pending Stage3 replay.
 See [the Native fixture audit](../bootstrap/current-schema10-source-free-library-fixtures-results.json).
+
+The development Cinch Stage1 passed all 15 original Foldable cases
+through the shared frontend harness. Every fixture supplied only its
+client source. The checked object added the requested `non-empty [O]`
+specialization, preserved all 55 library interface identities and ran
+each program with zero leaks. Matching Stage3 coverage remains open.
+See [the compiled Foldable audit](../bootstrap/current-schema10-original-foldable-object-results.json).
+
 The pinned
 library object preserves all 55 checked interfaces and includes
 `both [TTT]` and `swap [TT]`. All nine

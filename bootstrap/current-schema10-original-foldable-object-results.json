@@ -1,0 +1,59 @@
+{
+  "all_original_tests": [
+    "foldable_boolean_combinators",
+    "foldable_fold_direction_and_search_combinators",
+    "foldable_free_combinators_over_list",
+    "foldable_free_combinators_over_option_and_the_partials",
+    "foldable_list_semantics_and_laws",
+    "foldable_nonempty_semantics_and_laws",
+    "foldable_option_semantics_and_laws",
+    "foldable_ordering_combinators",
+    "semigroup_nonempty_associativity_and_concatenation",
+    "sequence_short_circuits_on_first_error",
+    "traversable_free_combinators_sequence_in_order",
+    "traverse_list_option_short_circuits",
+    "traverse_list_result_short_circuits_on_first_error",
+    "traverse_nonempty_into_result_and_option",
+    "traverse_option_container_into_result_and_option"
+  ],
+  "cases": 15,
+  "compiler_sha256": "f8256d2b3e01c75b838e7bfcced04602ba04bfe379c8137f0f18cc200ef49844",
+  "compiler_source_sha256": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
+  "full_goal_complete": false,
+  "interface_count": 55,
+  "invocation_receipts": {
+    "50064-0.json": "32b16fd0ff873706972287cd0bdb49d14feaa8e874cfbd6a18dac757ef535cc1",
+    "50064-1.json": "5b838a46875de11fc859cdc84b5463e6d1db3183a7b471f6bab3175f72c07b3d",
+    "50064-10.json": "12cfee3604ed8744b81e97b06844d56107411a7b4d4d562dda079c4bf69cf612",
+    "50064-11.json": "24c1f51f484dcfe834647b37d8b6f30436c92657d5090ec1c6124bfdc12fc57f",
+    "50064-12.json": "e0ee7f9d4ecc02152215aeb19d754b46d1fb91e912f0629a3be28a81d42bdfc4",
+    "50064-13.json": "b043c1753c263d8edf4b5f824e00f3528d880ce91888e838ecc69890e8d23463",
+    "50064-14.json": "c060275c8f4cd1983a83ac0379b0aa35be82b43f3f387307b48d4089dfbaa3c0",
+    "50064-2.json": "2f5016ec86ef3223965b840a8346a1d7a7cd0a83f0996df0dcded947119a2b32",
+    "50064-3.json": "62f826847a88da428eeba00c9554baa98e8d6de5d5cb0adb742b1fb882d894ba",
+    "50064-4.json": "3eda1a1bd212b4c5434f54d88f9f4ba9d3e541201bc5765935ffd37aab741fdf",
+    "50064-5.json": "8be652109448b7794ca885f1c0f177a1700f89211dff73f577c0e6386070dec9",
+    "50064-6.json": "c5e088766b7829b207873eddaefa4a6feed949207e027f1b966207e37d3b21bf",
+    "50064-7.json": "f1d3be11f6e16c25ab4d7fe3c20afc8fc2524ef26716431c49e0bb087019e545",
+    "50064-8.json": "e8b05e5e1f4a531da64908ef724bfee0a2108a86d991184ee2839e784b2f5ba2",
+    "50064-9.json": "5b6cdd80b7c996d4873a68e920c68ff7b032e928403980338f3deb55c69e8b2a"
+  },
+  "object_sha256": "3f7ed868207a1379094b2930d0d699c0d62b45cf3797d3b40646bbdc49cea3f4",
+  "original_added_roots": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": [
+      {
+        "classes": "O",
+        "symbol": "Data.NonEmpty.non-empty"
+      }
+    ]
+  },
+  "roots_sha256": "38d79bf3a8edf1a1a53b8d365ebd74c456d876b9b95159e706f58f735a5d0af8",
+  "schema": 1,
+  "status": "audited-all-original-foldable-client-cases",
+  "test_file_sha256": "417f18ca0e2de54c0e70534557b66bc66d82a5574b9f9176d97fa4ffc01dbc47",
+  "test_log_sha256": "ffb39bc946c68412527ec27c7c8eaea9afda00e2b2be383729a9e040bc5be3a7",
+  "zero_leak_runs": 15
+}
