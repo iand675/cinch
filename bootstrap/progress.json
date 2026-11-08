@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "15/236 Rust targets and 7/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "15/236 Rust targets and 8/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -11999,11 +11999,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 7,
+          "verified": 8,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 96
+          "recheck": 95
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12113,23 +12113,18 @@
           {
             "id": "stage3:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
-              "status": "failed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:00:04.666478+00:00",
-              "finishedAt": "2026-11-08T02:11:47.779060+00:00",
-              "exitCode": 101,
-              "logSha256": "4d44d40f3e907bf50f238bcd6181870a9a9b3e452b8ac97e94cdb11a74121352",
-              "cases": [
-                {
-                  "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
-                  "status": "failed"
-                }
-              ]
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior",
             "currentTests": null
@@ -12233,18 +12228,27 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "b9f74c4df4cc495787567b449b4ae125b83de0ec814cd0b3e133c664f13b633d",
+              "cases": [
+                {
+                  "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20205,8 +20209,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "arrays, bootstrap_body_bindings",
-        "passed": 7,
+        "phase": "arrays, bootstrap_abstract_nonzero_methods",
+        "passed": 8,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20355,9 +20359,9 @@
       {
         "title": "Check linear and affine task capture transfers",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. a_linear_capture_transfers_into_a_task_exactly_once",
-        "passed": 1,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. an_unshared_mutable_capture_is_rejected",
+        "passed": 6,
         "total": 6,
         "failed": 0,
         "source": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10"
@@ -20384,11 +20388,11 @@
       }
     ],
     "counts": {
-      "verified": 360,
+      "verified": 361,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 338
+      "recheck": 337
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20396,5 +20400,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:12:50.335539+00:00"
+  "updatedAt": "2026-11-08T18:13:53.837526+00:00"
 }
