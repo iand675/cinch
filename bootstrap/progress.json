@@ -17963,11 +17963,11 @@
         "title": "Run all 236 Rust targets on the preceding Rust memo revision",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 19,
+        "passed": 20,
         "failed": 0,
         "total": 236,
-        "status": "waiting-worker",
-        "phase": "arrays",
+        "status": "running",
+        "phase": "bootstrap_abstract_nonzero_methods",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20749,11 +20749,11 @@
       {
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Isolated Stage 1 candidate. record-object",
         "passed": 2,
         "total": 13,
-        "failed": 0,
+        "failed": 1,
         "source": "a14539b1de062bab15656ec933e1383c7e8a0220bf4f0cac7924746de44f5149",
         "evidence": null
       },
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:23:28.451411+00:00"
+  "updatedAt": "2026-11-08T22:24:31.242987+00:00"
 }
