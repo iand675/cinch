@@ -227,7 +227,11 @@ module Bootstrap.Typing where
     CHandle sp ty label residual body handled-by -> checked-handle context scope gamma facts ty label residual body handled-by
     CDecision sp ty predicate condition -> wf context scope predicate && checked-term context scope gamma facts condition && scoped-decision-valid gamma facts ty predicate condition
     CErasedApply sp ty row f witness -> wf context scope row && checked-term context scope gamma facts f
-      && (case core-type f of UProofFun predicate effects result -> equal-type result ty && equal-type effects row && wf context scope predicate && scoped-proof-reference (proof-after-writes gamma (core-mutable-writes f)) predicate witness; other -> False)
+      && (case core-type f of
+        UProofFun predicate effects result -> let writes = core-mutable-writes f in
+          equal-type result ty && equal-type effects row && wf context scope predicate
+          && scoped-erased-witness (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) predicate witness
+        other -> False)
     CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
       (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
         Some bound -> let writes = [(sp, (None :: Option UType))] in equal-type result (core-type body)

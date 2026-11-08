@@ -13,6 +13,8 @@ module Bootstrap.Infer where
   import Bootstrap.Proof (Proposition, PNegate)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
+  import Text.Scan (string-words)
+  import Data.Bytes (bytes-len)
   import Bootstrap.Core
   import Bootstrap.Instance
   import Bootstrap.Global
@@ -2140,7 +2142,7 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -3066,7 +3068,40 @@ module Bootstrap.Infer where
           let predicate = scheme-body sc in
           (CProofRefl at predicate, unify sp predicate expected st)
         other -> term-error sp "erased argument needs a scoped proof reference" st)
+    EApp at (EVar name symbol) argument -> if same symbol "b.Proof.search" then
+      (case lookup-binding symbol env of
+        Some (MkSyntaxBinding owned) -> if same owned symbol then search-proof at env expected argument st
+          else term-error at "unowned proof tactic" st
+        other -> term-error at "unowned proof tactic" st)
+      else term-error sp "erased argument needs a scoped total proof term" st
     other -> term-error sp "erased argument needs a scoped total proof term" st
+  tactic-steps-valid :: List String -> Bool
+  tactic-steps-valid steps = case steps of
+    Nil -> True
+    Cons step rest -> has step ["assumption", "linear"] && tactic-steps-valid rest
+  try-proof-tactics :: Span -> ProofScope -> List Proposition -> UType -> List String -> Option CoreTerm
+  try-proof-tactics at scope facts goal steps = case steps of
+    Nil -> None
+    Cons first rest ->
+      let assumption = same first "assumption" in
+      case prove-erased-goal scope facts goal assumption of
+        Some evidence -> Some (CProofSearch at goal assumption evidence)
+        None -> try-proof-tactics at scope facts goal rest
+  search-proof :: Span -> List CheckedBinding -> UType -> Expr -> Store -> (CoreTerm, Store)
+  search-proof at env expected argument st = case argument of
+    ELitStr sp plan -> if bytes-len (string-to-bytes plan) > 128 then term-error at "tactic plan exceeds 128 bytes" st else
+      let steps = string-words plan in
+      if list-length steps == 0 || list-length steps > 8 || not (tactic-steps-valid steps) then
+        term-error at "tactic plan needs 1–8 steps: assumption or linear" st
+      else let goal = normalize st expected in
+        let gamma = proof-context env st in
+        case try-proof-tactics at gamma (proof-facts env) goal steps of
+          Some witness -> (witness, st)
+          None -> case stale-proof-message env st (\prior ->
+            case try-proof-tactics at gamma prior goal steps of Some witness -> True; None -> False) of
+              Some message -> term-error at message st
+              None -> term-error at (string-concat-all ["tactic plan `", plan, "` could not prove `", type-text goal, "`"]) st
+    other -> term-error at "Proof.search expects one literal tactic plan" st
   applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
   applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
   source-effect :: UType -> List CoreEffect -> Option CoreEffect
@@ -3328,6 +3363,10 @@ module Bootstrap.Infer where
   bind-constructor classes kinds families env locals sp ps ty expected st = case ps of
     PArgsEnd s -> (env, CPDone s, unify sp ty expected st)
     PArg s p rest -> case normalize st ty of
+      UPi id name domain row result -> case bind-arrow-pattern classes kinds families env locals p ty st of
+        (bound, pattern, effects, out, checked) ->
+          case bind-constructor classes kinds families bound locals sp rest out expected (include-effects s effects (URow UEnd) checked) of
+            (final, patterns, done) -> (final, CPField s pattern patterns, done)
       UProofFun predicate row result -> case bind-proof-pattern kinds env locals p predicate (include-effects s row (URow UEnd) st) of
         (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest result expected sb of
           (final, patterns, done) -> (final, CPField s pattern patterns, done)

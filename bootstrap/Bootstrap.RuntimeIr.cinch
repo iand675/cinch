@@ -480,6 +480,9 @@ module Bootstrap.RuntimeIr where
   constructor-shape :: RuntimeContext -> UType -> UType -> Bool
   constructor-shape context result ty = case ty of
     UFun domain more -> word-type context domain && constructor-shape context result more
+    UPi id name domain (URow UEnd) more -> word-type context domain && constructor-shape context result more
+    UProofFun predicate (URow UEnd) more -> valid-type predicate && kind-equal (type-kind predicate) KProp
+      && constructor-shape context result more
     other -> same-data-result ty result
   same-data-result :: UType -> UType -> Bool
   same-data-result first second = case (first, second) of
@@ -871,8 +874,15 @@ module Bootstrap.RuntimeIr where
     CDischarge sp ty evidence body -> expression definitions locals w body
     CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
     CErasedApply sp ty row f witness -> case f of
-      CUse at function name role actuals -> if decision-word-type ty && same role "constructor" && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w else erased-application definitions locals w f
-      other -> erased-application definitions locals w f
+      CUse at function name role actuals ->
+        if same role "constructor" then
+          if decision-word-type ty && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w
+          else expression definitions locals w f
+        else erased-application definitions locals w f
+      other -> (case head f of
+        CUse at function name role actuals -> if same role "constructor" then expression definitions locals w f
+          else erased-application definitions locals w f
+        other -> erased-application definitions locals w f)
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
@@ -2130,6 +2140,7 @@ module Bootstrap.RuntimeIr where
   match-fields :: CorePattern -> String -> Nat -> String -> Writer -> (Writer, List Local)
   match-fields fields pointer index failed w = case fields of
     CPDone end -> (w, Nil)
+    CPField sp (CPProof at predicate id name) rest -> match-fields rest pointer index failed w
     CPField sp first rest ->
       let (one, slot) = fresh w "%ptr" in
       let (two, value) = fresh one "%v" in

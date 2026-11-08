@@ -6,7 +6,7 @@ module Bootstrap.Resolve where
 
   import Bootstrap.Ast
   import Bootstrap.Nominal (interface-global, kernel-type-name)
-  import Bootstrap.Builtin (builtin-bindings, builtin-declarations)
+  import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
   import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references)
@@ -417,12 +417,28 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons p rest -> pattern-names p <> patterns-names rest
 
+  qualifier-tail :: List Char -> List Char
+  qualifier-tail chars = case chars of
+    Nil -> Nil
+    Cons c rest -> if char-code c == 46 then rest else qualifier-tail rest
+
+  name-qualifier :: String -> String
+  name-qualifier name = pack (reverse (qualifier-tail (reverse (unpack name))))
+
+  visible-qualifier :: String -> List Binding -> Bool
+  visible-qualifier qualifier bindings = case bindings of
+    Nil -> False
+    Cons binding rest -> same qualifier (name-qualifier (binding-name binding)) || visible-qualifier qualifier rest
+
   resolve-use :: Span -> Bool -> List Binding -> List String -> String -> (String, List Diagnostic)
   resolve-use sp constructor visible locals name = if has-name name locals && not constructor then (name, Nil)
     else case lookup-binding name visible of
       Some b -> (binding-symbol b, Nil)
       None -> if constructor && (same name "True" || same name "False") then (name, Nil)
-        else (name, fail sp (cat ["name is not in scope: ", name]))
+        else let qualifier = name-qualifier name in
+          if constructor && string-length qualifier > 0 && visible-qualifier qualifier visible then
+            (name, fail sp (cat ["unknown constructor ", name, ": not exported into this scope"]))
+          else (name, fail sp (cat ["name is not in scope: ", name]))
 
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
@@ -826,7 +842,9 @@ module Bootstrap.Resolve where
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
           let references = declaration-references declarations <> export-references source-surfaces in
-          case materialize-externals (references <> imported-class-references declarations declarations) declarations Nil of
+          let all-references = references <> imported-class-references declarations declarations in
+          let admitted = if has-name "b.Fin" all-references then Cons finite-index-declaration declarations else declarations in
+          case materialize-externals all-references admitted Nil of
             (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) base <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)

@@ -123,7 +123,7 @@ module Bootstrap.Contracts where
     -- Ownership and scope/task syntax inspect their actual arguments;
     -- they have no first-class imported function scheme.
     -- Infer validates the complete metadata against the owned kernel rule.
-    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.copyOut" || same name "b.mutBorrow" || same name "b.refSet" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel") then (None, Nil)
+    if same kind "builtin-syntax" && (same name "b.unrefine" || same name "b.copyOut" || same name "b.mutBorrow" || same name "b.refSet" || same name "b.withScope" || same name "b.spawn" || same name "b.joinAllOrCancel" || same name "b.Proof.search") then (None, Nil)
     else if same kind "value" || same kind "constructor" || same kind "method" || same kind "builtin" || same kind "builtin-syntax" || same kind "builtin-constructor" then case field "scheme" metadata of
       JStr text -> case parse-scheme name (string-to-bytes text) of
         Parsed ty Nil -> (Some ty, Nil)

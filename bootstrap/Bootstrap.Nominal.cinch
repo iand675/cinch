@@ -27,7 +27,7 @@ module Bootstrap.Nominal where
   interface-global :: String -> String
   interface-global identity = string-concat "i." (encode (unpack identity))
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk"]
+  kernel-type-name name = array-type-name name || has name ["Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64", "Ref", "Mut", "Thunk"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   unique-strings :: Json -> List String -> Bool
@@ -109,6 +109,7 @@ module Bootstrap.Nominal where
     if same name "Io" then (TName sp "b.Io", Nil)
     else if same name "Scope" then (TName sp "b.Scope", Nil)
     else if same name "Task" then (TName sp "b.Task", Nil)
+    else if same name "Fin" then (TName sp "b.Fin", Nil)
     else if has name locals || kernel-type-name name then (TName sp name, Nil)
     else if contains-identity name refs then (TName sp (interface-global name), Nil)
     else fail sp (string-concat "resolved scheme contains an unbound type name: " name)

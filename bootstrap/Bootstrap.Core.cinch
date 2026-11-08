@@ -33,7 +33,8 @@ module Bootstrap.Core where
   export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct, handler-performs
-  export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
+  export CProofRef, CProofRefl, CProofSearch, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
+  export prove-erased-goal, scoped-erased-witness
   export scoped-list-index
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
@@ -280,6 +281,7 @@ module Bootstrap.Core where
     CLocal :: Span -> UType -> Nat -> String -> List UType -> CoreTerm
     CProofRef :: Span -> UType -> Nat -> String -> CoreTerm
     CProofRefl :: Span -> UType -> CoreTerm
+    CProofSearch :: Span -> UType -> Bool -> Proof -> CoreTerm
     CQualifiedUse :: Span -> UType -> String -> String -> List UType -> List CoreEvidence -> CoreTerm
     CMethod :: Span -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> CoreTerm
     CInt :: Span -> UType -> String -> CoreTerm
@@ -665,6 +667,7 @@ module Bootstrap.Core where
     CLocal s ty id name actuals -> ty
     CProofRef s ty id name -> ty
     CProofRefl s predicate -> predicate
+    CProofSearch s predicate assumption evidence -> predicate
     CQualifiedUse s ty name role actuals evidence -> ty
     CMethod s ty name owner slot actuals evidence -> ty
     CInt s ty text -> ty
@@ -844,6 +847,7 @@ module Bootstrap.Core where
     CLocal s ty id name actuals -> CLocal s (f ty) id name (map-types f actuals)
     CProofRef s ty id name -> CProofRef s (f ty) id name
     CProofRefl s predicate -> CProofRefl s (f predicate)
+    CProofSearch s predicate assumption evidence -> CProofSearch s (f predicate) assumption evidence
     CDecision s ty predicate condition -> CDecision s (f ty) (f predicate) (map-term-types f condition)
     CQualifiedUse s ty name role actuals evidence -> CQualifiedUse s (f ty) name role (map-types f actuals) (map-evidences f evidence)
     CMethod s ty name owner slot actuals evidence -> CMethod s (f ty) name owner slot (map-types f actuals) (map-evidences f evidence)
@@ -1005,6 +1009,7 @@ module Bootstrap.Core where
     CLocal s ty id name actuals -> type-metas st ty <> types-metas st actuals
     CProofRef s ty id name -> type-metas st ty
     CProofRefl s predicate -> type-metas st predicate
+    CProofSearch s predicate assumption evidence -> type-metas st predicate
     CQualifiedUse s ty name role actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CMethod s ty name owner slot actuals evidence -> type-metas st ty <> types-metas st actuals <> evidences-metas st evidence
     CInt s ty text -> type-metas st ty
@@ -1165,6 +1170,7 @@ module Bootstrap.Core where
   valid-proof-reference term = case term of
     CProofRef s predicate id name -> closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp
     CProofRefl s predicate -> reflexive-equality predicate
+    CProofSearch s predicate assumption evidence -> closed-type predicate && kind-equal (type-kind predicate) KProp
     other -> False
   valid-term :: CoreTerm -> Bool
   valid-term term = case term of
@@ -1172,6 +1178,7 @@ module Bootstrap.Core where
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
     CProofRef s ty id name -> False
     CProofRefl s predicate -> False
+    CProofSearch s predicate assumption evidence -> False
     CDecision s ty predicate condition -> closed-runtime-type ty && closed-type predicate && valid-type predicate && kind-equal (type-kind predicate) KProp && valid-term condition
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
@@ -2094,7 +2101,8 @@ module Bootstrap.Core where
   erased-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   erased-application gamma facts ty row fun witness = proof-term gamma facts fun && (case core-type fun of
     UProofFun predicate effects result -> valid-type (core-type fun) && contract-equal result ty && contract-equal effects row
-      && scoped-proof-reference (proof-after-writes gamma (core-mutable-writes fun)) predicate witness
+      && (let writes = core-mutable-writes fun in
+        scoped-erased-witness (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) predicate witness)
     other -> False)
   proof-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
   proof-term gamma facts term = if is-refinement (core-type term) then proof-refined-term gamma facts term else proof-ordinary-term gamma facts term
@@ -2103,6 +2111,7 @@ module Bootstrap.Core where
     CDecision sp ty predicate condition -> scoped-decision-valid gamma facts ty predicate condition
     CProofRef s ty id name -> False
     CProofRefl s predicate -> False
+    CProofSearch s predicate assumption evidence -> False
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CRefineProof s ty witness body -> scoped-refinement-proof gamma facts ty witness body
     CForget s ty body -> forgotten gamma facts ty body
@@ -2243,7 +2252,9 @@ module Bootstrap.Core where
   scoped-refinement-proof gamma facts ty witness body = case refinement-view ty of
     URefine id name carrier predicate -> valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body
       && (case actual-index gamma facts body of
-        Some value -> scoped-proof-reference gamma (substitute-bound [(id, value)] predicate) witness
+        Some value -> let writes = core-mutable-writes body in
+          scoped-erased-witness (proof-after-writes gamma writes) (facts-after-writes gamma facts writes)
+            (substitute-bound [(id, value)] predicate) witness
         None -> False)
     other -> False
   certified-refinement :: ProofScope -> List Proposition -> UType -> Proof -> CoreTerm -> Bool
@@ -2319,7 +2330,7 @@ module Bootstrap.Core where
     CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
       let value = refresh-certificates gamma facts (CInt sp carrier text) in
       (case scoped-prove-refinement gamma facts refined value of Some evidence -> CRefine sp refined evidence value; None -> CError sp)
-    CRefineProof s ty witness body -> CRefineProof s ty witness (refresh-certificates gamma facts body)
+    CRefineProof s ty witness body -> CRefineProof s ty (refresh-after-term gamma facts body witness) (refresh-certificates gamma facts body)
     CRefine s ty evidence body -> let out = refresh-certificates gamma facts body in
       if certified-refinement gamma facts ty evidence out then CRefine s ty evidence out
       else case scoped-prove-refinement gamma facts ty out of Some fresh -> CRefine s ty fresh out; None -> CError s
@@ -2344,7 +2355,11 @@ module Bootstrap.Core where
         other -> CError s
     CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-after-term gamma facts f x)
     CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-after-term gamma facts f x)
-    CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
+    CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) (refresh-after-term gamma facts f witness)
+    CProofSearch s predicate assumption evidence ->
+      if scoped-erased-witness gamma facts predicate term then term else case prove-erased-goal gamma facts predicate assumption of
+        Some fresh -> CProofSearch s predicate assumption fresh
+        None -> CError s
     CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
     CScope s ty region evidence callback -> CScope s ty region evidence (refresh-certificates gamma facts callback)
     CSpawn s ty token body -> CSpawn s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
@@ -2441,6 +2456,30 @@ module Bootstrap.Core where
   scoped-prove-predicates gamma facts ty = case required-predicates gamma ty of
     Some goals -> prove-goals (goal-assumptions gamma facts goals) goals
     None -> None
+  proof-fact-present :: Proposition -> List Proposition -> Bool
+  proof-fact-present goal facts = case facts of
+    Nil -> False
+    Cons first rest -> proposition-equal goal first || proof-fact-present goal rest
+
+  prove-erased-goal :: ProofScope -> List Proposition -> UType -> Bool -> Option Proof
+  prove-erased-goal gamma facts predicate assumption = case core-predicate gamma predicate of
+    Some goal ->
+      let hypotheses = goal-assumptions gamma facts [goal] in
+      if assumption && not (proof-fact-present goal (proof-assumptions gamma facts)) then None
+      else case prove hypotheses goal of
+        Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
+        None -> None
+    None -> None
+
+  scoped-erased-witness :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  scoped-erased-witness gamma facts expected witness = case witness of
+    CProofSearch sp predicate assumption evidence ->
+      contract-equal expected predicate && (case core-predicate gamma expected of
+        Some goal -> (not assumption || proof-fact-present goal (proof-assumptions gamma facts))
+          && check-proof (goal-assumptions gamma facts [goal]) goal evidence
+        None -> False)
+    other -> scoped-proof-reference gamma expected witness
+
   prove-goals :: List Proposition -> List Proposition -> Option (List Proof)
   prove-goals hypotheses goals = case goals of
     Nil -> Some Nil
