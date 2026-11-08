@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_named_refinements, bootstrap_nonzero_source, bootstrap_nonzero_types",
-        "passed": 46,
+        "phase": "Bootstrap_nonzero_source, bootstrap_nonzero_types, bootstrap_parse",
+        "passed": 47,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20990,8 +20990,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_checked_program",
-        "passed": 23,
+        "phase": "Bootstrap_collections",
+        "passed": 24,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21107,7 +21107,7 @@
       },
       {
         "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 2,
@@ -21248,5 +21248,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:24:33.514927+00:00"
+  "updatedAt": "2026-11-08T16:25:36.899802+00:00"
 }
