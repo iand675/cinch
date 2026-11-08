@@ -2821,6 +2821,10 @@
                 },
                 {
                   "name": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
                   "status": "running"
                 }
               ]
@@ -17783,8 +17787,8 @@
         "counts": {
           "verified": 0,
           "blocked": 0,
-          "running": 0,
-          "pending": 4,
+          "running": 1,
+          "pending": 3,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17835,8 +17839,8 @@
           {
             "id": "additional:concurrency",
             "title": "concurrency",
-            "state": "pending",
-            "detail": "19 original tests. Queued for a shared worker.",
+            "state": "running",
+            "detail": "19 original tests. Running on the matching Stage 3.",
             "doneWhen": "Run the complete original target through matching Stage3, including original runtime, I/O, foreign fixture and exact refusal reasons.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "observed": {
@@ -20106,8 +20110,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_source_effects, bootstrap_source_handlers, bootstrap_source_instances",
-        "passed": 66,
+        "phase": "Bootstrap_source_instances, bootstrap_source_pi",
+        "passed": 68,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20453,8 +20457,8 @@
     "counts": {
       "verified": 312,
       "blocked": 0,
-      "running": 2,
-      "pending": 6,
+      "running": 3,
+      "pending": 5,
       "recheck": 386
     },
     "total": 706,
@@ -20463,5 +20467,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:33:25.754126+00:00"
+  "updatedAt": "2026-11-08T17:34:28.180133+00:00"
 }
