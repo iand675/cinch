@@ -315,9 +315,14 @@ def build_stage(stage: int) -> Path:
               "builder_sha256": file_hash(builder), "built_by_stage": stage - 1,
               "seed_runtime_profile": "release", "seed_runtime_sha256": file_hash(runtime)}
     directory = BUILD / f"stage{stage}"
+    compiler = directory / "cinch"
+    # The seed writes this sidecar for clang. The fixed point compares the
+    # later stages' compiler.ll, so a successful Stage1 can discard it.
+    seed_ir = compiler.with_suffix(".ll")
     if cached(directory, inputs):
+        seed_ir.unlink(missing_ok=True)
         print(f"stage{stage}: verified cached compiler", flush=True)
-        return directory / "cinch"
+        return compiler
     prepare_outputs(directory)
     log = directory / "build.log"
     sources = directory / "sources"
@@ -327,8 +332,10 @@ def build_stage(stage: int) -> Path:
     for name, data in files.items():
         (sources / name).write_bytes(data)
     (directory / "compiler.cinch").write_bytes(bundle(files))
-    code = run([builder, "build", sources / "Main.cinch", "-o", directory / "cinch"], sources, log)
-    return record_build(directory, inputs, code, log)
+    code = run([builder, "build", sources / "Main.cinch", "-o", compiler], sources, log)
+    record_build(directory, inputs, code, log)
+    seed_ir.unlink(missing_ok=True)
+    return compiler
 
 
 def build_self(builder: Path, files: dict[str, bytes], directory: Path,

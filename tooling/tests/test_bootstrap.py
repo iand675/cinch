@@ -54,21 +54,55 @@ class BootstrapContract(unittest.TestCase):
             compiler = stage / "cinch"
             compiler.write_bytes(b"previous compiler")
             compiler.chmod(0o755)
+            seed_ir = compiler.with_suffix(".ll")
+            seed_ir.write_bytes(b"old linker input")
             log = stage / "build.log"
             log.write_text("")
             bootstrap.record_build(stage, inputs, 0, log)
+
+            def fail_seed_build(command, cwd, log):
+                seed_ir.write_bytes(b"failed linker input")
+                return 9
+
             with patch.object(bootstrap, "BUILD", build), \
                     patch.object(bootstrap, "build_seed", return_value=builder), \
                     patch.object(bootstrap, "compiler_sources", return_value=files), \
                     patch.object(bootstrap, "build_seed_runtime", return_value=runtime), \
-                    patch.object(bootstrap, "run", return_value=9) as invoke:
+                    patch.object(bootstrap, "run", side_effect=fail_seed_build) as invoke:
                 self.assertEqual(bootstrap.build_stage(1), compiler)
                 invoke.assert_not_called()
+                self.assertFalse(seed_ir.exists())
                 runtime.write_bytes(b"optimized runtime B")
                 with self.assertRaises(bootstrap.BootstrapError):
                     bootstrap.build_stage(1)
                 self.assertEqual(invoke.call_count, 1)
                 self.assertFalse(compiler.exists(), "a failed runtime-triggered rebuild left a stale compiler")
+                self.assertEqual(seed_ir.read_bytes(), b"failed linker input")
+
+    def test_stage1_releases_seed_ir_after_a_verified_link(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build = Path(temp)
+            builder, runtime, files = self.stage_fixture(build)
+            compiler = build / "stage1/cinch"
+            seed_ir = compiler.with_suffix(".ll")
+
+            def seed_build(command, cwd, log):
+                seed_ir.write_bytes(b"linker input")
+                compiler.write_bytes(b"linked compiler")
+                compiler.chmod(0o755)
+                (cwd / "build").mkdir()
+                (cwd / "build/Main.manifest.json").write_text("{}")
+                log.write_text("")
+                return 0
+
+            with patch.object(bootstrap, "BUILD", build), \
+                    patch.object(bootstrap, "build_seed", return_value=builder), \
+                    patch.object(bootstrap, "compiler_sources", return_value=files), \
+                    patch.object(bootstrap, "build_seed_runtime", return_value=runtime), \
+                    patch.object(bootstrap, "run", side_effect=seed_build):
+                self.assertEqual(bootstrap.build_stage(1), compiler)
+            self.assertFalse(seed_ir.exists())
+            self.assertTrue(bootstrap.cached(compiler.parent, bootstrap.read_json(compiler.parent / "stage.json")["inputs"]))
 
     def test_seed_stage_imports_every_bundled_compiler_module(self):
         files = bootstrap.collect_compiler_sources()
