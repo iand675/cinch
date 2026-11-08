@@ -21022,6 +21022,16 @@
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
       },
       {
+        "title": "Run the 34 original ABI 7 language examples",
+        "status": "waiting-matching-stage3-audit",
+        "phase": "Waiting for the independent Stage 3 audit. Preserves 13 program outcomes and 21 rejection reasons with source locations.",
+        "passed": 0,
+        "failed": 0,
+        "total": 34,
+        "unit": "targets",
+        "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7"
+      },
+      {
         "title": "Check ABI 7 Native compiler units, runtime and tooling",
         "status": "audited-abi7-native-core-runtime-tooling",
         "phase": "214 compiler unit tests, 171 runtime tests and 50 tooling tests passed.",
@@ -21057,5 +21067,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:03:44.536366+00:00"
+  "updatedAt": "2026-11-08T10:05:25.369280+00:00"
 }
