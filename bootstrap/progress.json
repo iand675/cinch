@@ -11979,6 +11979,14 @@
                 },
                 {
                   "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "arrays_keep_record_and_string_elements_alive",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
                   "status": "running"
                 }
               ]
@@ -19821,7 +19829,7 @@
         "title": "Earlier Stage3 suite on compiler 45bbfe94",
         "status": "historical",
         "phase": "These invocation receipts apply to the earlier published compiler.",
-        "passed": 15,
+        "passed": 16,
         "failed": 0,
         "total": 105,
         "unit": "original test targets",
@@ -20029,5 +20037,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:47:37.126702+00:00"
+  "updatedAt": "2026-11-08T01:48:39.298113+00:00"
 }
