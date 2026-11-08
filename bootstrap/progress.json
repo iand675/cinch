@@ -12733,7 +12733,7 @@
               "cases": [
                 {
                   "name": "compiled_cinch_uses_actual_guarded_bodies_for_dependent_bounds",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -20288,5 +20288,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:33:16.308802+00:00"
+  "updatedAt": "2026-11-08T02:35:38.682829+00:00"
 }
