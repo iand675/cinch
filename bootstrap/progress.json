@@ -12906,6 +12906,10 @@
               "cases": [
                 {
                   "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
                   "status": "running"
                 }
               ]
@@ -20113,8 +20117,8 @@
       {
         "title": "Rerun the full Native suite after the clean-build fix",
         "status": "running",
-        "phase": "bootstrap_guarded_arithmetic",
-        "passed": 36,
+        "phase": "bootstrap_guarded_association",
+        "passed": 37,
         "failed": 0,
         "total": 236,
         "source": "f1bfdca8c79e4299effd20057114ed2e17072108b4fbe6940847c4b208b6eeb1"
@@ -20133,5 +20137,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:06:15.203672+00:00"
+  "updatedAt": "2026-11-08T01:07:57.188321+00:00"
 }
