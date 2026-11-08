@@ -17963,10 +17963,10 @@
         "title": "Run all 236 Rust targets on the preceding Rust memo revision",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 18,
+        "passed": 19,
         "failed": 0,
         "total": 236,
-        "status": "running",
+        "status": "waiting-worker",
         "phase": "arrays",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
@@ -20771,8 +20771,8 @@
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to build Stage 1 with codata, memo, host primitives and erased records.",
+        "status": "running",
+        "phase": "Combined candidate, starting from the pinned seed. guard_coverage (5 original tests)",
         "passed": 1,
         "total": 74,
         "failed": 0,
@@ -20815,5 +20815,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:11:48.925168+00:00"
+  "updatedAt": "2026-11-08T22:14:12.702224+00:00"
 }
