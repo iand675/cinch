@@ -20483,10 +20483,10 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-annotation-original-class-defaults-results.json"
       },
       {
-        "title": "Rebuild the pinned object for the tagged List integration cases",
+        "title": "Add the tagged sum-list machine code to the pinned library object",
         "unit": "controls",
         "status": "passed",
-        "phase": "Pinned provider rebuild. prelude_sum_list_generic",
+        "phase": "Data.List.cinchif already exported sum-list. The rebuilt library.o supplies Data.List.sum-list@T and its helper. Both original clients passed with zero leaks. All 55 interface identities are unchanged.",
         "passed": 3,
         "total": 3,
         "failed": 0,
@@ -20502,6 +20502,39 @@
         "total": 6,
         "failed": 0,
         "source": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json"
+      },
+      {
+        "title": "Replay all 19 concurrency tests on the combined Stage 1",
+        "unit": "controls",
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. all 19 original structured-concurrency tests",
+        "passed": 16,
+        "total": 19,
+        "failed": 3,
+        "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage1-where-and-concurrency-results.json"
+      },
+      {
+        "title": "Replay the original guard and integration targets on the strict where compiler",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. integration",
+        "passed": 5,
+        "total": 44,
+        "failed": 0,
+        "source": "d069d311cc31c74d0b80c559dbdfb6df77480b2af4f289ec19c263e52d2dfb04",
+        "evidence": null
+      },
+      {
+        "title": "Verify shared borrows and task scope exits",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with shared borrow and scope checks",
+        "passed": 0,
+        "total": 8,
+        "failed": 0,
+        "source": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
         "evidence": null
       },
       {
@@ -20514,6 +20547,16 @@
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
         "evidence": null
+      },
+      {
+        "title": "Check Rust task sharing against mutable reference payloads",
+        "unit": "targets",
+        "status": "waiting-worker",
+        "phase": "Isolated Rust candidate. Queued for a shared worker.",
+        "passed": 0,
+        "total": 2,
+        "failed": 0,
+        "source": "e682d4e5ecfda69741ec424541d9fe94546b9704a4beab1c74ab74cfdec99a74"
       }
     ],
     "counts": {
@@ -20529,5 +20572,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:50:18.516925+00:00"
+  "updatedAt": "2026-11-08T18:55:01.698131+00:00"
 }
