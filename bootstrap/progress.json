@@ -21101,8 +21101,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_array_float_bits",
-        "passed": 17,
+        "phase": "Bootstrap_body_bindings",
+        "passed": 18,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21281,5 +21281,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:11:28.334382+00:00"
+  "updatedAt": "2026-11-08T15:12:31.499002+00:00"
 }
