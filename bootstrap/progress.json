@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "24/236 Rust targets and 21/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "24/236 Rust targets and 22/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12035,11 +12035,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 21,
+          "verified": 22,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 82
+          "recheck": 81
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12605,10 +12605,38 @@
           {
             "id": "stage3:bootstrap_driver",
             "title": "bootstrap_driver",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "3526e934fd87f2138386c5b233f6706588d6a63fb8fe3352fd1f0dceb36b3979",
+              "cases": [
+                {
+                  "name": "driver_links_a_fixed_ir_module_and_reports_both_exit_codes",
+                  "status": "passed"
+                },
+                {
+                  "name": "driver_refuses_incomplete_arguments_with_its_named_exit_code",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:bootstrap_effect_types",
+            "title": "bootstrap_effect_types",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12617,30 +12645,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:bootstrap_effect_types",
-            "title": "bootstrap_effect_types",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:06:39.675183+00:00",
-              "finishedAt": "2026-11-08T02:10:17.963436+00:00",
-              "exitCode": 0,
-              "logSha256": "954e1cabe798a613da68c73b6b9a8d273c5e1bc30c61403e858b6f12b4a1f7eb",
-              "cases": [
-                {
-                  "name": "closed_effect_rows_regions_and_scope_are_checked_in_cinch",
-                  "status": "passed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20297,8 +20301,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_core, bootstrap_driver",
-        "passed": 21,
+        "phase": "bootstrap_core, bootstrap_effect_types",
+        "passed": 22,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20558,9 +20562,9 @@
       {
         "title": "Check memo syntax, explicit let layout and tuple diagnostics in Cinch",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. build the Cinch memo parser and resolver probe",
-        "passed": 0,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. replay original memo sources, namespace, explicit layout and tuple controls",
+        "passed": 2,
         "total": 2,
         "failed": 0,
         "source": "841aeafb95ecbd7535810a63bc35f457eb23b5e34dbcf19891914a6c0f1cadb6",
@@ -20589,11 +20593,11 @@
       }
     ],
     "counts": {
-      "verified": 383,
+      "verified": 384,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 315
+      "recheck": 314
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20601,5 +20605,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:38:58.693166+00:00"
+  "updatedAt": "2026-11-08T19:40:01.012600+00:00"
 }
