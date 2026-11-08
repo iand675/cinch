@@ -85,11 +85,11 @@ token, a named label, or the end of input.
 
 [Source](/reference-sources/Text.Parse.cinch) · line 91
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ITok</span> :: (<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">ErrorItem</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ITok</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ILabel</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ErrorItem</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ILabel</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IEnd</span> :: <span class="tok-constructor">ErrorItem</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IEnd</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span></code></pre>
 
 <a id="type-505374617465"></a>
 
@@ -103,7 +103,7 @@ consumed token, and the recovered (soft) errors so far.
 
 [Source](/reference-sources/Text.Parse.cinch) · line 281
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PState</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">LToken</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">PState</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PState</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span>))))</code></pre>
 
 <a id="type-50617273654572726f72"></a>
 
@@ -117,9 +117,9 @@ the source span the error stands at.
 
 [Source](/reference-sources/Text.Parse.cinch) · line 99
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EUnexpected</span> :: (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">ErrorItem</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">ParseError</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EUnexpected</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>)))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EFail</span> :: (<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ParseError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EFail</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>))</code></pre>
 
 <a id="type-50617273654572726f7242756e646c65"></a>
 
@@ -133,7 +133,7 @@ then the recovered ones in occurrence order).
 
 [Source](/reference-sources/Text.Parse.cinch) · line 118
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bundle</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">ParseErrorBundle</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bundle</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span>)))</code></pre>
 
 <a id="type-50617273654f7574636f6d65"></a>
 
@@ -146,9 +146,9 @@ megaparsec-style bundle of the hard failure plus recovered ones.
 
 [Source](/reference-sources/Text.Parse.cinch) · line 570
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Parsed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Parsed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Failed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Failed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-506172736572"></a>
 
@@ -161,7 +161,7 @@ spine specialized to the pure token stream).
 
 [Source](/reference-sources/Text.Parse.cinch) · line 309
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-5265706c79"></a>
 
@@ -175,9 +175,9 @@ distinction. `ROk` carries the expected-set hint for merging;
 
 [Source](/reference-sources/Text.Parse.cinch) · line 303
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ROk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ROk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>))))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">ParseError</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>)))</code></pre>
 
 # Values
 
@@ -185,7 +185,7 @@ distinction. `ROk` carries the expected-set hint for merging;
 
 ## `attempt-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
 
 Backtracking (megaparsec's `try`): a failure becomes an
 empty-failure so `or-else` may try the alternative.
@@ -196,7 +196,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `between-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">open</span> <span class="tok-variable">close</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">open</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">close</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">open</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">close</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">open</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">close</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -204,7 +204,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `bundle-errors`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-errors</span> :: (<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-errors</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -212,7 +212,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `bundle-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-name</span> :: (<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -220,7 +220,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `bundle-source`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-source</span> :: (<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bundle-source</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -228,7 +228,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `choice-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -236,7 +236,7 @@ empty-failure so `or-else` may try the alternative.
 
 ## `error-messages`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error-messages</span> :: (<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error-messages</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>))</code></pre>
 
 The expected-item set (empty for `EFail`): the `expecting` line of
 the rendered bundle.
@@ -247,7 +247,7 @@ the rendered bundle.
 
 ## `error-span`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error-span</span> :: (<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Span</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error-span</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -255,7 +255,7 @@ the rendered bundle.
 
 ## `expect-eof`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">Unit</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 The end-of-input guard (megaparsec's `eof`): succeeds WITHOUT
 consuming when the input is at end (the stream is empty or headed
@@ -272,7 +272,7 @@ twice under the runner and the second run failed).
 
 ## `expect-op`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-op</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-op</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -280,7 +280,7 @@ twice under the runner and the second run failed).
 
 ## `expect-punct`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-punct</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-punct</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -288,7 +288,7 @@ twice under the runner and the second run failed).
 
 ## `expect-tok`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-tok</span> :: (<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-constructor">Token</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-tok</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -296,7 +296,7 @@ twice under the runner and the second run failed).
 
 ## `expect-word`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-word</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-word</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -304,7 +304,7 @@ twice under the runner and the second run failed).
 
 ## `fail-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
 
 The explicit failure (megaparsec's `fail`): a fancy error at the
 current position.
@@ -315,7 +315,7 @@ current position.
 
 ## `label-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Naming a parser's expectation (megaparsec's `label`): an
 empty-failure's expected set becomes the label.
@@ -326,7 +326,7 @@ empty-failure's expected set becomes the label.
 
 ## `look-ahead-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
 
 Look-ahead: parse without consuming.
 
@@ -336,7 +336,7 @@ Look-ahead: parse without consuming.
 
 ## `many-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Repetition and separators. `many-p` never fails; both stop at the
 first empty-failure and propagate consumed failures.
@@ -347,7 +347,7 @@ first empty-failure and propagate consumed failures.
 
 ## `not-followed-by-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">not-followed-by-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">not-followed-by-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 megaparsec's `notFollowedBy`: succeed (consuming nothing) only
 when the parser fails.
@@ -358,7 +358,7 @@ when the parser fails.
 
 ## `optional-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -366,7 +366,7 @@ when the parser fails.
 
 ## `or-else`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Choice (megaparsec's `<|>`): the right parser runs only when the
 left failed without consuming; two empty failures merge.
@@ -377,7 +377,7 @@ left failed without consuming; two empty failures merge.
 
 ## `parse-bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>)))</code></pre>
 
 Sequencing (megaparsec's `>>=`): consumed flags combine, and the
 expected hints merge only when the second parser consumed
@@ -385,11 +385,27 @@ nothing.
 
 [Source](/reference-sources/Text.Parse.cinch) · line 326
 
+<a id="value-70617273652d6661696c"></a>
+
+## `parse-fail`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fail</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt;{<span class="tok-constructor">Parse</span>} <span class="tok-variable">a</span>)</code></pre>
+
+[Source](/reference-sources/Text.Parse.cinch)
+
 <a id="value-70617273652d666d6170"></a>
 
 ## `parse-fmap`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">b</span>)))</code></pre>
+
+[Source](/reference-sources/Text.Parse.cinch)
+
+<a id="value-70617273652d6e6f7465"></a>
+
+## `parse-note`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-note</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt;{<span class="tok-constructor">Parse</span>} <span class="tok-constructor">Unit</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -397,7 +413,7 @@ nothing.
 
 ## `parse-pure`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
 
 The combinator core.
 
@@ -407,7 +423,7 @@ The combinator core.
 
 ## `pstate-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-count</span> :: (<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-count</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -415,7 +431,7 @@ The combinator core.
 
 ## `pstate-last`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-last</span> :: (<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Span</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-last</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -423,7 +439,7 @@ The combinator core.
 
 ## `pstate-soft`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-soft</span> :: (<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">ParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-soft</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -431,7 +447,7 @@ The combinator core.
 
 ## `pstate-tokens`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-tokens</span> :: (<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">LToken</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pstate-tokens</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span>))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -439,7 +455,7 @@ The combinator core.
 
 ## `render-bundle`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-bundle</span> :: (<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-bundle</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseErrorBundle</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The bundle's rendering: every error, megaparsec-style, in order.
 
@@ -449,7 +465,7 @@ The bundle's rendering: every error, megaparsec-style, in order.
 
 ## `render-item`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-item</span> :: (<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-item</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -457,7 +473,7 @@ The bundle's rendering: every error, megaparsec-style, in order.
 
 ## `run-parser`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>))))</code></pre>
 
 The runner with the identity recovery handler: the bundle carries
 the typed errors exactly as the parser reported them.
@@ -468,7 +484,7 @@ the typed errors exactly as the parser reported them.
 
 ## `run-parser-fn`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser-fn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">PState</span> -&gt; <span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser-fn</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">PState</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Reply</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -476,7 +492,7 @@ the typed errors exactly as the parser reported them.
 
 ## `run-parser-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">ParseError</span>) -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-parser-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-variable">a</span>)))))</code></pre>
 
 The recovery handler as an ordinary function on the typed error
 (the megaparsec-style bundle's final shape is the handler's
@@ -494,7 +510,7 @@ the bundle.
 
 ## `satisfy-char`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-char</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">Nat</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-char</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -502,7 +518,7 @@ the bundle.
 
 ## `satisfy-con`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-con</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-con</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -510,7 +526,7 @@ the bundle.
 
 ## `satisfy-float`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-float</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-float</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -518,7 +534,7 @@ the bundle.
 
 ## `satisfy-int`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-int</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-int</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -526,7 +542,7 @@ the bundle.
 
 ## `satisfy-str`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-str</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">Bytes</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-str</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -534,7 +550,7 @@ the bundle.
 
 ## `satisfy-var`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-var</span> :: <span class="tok-constructor">Parser</span> <span class="tok-constructor">String</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-var</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -542,7 +558,7 @@ the bundle.
 
 ## `sep-by-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Parser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">s</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -550,7 +566,7 @@ the bundle.
 
 ## `some-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Parse.cinch)
 
@@ -558,7 +574,7 @@ the bundle.
 
 ## `spanned-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spanned-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> (<span class="tok-constructor">Span</span>, <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">spanned-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>, <span class="tok-variable">a</span>)))</code></pre>
 
 Source spans (the toolkit's span story): the consumed tokens'
 span, from the first consumed token's start to the last
@@ -571,7 +587,7 @@ zero-width span at the current token.
 
 ## `token-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">token-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">token-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The token matcher primitive: consume the head token when the
 predicate decodes it, otherwise an empty failure carrying the
@@ -583,7 +599,7 @@ offending item and the expected set.
 
 ## `with-recovery-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-recovery-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-recovery-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">Parser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 Parser-level recovery (megaparsec's `withRecovery`): on failure
 the recovery handler runs at the failed parser's start state and

@@ -1,167 +1,490 @@
+import { Buffer } from 'node:buffer';
+
+/**
+ * Build-time catalogue loader.
+ *
+ * Astro builds this site statically, so every registry request happens once
+ * during `npm run build`. Nothing in this module runs in a browser.
+ *
+ * The loader reads public releases from the v0 registry API, groups them by
+ * package name, and fetches each release manifest. Declaration signatures are
+ * not part of a registry release, so modules start with an empty declaration
+ * list. Pages render the facts that exist and say where generated `.cinchdoc`
+ * data would come from.
+ */
+
+export type DeclarationKind = 'type' | 'function' | 'class';
+
 export type Declaration = {
-  name: string; kind: 'type' | 'function' | 'class'; signature: string; description: string;
-  example?: string; constructors?: {name:string; signature:string; description:string}[]; since?: string;
+  name: string;
+  kind: DeclarationKind;
+  signature: string;
+  description: string;
+  example?: string;
+  constructors?: { name: string; signature: string; description: string }[];
+  since?: string;
 };
-export type LibraryModule = {name:string; description:string; imports:string[]; declarations:Declaration[]};
+
+export type Dependency = {
+  name: string;
+  range?: string;
+  source: string;
+  detail?: string;
+};
+
+export type LibraryModule = {
+  name: string;
+  path: string;
+  description: string;
+  imports: string[];
+  declarations: Declaration[];
+  source?: string[];
+};
+
+export type LibraryRelease = {
+  version: string;
+  packageId: string;
+  yanked: boolean;
+  category: string;
+  synopsis: string;
+  description: string;
+  license: string;
+  maintainer: string;
+  updated: string;
+  dependencies: Dependency[];
+  modules: LibraryModule[];
+  readme: string[];
+};
+
 export type LibraryPackage = {
-  name:string; version:string; versions:string[]; category:string; synopsis:string; description:string;
-  license:string; maintainer:string; updated:string; dependencies:string[]; modules:LibraryModule[];
-  readme:string[];
+  name: string;
+  namespace: string;
+  category: string;
+  version: string;
+  versions: string[];
+  yanked: string[];
+  synopsis: string;
+  description: string;
+  license: string;
+  maintainer: string;
+  updated: string;
+  dependencies: Dependency[];
+  modules: LibraryModule[];
+  readme: string[];
+  packageId: string;
+  registry: string;
+  sourceKind: 'registry';
+  releases: LibraryRelease[];
 };
-const fn=(name:string,signature:string,description:string,example?:string,since?:string):Declaration=>({name,kind:'function',signature,description,example,since});
-const typ=(name:string,signature:string,description:string,constructors?:Declaration['constructors']):Declaration=>({name,kind:'type',signature,description,constructors});
-const mod=(name:string,description:string,declarations:Declaration[],imports:string[]=[]):LibraryModule=>({name,description,declarations,imports});
-const pkg=(name:string,version:string,category:string,synopsis:string,modules:LibraryModule[],dependencies:string[]=[],previous?:string):LibraryPackage=>({
-  name,version,versions:previous?[version,previous]:[version],category,synopsis,description:synopsis,
-  license:'BSD-3-Clause',maintainer:'Cinch contributors',updated:'2026-10-28',dependencies,modules,
-  readme:[synopsis,`Import a module explicitly to use its types and functions. The module reference lists declarations, examples, and links to related types.`, `This package is part of the sample catalogue used to develop Cinch’s package documentation site.`],
-});
-export const packages:LibraryPackage[]=[
-  pkg('cinch-base','0.1.0','Core','The core types, list operations, and abstractions used throughout Cinch programs.',[
-    mod('Prelude','Primitive types and the common vocabulary shared by the standard libraries.',[
-      typ('Nat','data Nat','An unbounded natural number. Arithmetic on Nat does not overflow.',[{name:'Zero',signature:'Zero :: Nat',description:'The natural number zero.'},{name:'Succ',signature:'Succ :: Nat -> Nat',description:'The successor of a natural number.'}]),
-      typ('Bool','data Bool','A truth value.',[{name:'False',signature:'False :: Bool',description:'False.'},{name:'True',signature:'True :: Bool',description:'True.'}]),
-      typ('Int','opaque Int','An unbounded signed integer.'),
-      typ('String','opaque String','An immutable string of Unicode text.'),
-      typ('Ref','opaque Ref region a','A reference that borrows a value for the lifetime of region.'),
-      typ('Unit','data Unit','The type with a single value, ().'),
-      typ('Bytes','opaque Bytes','An immutable sequence of bytes.'),
-      typ('Io','effect Io region','An effect for interaction with an external environment.'),
-      {name:'Ord',kind:'class',signature:'signature Ord a',description:'A total ordering on values of a type.'},
-      fn('id','id :: forall a. a -> a','Return the supplied value unchanged.','id 42\n-- 42'),
-      fn('const','const :: forall a b. a -> b -> a','Return the first argument and ignore the second.'),
-    ]),
-    mod('Data.Option','Values that may be absent, without sentinel values or null.',[
-      typ('Option','data Option a','Either a present value or its absence.',[{name:'None',signature:'None :: Option a',description:'No value is present.'},{name:'Some',signature:'Some :: a -> Option a',description:'A present value.'}]),
-      fn('map','map :: forall a b. (a -> b) -> Option a -> Option b','Apply a function to a present value. None remains None.','map (\\x -> x + 1) (Some 4)\n-- Some 5'),
-      fn('with-default','with-default :: forall a. a -> Option a -> a','Extract a present value, or return the supplied default.','with-default 0 None\n-- 0'),
-      fn('is-some','is-some :: forall a. Option a -> Bool','Report whether a value is present.'),
-    ]),
-    mod('Data.List','Finite, ordered collections with structural recursion and total projections.',[
-      typ('List','data List a','A finite sequence of values of the same type.',[{name:'Nil',signature:'Nil :: List a',description:'An empty list.'},{name:'Cons',signature:'Cons :: a -> List a -> List a',description:'A head element and the remaining list.'}]),
-      fn('map','map :: forall a b. (a -> b) -> List a -> List b','Transform each element, retaining the order of the input.','map (\\x -> x * 2) [1, 2, 3]\n-- [2, 4, 6]'),
-      fn('foldr','foldr :: forall a b. (a -> b -> b) -> b -> List a -> b','Fold a list from the right using a combining function and an initial value.'),
-      fn('length','length :: forall a. List a -> Nat','Count the elements in a finite list.','length [1, 2, 3]\n-- 3'),
-      fn('head','head :: forall a. List a -> Option a','Return the first element when present. An empty list produces None.','head []\n-- None'),
-      fn('filter','filter :: forall a. (a -> Bool) -> List a -> List a','Retain elements that satisfy the predicate, in their original order.'),
-    ],['Prelude','Data.Option']),
-    mod('Data.Result','Recoverable errors carried in the result type.',[
-      typ('Result','data Result e a','A successful value or a recoverable error.',[{name:'Err',signature:'Err :: e -> Result e a',description:'A recoverable failure.'},{name:'Ok',signature:'Ok :: a -> Result e a',description:'A successful result.'}]),
-      fn('map','map :: forall e a b. (a -> b) -> Result e a -> Result e b','Transform a successful result, preserving an error.'),
-      fn('map-error','map-error :: forall e f a. (e -> f) -> Result e a -> Result f a','Transform the error while leaving successful values alone.'),
-    ]),
-  ]),
-  pkg('cinch-collections','0.2.1','Data','Persistent maps, sets, and nonempty collections.',[
-    mod('Data.Map','Ordered, persistent key-value maps.',[
-      typ('Map','opaque Map k v','A persistent mapping from ordered keys to values.'),
-      fn('empty','empty :: forall k v. Map k v','Construct an empty map.'),
-      fn('insert','insert :: forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v','Insert a value. An existing value at the same key is replaced.'),
-      fn('lookup','lookup :: forall k v. using (ord :: Ord k) => k -> Map k v -> Option v','Find the value associated with a key.','lookup "port" (insert "port" 8080 empty)\n-- Some 8080'),
-      fn('keys','keys :: forall k v. Map k v -> List k','Return keys in ascending order.',undefined,'0.2.1'),
-    ],['Prelude','Data.Option','Data.List']),
-    mod('Data.Set','Persistent collections of distinct values.',[
-      typ('Set','opaque Set a','A collection containing each value at most once.'),
-      fn('empty','empty :: forall a. Set a','Construct an empty set.'),
-      fn('member','member :: forall a. using (ord :: Ord a) => a -> Set a -> Bool','Test whether the set contains a value.'),
-      fn('union','union :: forall a. using (ord :: Ord a) => Set a -> Set a -> Set a','Combine two sets, retaining each value once.'),
-    ]),
-    mod('Data.NonEmpty','Collections whose type guarantees at least one element.',[
-      typ('NonEmpty','data NonEmpty a','One head element followed by a possibly empty tail.',[{name:'NonEmpty',signature:'NonEmpty :: a -> List a -> NonEmpty a',description:'Construct a nonempty sequence.'}]),
-      fn('head','head :: forall a. NonEmpty a -> a','Read the first element. No empty case is possible.'),
-      fn('to-list','to-list :: forall a. NonEmpty a -> List a','Forget the nonempty guarantee and retain the values.'),
-    ],['Data.List']),
-  ],['cinch-base'],'0.2.0'),
-  pkg('cinch-text','0.3.0','Text','UTF-8 processing and composable text parsers.',[
-    mod('Text.Utf8','Decode, encode, and inspect UTF-8 text.',[
-      typ('Utf8Error','data Utf8Error','An invalid byte sequence and the offset at which decoding failed.'),
-      fn('decode','decode :: Bytes -> Result Utf8Error String','Decode UTF-8 bytes. Invalid sequences produce a structured error.'),
-      fn('encode','encode :: String -> Bytes','Encode a string as UTF-8 bytes.'),
-      fn('lines','lines :: String -> List String','Split text at line boundaries.'),
-    ],['Prelude','Data.Result','Data.List']),
-    mod('Text.Parser','Small parsers that compose into larger parsers.',[
-      typ('Parser','opaque Parser a','A parser that either produces a value or reports a position and expectation.'),
-      typ('ParseError','data ParseError','A source position and the expectations that were not met.'),
-      fn('parse','parse :: forall a. Parser a -> String -> Result ParseError a','Run a parser and require it to consume the full input.'),
-      fn('integer','integer :: Parser Int','Parse a signed decimal integer.','parse integer "-42"\n-- Ok (-42)'),
-    ],['Data.Result']),
-  ],['cinch-base'],'0.2.0'),
-  pkg('cinch-json','0.2.4','Data','JSON values, typed decoders, and path-aware error messages.',[
-    mod('Data.Json','A JSON value tree and its textual representation.',[
-      typ('Json','data Json','A null, boolean, number, string, array, or object value.'),
-      typ('JsonError','data JsonError','A byte offset and description of a malformed JSON document.'),
-      fn('parse','parse :: String -> Result JsonError Json','Parse a complete JSON document.'),
-      fn('render','render :: Json -> String','Render a compact JSON representation.'),
-    ],['Prelude','Data.Result']),
-    mod('Data.Json.Decode','Convert a JSON value to a specific application type.',[
-      typ('Decoder','opaque Decoder a','A typed decoder with a path-aware failure report.'),
-      typ('DecodeError','data DecodeError','The path, expected type, and actual value at a failed decoding step.'),
-      fn('decode','decode :: forall a. Decoder a -> Json -> Result DecodeError a','Apply a decoder to a JSON value.'),
-      fn('field','field :: forall a. String -> Decoder a -> Decoder a','Decode a named field in an object.'),
-      fn('string','string :: Decoder String','Accept a JSON string.'),
-    ],['Data.Json','Data.Result']),
-  ],['cinch-base','cinch-text'],'0.2.3'),
-  pkg('cinch-http','0.4.0','Networking','HTTP request and response types with an effect-explicit client.',[
-    mod('Net.Http','Shared HTTP message types.',[
-      typ('Request','record Request','A request method, URL, headers, and optional body.'),
-      typ('Response','record Response','A status code, response headers, and body bytes.'),
-      typ('HttpError','data HttpError','A connection, protocol, or timeout failure.'),
-      fn('status-code','status-code :: Response -> Nat','Read the numerical HTTP status code.'),
-    ]),
-    mod('Net.Http.Client','An HTTP client whose network operations appear in its effect signature.',[
-      fn('get','get :: String ->{Io r} Result HttpError Response','Send a GET request. Connection failures remain explicit in Result.','response <- get "https://example.com/"\ncase response of\n  Ok value -> status-code value\n  Err problem -> 0'),
-      fn('send','send :: Request ->{Io r} Result HttpError Response','Send a request with an explicit method, headers, and body.'),
-      fn('with-timeout','with-timeout :: Nat -> Request ->{Io r} Result HttpError Response','Send a request with a timeout expressed in milliseconds.',undefined,'0.4.0'),
-    ],['Net.Http','Data.Result']),
-  ],['cinch-base','cinch-text'],'0.3.0'),
-  pkg('cinch-async','0.1.2','Concurrency','Scoped tasks and bounded channels with explicit ownership transfer.',[
-    mod('Control.Task','Tasks whose lifetime is bounded by a surrounding scope.',[
-      typ('Task','opaque Task scope a','A handle to a scoped computation. Its result can be joined once.'),
-      fn('spawn','spawn :: forall a. (Unit ->{Io r} a) ->{Io r} Task scope a','Start a child computation in the current scope.'),
-      fn('join','join :: forall a. Task scope a ->{Io r} a','Wait for a task and consume its result handle.'),
-    ]),
-    mod('Control.Channel','Bounded communication with backpressure.',[
-      typ('Channel','opaque Channel a','A bounded channel used to transfer values between tasks.'),
-      fn('send','send :: forall a. Channel a -> a ->{Io r} Unit','Send a value, waiting when the channel is full.'),
-      fn('receive','receive :: forall a. Channel a ->{Io r} Option a','Receive the next value. A closed channel produces None.'),
-    ],['Data.Option']),
-  ],['cinch-base'],'0.1.1'),
-  pkg('cinch-time','0.1.0','System','Durations, wall-clock instants, and monotonic measurements.',[
-    mod('Data.Time','Time values with distinct wall-clock and duration types.',[
-      typ('Duration','opaque Duration','A nonnegative span of time.'),
-      typ('Instant','opaque Instant','A point on the monotonic clock.'),
-      fn('milliseconds','milliseconds :: Nat -> Duration','Construct a duration from milliseconds.'),
-      fn('now','now :: Unit ->{Io r} Instant','Read the monotonic clock.'),
-      fn('elapsed','elapsed :: Instant -> Instant -> Duration','Measure the duration between two instants.'),
-    ]),
-  ],['cinch-base']),
-  pkg('cinch-test','0.3.2','Testing','Property checks, generators, and a small test runner.',[
-    mod('Test.Check','Describe properties and generate input values.',[
-      typ('Gen','opaque Gen a','A deterministic generator that produces values from a seed.'),
-      typ('Property','opaque Property','A testable proposition with a failure report and counterexample.'),
-      fn('for-all','for-all :: forall a. Gen a -> (a -> Bool) -> Property','Test a property over generated values.'),
-      fn('check','check :: Nat -> Property ->{Io r} Result String Unit','Run a property for the requested number of examples.'),
-    ],['Data.Result']),
-    mod('Test.Runner','Group tests and report their results.',[
-      typ('Test','opaque Test','A named test or group of tests.'),
-      fn('group','group :: String -> List Test -> Test','Name a collection of tests.'),
-      fn('run','run :: List Test ->{Io r} Nat','Run a test collection and return the number of failures.'),
-    ],['Data.List']),
-  ],['cinch-base'],'0.3.1'),
-];
-export const packageUrl=(p:LibraryPackage,version=p.version)=>`/packages/${p.name}/${version}/`;
-export const moduleUrl=(p:LibraryPackage,m:LibraryModule,version=p.version)=>`${packageUrl(p,version)}${m.name}/`;
-export const symbolId=(name:string)=>`decl-${encodeURIComponent(name).replace(/%/g,'_')}`;
-export const compareVersions=(a:string,b:string)=>{
-  const x=a.split('.').map(Number),y=b.split('.').map(Number);
-  for(let i=0;i<3;i++){const d=(x[i]??0)-(y[i]??0);if(d)return d;}
+
+export type Catalogue = {
+  registry: string | null;
+  builtAt: string;
+  offline: boolean;
+  packages: LibraryPackage[];
+};
+
+export const CATALOGUE_REGISTRY_ENV = 'CINCH_CATALOGUE_REGISTRY';
+export const CATALOGUE_OFFLINE_ENV = 'CINCH_CATALOGUE_OFFLINE';
+export const DEFAULT_CATALOGUE_REGISTRY = 'http://127.0.0.1:8787';
+
+type IndexEntry = {
+  name: string;
+  version: string;
+  packageId?: string;
+  yanked?: boolean;
+  blocked?: boolean;
+  createdAt?: string;
+};
+
+type Manifest = {
+  description?: unknown;
+  category?: unknown;
+  license?: unknown;
+  maintainers?: unknown;
+  modules?: unknown;
+  dependencies?: unknown;
+};
+
+type ReleaseMetadata = {
+  manifest?: Manifest;
+  readme?: unknown;
+  packageId?: unknown;
+  namespace?: unknown;
+  createdAt?: unknown;
+};
+
+type Bundle = { files?: Record<string, string> };
+
+function readEnv(name: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    const value = process.env[name];
+    if (value !== undefined) return value;
+  }
+  const build = (import.meta.env as Record<string, string | undefined>)[name];
+  return build;
+}
+
+export function catalogueOffline(): boolean {
+  return readEnv(CATALOGUE_OFFLINE_ENV) === '1';
+}
+
+export function catalogueRegistry(): string {
+  const configured = readEnv(CATALOGUE_REGISTRY_ENV)?.trim();
+  return (configured && configured.length > 0 ? configured : DEFAULT_CATALOGUE_REGISTRY).replace(/\/+$/, '');
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function failure(registry: string, reason: string): Error {
+  return new Error(
+    `Cinch catalogue: ${reason}. ` +
+      `Set ${CATALOGUE_REGISTRY_ENV} to a reachable registry (currently ${registry || 'unset'}), ` +
+      `or set ${CATALOGUE_OFFLINE_ENV}=1 to build the offline catalogue page.`,
+  );
+}
+
+async function getJson<T>(url: string, what: string): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (error) {
+    throw new Error(`${what} at ${url} failed: ${message(error)}`);
+  }
+  if (!response.ok) throw new Error(`${what} at ${url} returned HTTP ${response.status}`);
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    throw new Error(`${what} at ${url} did not return JSON: ${message(error)}`);
+  }
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await run(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function indexEntry(value: unknown): value is IndexEntry {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.name === 'string' && item.name.includes('/') && typeof item.version === 'string';
+}
+
+function decodeBase64(value: string): string {
+  return Buffer.from(value, 'base64').toString('utf8');
+}
+
+function normalizeDependencies(raw: unknown): Dependency[] {
+  if (!Array.isArray(raw)) return [];
+  const dependencies: Dependency[] = [];
+  for (const value of raw) {
+    if (typeof value === 'string') {
+      dependencies.push({ name: value, source: 'registry' });
+      continue;
+    }
+    if (!value || typeof value !== 'object') continue;
+    const item = value as Record<string, unknown>;
+    const name = text(item.name);
+    if (!name) continue;
+    const source =
+      typeof item.source === 'string'
+        ? item.source
+        : typeof item.range === 'string'
+          ? 'registry'
+          : typeof item.path === 'string'
+            ? 'path'
+            : typeof item.url === 'string'
+              ? 'git'
+              : 'registry';
+    const detail =
+      typeof item.path === 'string'
+        ? item.path
+        : typeof item.url === 'string'
+          ? [item.url, text(item.rev)].filter(Boolean).join(' @ ')
+          : undefined;
+    dependencies.push({ name, range: text(item.range), source, detail });
+  }
+  return dependencies;
+}
+
+function normalizeModules(raw: unknown, files: Record<string, string>): LibraryModule[] {
+  if (!Array.isArray(raw)) return [];
+  const modules: LibraryModule[] = [];
+  for (const value of raw) {
+    if (!value || typeof value !== 'object') continue;
+    const item = value as Record<string, unknown>;
+    const name = text(item.name);
+    if (!name) continue;
+    const path = text(item.path) ?? '';
+    const encoded = path.length > 0 ? files[path] : undefined;
+    modules.push({
+      name,
+      path,
+      description: text(item.description) ?? '',
+      imports: [],
+      declarations: [],
+      source:
+        typeof encoded === 'string'
+          ? decodeBase64(encoded).replace(/\r\n/g, '\n').split('\n')
+          : undefined,
+    });
+  }
+  return modules;
+}
+
+function readmeParagraphs(value: unknown): string[] {
+  const raw = text(value);
+  if (!raw) return ['This release does not include a README.'];
+  const paragraphs = raw
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  return paragraphs.length > 0 ? paragraphs : [raw];
+}
+
+function maintainerOf(manifest: Manifest, namespace: string): string {
+  const value = manifest.maintainers;
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  if (Array.isArray(value)) {
+    const names = value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean);
+    if (names.length > 0) return names.join(', ');
+  }
+  return namespace;
+}
+
+async function loadRelease(
+  registry: string,
+  name: string,
+  entry: IndexEntry,
+  builtAt: string,
+): Promise<LibraryRelease> {
+  const url = `${registry}/api/v1/packages/${encodeURIComponent(name)}/${encodeURIComponent(entry.version)}`;
+  let metadata: ReleaseMetadata;
+  try {
+    metadata = await getJson<ReleaseMetadata>(url, `metadata for ${name}@${entry.version}`);
+  } catch (error) {
+    throw failure(registry, `could not read metadata for ${name}@${entry.version}: ${message(error)}`);
+  }
+
+  const manifest = metadata.manifest ?? {};
+  const digest = String(metadata.packageId ?? entry.packageId ?? '').replace(/^sha256:/, '');
+  let files: Record<string, string> = {};
+  if (/^[0-9a-f]{64}$/.test(digest)) {
+    try {
+      const bundle = await getJson<Bundle>(`${registry}/api/v1/download/${digest}`, `bundle for ${name}@${entry.version}`);
+      files = bundle.files ?? {};
+    } catch {
+      files = {};
+    }
+  }
+
+  const namespace = text(metadata.namespace) ?? name.split('/')[0] ?? name;
+  const description = text(manifest.description);
+  const readme = readmeParagraphs(metadata.readme);
+  const synopsis = description ?? readme[0].split('\n')[0].trim();
+
+  return {
+    version: entry.version,
+    packageId: String(metadata.packageId ?? entry.packageId ?? ''),
+    yanked: entry.yanked === true,
+    category: text(manifest.category) ?? 'Registry',
+    synopsis,
+    description: description ?? synopsis,
+    license: text(manifest.license) ?? 'Not declared',
+    maintainer: maintainerOf(manifest, namespace),
+    updated: text(metadata.createdAt) ?? text(entry.createdAt) ?? builtAt,
+    dependencies: normalizeDependencies(manifest.dependencies),
+    modules: normalizeModules(manifest.modules, files),
+    readme,
+  };
+}
+
+async function loadPackage(
+  registry: string,
+  name: string,
+  entries: IndexEntry[],
+  builtAt: string,
+): Promise<LibraryPackage> {
+  const ordered = [...entries].sort((a, b) => compareVersions(b.version, a.version) || b.version.localeCompare(a.version));
+  const releases = await mapLimit(ordered, 4, (entry) => loadRelease(registry, name, entry, builtAt));
+  const latest = releases.find((release) => !release.yanked) ?? releases[0];
+  return {
+    name,
+    namespace: name.split('/')[0] ?? name,
+    category: latest.category,
+    version: latest.version,
+    versions: releases.map((release) => release.version),
+    yanked: releases.filter((release) => release.yanked).map((release) => release.version),
+    synopsis: latest.synopsis,
+    description: latest.description,
+    license: latest.license,
+    maintainer: latest.maintainer,
+    updated: latest.updated,
+    dependencies: latest.dependencies,
+    modules: latest.modules,
+    readme: latest.readme,
+    packageId: latest.packageId,
+    registry,
+    sourceKind: 'registry',
+    releases,
+  };
+}
+
+let cache: Promise<Catalogue> | undefined;
+
+export function loadCatalogue(): Promise<Catalogue> {
+  cache ??= buildCatalogue();
+  return cache;
+}
+
+async function buildCatalogue(): Promise<Catalogue> {
+  const builtAt = new Date().toISOString();
+  if (catalogueOffline()) {
+    return { registry: null, builtAt, offline: true, packages: [] };
+  }
+
+  const registry = catalogueRegistry();
+  let index: { packages?: unknown };
+  try {
+    index = await getJson<{ packages?: unknown }>(`${registry}/api/v1/index`, 'public index');
+  } catch (error) {
+    throw failure(registry, message(error));
+  }
+
+  const entries = (Array.isArray(index.packages) ? index.packages : []).filter(indexEntry);
+  const groups = new Map<string, IndexEntry[]>();
+  for (const entry of entries) {
+    if (entry.blocked === true) continue;
+    const group = groups.get(entry.name) ?? [];
+    group.push(entry);
+    groups.set(entry.name, group);
+  }
+
+  if (groups.size === 0) {
+    throw failure(registry, `the registry at ${registry} returned no public releases`);
+  }
+
+  const packages = await mapLimit([...groups.entries()], 8, ([name, group]) =>
+    loadPackage(registry, name, group, builtAt),
+  );
+  packages.sort((a, b) => a.name.localeCompare(b.name));
+  return { registry, builtAt, offline: false, packages };
+}
+
+export type PublicModule = Omit<LibraryModule, 'source'>;
+export type PublicRelease = Omit<LibraryRelease, 'modules'> & { modules: PublicModule[] };
+export type PublicPackage = Omit<LibraryPackage, 'modules' | 'releases'> & {
+  modules: PublicModule[];
+  releases: PublicRelease[];
+};
+
+function publicModule(module: LibraryModule): PublicModule {
+  return {
+    name: module.name,
+    path: module.path,
+    description: module.description,
+    imports: module.imports,
+    declarations: module.declarations,
+  };
+}
+
+export function publicCatalogue(catalogue: Catalogue): {
+  schema: number;
+  sample: false;
+  offline: boolean;
+  registry: string | null;
+  builtAt: string;
+  packages: PublicPackage[];
+} {
+  return {
+    schema: 2,
+    sample: false,
+    offline: catalogue.offline,
+    registry: catalogue.registry,
+    builtAt: catalogue.builtAt,
+    packages: catalogue.packages.map((pkg) => ({
+      name: pkg.name,
+      namespace: pkg.namespace,
+      category: pkg.category,
+      version: pkg.version,
+      versions: pkg.versions,
+      yanked: pkg.yanked,
+      synopsis: pkg.synopsis,
+      description: pkg.description,
+      license: pkg.license,
+      maintainer: pkg.maintainer,
+      updated: pkg.updated,
+      dependencies: pkg.dependencies,
+      modules: pkg.modules.map(publicModule),
+      readme: pkg.readme,
+      packageId: pkg.packageId,
+      registry: pkg.registry,
+      sourceKind: pkg.sourceKind,
+      releases: pkg.releases.map((release) => ({
+        version: release.version,
+        packageId: release.packageId,
+        yanked: release.yanked,
+        category: release.category,
+        synopsis: release.synopsis,
+        description: release.description,
+        license: release.license,
+        maintainer: release.maintainer,
+        updated: release.updated,
+        dependencies: release.dependencies,
+        modules: release.modules.map(publicModule),
+        readme: release.readme,
+      })),
+    })),
+  };
+}
+
+export const packageUrl = (p: LibraryPackage, version = p.version) => `/packages/${p.name}/${version}/`;
+export const moduleUrl = (p: LibraryPackage, m: LibraryModule, version = p.version) =>
+  `${packageUrl(p, version)}${m.name}/`;
+export const symbolId = (name: string) => `decl-${encodeURIComponent(name).replace(/%/g, '_')}`;
+export const compareVersions = (a: string, b: string) => {
+  const x = a.split('.').map(Number);
+  const y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const difference = (x[i] ?? 0) - (y[i] ?? 0);
+    if (difference) return difference;
+  }
   return 0;
 };
-export const declarationsFor=(m:LibraryModule,version:string)=>m.declarations.filter(d=>!d.since||compareVersions(version,d.since)>=0);
-export const symbolUrl=(p:LibraryPackage,m:LibraryModule,d:Declaration,version=p.version)=>`${moduleUrl(p,m,version)}#${symbolId(d.name)}`;
-export const modules=packages.flatMap(p=>p.modules.map(m=>({package:p,module:m})));
-export const symbols=modules.flatMap(({package:p,module:m})=>m.declarations.map(d=>({package:p,module:m,declaration:d})));
-export function resolveType(name:string,p:LibraryPackage,m:LibraryModule,version:string){
-  const candidates=symbols.filter(s=>s.declaration.name===name&&s.declaration.kind!=='function');
-  const found=candidates.find(s=>s.package.name===p.name&&s.module.name===m.name)??candidates.find(s=>s.package.name===p.name&&m.imports.includes(s.module.name))??candidates.find(s=>s.package.name===p.name)??candidates.find(s=>s.package.name==='cinch-base')??candidates[0];
-  return found?symbolUrl(found.package,found.module,found.declaration,found.package.name===p.name?version:found.package.version):undefined;
+export const declarationsFor = (m: LibraryModule, version: string) =>
+  m.declarations.filter((declaration) => !declaration.since || compareVersions(version, declaration.since) >= 0);
+export const symbolUrl = (p: LibraryPackage, m: LibraryModule, d: Declaration, version = p.version) =>
+  `${moduleUrl(p, m, version)}#${symbolId(d.name)}`;
+export const dependencyLabel = (dependency: Dependency) => {
+  if (dependency.range) return dependency.range;
+  if (dependency.source === 'path' && dependency.detail) return dependency.detail;
+  if (dependency.source === 'git' && dependency.detail) return dependency.detail;
+  return dependency.source;
+};
+export function resolveType(name: string, p: LibraryPackage, _m: LibraryModule, version: string) {
+  const modules = p.releases.find((release) => release.version === version)?.modules ?? p.modules;
+  for (const module of modules) {
+    for (const declaration of declarationsFor(module, version)) {
+      if (declaration.name === name && declaration.kind !== 'function') return symbolUrl(p, module, declaration, version);
+    }
+  }
+  return undefined;
 }

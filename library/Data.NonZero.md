@@ -53,7 +53,7 @@ This module exports no type declarations.
 
 ## `non-zero`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>)))</code></pre>
 
 The total constructors (refinement types design: the total API).
 
@@ -63,7 +63,7 @@ The total constructors (refinement types design: the total API).
 
 ## `non-zero-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 [Source](/reference-sources/Data.NonZero.cinch)
 
@@ -73,8 +73,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.NonZero.Monoid_NonZero` | `Monoid (NonZero Int)` | Implicit |
-| `Data.NonZero.Semigroup_NonZero` | `Semigroup (NonZero Int)` | Implicit |
+| `Data.NonZero.Monoid_NonZero` | `Algebra.Monoid.Monoid (Algebra.Arithmetic.NonZero Int)` | Implicit |
+| `Data.NonZero.Semigroup_NonZero` | `Algebra.Semigroup.Semigroup (Algebra.Arithmetic.NonZero Int)` | Implicit |
 
 **`Data.NonZero.Monoid_NonZero`**: The multiplicative identity is 1: non-zero, so the transfer
 preserves the refinement (the contrast with `Monoid (NonEmpty a)`,

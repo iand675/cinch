@@ -31,7 +31,7 @@ This module exports no type declarations.
 
 ## `array-from-chars`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-chars</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Char</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-chars</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Char</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -39,7 +39,7 @@ This module exports no type declarations.
 
 ## `array-from-f32s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">F32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">F32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -47,7 +47,7 @@ This module exports no type declarations.
 
 ## `array-from-f64s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">F64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -55,7 +55,7 @@ This module exports no type declarations.
 
 ## `array-from-i16s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i16s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i16s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I16</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -63,7 +63,7 @@ This module exports no type declarations.
 
 ## `array-from-i32s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -71,7 +71,7 @@ This module exports no type declarations.
 
 ## `array-from-i64s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -79,7 +79,7 @@ This module exports no type declarations.
 
 ## `array-from-i8s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I8</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -87,7 +87,7 @@ This module exports no type declarations.
 
 ## `array-from-isizes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-isizes</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-isizes</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Isize</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -95,7 +95,7 @@ This module exports no type declarations.
 
 ## `array-from-u16s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u16s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u16s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -103,7 +103,7 @@ This module exports no type declarations.
 
 ## `array-from-u32s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u32s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -111,7 +111,7 @@ This module exports no type declarations.
 
 ## `array-from-u64s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u64s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -119,7 +119,7 @@ This module exports no type declarations.
 
 ## `array-from-u8s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 
@@ -127,7 +127,7 @@ This module exports no type declarations.
 
 ## `array-from-usizes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-usizes</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-usizes</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Usize</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Array.Packed.cinch)
 

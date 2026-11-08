@@ -109,13 +109,13 @@ bytes cross the boundary).
 
 [Source](/reference-sources/Text.Zlib.cinch) · line 100
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadChecksum</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadChecksum</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCode</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCode</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedStream</span> :: <span class="tok-constructor">ZlibError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedStream</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
 # Values
 
@@ -160,7 +160,7 @@ nothing is copied twice.
 
 ## `inflate`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ZlibError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 The whole stream: header, blocks, trailing Adler-32.
 

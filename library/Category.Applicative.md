@@ -64,7 +64,7 @@ Each states its own constraint and is reached with an explicit
 
 ## `Applicative.pure`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -72,7 +72,7 @@ Each states its own constraint and is reached with an explicit
 
 ## `Applicative.<*>`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;*&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;*&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 
@@ -80,7 +80,7 @@ Each states its own constraint and is reached with an explicit
 
 ## `Applicative.lift-a2`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">c</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">c</span>))))</code></pre>
 
 
 
@@ -90,7 +90,7 @@ Each states its own constraint and is reached with an explicit
 
 ## `ap`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
 `ap` is `(<*>)` under the name `Control.Monad` carries for it.
 `base` states it at `Monad` because its body there reaches `pure`;
@@ -103,7 +103,7 @@ the `Applicative` itself, whose `<*>` is this function.
 
 ## `replicate-m`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
 
 `replicate-m`: the action run `n` times, its results in order. Zero
 runs nothing and yields the empty list inside the effect; n runs
@@ -117,7 +117,7 @@ negative needs no refusal.
 
 ## `unless`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unless</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unless</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 [Source](/reference-sources/Category.Applicative.cinch)
 
@@ -125,7 +125,7 @@ negative needs no refusal.
 
 ## `void`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">void</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">void</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Functor</span>.<span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `void` keeps the structure and discards its values (base's
 Data.Functor.void). Its home is this module, whose combinators
@@ -138,7 +138,7 @@ nothing is built and nothing is observed.
 
 ## `when`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">when</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) . <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">when</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 `when`/`unless`: run the action only under the condition. The
 branch that does not run still needs a value of the effect's type
@@ -157,7 +157,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Category.Applicative.Applicative_Function` | `Applicative (((->) r))` | Implicit |
+| `Category.Applicative.Applicative_Function` | `Category.Applicative.Applicative ((->) r)` | Implicit |
 
 **`Category.Applicative.Applicative_Function`**: Structural: apply a function in an environment to a value in it.
 

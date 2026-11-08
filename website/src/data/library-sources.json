@@ -29,7 +29,7 @@
     {
       "module": "Algebra.Monoid",
       "path": "compiler/prelude/Algebra/Monoid.cinch",
-      "sha256": "7f71172956f30dbc67374308cbb6a582b905921936183ff366d2a05c56e05258",
+      "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591",
       "embedded": true,
       "values": 0,
       "public_methods": 2
@@ -397,7 +397,7 @@
     {
       "module": "Data.String",
       "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "eb33baef6f92bc39b36b9db2aac139073f131ae306237970781311ee57877ebb",
+      "sha256": "27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79",
       "embedded": true,
       "values": 27,
       "public_methods": 0
@@ -519,7 +519,7 @@
       "path": "compiler/prelude/Effect/Log.cinch",
       "sha256": "c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed",
       "embedded": false,
-      "values": 17,
+      "values": 19,
       "public_methods": 0
     },
     {
@@ -591,7 +591,7 @@
       "path": "compiler/prelude/Effect/Trace.cinch",
       "sha256": "fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366",
       "embedded": false,
-      "values": 3,
+      "values": 5,
       "public_methods": 0
     },
     {
@@ -711,7 +711,7 @@
       "path": "compiler/prelude/Text/Parse.cinch",
       "sha256": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
       "embedded": false,
-      "values": 43,
+      "values": 45,
       "public_methods": 0
     },
     {

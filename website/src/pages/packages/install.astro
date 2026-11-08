@@ -1,7 +1,10 @@
 ---
 import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import { DEFAULT_CATALOGUE_REGISTRY, loadCatalogue } from '../../lib/catalogue';
+const catalogue = await loadCatalogue();
+const registry = catalogue.registry ?? DEFAULT_CATALOGUE_REGISTRY;
 ---
-<PlatformLayout title="Install a package" description="Resolve a public registry release and prepare its project install command." section="packages">
+<PlatformLayout title="Install a package" description="Resolve a public registry release and prepare its project install command." section="packages" sample={catalogue.offline}>
   <section class="platform-banner catalogue-banner">
     <div class="platform-eyebrow mono"><span>PACKAGE INSTALL</span><span class="sample-badge">REGISTRY LOOKUP</span></div>
     <h1>Install a release.</h1>
@@ -10,7 +13,7 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
   <section class="platform-content install-page">
     <form class="install-form" id="install-form">
       <label class="mono" for="install-registry">REGISTRY URL</label>
-      <input id="install-registry" name="registry" type="url" value="http://127.0.0.1:8787" spellcheck="false" />
+      <input id="install-registry" name="registry" type="url" value={registry} spellcheck="false" />
       <label class="mono" for="install-name">PACKAGE</label>
       <input id="install-name" name="package" type="text" placeholder="alice/library" autocomplete="off" required />
       <label class="mono" for="install-version">VERSION <span>(OPTIONAL)</span></label>

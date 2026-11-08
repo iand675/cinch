@@ -69,7 +69,7 @@ for every index step, so every bulk copy goes through this.
 
 ## `bytes-from-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-list</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-list</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
 list of numerals decides each element at compile time and a
@@ -81,7 +81,7 @@ computed list carries its elements' ranges.
 
 ## `bytes-from-u8s`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-u8s</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-u8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
@@ -99,7 +99,7 @@ The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
 ## `bytes-len`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-len</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-len</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 `Bytes`: boxed byte buffers. `bytes-len` comes first: the other
 signatures name it. A length is an `i64` in the runtime, so it is at
@@ -116,7 +116,7 @@ conversion out of a `String` copies.
 
 ## `bytes-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-new</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">r</span>) <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-new</span> :: ((<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-variable">refined</span> ((<span class="tok-variable">b</span>.<span class="tok-variable">bytesLen</span> <span class="tok-variable">cinch-result</span>) <span class="tok-operator">==</span> <span class="tok-variable">n</span>) <span class="tok-constructor">Bytes</span>))</code></pre>
 
 [Source](/reference-sources/Data.Bytes.cinch)
 
@@ -147,9 +147,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Bytes.Eq_Bytes` | `Eq Bytes` | Implicit |
-| `Data.Bytes.FromList_Bytes` | `FromList Bytes U8` | Implicit |
-| `Data.Bytes.Hash_Bytes` | `Hash Bytes` | Implicit |
+| `Data.Bytes.Eq_Bytes` | `Relation.Eq.Eq Bytes` | Implicit |
+| `Data.Bytes.FromList_Bytes` | `Data.FromList.FromList Bytes U8` | Implicit |
+| `Data.Bytes.Hash_Bytes` | `Data.Hash.Hash Bytes` | Implicit |
 
 **`Data.Bytes.Hash_Bytes`**: The buffer's digest (instances live with their type). `Data.String`
 hashes its UTF-8 backing through THIS instance, so a string and the

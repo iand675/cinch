@@ -52,7 +52,7 @@ together with the deliberately non-preserving reverse-append).
 
 ## `merge`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">merge</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">merge</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The sorted merge: the output of merging sorted lists is sorted
 (preservation), and merge is associative (`Semigroup.assoc`);

@@ -48,7 +48,7 @@ D22; the classes live in Effect.Sequencing).
 
 ## `cat-options`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cat-options</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cat-options</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 The present values, in order; `None`s drop (`Data.Maybe.catMaybes`).
 `List` is nameable here because `Data.Core` declares it ahead of
@@ -61,7 +61,7 @@ module exists to break).
 
 ## `from-option`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-option</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-option</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 The value, or the default when there is none
 (`Data.Maybe.fromMaybe`); the default leads for the same reason, and
@@ -73,7 +73,7 @@ because the result's type is the default's type.
 
 ## `is-none`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-none</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-none</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 [Source](/reference-sources/Data.Option.cinch)
 
@@ -81,7 +81,7 @@ because the result's type is the default's type.
 
 ## `is-some`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-some</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 The presence tests: the tag read, no payload work, no constraint.
 
@@ -91,7 +91,7 @@ The presence tests: the tag read, no payload work, no constraint.
 
 ## `list-to-option`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">list-to-option</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">list-to-option</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 The first element, or `None` for the empty list
 (`Data.Maybe.listToMaybe`); the tail is deliberately not inspected,
@@ -103,7 +103,7 @@ so this is O(1) on any list.
 
 ## `map-option`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-option</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-option</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)))</code></pre>
 
 The option's own map, for a caller who has only the prelude: the
 `Functor` method of the same name (`map` in Data.List's surface) is
@@ -125,7 +125,7 @@ main = case map-option (\x -> x + 1) (Some 1) of
 
 ## `maybe`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maybe</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maybe</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 The fold: the default `d` unless there is a value, which `f`
 consumes. The default leads and the function follows, matching
@@ -138,7 +138,7 @@ point of these combinators, and the option is the thing opened last.
 
 ## `option-to-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">option-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 A `Some` is a one-element list and a `None` the empty list
 (`Data.Maybe.maybeToList`); `list-to-option` is its left inverse.
@@ -149,7 +149,7 @@ A `Some` is a one-element list and a `None` the empty list
 
 ## `or-else`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 First success: `None` falls through to the second option, `Some`
 keeps the first (`Control.Applicative`'s `(<|>)` for `Option`, which
@@ -167,15 +167,15 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Option.Alternative_Option` | `Alternative Option` | Implicit |
-| `Data.Option.Applicative_Option` | `Applicative Option` | Implicit |
-| `Data.Option.Foldable_Option` | `Foldable Option` | Implicit |
-| `Data.Option.Functor_Option` | `Functor Option` | Implicit |
-| `Data.Option.Monad_Option` | `Monad Option` | Implicit |
-| `Data.Option.Monoid_Option` | `Monoid (Option t)` | Implicit |
-| `Data.Option.Semigroup_Option` | `Semigroup (Option t)` | Implicit |
+| `Data.Option.Alternative_Option` | `Category.Alternative.Alternative Data.Core.Option` | Implicit |
+| `Data.Option.Applicative_Option` | `Category.Applicative.Applicative Data.Core.Option` | Implicit |
+| `Data.Option.Foldable_Option` | `Category.Foldable.Foldable Data.Core.Option` | Implicit |
+| `Data.Option.Functor_Option` | `Category.Functor.Functor Data.Core.Option` | Implicit |
+| `Data.Option.Monad_Option` | `Category.Monad.Monad Data.Core.Option` | Implicit |
+| `Data.Option.Monoid_Option` | `Algebra.Monoid.Monoid (Data.Core.Option t)` | Implicit |
+| `Data.Option.Semigroup_Option` | `Algebra.Semigroup.Semigroup (Data.Core.Option t)` | Implicit |
 | `Data.Option.SeqOption` | `OptionSequencing` | Implicit |
-| `Data.Option.Traversable_Option` | `Traversable Option` | Implicit |
+| `Data.Option.Traversable_Option` | `Category.Traversable.Traversable Data.Core.Option` | Implicit |
 
 **`Data.Option.Alternative_Option`**: First success wins: `None <|> y` is `y`, `Some x <|> y` keeps `x`
 (moved from Category.Alternative).

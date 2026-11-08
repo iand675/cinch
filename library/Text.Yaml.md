@@ -118,7 +118,7 @@ functions.
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlError</span> :: (<span class="tok-constructor">YamlErrorKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">YamlError</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span>))))</code></pre>
 
 <a id="type-59616d6c4572726f724b696e64"></a>
 
@@ -131,29 +131,29 @@ refusal is about.
 
 [Source](/reference-sources/Text.Yaml.cinch) · line 119
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlSyntaxError</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlSyntaxError</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlIndentationError</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlIndentationError</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedTag</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedTag</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlObjectTag</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlObjectTag</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMergeKey</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMergeKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMultiDocument</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMultiDocument</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUndefinedAlias</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUndefinedAlias</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlAliasCycle</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlAliasCycle</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDirective</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDirective</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlComplexKey</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlComplexKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDuplicateKey</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDuplicateKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedScalar</span> :: <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedScalar</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
 
 # Values
 
@@ -161,7 +161,7 @@ refusal is about.
 
 ## `render-yaml-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-yaml-error</span> :: (<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-yaml-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
@@ -169,7 +169,7 @@ refusal is about.
 
 ## `yaml-error-column`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-column</span> :: (<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-column</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
@@ -177,7 +177,7 @@ refusal is about.
 
 ## `yaml-error-kind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-kind</span> :: (<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">YamlErrorKind</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-kind</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span>)</code></pre>
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
@@ -185,7 +185,7 @@ refusal is about.
 
 ## `yaml-error-line`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-line</span> :: (<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-line</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
@@ -193,7 +193,7 @@ refusal is about.
 
 ## `yaml-error-message`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-message</span> :: (<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Yaml.cinch)
 
@@ -201,7 +201,7 @@ refusal is about.
 
 ## `yaml-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">YamlError</span> <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
 
 The two surface functions.
 
@@ -211,7 +211,7 @@ The two surface functions.
 
 ## `yaml-print`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-print</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-print</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Printing: block style, indentation carries the structure. Total
 (the header's law), so an ill-formed spine prints as one trailing
@@ -225,7 +225,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Text.Yaml.Eq_YamlErrorKind` | `Eq YamlErrorKind` | Implicit |
+| `Text.Yaml.Eq_YamlErrorKind` | `Relation.Eq.Eq Text.Yaml.YamlErrorKind` | Implicit |
 
 # Reference provenance
 

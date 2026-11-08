@@ -51,7 +51,7 @@ here. `Nat` gets no `Group` instance: its subtraction truncates
 
 ## `Group.invert`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">invert</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Group</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">invert</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Group</span>.<span class="tok-constructor">Group</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 
 
@@ -61,8 +61,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Algebra.Group.Group_Function` | `Group (t -> u)` | Implicit |
-| `Algebra.Group.Group_Pair` | `Group (t, u)` | Implicit |
+| `Algebra.Group.Group_Function` | `Algebra.Group.Group (t -> u)` | Implicit |
+| `Algebra.Group.Group_Pair` | `Algebra.Group.Group (t, u)` | Implicit |
 
 **`Algebra.Group.Group_Function`**: Structural: pointwise inversion of functions into a group. The
 method is eta-expanded (`invert f` at x is `invert (f x)`)

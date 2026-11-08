@@ -47,7 +47,7 @@ prelude split (Data.List/Data.Option).
 
 ## `Alternative.empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Alternative</span>.<span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)</code></pre>
 
 
 
@@ -55,7 +55,7 @@ prelude split (Data.List/Data.Option).
 
 ## `Alternative.<|>`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;|&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;|&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Alternative</span>.<span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)))</code></pre>
 
 
 

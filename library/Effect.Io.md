@@ -79,7 +79,7 @@ The path text (POSIX; UTF-8 at the boundary).
 
 ## `parse-config`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Config</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Io.cinch)
 
@@ -87,7 +87,7 @@ The path text (POSIX; UTF-8 at the boundary).
 
 ## `read-config-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">read-config-bytes</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">read-config-bytes</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Io.cinch)
 

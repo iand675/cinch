@@ -61,11 +61,11 @@ required wrapper around either.
 
 [Source](/reference-sources/Text.Args.cinch) · line 52
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ValueSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ValueSpec</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Required</span> :: (<span class="tok-constructor">ArgSpec</span> -&gt; <span class="tok-constructor">ArgSpec</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Required</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
 
 <a id="type-41726773"></a>
 
@@ -78,7 +78,7 @@ positional values in argv order.
 
 [Source](/reference-sources/Text.Args.cinch) · line 72
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Args</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Args</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Args</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span>))</code></pre>
 
 <a id="type-417267734572726f72"></a>
 
@@ -92,13 +92,13 @@ not occur.
 
 [Source](/reference-sources/Text.Args.cinch) · line 86
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingRequired</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">ArgsError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingRequired</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
 
 <a id="type-4f707456616c"></a>
 
@@ -111,7 +111,7 @@ One option occurrence: its name and its value (a flag's value is
 
 [Source](/reference-sources/Text.Args.cinch) · line 59
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptVal</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">OptVal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptVal</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span>))</code></pre>
 
 # Values
 
@@ -119,7 +119,7 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `args-options`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-options</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">OptVal</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-options</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span>))</code></pre>
 
 [Source](/reference-sources/Text.Args.cinch)
 
@@ -127,7 +127,7 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `args-values`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-values</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Args.cinch)
 
@@ -135,7 +135,7 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `opt-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-name</span> :: (<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Args.cinch)
 
@@ -143,7 +143,7 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `opt-value`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-value</span> :: (<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Args.cinch)
 
@@ -151,7 +151,7 @@ One option occurrence: its name and its value (a flag's value is
 
 ## `parse-args`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-args</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">ArgSpec</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ArgsError</span> <span class="tok-constructor">Args</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-args</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span>)))</code></pre>
 
 The argv walk: options and values accumulate in order; `--` ends
 the options.
@@ -162,7 +162,7 @@ the options.
 
 ## `render-args-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-args-error</span> :: (<span class="tok-constructor">ArgsError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-args-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Args.cinch)
 
@@ -170,7 +170,7 @@ the options.
 
 ## `render-argv`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-argv</span> :: (<span class="tok-constructor">Args</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-argv</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The canonical argv of one parse: `--name=value` per value
 occurrence, `--name` per flag, then the positional values.

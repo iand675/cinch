@@ -102,7 +102,7 @@ None).
 
 [Source](/reference-sources/Text.Regex.cinch) · line 895
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Match</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Match</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Match</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
 
 <a id="type-5265676578"></a>
 
@@ -112,7 +112,7 @@ None).
 
 [Source](/reference-sources/Text.Regex.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Regex</span> :: (<span class="tok-constructor">Prog</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Regex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Regex</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Prog</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span>))</code></pre>
 
 <a id="type-52656765784572726f72"></a>
 
@@ -126,47 +126,47 @@ offset for the report.
 
 [Source](/reference-sources/Text.Regex.cinch) · line 201
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BackreferenceRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BackreferenceRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LookaroundRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LookaroundRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NamedGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NamedGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodePropertyRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodePropertyRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnsupportedEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnsupportedEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PossessiveRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PossessiveRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NestedRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NestedRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyWidthRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyWidthRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DanglingQuantifier</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DanglingQuantifier</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RepeatLimitExceeded</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RepeatLimitExceeded</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidClassRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidClassRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedClass</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedClass</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedGroup</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedGroup</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedCloseParen</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedCloseParen</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TrailingBackslash</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TrailingBackslash</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidHexEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidHexEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProgramTooLarge</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">RegexError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProgramTooLarge</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPatternSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">RegexError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPatternSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
 
 # Values
 
@@ -174,7 +174,7 @@ offset for the report.
 
 ## `match-end`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-end</span> :: (<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-end</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -182,7 +182,7 @@ offset for the report.
 
 ## `match-group`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group</span> :: (<span class="tok-constructor">Match</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -190,7 +190,7 @@ offset for the report.
 
 ## `match-group-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group-count</span> :: (<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group-count</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -198,7 +198,7 @@ offset for the report.
 
 ## `match-start`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-start</span> :: (<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-start</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -206,7 +206,7 @@ offset for the report.
 
 ## `match-text`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-text</span> :: (<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -214,7 +214,7 @@ offset for the report.
 
 ## `parse-regex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-regex</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">RegexError</span> <span class="tok-constructor">Regex</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-regex</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span>))</code></pre>
 
 Compile a pattern. The parser is strict about quantifier
 position: `{` right after an atom MUST be a valid quantifier
@@ -227,7 +227,7 @@ elsewhere is a literal.
 
 ## `regex-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-count</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-count</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 Count the matches (the scan's length).
 
@@ -237,7 +237,7 @@ Count the matches (the scan's length).
 
 ## `regex-escape`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-escape</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-escape</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Escape the regex metacharacters in a literal string, so the
 result matches exactly that string (Ruby's Regexp.escape).
@@ -248,7 +248,7 @@ result matches exactly that string (Ruby's Regexp.escape).
 
 ## `regex-match`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Match</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
 
 The leftmost-first match of the pattern anywhere in the string.
 
@@ -258,7 +258,7 @@ The leftmost-first match of the pattern anywhere in the string.
 
 ## `regex-match-counted`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match-counted</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Match</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match-counted</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>), <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The match and the engine's VM dispatch count (the ReDoS pin:
 this counter is the wall-clock-independent measure of work).
@@ -269,7 +269,7 @@ this counter is the wall-clock-independent measure of work).
 
 ## `regex-replace-all`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all</span> :: (<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 Replace every match with `f` applied to it (the text between
 matches is copied through unchanged).
@@ -280,7 +280,7 @@ matches is copied through unchanged).
 
 ## `regex-replace-all-template`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all-template</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all-template</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -288,7 +288,7 @@ matches is copied through unchanged).
 
 ## `regex-replace-first`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first</span> :: (<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -296,7 +296,7 @@ matches is copied through unchanged).
 
 ## `regex-replace-first-template`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first-template</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first-template</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -304,7 +304,7 @@ matches is copied through unchanged).
 
 ## `regex-scan`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Match</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
 
 The scanning family: every non-overlapping match left to right.
 After a non-empty match the scan resumes at its end; after an
@@ -318,7 +318,7 @@ documents for String#scan.)
 
 ## `regex-scan-texts`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan-texts</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan-texts</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 
@@ -326,7 +326,7 @@ documents for String#scan.)
 
 ## `regex-search-from`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-search-from</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Match</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-search-from</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>))))</code></pre>
 
 The leftmost-first match starting at or after byte offset
 `from` (`^` still means the text start; `from` only bounds
@@ -338,7 +338,7 @@ where matches may begin).
 
 ## `regex-split`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-split</span> :: (<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-split</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 Split at every match (the separators are removed; a captured
 group is not echoed into the output). Trailing empty pieces are
@@ -350,7 +350,7 @@ dropped, Ruby's default.
 
 ## `render-regex-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-regex-error</span> :: (<span class="tok-constructor">RegexError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-regex-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Regex.cinch)
 

@@ -40,7 +40,7 @@ This module exports no type declarations.
 
 ## `checked-int-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-int-to-i64</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-int-to-i64</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Int.cinch)
 
@@ -64,7 +64,7 @@ This module exports no type declarations.
 
 ## `int-div`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-div</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Int</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-div</span> :: (<span class="tok-constructor">Int</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>) -&gt; <span class="tok-constructor">Int</span>))</code></pre>
 
 [Source](/reference-sources/Data.Int.cinch)
 
@@ -72,7 +72,7 @@ This module exports no type declarations.
 
 ## `int-from-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-from-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-from-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I64</span>) -&gt; (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>) <span class="tok-constructor">Int</span>))</code></pre>
 
 The `I64` conversions keep the value; an `Int` past the `I64`
 range is no `I64`, so `int-to-i64` states the range it needs (a
@@ -85,7 +85,7 @@ answers `None` outside it.
 
 ## `int-mod-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-mod-nat</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-mod-nat</span> :: (<span class="tok-constructor">Int</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 The floored residue of `x` modulo `d` as a `Nat`, `0 <= r < d`
 for every `x` (a negative `x` counts up from `d`): an encoding into
@@ -113,7 +113,7 @@ for every `x` (a negative `x` counts up from `d`): an encoding into
 
 ## `int-rem`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-rem</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Int</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-rem</span> :: (<span class="tok-constructor">Int</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>) -&gt; <span class="tok-constructor">Int</span>))</code></pre>
 
 [Source](/reference-sources/Data.Int.cinch)
 
@@ -139,18 +139,18 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Int.Add_Int` | `Add Int` | Implicit |
-| `Data.Int.Div_Int` | `Div Int` | Implicit |
+| `Data.Int.Add_Int` | `Algebra.Arithmetic.Add Int` | Implicit |
+| `Data.Int.Div_Int` | `Algebra.Arithmetic.Div Int` | Implicit |
 | `Data.Int.Enum_Int` | `Enum Int` | Implicit |
-| `Data.Int.Eq_Int` | `Eq Int` | Implicit |
-| `Data.Int.Group_Int` | `Group Int` | Implicit |
-| `Data.Int.Hash_Int` | `Hash Int` | Implicit |
-| `Data.Int.Mul_Int` | `Mul Int` | Implicit |
-| `Data.Int.Neg_Int` | `Neg Int` | Implicit |
-| `Data.Int.Ord_Int` | `Ord Int` | Implicit |
-| `Data.Int.Rem_Int` | `Rem Int` | Implicit |
-| `Data.Int.Semiring_Int` | `Semiring Int` | Implicit |
-| `Data.Int.Sub_Int` | `Sub Int` | Implicit |
+| `Data.Int.Eq_Int` | `Relation.Eq.Eq Int` | Implicit |
+| `Data.Int.Group_Int` | `Algebra.Group.Group Int` | Implicit |
+| `Data.Int.Hash_Int` | `Data.Hash.Hash Int` | Implicit |
+| `Data.Int.Mul_Int` | `Algebra.Arithmetic.Mul Int` | Implicit |
+| `Data.Int.Neg_Int` | `Algebra.Arithmetic.Neg Int` | Implicit |
+| `Data.Int.Ord_Int` | `Relation.Ord.Ord Int` | Implicit |
+| `Data.Int.Rem_Int` | `Algebra.Arithmetic.Rem Int` | Implicit |
+| `Data.Int.Semiring_Int` | `Algebra.Semiring.Semiring Int` | Implicit |
+| `Data.Int.Sub_Int` | `Algebra.Arithmetic.Sub Int` | Implicit |
 
 **`Data.Int.Enum_Int`**: The enumeration of mathematical integers (Data.Enum): total in
 both directions, codes consecutive (instances live with their

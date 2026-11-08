@@ -54,13 +54,13 @@ surface (D308) for handler clauses that match on them.
 
 [Source](/reference-sources/Effect.Log.cinch) · line 36
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Debug</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Debug</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Info</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Info</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Warn</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Warn</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Error</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Error</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
 <a id="type-4d65747269634b696e64"></a>
 
@@ -75,11 +75,11 @@ values into buckets. The lowercase values are the DX spelling at a
 
 [Source](/reference-sources/Effect.Log.cinch) · line 67
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Counter</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Counter</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gauge</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gauge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Histogram</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Histogram</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
 # Values
 
@@ -87,7 +87,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `arr`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arr</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arr</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -95,7 +95,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `counter`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">counter</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">counter</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -103,7 +103,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `debug`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">debug</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">debug</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -111,7 +111,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -119,7 +119,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `fields`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fields</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fields</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -127,7 +127,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `flag`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flag</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flag</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -135,7 +135,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `gauge`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gauge</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gauge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -143,7 +143,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `histogram`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">histogram</span> :: <span class="tok-constructor">MetricKind</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">histogram</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -151,7 +151,7 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `info`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">info</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">info</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -159,28 +159,44 @@ values into buckets. The lowercase values are the DX spelling at a
 
 ## `level-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">level-name</span> :: (<span class="tok-constructor">LogLevel</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">level-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The level's text in a record (`"debug"`, `"info"`, `"warn"`,
 `"error"`).
 
 [Source](/reference-sources/Effect.Log.cinch) · line 56
 
+<a id="value-6c6f67"></a>
+
+## `log`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Effect.Log.cinch)
+
 <a id="value-6c6f672d7265636f7264"></a>
 
 ## `log-record`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log-record</span> :: (<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log-record</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
 
 A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
 [Source](/reference-sources/Effect.Log.cinch) · line 123
 
+<a id="value-6d6574726963"></a>
+
+## `metric`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))))</code></pre>
+
+[Source](/reference-sources/Effect.Log.cinch)
+
 <a id="value-6d65747269632d6b696e642d6e616d65"></a>
 
 ## `metric-kind-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-kind-name</span> :: (<span class="tok-constructor">MetricKind</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-kind-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -188,7 +204,7 @@ A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
 ## `metric-record`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-record</span> :: (<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-record</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))))</code></pre>
 
 A metric record: `{"metric": ..., "name": ..., "value": ...,
 "fields": ...}`.
@@ -199,7 +215,7 @@ A metric record: `{"metric": ..., "name": ..., "value": ...,
 
 ## `no-fields`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">no-fields</span> :: <span class="tok-constructor">Json</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">no-fields</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
 
 The field payload of a record: a `Json` object. `no-fields` is the
 empty payload; `fields` builds one from its pairs (the DX shape:
@@ -213,7 +229,7 @@ array.
 
 ## `num`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">num</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">num</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -221,7 +237,7 @@ array.
 
 ## `str`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">str</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">str</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 
@@ -229,7 +245,7 @@ array.
 
 ## `warn`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">warn</span> :: <span class="tok-constructor">LogLevel</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">warn</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
 
 [Source](/reference-sources/Effect.Log.cinch)
 

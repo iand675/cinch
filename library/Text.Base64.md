@@ -80,11 +80,11 @@ vocabulary shape, never a fault).
 
 [Source](/reference-sources/Text.Base64.cinch) · line 68
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Character</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Base64Error</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Character</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Base64Error</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Padding</span> :: <span class="tok-constructor">Base64Error</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Padding</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span></code></pre>
 
 # Values
 
@@ -92,7 +92,7 @@ vocabulary shape, never a fault).
 
 ## `base64-decode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 Strict decoding.
 
@@ -102,7 +102,7 @@ Strict decoding.
 
 ## `base64-decode-lenient`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode-lenient</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 Lenient decoding (Ruby's `decode64`): drop every non-alphabet
 scalar and pack what remains, never failing.
@@ -113,7 +113,7 @@ scalar and pack what remains, never failing.
 
 ## `base64-encode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Encoding.
 
@@ -123,7 +123,7 @@ Encoding.
 
 ## `base64-url-decode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 [Source](/reference-sources/Text.Base64.cinch)
 
@@ -131,7 +131,7 @@ Encoding.
 
 ## `base64-url-encode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Base64.cinch)
 

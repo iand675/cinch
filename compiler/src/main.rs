@@ -20,7 +20,14 @@ usage:
   cinch doc highlight <file.cinch> [--out <html>]
   cinch repl                       interactive session in the current project
   cinch jit <file.cinch>           JIT-compile and run (requires the jit feature)
-  cinch pkg add NAME@VERSION       install a registry package into a project
+  cinch jit --package-object <package.o> --call <symbol>
+                                   load an installed package object and call one
+                                   zero-arity unit (requires the jit feature)
+  cinch pkg add NAME@VERSION | PATH_DIR | URL --git-rev REV
+                                   install a registry, path, or git package
+  cinch pkg add --path DIR | --git URL --git-rev REV
+                                   install a local or git source explicitly
+  cinch pkg install [--locked]     install the project .cinchpkg dependencies
 
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
@@ -55,15 +62,84 @@ fn main() {
         Some("jit") => {
             #[cfg(feature = "jit")]
             {
-                let Some(file) = args.get(1) else {
-                    eprintln!("cinch jit: needs a source file");
-                    exit(2);
-                };
-                match cinch::driver::jit_file(std::path::Path::new(file)) {
-                    Ok(code) => exit(code),
-                    Err(error) => {
-                        eprintln!("cinch: {error}");
-                        exit(1);
+                let mut file: Option<&str> = None;
+                let mut object: Option<&str> = None;
+                let mut symbol: Option<&str> = None;
+                let mut i = 1;
+                while i < args.len() {
+                    match args[i].as_str() {
+                        "--package-object" => {
+                            i += 1;
+                            match args.get(i) {
+                                Some(path) => object = Some(path),
+                                None => {
+                                    eprintln!("cinch jit: --package-object needs a path");
+                                    exit(2);
+                                }
+                            }
+                        }
+                        "--call" => {
+                            i += 1;
+                            match args.get(i) {
+                                Some(name) => symbol = Some(name),
+                                None => {
+                                    eprintln!("cinch jit: --call needs a unit symbol");
+                                    exit(2);
+                                }
+                            }
+                        }
+                        other if other.starts_with("--") => {
+                            eprintln!("cinch jit: unknown flag {other}");
+                            exit(2);
+                        }
+                        other => {
+                            if file.is_some() {
+                                eprintln!("cinch jit: takes one source file");
+                                exit(2);
+                            }
+                            file = Some(other);
+                        }
+                    }
+                    i += 1;
+                }
+                match (file, object, symbol) {
+                    (Some(file), None, None) => {
+                        match cinch::driver::jit_file(std::path::Path::new(file)) {
+                            Ok(code) => exit(code),
+                            Err(error) => {
+                                eprintln!("cinch: {error}");
+                                exit(1);
+                            }
+                        }
+                    }
+                    (None, Some(object), Some(symbol)) => {
+                        match cinch::driver::jit_package_symbol(
+                            std::path::Path::new(object),
+                            symbol,
+                        ) {
+                            Ok(value) => {
+                                println!("{value}");
+                                exit(0);
+                            }
+                            Err(error) => {
+                                eprintln!("cinch: {error}");
+                                exit(1);
+                            }
+                        }
+                    }
+                    (Some(_), Some(_), _) => {
+                        eprintln!(
+                            "cinch jit: a source program and an installed package object cannot share one engine while the program still compiles its dependency sources"
+                        );
+                        exit(2);
+                    }
+                    (None, Some(_), None) => {
+                        eprintln!("cinch jit: --package-object needs --call SYMBOL");
+                        exit(2);
+                    }
+                    _ => {
+                        eprintln!("cinch jit: needs a source file, or --package-object and --call");
+                        exit(2);
                     }
                 }
             }
@@ -100,9 +176,19 @@ fn main() {
         match rest[i].as_str() {
             "--object-roots" => {
                 i += 1;
-                let Some(path) = rest.get(i) else { eprintln!("cinch: --object-roots needs a path"); exit(2) };
-                let text = std::fs::read_to_string(path).unwrap_or_else(|e| { eprintln!("cinch: {path}: {e}"); exit(2) });
-                opts.object_roots = cinch::specialize::parse_object_roots(&text).unwrap_or_else(|e| { eprintln!("cinch: {e}"); exit(2) });
+                let Some(path) = rest.get(i) else {
+                    eprintln!("cinch: --object-roots needs a path");
+                    exit(2)
+                };
+                let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
+                    eprintln!("cinch: {path}: {e}");
+                    exit(2)
+                });
+                opts.object_roots =
+                    cinch::specialize::parse_object_roots(&text).unwrap_or_else(|e| {
+                        eprintln!("cinch: {e}");
+                        exit(2)
+                    });
             }
             "-o" => {
                 i += 1;

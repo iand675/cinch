@@ -1,11 +1,16 @@
-//! Install a registry package into a project and turn it into checked
-//! interfaces and a native library object.
+//! Install a package into a project and turn it into checked interfaces and a
+//! native library object.
 //!
-//! The registry is the runnable v0 HTTP service in `registry/`. Reads accept
-//! a bearer token for private packages; `pkg publish` uses the same token.
-//! Resolution supports exact versions and common semver ranges, with conflict
-//! checks when several dependencies constrain one package name. The installed
-//! source tree is placed under `vendor/`, which the source loader indexes
+//! Sources are registry releases over the v0 HTTP service in `registry/`,
+//! local `path` directories, and `git` checkouts (`<path>`, `file://`, and
+//! https). Registry reads accept a bearer token for private packages; `pkg
+//! publish` uses the same token. Resolution supports exact versions and common
+//! semver ranges, with conflict checks when several dependencies constrain one
+//! package name.
+//!
+//! Path and git identity is the content root over the canonical manifest and
+//! the sorted source hashes, never the directory or the revision. Every
+//! installed release is placed under `vendor/`, which the source loader indexes
 //! recursively.
 
 use crate::driver::{driver_opts, DriverOptions, Mode};
@@ -21,10 +26,14 @@ const DEFAULT_REGISTRY: &str = "http://127.0.0.1:8787";
 
 const USAGE: &str = "usage:
   cinch pkg add NAME@VERSION [--registry URL] [--project DIR] [--token TOKEN]
+  cinch pkg add PATH_DIR | --path DIR [--project DIR]
+  cinch pkg add URL --git-rev REV | --git URL --git-rev REV [--project DIR]
+  cinch pkg install [--project DIR] [--registry URL] [--token TOKEN] [--locked]
   cinch pkg publish [--registry URL] [--project DIR] [--token TOKEN] [--visibility public|private]
-  cinch pkg verify [--project DIR]";
+  cinch pkg verify [--slsa] [--project DIR]";
 
 /// What one install produced.
+#[derive(Debug)]
 pub struct Installed {
     pub name: String,
     pub version: String,
@@ -45,10 +54,12 @@ pub struct Published {
 /// What one lock verification produced.
 pub struct Verified {
     pub packages: usize,
+    pub provenance_levels: Vec<String>,
 }
 
 enum Output {
     Installed(Installed),
+    InstalledList(Vec<Installed>),
     Published(Published),
     Verified(Verified),
 }
@@ -57,11 +68,13 @@ enum Output {
 pub fn cli(args: &[String]) -> i32 {
     match run(args) {
         Ok(Output::Installed(installed)) => {
-            println!("installed {} {}", installed.name, installed.version);
-            println!("  source: {}", installed.source_dir.display());
-            println!("  object: {}", installed.object.display());
-            println!("  abi: {}", installed.abi.display());
-            println!("  interfaces: {}", installed.interfaces.display());
+            report(&installed);
+            0
+        }
+        Ok(Output::InstalledList(installed)) => {
+            for package in &installed {
+                report(package);
+            }
             0
         }
         Ok(Output::Published(published)) => {
@@ -71,6 +84,9 @@ pub fn cli(args: &[String]) -> i32 {
         }
         Ok(Output::Verified(verified)) => {
             println!("verified {} package(s)", verified.packages);
+            for level in &verified.provenance_levels {
+                println!("  provenance: {level}");
+            }
             0
         }
         Err(error) => {
@@ -80,26 +96,59 @@ pub fn cli(args: &[String]) -> i32 {
     }
 }
 
+fn report(installed: &Installed) {
+    println!("installed {} {}", installed.name, installed.version);
+    if !installed.package_id.is_empty() {
+        println!("  identity: {}", installed.package_id);
+    }
+    println!("  source: {}", installed.source_dir.display());
+    println!("  object: {}", installed.object.display());
+    println!("  abi: {}", installed.abi.display());
+    println!("  interfaces: {}", installed.interfaces.display());
+}
+
 fn run(args: &[String]) -> Result<Output> {
     let Some(command) = args.first().map(String::as_str) else {
         return Err(Error::plain(USAGE));
     };
     match command {
         "add" | "install" => {
-            let spec = args
-                .get(1)
-                .ok_or_else(|| Error::plain("pkg add needs NAME@VERSION"))?;
-            let flags = Flags::parse(&args[2..], false)?;
-            install_with_token(
-                &flags.project,
-                &flags.registry,
-                spec,
-                flags.token.as_deref(),
-            )
-            .map(Output::Installed)
+            let (flags, positional) = Flags::parse(&args[1..], false)?;
+            let request = source_request(command, &flags, positional)?;
+            match request {
+                SourceRequest::Registry(spec) => {
+                    let installed = install_with_token(
+                        &flags.project,
+                        &flags.registry,
+                        &spec,
+                        flags.token.as_deref(),
+                    )?;
+                    Ok(Output::Installed(installed))
+                }
+                SourceRequest::Local(source) => {
+                    let mut context = InstallContext::new(
+                        &flags.project,
+                        &flags.registry,
+                        flags.token.as_deref(),
+                        flags.locked,
+                    );
+                    let installed = context.install_sources(vec![source.resolve()?])?;
+                    Ok(Output::InstalledList(installed))
+                }
+                SourceRequest::Project => {
+                    let mut context = InstallContext::new(
+                        &flags.project,
+                        &flags.registry,
+                        flags.token.as_deref(),
+                        flags.locked,
+                    );
+                    let installed = context.install_project_manifest()?;
+                    Ok(Output::InstalledList(installed))
+                }
+            }
         }
         "publish" => {
-            let flags = Flags::parse(&args[1..], true)?;
+            let (flags, _) = Flags::parse(&args[1..], true)?;
             let token = flags
                 .token
                 .as_deref()
@@ -108,11 +157,129 @@ fn run(args: &[String]) -> Result<Output> {
             publish(&flags.project, &flags.registry, token, visibility).map(Output::Published)
         }
         "verify" => {
-            let flags = Flags::parse(&args[1..], false)?;
-            verify(&flags.project).map(Output::Verified)
+            let (flags, _) = Flags::parse(&args[1..], false)?;
+            if flags.slsa {
+                verify_slsa(&flags.project).map(Output::Verified)
+            } else {
+                verify(&flags.project).map(Output::Verified)
+            }
         }
         _ => Err(Error::plain(USAGE)),
     }
+}
+
+/// A package source named on the command line.
+enum PackageSource {
+    Path { path: String },
+    Git { url: String, rev: String },
+}
+
+impl PackageSource {
+    fn resolve(&self) -> Result<LocalSource> {
+        match self {
+            PackageSource::Path { path } => {
+                let dir = std::fs::canonicalize(path)
+                    .map_err(|e| Error::plain(format!("path package {path}: {e}")))?;
+                if !dir.join(".cinchpkg").is_file() {
+                    return Err(Error::plain(format!(
+                        "path package {path} has no .cinchpkg manifest"
+                    )));
+                }
+                Ok(LocalSource {
+                    kind: LocalKind::Path,
+                    original: path.clone(),
+                    rev: None,
+                    dir,
+                    marker: None,
+                })
+            }
+            PackageSource::Git { url, rev } => {
+                let checkout = git_checkout(url, rev)?;
+                Ok(LocalSource {
+                    kind: LocalKind::Git,
+                    original: url.clone(),
+                    rev: Some(rev.clone()),
+                    dir: checkout.dir,
+                    marker: Some(checkout.marker),
+                })
+            }
+        }
+    }
+}
+
+/// What `pkg add` and `pkg install` were asked to install.
+enum SourceRequest {
+    Registry(String),
+    Local(PackageSource),
+    Project,
+}
+
+fn source_request(
+    command: &str,
+    flags: &Flags,
+    positional: Option<String>,
+) -> Result<SourceRequest> {
+    if flags.path.is_some() && flags.git.is_some() {
+        return Err(Error::plain("--path and --git are mutually exclusive"));
+    }
+    if flags.git_rev.is_some() && flags.path.is_some() {
+        return Err(Error::plain(
+            "--git-rev belongs to a git source, not a path",
+        ));
+    }
+    if let Some(path) = &flags.path {
+        if positional.is_some() {
+            return Err(Error::plain(
+                "give the package directory positionally or with --path, not both",
+            ));
+        }
+        return Ok(SourceRequest::Local(PackageSource::Path {
+            path: path.clone(),
+        }));
+    }
+    if let Some(url) = &flags.git {
+        let rev = flags
+            .git_rev
+            .clone()
+            .ok_or_else(|| Error::plain("--git needs --git-rev REV"))?;
+        if positional.is_some() {
+            return Err(Error::plain(
+                "give the git URL positionally or with --git, not both",
+            ));
+        }
+        return Ok(SourceRequest::Local(PackageSource::Git {
+            url: url.clone(),
+            rev,
+        }));
+    }
+    let Some(spec) = positional else {
+        if command == "install" {
+            return Ok(SourceRequest::Project);
+        }
+        return Err(Error::plain(
+            "pkg add needs NAME@VERSION, a package directory, or a git URL with --git-rev REV",
+        ));
+    };
+    if let Some(rev) = &flags.git_rev {
+        return Ok(SourceRequest::Local(PackageSource::Git {
+            url: spec,
+            rev: rev.clone(),
+        }));
+    }
+    if spec.contains('@') {
+        return Ok(SourceRequest::Registry(spec));
+    }
+    if Path::new(&spec).is_dir() {
+        return Ok(SourceRequest::Local(PackageSource::Path { path: spec }));
+    }
+    if spec.contains("://") || spec.ends_with(".git") {
+        return Err(Error::plain(format!(
+            "git package {spec} needs --git-rev REV"
+        )));
+    }
+    Err(Error::plain(
+        "pkg add needs NAME@VERSION, a package directory, or a git URL with --git-rev REV",
+    ))
 }
 
 struct Flags {
@@ -120,10 +287,15 @@ struct Flags {
     project: PathBuf,
     token: Option<String>,
     visibility: Option<String>,
+    path: Option<String>,
+    git: Option<String>,
+    git_rev: Option<String>,
+    locked: bool,
+    slsa: bool,
 }
 
 impl Flags {
-    fn parse(args: &[String], allow_visibility: bool) -> Result<Flags> {
+    fn parse(args: &[String], allow_visibility: bool) -> Result<(Flags, Option<String>)> {
         let mut flags = Flags {
             registry: std::env::var("CINCH_REGISTRY").unwrap_or_else(|_| DEFAULT_REGISTRY.into()),
             project: std::env::current_dir()
@@ -132,7 +304,13 @@ impl Flags {
                 .ok()
                 .filter(|t| !t.is_empty()),
             visibility: None,
+            path: None,
+            git: None,
+            git_rev: None,
+            locked: false,
+            slsa: false,
         };
+        let mut positional: Option<String> = None;
         let mut i = 0;
         while i < args.len() {
             match args[i].as_str() {
@@ -158,6 +336,32 @@ impl Flags {
                             .ok_or_else(|| Error::plain("--token needs a value"))?,
                     );
                 }
+                "--path" => {
+                    i += 1;
+                    flags.path = Some(
+                        args.get(i)
+                            .cloned()
+                            .ok_or_else(|| Error::plain("--path needs a directory"))?,
+                    );
+                }
+                "--git" => {
+                    i += 1;
+                    flags.git = Some(
+                        args.get(i)
+                            .cloned()
+                            .ok_or_else(|| Error::plain("--git needs a URL"))?,
+                    );
+                }
+                "--git-rev" => {
+                    i += 1;
+                    flags.git_rev = Some(
+                        args.get(i)
+                            .cloned()
+                            .ok_or_else(|| Error::plain("--git-rev needs a revision"))?,
+                    );
+                }
+                "--locked" => flags.locked = true,
+                "--slsa" => flags.slsa = true,
                 "--visibility" if allow_visibility => {
                     i += 1;
                     flags.visibility = Some(
@@ -166,12 +370,22 @@ impl Flags {
                             .ok_or_else(|| Error::plain("--visibility needs public or private"))?,
                     );
                 }
-                other => return Err(Error::plain(format!("unknown pkg flag: {other}"))),
+                other if other.starts_with('-') => {
+                    return Err(Error::plain(format!("unknown pkg flag: {other}")))
+                }
+                other => {
+                    if positional.is_some() {
+                        return Err(Error::plain(format!(
+                            "unexpected extra package argument: {other}"
+                        )));
+                    }
+                    positional = Some(other.to_string());
+                }
             }
             i += 1;
         }
         flags.registry = flags.registry.trim_end_matches('/').to_string();
-        Ok(flags)
+        Ok((flags, positional))
     }
 }
 
@@ -195,101 +409,851 @@ fn install_with_token(
     }
     let registry = registry.trim_end_matches('/');
     let resolved = resolve_graph(registry, name, version, token)?;
-    let mut seen: BTreeMap<String, String> = BTreeMap::new();
-    install_recursive(
-        project, registry, name, version, token, &resolved, &mut seen,
-    )
+    let mut context = InstallContext::new(project, registry, token, false);
+    context.install_registry(name, version, &resolved)
 }
 
-fn install_recursive(
-    project: &Path,
-    registry: &str,
-    name: &str,
-    version: &str,
-    token: Option<&str>,
-    resolved: &BTreeMap<String, String>,
-    seen: &mut BTreeMap<String, String>,
-) -> Result<Installed> {
-    if let Some(previous) = seen.get(name) {
-        if previous == version {
-            return existing_install(project, registry, name, version);
+/// A local package source: a directory or a git checkout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LocalKind {
+    Path,
+    Git,
+}
+
+impl LocalKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            LocalKind::Path => "path",
+            LocalKind::Git => "git",
         }
+    }
+}
+
+/// Where a local package is read from. `original` keeps the authored spelling
+/// (a relative path or a git URL) so the lock records what the manifest says,
+/// not the absolute directory this process happened to resolve.
+#[derive(Clone, Debug)]
+struct LocalSource {
+    kind: LocalKind,
+    original: String,
+    rev: Option<String>,
+    dir: PathBuf,
+    marker: Option<PathBuf>,
+}
+
+impl LocalSource {
+    fn label(&self) -> String {
+        match self.kind {
+            LocalKind::Path => format!("path {}", self.original),
+            LocalKind::Git => format!(
+                "git {} at {}",
+                self.original,
+                self.rev.as_deref().unwrap_or("?")
+            ),
+        }
+    }
+
+    fn lock_source(&self) -> Value {
+        match self.kind {
+            LocalKind::Path => json!({"kind": "path", "path": self.original}),
+            LocalKind::Git => json!({
+                "kind": "git",
+                "url": self.original,
+                "rev": self.rev.clone().unwrap_or_default()
+            }),
+        }
+    }
+}
+
+/// One local package read and identified before any materialization.
+struct LocalPackage {
+    name: String,
+    version: String,
+    identity: String,
+    manifest: Value,
+    files: BTreeMap<String, Vec<u8>>,
+    source: LocalSource,
+}
+
+struct LocalPlan {
+    packages: Vec<LocalPackage>,
+    seeds: BTreeMap<String, Vec<Requirement>>,
+}
+
+/// Install state for one command: the project, the registry, and the names
+/// already claimed by this closure.
+struct InstallContext<'a> {
+    project: &'a Path,
+    registry: &'a str,
+    token: Option<&'a str>,
+    locked: bool,
+    /// Module name to the package that declares it.
+    module_owner: BTreeMap<String, String>,
+    /// Registry name to the version selected in this closure.
+    seen: BTreeMap<String, String>,
+}
+
+impl<'a> InstallContext<'a> {
+    fn new(
+        project: &'a Path,
+        registry: &'a str,
+        token: Option<&'a str>,
+        locked: bool,
+    ) -> InstallContext<'a> {
+        InstallContext {
+            project,
+            registry: registry.trim_end_matches('/'),
+            token,
+            locked,
+            module_owner: BTreeMap::new(),
+            seen: BTreeMap::new(),
+        }
+    }
+
+    fn install_sources(&mut self, roots: Vec<LocalSource>) -> Result<Vec<Installed>> {
+        if let Some(root) = roots.first() {
+            if same_directory(&root.dir, self.project) {
+                return Err(Error::plain(format!(
+                    "{} names the project directory; a project is not its own dependency",
+                    root.label()
+                )));
+            }
+        }
+        let plan = plan_packages(&roots, None, &mut self.module_owner)?;
+        self.install_plan(plan)
+    }
+
+    fn install_project_manifest(&mut self) -> Result<Vec<Installed>> {
+        let manifest = read_manifest(self.project).map_err(|e| {
+            Error::plain(format!(
+                "{} has no project manifest: {}",
+                self.project.display(),
+                e.message
+            ))
+        })?;
+        let plan = plan_packages(&[], Some((&manifest, self.project)), &mut self.module_owner)?;
+        self.install_plan(plan)
+    }
+
+    fn install_plan(&mut self, plan: LocalPlan) -> Result<Vec<Installed>> {
+        let resolved = if plan.seeds.is_empty() {
+            BTreeMap::new()
+        } else {
+            resolve_constraints(self.registry, &plan.seeds, self.token)?
+        };
+        for package in &plan.packages {
+            if resolved.contains_key(&package.name) {
+                return Err(Error::plain(format!(
+                    "one version per package name: {} is a local {} dependency and also a registry release in this closure",
+                    package.name,
+                    package.source.kind.as_str()
+                )));
+            }
+        }
+        if self.locked {
+            self.check_lock(&plan, &resolved)?;
+        }
+        let mut installed = Vec::new();
+        for (name, version) in &resolved {
+            installed.push(self.install_registry(name, version, &resolved)?);
+        }
+        for package in &plan.packages {
+            installed.push(self.materialize_local(package)?);
+        }
+        Ok(installed)
+    }
+
+    /// Install one registry release and its registry dependencies.
+    fn install_registry(
+        &mut self,
+        name: &str,
+        version: &str,
+        resolved: &BTreeMap<String, String>,
+    ) -> Result<Installed> {
+        if let Some(previous) = self.seen.get(name) {
+            if previous == version {
+                return existing_install(self.project, name, version);
+            }
+            return Err(Error::plain(format!(
+                "one version per package name: {name} resolves to {previous} and {version}"
+            )));
+        }
+        self.seen.insert(name.to_string(), version.to_string());
+        let metadata = fetch_metadata(self.registry, name, version, self.token)?;
+        if let Some(manifest) = metadata.get("manifest") {
+            self.claim_modules(name, manifest)?;
+            if let Some(dependencies) = manifest.get("dependencies").and_then(Value::as_array) {
+                for dependency in dependencies {
+                    let dep_name = dependency
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| Error::plain("a dependency has no name"))?;
+                    if dep_name == "cinch/base" || dep_name == "cinch-base" {
+                        continue;
+                    }
+                    validate_name(dep_name)?;
+                    let source = dependency
+                        .get("source")
+                        .and_then(Value::as_str)
+                        .unwrap_or("registry");
+                    if source != "registry" {
+                        return Err(local_source_from_registry_error(name, dep_name, source));
+                    }
+                    let requirement = Requirement::from_dependency(dependency)?;
+                    let dep_version = resolved.get(dep_name).cloned().ok_or_else(|| {
+                        Error::plain(format!(
+                            "resolution did not select a version for {dep_name}"
+                        ))
+                    })?;
+                    if !requirement.matches(&dep_version) {
+                        return Err(Error::plain(format!(
+                            "dependency conflict for {dep_name}: selected {dep_version}, but {name} requires {}",
+                            requirement.describe()
+                        )));
+                    }
+                    if self.seen.get(dep_name) == Some(&dep_version) {
+                        continue;
+                    }
+                    self.install_registry(dep_name, &dep_version, resolved)?;
+                }
+            }
+        }
+        let package_id = metadata
+            .get("packageId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain("registry metadata has no packageId"))?
+            .to_string();
+        let hex = package_id
+            .strip_prefix("sha256:")
+            .ok_or_else(|| Error::plain("packageId is not a sha256 digest"))?;
+        if hex.len() != 64 {
+            return Err(Error::plain("packageId is not a 32-byte SHA-256 digest"));
+        }
+        let download_url = format!("{}/api/v1/download/{hex}", self.registry);
+        let bundle: Value = serde_json::from_slice(&curl(&download_url, self.token)?)
+            .map_err(|e| Error::plain(format!("registry bundle: {e}")))?;
+        install_bundle(
+            self.project,
+            self.registry,
+            &package_id,
+            &bundle,
+            metadata.get("files"),
+            metadata.get("attestations"),
+        )
+    }
+
+    fn claim_modules(&mut self, package: &str, manifest: &Value) -> Result<()> {
+        for module in manifest_modules(manifest, package)? {
+            if let Some(owner) = self.module_owner.get(&module) {
+                if owner != package {
+                    return Err(Error::plain(format!(
+                        "module {module} is declared by both {owner} and {package}; a build selects one package per module name"
+                    )));
+                }
+            }
+            self.module_owner.insert(module, package.to_string());
+        }
+        Ok(())
+    }
+
+    fn materialize_local(&mut self, package: &LocalPackage) -> Result<Installed> {
+        let source = package.source.lock_source();
+        if let Some(installed) =
+            existing_materialization(self.project, &package.name, &package.identity)
+        {
+            update_lock(
+                self.project,
+                &package.name,
+                &package.version,
+                &package.identity,
+                &source,
+                &installed.source_dir,
+                &installed.object,
+                &installed.interfaces,
+            )?;
+            record_provenance(
+                self.project,
+                &package.name,
+                &package.version,
+                &package.identity,
+                &installed.source_dir,
+            )?;
+            return Ok(installed);
+        }
+        let readme = std::fs::read_to_string(package.source.dir.join("README.md")).ok();
+        materialize(
+            self.project,
+            &package.manifest,
+            &package.files,
+            &package.identity,
+            source,
+            readme.as_deref(),
+        )
+    }
+
+    /// `--locked` refuses to rewrite a lock. A path dependency whose bytes
+    /// changed is the dirty case the design names.
+    fn check_lock(&self, plan: &LocalPlan, resolved: &BTreeMap<String, String>) -> Result<()> {
+        let lock = read_lock(self.project)?;
+        for package in &plan.packages {
+            match lock.get(&package.name) {
+                Some(row)
+                    if row.get("package_id").and_then(Value::as_str)
+                        == Some(package.identity.as_str()) => {}
+                Some(row) => {
+                    let previous = row
+                        .get("package_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or("<missing>");
+                    return Err(Error::plain(format!(
+                        "--locked: {} dependency is dirty: .cinchlock records {previous} for {} {}, but {} now has content root {}; run `cinch pkg install` without --locked to update the lock",
+                        package.source.kind.as_str(),
+                        package.name,
+                        package.version,
+                        package.source.label(),
+                        package.identity
+                    )));
+                }
+                None => {
+                    return Err(Error::plain(format!(
+                        "--locked: {} is not in .cinchlock; run `cinch pkg install` without --locked first",
+                        package.name
+                    )))
+                }
+            }
+        }
+        for (name, version) in resolved {
+            match lock.get(name) {
+                Some(row)
+                    if row.get("version").and_then(Value::as_str) == Some(version.as_str()) => {}
+                Some(row) => {
+                    let previous = row
+                        .get("version")
+                        .and_then(Value::as_str)
+                        .unwrap_or("<missing>");
+                    return Err(Error::plain(format!(
+                        "--locked: registry dependency {name} would change from {previous} to {version}; run `cinch pkg install` without --locked to update the lock"
+                    )));
+                }
+                None => {
+                    return Err(Error::plain(format!(
+                        "--locked: registry dependency {name}@{version} is not in .cinchlock; run `cinch pkg install` without --locked first"
+                    )))
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn local_source_from_registry_error(package: &str, dependency: &str, source: &str) -> Error {
+    Error::plain(format!(
+        "registry package {package} declares a {source} dependency on {dependency}. A registry release cannot carry a usable local source; add {dependency} to the project manifest as a {source} dependency (or install it with `cinch pkg add --path` or `cinch pkg add --git URL --git-rev REV`) and run `cinch pkg install` from the project root"
+    ))
+}
+
+fn same_directory(left: &Path, right: &Path) -> bool {
+    match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+fn read_lock(project: &Path) -> Result<BTreeMap<String, Value>> {
+    let path = project.join(".cinchlock");
+    if !path.exists() {
+        return Ok(BTreeMap::new());
+    }
+    let bytes =
+        std::fs::read(&path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    let lock: Value = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    let packages = lock
+        .get("packages")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::plain(".cinchlock has no packages array"))?;
+    let mut entries = BTreeMap::new();
+    for row in packages {
+        let name = row
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain("lock entry has no name"))?;
+        entries.insert(name.to_string(), row.clone());
+    }
+    Ok(entries)
+}
+
+/// The artifacts of a previous install when the lock already records this
+/// content root, so an unchanged path or git dependency is not rebuilt.
+fn existing_materialization(project: &Path, name: &str, identity: &str) -> Option<Installed> {
+    let lock = read_lock(project).ok()?;
+    let row = lock.get(name)?;
+    if row.get("package_id").and_then(Value::as_str) != Some(identity) {
+        return None;
+    }
+    let version = row.get("version").and_then(Value::as_str)?;
+    let (namespace, package) = name.split_once('/')?;
+    let source_dir = project
+        .join("vendor")
+        .join(namespace)
+        .join(package)
+        .join(version);
+    let object = source_dir.join("package.o");
+    let abi = source_dir.join("package.abi.json");
+    let interfaces = source_dir.join("build");
+    if !object.exists() || !abi.exists() || !interfaces.exists() {
+        return None;
+    }
+    Some(Installed {
+        name: name.to_string(),
+        version: version.to_string(),
+        package_id: identity.to_string(),
+        source_dir,
+        object,
+        abi,
+        interfaces,
+    })
+}
+
+fn manifest_modules(manifest: &Value, owner: &str) -> Result<Vec<String>> {
+    let modules = manifest
+        .get("modules")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::plain(format!("{owner}: manifest has no modules")))?;
+    if modules.is_empty() {
+        return Err(Error::plain(format!("{owner}: manifest has no modules")));
+    }
+    let mut names = Vec::new();
+    for module in modules {
+        let name = module
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain(format!("{owner}: a module entry has no name")))?;
+        names.push(name.to_string());
+    }
+    Ok(names)
+}
+
+/// One dependency entry of a manifest.
+enum DependencySource {
+    Registry(Requirement),
+    Path(String),
+    Git { url: String, rev: String },
+}
+
+struct Dependency {
+    name: String,
+    source: DependencySource,
+    /// The version or range the depending manifest suggests. It never
+    /// participates in identity.
+    hint: Option<Requirement>,
+}
+
+fn parse_dependencies(manifest: &Value, owner: &str) -> Result<Vec<Dependency>> {
+    let mut out = Vec::new();
+    let Some(rows) = manifest.get("dependencies") else {
+        return Ok(out);
+    };
+    let rows = rows
+        .as_array()
+        .ok_or_else(|| Error::plain(format!("{owner}: dependencies must be an array")))?;
+    for row in rows {
+        let name = row
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain(format!("{owner}: a dependency has no name")))?
+            .to_string();
+        if name == "cinch/base" || name == "cinch-base" {
+            continue;
+        }
+        validate_name(&name).map_err(|e| {
+            Error::plain(format!("{owner} declares dependency {name}: {}", e.message))
+        })?;
+        let kind = row
+            .get("source")
+            .and_then(Value::as_str)
+            .unwrap_or("registry");
+        let source = match kind {
+            "registry" => DependencySource::Registry(Requirement::from_dependency(row)?),
+            "path" => {
+                let path = row.get("path").and_then(Value::as_str).ok_or_else(|| {
+                    Error::plain(format!(
+                        "{owner} dependency {name}: a path source needs a path"
+                    ))
+                })?;
+                if path.is_empty() {
+                    return Err(Error::plain(format!(
+                        "{owner} dependency {name}: the path is empty"
+                    )));
+                }
+                DependencySource::Path(path.to_string())
+            }
+            "git" => {
+                let url = row.get("url").and_then(Value::as_str).ok_or_else(|| {
+                    Error::plain(format!(
+                        "{owner} dependency {name}: a git source needs a url"
+                    ))
+                })?;
+                let rev = row.get("rev").and_then(Value::as_str).ok_or_else(|| {
+                    Error::plain(format!(
+                        "{owner} dependency {name}: a git source needs a rev"
+                    ))
+                })?;
+                if url.is_empty() || rev.is_empty() {
+                    return Err(Error::plain(format!(
+                        "{owner} dependency {name}: a git source needs a url and a rev"
+                    )));
+                }
+                DependencySource::Git {
+                    url: url.to_string(),
+                    rev: rev.to_string(),
+                }
+            }
+            other => {
+                return Err(Error::plain(format!(
+                "{owner} dependency {name}: unsupported source {other}; use registry, path, or git"
+            )))
+            }
+        };
+        let hint = if matches!(source, DependencySource::Registry(_)) {
+            None
+        } else if row.get("version").is_some() || row.get("range").is_some() {
+            Some(Requirement::from_dependency(row)?)
+        } else {
+            None
+        };
+        out.push(Dependency { name, source, hint });
+    }
+    Ok(out)
+}
+
+fn resolve_dependency_dir(base: &Path, path: &str) -> PathBuf {
+    let joined = if Path::new(path).is_absolute() {
+        PathBuf::from(path)
+    } else {
+        base.join(path)
+    };
+    std::fs::canonicalize(&joined).unwrap_or(joined)
+}
+
+struct LocalPlanner<'a> {
+    packages: Vec<LocalPackage>,
+    by_name: BTreeMap<String, usize>,
+    stack: Vec<String>,
+    seeds: BTreeMap<String, Vec<Requirement>>,
+    module_owner: &'a mut BTreeMap<String, String>,
+}
+
+fn plan_packages(
+    roots: &[LocalSource],
+    manifest_root: Option<(&Value, &Path)>,
+    module_owner: &mut BTreeMap<String, String>,
+) -> Result<LocalPlan> {
+    let mut planner = LocalPlanner {
+        packages: Vec::new(),
+        by_name: BTreeMap::new(),
+        stack: Vec::new(),
+        seeds: BTreeMap::new(),
+        module_owner,
+    };
+    for root in roots {
+        planner.visit(root)?;
+    }
+    if let Some((manifest, dir)) = manifest_root {
+        planner.visit_dependencies(manifest, dir, "the project manifest")?;
+    }
+    Ok(LocalPlan {
+        packages: planner.packages,
+        seeds: planner.seeds,
+    })
+}
+
+impl LocalPlanner<'_> {
+    /// Read one local package, verify its identity, and plan its dependencies.
+    /// Returns the index of the package in the plan (an already planned
+    /// identical package keeps its earlier index).
+    fn visit(&mut self, source: &LocalSource) -> Result<usize> {
+        let manifest = read_manifest(&source.dir)
+            .map_err(|e| Error::plain(format!("{}: {}", source.label(), e.message)))?;
+        let name = manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain(format!("{}: .cinchpkg has no name", source.label())))?
+            .to_string();
+        validate_name(&name)
+            .map_err(|e| Error::plain(format!("{}: {}", source.label(), e.message)))?;
+        let version = manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain(format!("{}: .cinchpkg has no version", source.label())))?
+            .to_string();
+        semver_key(&version)
+            .map_err(|e| Error::plain(format!("{}: {}", source.label(), e.message)))?;
+        let files = manifest_files(&source.dir, &manifest)
+            .map_err(|e| Error::plain(format!("{}: {}", source.label(), e.message)))?;
+        let identity = package_identity(&manifest, &files)?;
+        if let Some(marker) = &source.marker {
+            match std::fs::read_to_string(marker) {
+                Ok(previous) if previous.trim() == identity => {}
+                Ok(previous) => {
+                    return Err(Error::plain(format!(
+                        "{}: the cached checkout {} has content root {}, but the root recorded when it was fetched is {}; remove the checkout and retry",
+                        source.label(),
+                        source.dir.display(),
+                        identity,
+                        previous.trim()
+                    )))
+                }
+                Err(_) => {
+                    if let Some(parent) = marker.parent() {
+                        std::fs::create_dir_all(parent).map_err(|e| {
+                            Error::plain(format!("{}: {e}", parent.display()))
+                        })?;
+                    }
+                    std::fs::write(marker, &identity)
+                        .map_err(|e| Error::plain(format!("{}: {e}", marker.display())))?;
+                }
+            }
+        }
+        if let Some(index) = self.by_name.get(&name).copied() {
+            if self.packages[index].identity == identity {
+                return Ok(index);
+            }
+            return Err(Error::plain(format!(
+                "one version per package name: {name} resolves to two different contents ({} and {}); keep one release of a package name in a closure",
+                self.packages[index].source.label(),
+                source.label()
+            )));
+        }
+        if let Some(position) = self.stack.iter().position(|planned| planned == &name) {
+            let mut chain: Vec<String> = self.stack[position..].to_vec();
+            chain.push(name.clone());
+            return Err(Error::plain(format!(
+                "dependency cycle: {}",
+                chain.join(" -> ")
+            )));
+        }
+        for module in manifest_modules(&manifest, &source.label())? {
+            if let Some(owner) = self.module_owner.get(&module) {
+                if owner != &name {
+                    return Err(Error::plain(format!(
+                        "module {module} is declared by both {owner} and {name}; a build selects one package per module name"
+                    )));
+                }
+            }
+            self.module_owner.insert(module, name.clone());
+        }
+        self.stack.push(name.clone());
+        let walked = self.visit_dependencies(&manifest, &source.dir, &source.label());
+        self.stack.pop();
+        walked?;
+        let index = self.packages.len();
+        self.by_name.insert(name.clone(), index);
+        self.packages.push(LocalPackage {
+            name,
+            version,
+            identity,
+            manifest,
+            files,
+            source: source.clone(),
+        });
+        Ok(index)
+    }
+
+    fn visit_dependencies(&mut self, manifest: &Value, base: &Path, owner: &str) -> Result<()> {
+        for dependency in parse_dependencies(manifest, owner)? {
+            match &dependency.source {
+                DependencySource::Registry(requirement) => {
+                    self.seeds
+                        .entry(dependency.name.clone())
+                        .or_default()
+                        .push(requirement.clone());
+                }
+                DependencySource::Path(path) => {
+                    let dir = resolve_dependency_dir(base, path);
+                    if !dir.is_dir() {
+                        return Err(Error::plain(format!(
+                            "{owner} declares path dependency {} at {path}, but {} is not a directory",
+                            dependency.name,
+                            dir.display()
+                        )));
+                    }
+                    let source = LocalSource {
+                        kind: LocalKind::Path,
+                        original: path.clone(),
+                        rev: None,
+                        dir,
+                        marker: None,
+                    };
+                    let index = self.visit(&source)?;
+                    self.check_dependency(owner, &dependency, index)?;
+                }
+                DependencySource::Git { url, rev } => {
+                    let checkout = git_checkout(url, rev)?;
+                    let source = LocalSource {
+                        kind: LocalKind::Git,
+                        original: url.clone(),
+                        rev: Some(rev.clone()),
+                        dir: checkout.dir,
+                        marker: Some(checkout.marker),
+                    };
+                    let index = self.visit(&source)?;
+                    self.check_dependency(owner, &dependency, index)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn check_dependency(&self, owner: &str, dependency: &Dependency, index: usize) -> Result<()> {
+        let package = &self.packages[index];
+        if package.name != dependency.name {
+            return Err(Error::plain(format!(
+                "{owner} declares a dependency on {}, but {} provides package {}",
+                dependency.name,
+                package.source.label(),
+                package.name
+            )));
+        }
+        if let Some(hint) = &dependency.hint {
+            if !hint.matches(&package.version) {
+                return Err(Error::plain(format!(
+                    "{owner} asks for {} {}, but {} provides version {}; the version is a selection hint and the content root is the identity",
+                    dependency.name,
+                    hint.describe(),
+                    package.source.label(),
+                    package.version
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+const GIT_CACHE_DIR: &str = "git-packages";
+
+#[cfg(test)]
+thread_local! {
+    /// Tests point the checkout cache at a temporary directory so a run does
+    /// not accumulate clones under the user's store.
+    static GIT_CACHE_OVERRIDE: std::cell::RefCell<Option<PathBuf>> =
+        std::cell::RefCell::new(None);
+}
+
+fn git_cache_root() -> PathBuf {
+    #[cfg(test)]
+    if let Some(root) = GIT_CACHE_OVERRIDE.with(|cell| cell.borrow().clone()) {
+        return root;
+    }
+    crate::store::store_root()
+}
+
+struct GitCheckout {
+    dir: PathBuf,
+    marker: PathBuf,
+}
+
+/// Clone `url` at `rev` into a content-addressed cache under the store and
+/// return the checkout. The revision is a fetch hint; the caller identifies
+/// the package by its content root.
+fn git_checkout(url: &str, rev: &str) -> Result<GitCheckout> {
+    let root = git_cache_root().join(GIT_CACHE_DIR);
+    std::fs::create_dir_all(&root).map_err(|e| Error::plain(format!("{}: {e}", root.display())))?;
+    let full_key = sha256_hex(format!("{url}\n{rev}").as_bytes());
+    let key = &full_key[..32];
+    let dir = root.join(key);
+    let marker = root.join(format!("{key}.identity"));
+    if dir.join(".git").is_dir() {
+        let status = git_stdout(&dir, &["status", "--porcelain"])?;
+        if !status.trim().is_empty() {
+            return Err(Error::plain(format!(
+                "git dependency {url} at {rev}: cached checkout {} has local changes; remove that directory and retry",
+                dir.display()
+            )));
+        }
+        return Ok(GitCheckout { dir, marker });
+    }
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)
+            .map_err(|e| Error::plain(format!("{}: {e}", dir.display())))?;
+    }
+    let tmp = root.join(format!("{key}.tmp-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let clone = Command::new("git")
+        .args(["clone", "--quiet", "--no-checkout", url])
+        .arg(&tmp)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|e| Error::plain(format!("run git clone for {url}: {e}")))?;
+    if !clone.status.success() {
+        let _ = std::fs::remove_dir_all(&tmp);
         return Err(Error::plain(format!(
-            "dependency cycle or version conflict for {name}: {previous} and {version}"
+            "git clone {url}: {}",
+            String::from_utf8_lossy(&clone.stderr).trim()
         )));
     }
-    seen.insert(name.to_string(), version.to_string());
-    let metadata = fetch_metadata(registry, name, version, token)?;
-    if let Some(dependencies) = metadata
-        .get("manifest")
-        .and_then(|m| m.get("dependencies"))
-        .and_then(Value::as_array)
-    {
-        for dependency in dependencies {
-            let dep_name = dependency
-                .get("name")
-                .and_then(Value::as_str)
-                .ok_or_else(|| Error::plain("a dependency has no name"))?;
-            if dep_name == "cinch/base" || dep_name == "cinch-base" {
-                continue;
-            }
-            validate_name(dep_name)?;
-            let source = dependency
-                .get("source")
-                .and_then(Value::as_str)
-                .unwrap_or("registry");
-            if source != "registry" {
-                return Err(Error::plain(format!(
-                    "dependency {dep_name} uses unsupported source {source}; only registry dependencies install today"
-                )));
-            }
-            let requirement = Requirement::from_dependency(dependency)?;
-            let dep_version = resolved.get(dep_name).cloned().ok_or_else(|| {
-                Error::plain(format!(
-                    "resolution did not select a version for {dep_name}"
-                ))
-            })?;
-            if !requirement.matches(&dep_version) {
-                return Err(Error::plain(format!(
-                    "dependency conflict for {dep_name}: selected {dep_version}, but {name} requires {}",
-                    requirement.describe()
-                )));
-            }
-            if seen.get(dep_name) == Some(&dep_version) {
-                continue;
-            }
-            install_recursive(
-                project,
-                registry,
-                dep_name,
-                &dep_version,
-                token,
-                resolved,
-                seen,
-            )?;
+    if let Err(error) = checkout_rev(&tmp, rev).and_then(|()| {
+        let head = git_stdout(&tmp, &["rev-parse", "HEAD"])?;
+        if head.trim().is_empty() {
+            return Err(Error::plain("the checkout has no HEAD"));
         }
+        Ok(())
+    }) {
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Err(Error::plain(format!(
+            "git dependency {url} at {rev}: {error}"
+        )));
     }
-    let package_id = metadata
-        .get("packageId")
-        .and_then(Value::as_str)
-        .ok_or_else(|| Error::plain("registry metadata has no packageId"))?
-        .to_string();
-    let hex = package_id
-        .strip_prefix("sha256:")
-        .ok_or_else(|| Error::plain("packageId is not a sha256 digest"))?;
-    if hex.len() != 64 {
-        return Err(Error::plain("packageId is not a 32-byte SHA-256 digest"));
+    std::fs::rename(&tmp, &dir).map_err(|e| {
+        let _ = std::fs::remove_dir_all(&tmp);
+        Error::plain(format!("{}: {e}", dir.display()))
+    })?;
+    Ok(GitCheckout { dir, marker })
+}
+
+fn checkout_rev(dir: &Path, rev: &str) -> Result<()> {
+    let first = git_output(dir, &["checkout", "--quiet", "--detach", "--force", rev])?;
+    if first.status.success() {
+        return Ok(());
     }
-    let download_url = format!("{registry}/api/v1/download/{hex}");
-    let bundle: Value = serde_json::from_slice(&curl(&download_url, token)?)
-        .map_err(|e| Error::plain(format!("registry bundle: {e}")))?;
-    install_bundle(
-        project,
-        registry,
-        &package_id,
-        &bundle,
-        metadata.get("files"),
-    )
+    let fetch = git_output(dir, &["fetch", "--quiet", "origin", rev])?;
+    if !fetch.status.success() {
+        return Err(Error::plain(format!(
+            "revision {rev} is not in the checkout: {}",
+            String::from_utf8_lossy(&first.stderr).trim()
+        )));
+    }
+    let second = git_output(dir, &["checkout", "--quiet", "--detach", "--force", rev])?;
+    if !second.status.success() {
+        return Err(Error::plain(format!(
+            "revision {rev}: {}",
+            String::from_utf8_lossy(&second.stderr).trim()
+        )));
+    }
+    Ok(())
+}
+
+fn git_output(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
+    Command::new("git")
+        .args(["-c", "advice.detachedHead=false", "-C"])
+        .arg(dir)
+        .args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|e| Error::plain(format!("run git {}: {e}", args.join(" "))))
+}
+
+fn git_stdout(dir: &Path, args: &[&str]) -> Result<String> {
+    let output = git_output(dir, args)?;
+    if !output.status.success() {
+        return Err(Error::plain(format!(
+            "git {} in {}: {}",
+            args.join(" "),
+            dir.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -333,12 +1297,7 @@ fn fetch_metadata(registry: &str, name: &str, version: &str, token: Option<&str>
         .map_err(|e| Error::plain(format!("registry metadata: {e}")))
 }
 
-fn existing_install(
-    project: &Path,
-    registry: &str,
-    name: &str,
-    version: &str,
-) -> Result<Installed> {
+fn existing_install(project: &Path, name: &str, version: &str) -> Result<Installed> {
     let (namespace, package) = name
         .split_once('/')
         .ok_or_else(|| Error::plain("package name must be namespace/name"))?;
@@ -459,9 +1418,27 @@ fn resolve_graph(
     root_version: &str,
     token: Option<&str>,
 ) -> Result<BTreeMap<String, String>> {
-    let root_requirement = Requirement::Exact(root_version.to_string());
-    let mut constraints: BTreeMap<String, Vec<Requirement>> = BTreeMap::new();
-    constraints.insert(root_name.to_string(), vec![root_requirement.clone()]);
+    let mut seeds: BTreeMap<String, Vec<Requirement>> = BTreeMap::new();
+    seeds.insert(
+        root_name.to_string(),
+        vec![Requirement::Exact(root_version.to_string())],
+    );
+    resolve_constraints(registry, &seeds, token).map_err(|e| {
+        Error::plain(format!(
+            "dependency resolution for {root_name}@{root_version}: {}",
+            e.message
+        ))
+    })
+}
+
+/// Resolve one version per registry package name from the constraint seeds a
+/// closure contributes, iterating reachable requirements to a fixed point.
+fn resolve_constraints(
+    registry: &str,
+    seeds: &BTreeMap<String, Vec<Requirement>>,
+    token: Option<&str>,
+) -> Result<BTreeMap<String, String>> {
+    let mut constraints: BTreeMap<String, Vec<Requirement>> = seeds.clone();
     let mut selected: BTreeMap<String, String> = BTreeMap::new();
     let mut versions_cache: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut metadata_cache: BTreeMap<(String, String), Value> = BTreeMap::new();
@@ -481,8 +1458,7 @@ fn resolve_graph(
                 changed = true;
             }
         }
-        let mut next: BTreeMap<String, Vec<Requirement>> = BTreeMap::new();
-        next.insert(root_name.to_string(), vec![root_requirement.clone()]);
+        let mut next: BTreeMap<String, Vec<Requirement>> = seeds.clone();
         let snapshot: Vec<(String, String)> = selected
             .iter()
             .map(|(package, version)| (package.clone(), version.clone()))
@@ -515,9 +1491,7 @@ fn resolve_graph(
                         .and_then(Value::as_str)
                         .unwrap_or("registry");
                     if source != "registry" {
-                        return Err(Error::plain(format!(
-                            "dependency {dep_name} uses unsupported source {source}; only registry dependencies install today"
-                        )));
+                        return Err(local_source_from_registry_error(package, dep_name, source));
                     }
                     next.entry(dep_name.to_string())
                         .or_default()
@@ -534,9 +1508,7 @@ fn resolve_graph(
             return Ok(selected);
         }
     }
-    Err(Error::plain(format!(
-        "dependency resolution for {root_name}@{root_version} did not settle"
-    )))
+    Err(Error::plain("dependency resolution did not settle"))
 }
 
 fn semver_key(version: &str) -> Result<Vec<u64>> {
@@ -668,6 +1640,7 @@ pub fn install_bundle(
     package_id: &str,
     bundle: &Value,
     metadata_files: Option<&Value>,
+    metadata_attestations: Option<&Value>,
 ) -> Result<Installed> {
     let manifest = bundle
         .get("manifest")
@@ -676,10 +1649,6 @@ pub fn install_bundle(
         .get("name")
         .and_then(Value::as_str)
         .ok_or_else(|| Error::plain("manifest has no name"))?;
-    let version = manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .ok_or_else(|| Error::plain("manifest has no version"))?;
     validate_name(name)?;
     let files = bundle
         .get("files")
@@ -695,44 +1664,93 @@ pub fn install_bundle(
         decoded.insert(path.clone(), bytes);
     }
     verify_identity(package_id, manifest, &decoded, metadata_files)?;
+    let readme = bundle.get("readme").and_then(Value::as_str);
+    let installed = materialize(
+        project,
+        manifest,
+        &decoded,
+        package_id,
+        json!({"kind": "registry", "registry": registry}),
+        readme,
+    )?;
+    if let Some(attestations) = metadata_attestations.and_then(Value::as_array) {
+        for attestation in attestations {
+            if attestation.get("predicateType").and_then(Value::as_str)
+                != Some(crate::provenance::PREDICATE_TYPE)
+            {
+                continue;
+            }
+            if let Some(envelope) = attestation.get("envelope") {
+                let path = installed.source_dir.join("provenance.jsonl");
+                let digest = crate::provenance::write_envelope(&path, envelope)?;
+                update_lock_provenance(
+                    project,
+                    installed.name.as_str(),
+                    &relative_text(project, &path),
+                    &digest,
+                )?;
+            }
+        }
+    }
+    Ok(installed)
+}
 
-    let modules = manifest
+/// Write one package's source files and manifest under
+/// `vendor/<namespace>/<name>/<version>/`, check it into interfaces, emit its
+/// native object and ABI manifest, and record the lock entry.
+fn materialize(
+    project: &Path,
+    manifest: &Value,
+    files: &BTreeMap<String, Vec<u8>>,
+    package_id: &str,
+    source: Value,
+    readme: Option<&str>,
+) -> Result<Installed> {
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| Error::plain("manifest has no name"))?;
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .ok_or_else(|| Error::plain("manifest has no version"))?;
+    validate_name(name)?;
+    let module_names = manifest_modules(manifest, name)?;
+    for module in manifest
         .get("modules")
         .and_then(Value::as_array)
-        .ok_or_else(|| Error::plain("manifest has no modules"))?;
-    let mut module_names: Vec<String> = Vec::new();
-    for module in modules {
-        let module_name = module
-            .get("name")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::plain("module entry has no name"))?;
+        .expect("manifest_modules checked modules")
+    {
         let path = module
             .get("path")
             .and_then(Value::as_str)
             .ok_or_else(|| Error::plain("module entry has no path"))?;
-        if !decoded.contains_key(path) {
+        if !files.contains_key(path) {
             return Err(Error::plain(format!(
-                "module {module_name} path {path} is not in the bundle"
+                "module {} path {path} is not in the package sources",
+                module
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("<unnamed>")
             )));
         }
-        module_names.push(module_name.to_string());
-    }
-    if module_names.is_empty() {
-        return Err(Error::plain("package has no modules"));
     }
 
-    let namespace = name
+    let (namespace, package) = name
         .split_once('/')
-        .map(|(namespace, _)| namespace)
         .ok_or_else(|| Error::plain("package name must be namespace/name"))?;
     let source_dir = project
         .join("vendor")
         .join(namespace)
-        .join(name.split_once('/').expect("checked").1)
+        .join(package)
         .join(version);
+    if source_dir.exists() {
+        std::fs::remove_dir_all(&source_dir)
+            .map_err(|e| Error::plain(format!("{}: {e}", source_dir.display())))?;
+    }
     std::fs::create_dir_all(&source_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", source_dir.display())))?;
-    for (path, bytes) in &decoded {
+    for (path, bytes) in files {
         let relative = safe_relative(path)?;
         let target = source_dir.join(relative);
         if let Some(parent) = target.parent() {
@@ -744,7 +1762,7 @@ pub fn install_bundle(
     }
     std::fs::write(source_dir.join(".cinchpkg"), canonical(manifest)?)
         .map_err(|e| Error::plain(format!("{}: {e}", source_dir.display())))?;
-    if let Some(readme) = bundle.get("readme").and_then(Value::as_str) {
+    if let Some(readme) = readme {
         std::fs::write(source_dir.join("README.md"), readme)
             .map_err(|e| Error::plain(format!("{}: {e}", source_dir.display())))?;
     }
@@ -754,11 +1772,11 @@ pub fn install_bundle(
     // through the same recursive source index the project uses. `emit-object`
     // checks the package and writes its native object plus ABI manifest.
     let entry = project.join(".cinch-package-root.cinch");
-    let mut source = String::from("module CinchPackageRoot where\n");
+    let mut source_text = String::from("module CinchPackageRoot where\n");
     for module in &module_names {
-        source.push_str(&format!("  import {module}\n"));
+        source_text.push_str(&format!("  import {module}\n"));
     }
-    std::fs::write(&entry, source)
+    std::fs::write(&entry, source_text)
         .map_err(|e| Error::plain(format!("{}: {e}", entry.display())))?;
     let object = source_dir.join("package.o");
     let abi = source_dir.join("package.abi.json");
@@ -792,29 +1810,17 @@ pub fn install_bundle(
         ));
     }
 
-    let relative_source = source_dir
-        .strip_prefix(project)
-        .unwrap_or(&source_dir)
-        .display()
-        .to_string();
     update_lock(
         project,
         name,
         version,
         package_id,
-        registry,
-        &relative_source,
-        &object
-            .strip_prefix(project)
-            .unwrap_or(&object)
-            .display()
-            .to_string(),
-        &interfaces
-            .strip_prefix(project)
-            .unwrap_or(&interfaces)
-            .display()
-            .to_string(),
+        &source,
+        &source_dir,
+        &object,
+        &interfaces,
     )?;
+    record_provenance(project, name, version, package_id, &source_dir)?;
 
     Ok(Installed {
         name: name.to_string(),
@@ -904,15 +1910,22 @@ fn verify_identity(
     Ok(())
 }
 
+fn relative_text(project: &Path, path: &Path) -> String {
+    path.strip_prefix(project)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+}
+
 fn update_lock(
     project: &Path,
     name: &str,
     version: &str,
     package_id: &str,
-    registry: &str,
-    source: &str,
-    object: &str,
-    interfaces: &str,
+    source: &Value,
+    source_dir: &Path,
+    object: &Path,
+    interfaces: &Path,
 ) -> Result<()> {
     let path = project.join(".cinchlock");
     let mut lock: Value = if path.exists() {
@@ -932,13 +1945,48 @@ fn update_lock(
         "name": name,
         "version": version,
         "package_id": package_id,
-        "source": {"kind": "registry", "registry": registry},
-        "source_dir": source,
-        "object": object,
-        "interfaces": interfaces
+        "source": source,
+        "source_dir": relative_text(project, source_dir),
+        "object": relative_text(project, object),
+        "interfaces": relative_text(project, interfaces)
     }));
     std::fs::write(&path, canonical(&lock)?)
         .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    Ok(())
+}
+
+fn record_provenance(
+    project: &Path,
+    name: &str,
+    version: &str,
+    package_id: &str,
+    source_dir: &Path,
+) -> Result<()> {
+    let path = source_dir.join("provenance.jsonl");
+    let digest = crate::provenance::write_jsonl(&path, package_id, name, version)?;
+    update_lock_provenance(project, name, &relative_text(project, &path), &digest)
+}
+
+fn update_lock_provenance(project: &Path, name: &str, path: &str, digest: &str) -> Result<()> {
+    let lock_path = project.join(".cinchlock");
+    let bytes = std::fs::read(&lock_path)
+        .map_err(|e| Error::plain(format!("{}: {e}", lock_path.display())))?;
+    let mut lock: Value = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::plain(format!("{}: {e}", lock_path.display())))?;
+    let packages = lock
+        .get_mut("packages")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| Error::plain(".cinchlock has no packages array"))?;
+    let row = packages
+        .iter_mut()
+        .find(|row| row.get("name").and_then(Value::as_str) == Some(name))
+        .ok_or_else(|| Error::plain(format!("{name} is missing from .cinchlock")))?;
+    let object = row
+        .as_object_mut()
+        .ok_or_else(|| Error::plain("lock entry must be an object"))?;
+    object.insert("provenance".into(), json!({"path": path, "digest": digest}));
+    std::fs::write(&lock_path, canonical(&lock)?)
+        .map_err(|e| Error::plain(format!("{}: {e}", lock_path.display())))?;
     Ok(())
 }
 
@@ -1045,7 +2093,10 @@ fn installed_source_files(dir: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
             let relative = path.strip_prefix(base).unwrap_or(&path);
             let name = relative.display().to_string();
             if relative.components().count() == 1
-                && matches!(name.as_str(), ".cinchpkg" | "README.md")
+                && matches!(
+                    name.as_str(),
+                    ".cinchpkg" | "README.md" | "provenance.jsonl"
+                )
             {
                 continue;
             }
@@ -1116,12 +2167,17 @@ fn publish(project: &Path, registry: &str, token: &str, visibility: &str) -> Res
         .map(|(path, bytes)| (path.clone(), base64_encode(bytes)))
         .collect();
     let readme = std::fs::read_to_string(project.join("README.md")).ok();
+    let provenance = crate::provenance::envelope(&package_id, name, version)?;
     let body = json!({
         "manifest": manifest,
         "files": encoded,
         "visibility": visibility,
         "readme": readme,
         "packageId": package_id,
+        "attestations": [{
+            "predicateType": crate::provenance::PREDICATE_TYPE,
+            "envelope": provenance,
+        }],
     });
     let body =
         serde_json::to_vec(&body).map_err(|e| Error::plain(format!("publish request: {e}")))?;
@@ -1248,6 +2304,90 @@ fn verify(project: &Path) -> Result<Verified> {
     }
     Ok(Verified {
         packages: packages.len(),
+        provenance_levels: Vec::new(),
+    })
+}
+
+/// Verify the local L1 provenance files recorded by install. A registry can
+/// raise an attestation to L2 by accepting a trusted builder signature, but
+/// this client does not pretend to hold those roots of trust.
+fn verify_slsa(project: &Path) -> Result<Verified> {
+    let path = project.join(".cinchlock");
+    let bytes =
+        std::fs::read(&path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    let lock: Value = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    let packages = lock
+        .get("packages")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::plain(".cinchlock has no packages array"))?;
+    let mut levels = Vec::new();
+    for row in packages {
+        let name = row
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain("lock entry has no name"))?;
+        let package_id = row
+            .get("package_id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::plain(format!("{name} lock entry has no package_id")))?;
+        let source_dir = project.join(
+            row.get("source_dir")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::plain(format!("{name} lock entry has no source_dir")))?,
+        );
+        let provenance = row
+            .get("provenance")
+            .ok_or_else(|| Error::plain(format!("{name} has no recorded provenance")))?;
+        let provenance_path = project.join(
+            provenance
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::plain(format!("{name} provenance has no path")))?,
+        );
+        let line = std::fs::read_to_string(&provenance_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", provenance_path.display())))?;
+        let envelope: Value = serde_json::from_str(line.trim())
+            .map_err(|e| Error::plain(format!("{}: {e}", provenance_path.display())))?;
+        let check = crate::provenance::verify(&envelope, package_id)?;
+        let digest = provenance
+            .get("digest")
+            .and_then(Value::as_str)
+            .unwrap_or("<missing>");
+        let bytes = std::fs::read(&provenance_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", provenance_path.display())))?;
+        let mut sha = Sha256::new();
+        sha.update(&bytes);
+        let actual = format!(
+            "sha256:{}",
+            sha.finalize()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        if actual != digest {
+            return Err(Error::plain(format!(
+                "{}: provenance digest mismatch: lock says {digest}, file is {actual}",
+                provenance_path.display()
+            )));
+        }
+        if source_dir.join("provenance.jsonl") != provenance_path {
+            return Err(Error::plain(format!(
+                "{name}: recorded provenance is not beside the installed source"
+            )));
+        }
+        levels.push(format!(
+            "{}@{} {}",
+            name,
+            row.get("version")
+                .and_then(Value::as_str)
+                .unwrap_or("<unknown>"),
+            check.level
+        ));
+    }
+    Ok(Verified {
+        packages: packages.len(),
+        provenance_levels: levels,
     })
 }
 
@@ -1390,8 +2530,15 @@ mod tests {
             "files": files,
             "visibility": "public"
         });
-        let installed = install_bundle(&dir, "http://registry.local", &package_id, &bundle, None)
-            .expect("install bundle");
+        let installed = install_bundle(
+            &dir,
+            "http://registry.local",
+            &package_id,
+            &bundle,
+            None,
+            None,
+        )
+        .expect("install bundle");
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
         assert!(installed.interfaces.join("Library.cinchif").exists());
@@ -1410,6 +2557,9 @@ mod tests {
         )
         .expect("project imports the installed package");
         assert_eq!(verify(&dir).expect("verify lock").packages, 1);
+        let slsa = verify_slsa(&dir).expect("verify slsa");
+        assert_eq!(slsa.packages, 1);
+        assert!(slsa.provenance_levels[0].contains("SLSA_BUILD_LEVEL_1"));
         std::fs::write(
             installed.source_dir.join("Library.cinch"),
             b"module Library where\n",
@@ -1420,5 +2570,504 @@ mod tests {
             "tampered source must fail verification"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn temp_dir(prefix: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(prefix)
+            .tempdir()
+            .expect("temporary directory")
+    }
+
+    /// Write `.cinchpkg` plus the package's module sources.
+    fn write_package(dir: &Path, manifest: Value, sources: &[(&str, &str)]) {
+        std::fs::create_dir_all(dir).expect("package directory");
+        std::fs::write(
+            dir.join(".cinchpkg"),
+            canonical(&manifest).expect("canonical manifest"),
+        )
+        .expect("package manifest");
+        for (path, source) in sources {
+            let target = dir.join(path);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).expect("source directory");
+            }
+            std::fs::write(target, source).expect("package source");
+        }
+    }
+
+    fn package_manifest(name: &str, version: &str, module: &str, dependencies: Value) -> Value {
+        let mut manifest = json!({
+            "schema": 2,
+            "name": name,
+            "version": version,
+            "modules": [{"name": module, "path": format!("{module}.cinch")}],
+            "order": [module]
+        });
+        if !dependencies.as_array().map(Vec::is_empty).unwrap_or(true) {
+            manifest["dependencies"] = dependencies;
+        }
+        manifest
+    }
+
+    fn write_project(project: &Path, name: &str, dependencies: Value) {
+        std::fs::create_dir_all(project).expect("project directory");
+        let manifest = package_manifest(name, "0.1.0", "App", dependencies);
+        std::fs::write(
+            project.join(".cinchpkg"),
+            canonical(&manifest).expect("project manifest"),
+        )
+        .expect("project manifest");
+    }
+
+    fn install_project(project: &Path, registry: &str, locked: bool) -> Result<Vec<Installed>> {
+        InstallContext::new(project, registry, None, locked).install_project_manifest()
+    }
+
+    #[test]
+    fn path_dependencies_install_sources_and_lock_entries() {
+        let root = temp_dir("cinch-pkg-path");
+        let project = root.path().join("app");
+        let bytes = root.path().join("libs/bytes");
+        write_package(
+            &bytes,
+            package_manifest("acme/bytes", "0.1.0", "Bytes", json!([])),
+            &[(
+                "Bytes.cinch",
+                "module Bytes where\n  value :: Int\n  value = 7\n",
+            )],
+        );
+        let text = root.path().join("libs/text");
+        write_package(
+            &text,
+            package_manifest(
+                "acme/text",
+                "0.2.0",
+                "Text",
+                json!([{"name": "acme/bytes", "source": "path", "path": "../bytes", "version": "0.1.0"}]),
+            ),
+            &[(
+                "Text.cinch",
+                "module Text where\n  import Bytes\n  doubled :: Int\n  doubled = value + value\n",
+            )],
+        );
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "acme/text", "source": "path", "path": "../libs/text"}]),
+        );
+
+        let installed =
+            install_project(&project, "http://127.0.0.1:9", false).expect("install path closure");
+        assert_eq!(installed.len(), 2);
+        assert_eq!(installed[0].name, "acme/bytes");
+        assert_eq!(installed[1].name, "acme/text");
+        assert!(project
+            .join("vendor/acme/bytes/0.1.0/Bytes.cinch")
+            .is_file());
+        assert!(project.join("vendor/acme/text/0.2.0/Text.cinch").is_file());
+
+        let lock = read_lock(&project).expect("lock");
+        let bytes_row = lock.get("acme/bytes").expect("bytes lock entry");
+        assert_eq!(bytes_row["source"]["kind"], "path");
+        assert_eq!(bytes_row["source"]["path"], "../bytes");
+        assert_eq!(
+            bytes_row["package_id"],
+            package_identity(
+                &read_manifest(&bytes).expect("bytes manifest"),
+                &manifest_files(&bytes, &read_manifest(&bytes).expect("manifest"))
+                    .expect("bytes files")
+            )
+            .expect("identity")
+        );
+        let text_row = lock.get("acme/text").expect("text lock entry");
+        assert_eq!(text_row["source"]["path"], "../libs/text");
+
+        std::fs::write(
+            project.join("Main.cinch"),
+            "module Main where\n  import Text\n  main :: Int\n  main = doubled\n",
+        )
+        .expect("main source");
+        driver_opts(
+            Mode::Check,
+            &project.join("Main.cinch"),
+            None,
+            &DriverOptions::default(),
+        )
+        .expect("project imports installed path packages");
+        assert_eq!(verify(&project).expect("verify path closure").packages, 2);
+    }
+
+    #[test]
+    fn path_dependency_cycles_are_named() {
+        let root = temp_dir("cinch-pkg-cycle");
+        let project = root.path().join("app");
+        let first = root.path().join("a");
+        let second = root.path().join("b");
+        write_package(
+            &first,
+            package_manifest(
+                "acme/a",
+                "0.1.0",
+                "A",
+                json!([{"name": "acme/b", "source": "path", "path": "../b"}]),
+            ),
+            &[(
+                "A.cinch",
+                "module A where\n  import B\n  value :: Int\n  value = other\n",
+            )],
+        );
+        write_package(
+            &second,
+            package_manifest(
+                "acme/b",
+                "0.1.0",
+                "B",
+                json!([{"name": "acme/a", "source": "path", "path": "../a"}]),
+            ),
+            &[("B.cinch", "module B where\n  other :: Int\n  other = 1\n")],
+        );
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "acme/a", "source": "path", "path": "../a"}]),
+        );
+        let error = install_project(&project, "http://127.0.0.1:9", false)
+            .expect_err("a path cycle must be rejected");
+        assert!(
+            error.message.contains("dependency cycle")
+                && error.message.contains("acme/a -> acme/b -> acme/a"),
+            "{}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn one_package_name_cannot_resolve_to_two_contents() {
+        let root = temp_dir("cinch-pkg-conflict");
+        let project = root.path().join("app");
+        let first = root.path().join("one");
+        let second = root.path().join("two");
+        write_package(
+            &first,
+            package_manifest("acme/dup", "0.1.0", "First", json!([])),
+            &[(
+                "First.cinch",
+                "module First where\n  value :: Int\n  value = 1\n",
+            )],
+        );
+        write_package(
+            &second,
+            package_manifest("acme/dup", "0.1.0", "Second", json!([])),
+            &[(
+                "Second.cinch",
+                "module Second where\n  value :: Int\n  value = 2\n",
+            )],
+        );
+        write_project(
+            &project,
+            "acme/app",
+            json!([
+                {"name": "acme/dup", "source": "path", "path": "../one"},
+                {"name": "acme/dup", "source": "path", "path": "../two"}
+            ]),
+        );
+        let error = install_project(&project, "http://127.0.0.1:9", false)
+            .expect_err("two contents under one name must be rejected");
+        assert!(
+            error.message.contains("one version per package name"),
+            "{}",
+            error.message
+        );
+    }
+
+    #[test]
+    fn missing_and_dirty_path_dependencies_are_named() {
+        let root = temp_dir("cinch-pkg-dirty");
+        let project = root.path().join("app");
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "acme/gone", "source": "path", "path": "../gone"}]),
+        );
+        let error = install_project(&project, "http://127.0.0.1:9", false)
+            .expect_err("a missing path dependency must be rejected");
+        assert!(
+            error.message.contains("is not a directory"),
+            "{}",
+            error.message
+        );
+
+        let library = root.path().join("libs/lib");
+        write_package(
+            &library,
+            package_manifest("acme/lib", "0.1.0", "Lib", json!([])),
+            &[(
+                "Lib.cinch",
+                "module Lib where\n  value :: Int\n  value = 1\n",
+            )],
+        );
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "acme/lib", "source": "path", "path": "../libs/lib"}]),
+        );
+        install_project(&project, "http://127.0.0.1:9", false).expect("clean install");
+        std::fs::write(
+            library.join("Lib.cinch"),
+            "module Lib where\n  value :: Int\n  value = 2\n",
+        )
+        .expect("edit path source");
+
+        let error = install_project(&project, "http://127.0.0.1:9", true)
+            .expect_err("a dirty path dependency must be rejected under --locked");
+        assert!(error.message.contains("dirty"), "{}", error.message);
+
+        install_project(&project, "http://127.0.0.1:9", false).expect("refresh the lock");
+        assert_eq!(verify(&project).expect("verify refreshed lock").packages, 1);
+    }
+
+    fn run_git(dir: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(["-c", "advice.detachedHead=false"])
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .expect("run git");
+        assert!(
+            output.status.success(),
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).to_string()
+    }
+
+    #[test]
+    fn git_dependency_installs_from_a_local_repository() {
+        let root = temp_dir("cinch-pkg-git");
+        let cache = root.path().join("cache");
+        GIT_CACHE_OVERRIDE.with(|cell| *cell.borrow_mut() = Some(cache));
+        let repo = root.path().join("remote");
+        write_package(
+            &repo,
+            package_manifest("acme/gitlib", "0.3.0", "GitLib", json!([])),
+            &[(
+                "GitLib.cinch",
+                "module GitLib where\n  value :: Int\n  value = 9\n",
+            )],
+        );
+        run_git(&repo, &["init", "--quiet"]);
+        run_git(&repo, &["config", "user.email", "test@example.com"]);
+        run_git(&repo, &["config", "user.name", "Cinch Test"]);
+        run_git(&repo, &["add", "."]);
+        run_git(&repo, &["commit", "--quiet", "-m", "release"]);
+        let rev = run_git(&repo, &["rev-parse", "HEAD"]).trim().to_string();
+
+        let project = root.path().join("app");
+        let url = repo.to_str().expect("repository path").to_string();
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "acme/gitlib", "source": "git", "url": url, "rev": rev}]),
+        );
+        let installed =
+            install_project(&project, "http://127.0.0.1:9", false).expect("install git package");
+        assert_eq!(installed.len(), 1);
+        assert!(installed[0].source_dir.join("GitLib.cinch").is_file());
+        let lock = read_lock(&project).expect("lock");
+        let row = lock.get("acme/gitlib").expect("git lock entry");
+        assert_eq!(row["source"]["kind"], "git");
+        assert_eq!(row["source"]["rev"], rev);
+        assert_eq!(
+            row["package_id"],
+            package_identity(
+                &read_manifest(&repo).expect("repo manifest"),
+                &manifest_files(&repo, &read_manifest(&repo).expect("manifest"))
+                    .expect("repo files")
+            )
+            .expect("identity")
+        );
+
+        // A second install reuses the checkout cache and leaves the lock alone.
+        install_project(&project, "http://127.0.0.1:9", true).expect("cached git install");
+        assert_eq!(verify(&project).expect("verify git closure").packages, 1);
+        GIT_CACHE_OVERRIDE.with(|cell| *cell.borrow_mut() = None);
+    }
+
+    struct RegistryFixture {
+        manifest: Value,
+        files: BTreeMap<String, Vec<u8>>,
+    }
+
+    fn registry_fixture(manifest: Value, sources: &[(&str, &str)]) -> RegistryFixture {
+        let files = sources
+            .iter()
+            .map(|(path, source)| (path.to_string(), source.as_bytes().to_vec()))
+            .collect();
+        RegistryFixture { manifest, files }
+    }
+
+    fn registry_routes(fixtures: &[RegistryFixture]) -> BTreeMap<String, String> {
+        let mut routes = BTreeMap::new();
+        for fixture in fixtures {
+            let manifest = &fixture.manifest;
+            let name = manifest["name"].as_str().expect("fixture name").to_string();
+            let version = manifest["version"]
+                .as_str()
+                .expect("fixture version")
+                .to_string();
+            let package_id = package_identity(manifest, &fixture.files).expect("fixture identity");
+            let hex = package_id.trim_start_matches("sha256:");
+            let encoded: BTreeMap<String, String> = fixture
+                .files
+                .iter()
+                .map(|(path, bytes)| (path.clone(), base64_encode(bytes)))
+                .collect();
+            let bundle = json!({
+                "schema": 1,
+                "manifest": manifest,
+                "files": encoded,
+                "visibility": "public"
+            });
+            let encoded_name = name.replace('/', "%2F");
+            routes.insert(
+                format!("/api/v1/packages/{encoded_name}"),
+                json!({"versions": [{"version": version}]}).to_string(),
+            );
+            routes.insert(
+                format!("/api/v1/packages/{encoded_name}/{version}"),
+                json!({"packageId": package_id, "manifest": manifest}).to_string(),
+            );
+            routes.insert(format!("/api/v1/download/{hex}"), bundle.to_string());
+        }
+        routes
+    }
+
+    fn start_registry(routes: BTreeMap<String, String>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind registry");
+        let address = listener.local_addr().expect("registry address");
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else {
+                    continue;
+                };
+                let mut buffer = [0u8; 8192];
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]);
+                let path = request
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .unwrap_or("/")
+                    .to_string();
+                let (status, body) = match routes.get(&path) {
+                    Some(body) => ("200 OK", body.clone()),
+                    None => ("404 Not Found", "{}".to_string()),
+                };
+                let response = format!(
+                    "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+        format!("http://{address}")
+    }
+
+    #[test]
+    fn registry_and_path_dependencies_share_one_closure() {
+        let registry = start_registry(registry_routes(&[registry_fixture(
+            package_manifest("reg/util", "1.2.0", "Util", json!([])),
+            &[(
+                "Util.cinch",
+                "module Util where\n  base :: Int\n  base = 3\n",
+            )],
+        )]));
+        let root = temp_dir("cinch-pkg-mixed");
+        let project = root.path().join("app");
+        let local = root.path().join("libs/local");
+        write_package(
+            &local,
+            package_manifest(
+                "acme/local",
+                "0.1.0",
+                "Local",
+                json!([{"name": "reg/util", "source": "registry", "range": "^1.0.0"}]),
+            ),
+            &[(
+                "Local.cinch",
+                "module Local where\n  import Util\n  total :: Int\n  total = base + 1\n",
+            )],
+        );
+        write_project(
+            &project,
+            "acme/app",
+            json!([
+                {"name": "acme/local", "source": "path", "path": "../libs/local"},
+                {"name": "reg/util", "source": "registry", "range": "^1.0.0"}
+            ]),
+        );
+
+        let installed = install_project(&project, &registry, false).expect("mixed closure");
+        assert_eq!(installed.len(), 2);
+        let lock = read_lock(&project).expect("lock");
+        assert_eq!(
+            lock.get("reg/util").expect("registry entry")["version"],
+            "1.2.0"
+        );
+        assert_eq!(
+            lock.get("acme/local").expect("local entry")["source"]["kind"],
+            "path"
+        );
+
+        std::fs::write(
+            project.join("Main.cinch"),
+            "module Main where\n  import Local\n  main :: Int\n  main = total\n",
+        )
+        .expect("main source");
+        driver_opts(
+            Mode::Check,
+            &project.join("Main.cinch"),
+            None,
+            &DriverOptions::default(),
+        )
+        .expect("project imports the mixed closure");
+        assert_eq!(verify(&project).expect("verify mixed closure").packages, 2);
+    }
+
+    #[test]
+    fn registry_releases_cannot_disclose_path_dependencies() {
+        let registry = start_registry(registry_routes(&[registry_fixture(
+            package_manifest(
+                "reg/bad",
+                "0.1.0",
+                "Bad",
+                json!([{"name": "acme/other", "source": "path", "path": "../other"}]),
+            ),
+            &[(
+                "Bad.cinch",
+                "module Bad where\n  value :: Int\n  value = 1\n",
+            )],
+        )]));
+        let root = temp_dir("cinch-pkg-registry-path");
+        let project = root.path().join("app");
+        write_project(
+            &project,
+            "acme/app",
+            json!([{"name": "reg/bad", "source": "registry", "range": "^0.1.0"}]),
+        );
+        let error = install_project(&project, &registry, false)
+            .expect_err("a registry path disclosure must be rejected");
+        assert!(
+            error
+                .message
+                .contains("declares a path dependency on acme/other")
+                && error.message.contains("project manifest"),
+            "{}",
+            error.message
+        );
     }
 }

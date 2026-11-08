@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, createPublicKey, verify } from 'node:crypto';
+import { createHash, createPublicKey, generateKeyPairSync, sign, verify } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createRegistry } from '../server.mjs';
-import { packageId } from '../lib/canonical.mjs';
+import { canonicalJson, packageId, sha256Hex } from '../lib/canonical.mjs';
 import { pae } from '../lib/signer.mjs';
+import { CINCH_BUILD_TYPE, PAYLOAD_TYPE, PROVENANCE_PREDICATE, STATEMENT_TYPE } from '../lib/provenance.mjs';
 
 const ADMIN = 'admin-test-token';
 
@@ -379,4 +380,138 @@ test('cinch registry v0: public and private packages', async (t) => {
     });
     assert.equal(attempt.status, 403);
   });
+});
+
+
+function provenanceStatement(pkg, pid) {
+  const hex = pid.slice('sha256:'.length);
+  return {
+    _type: STATEMENT_TYPE,
+    subject: [{ name: pkg.manifest.name, digest: { sha256: hex } }],
+    predicateType: PROVENANCE_PREDICATE,
+    predicate: {
+      buildDefinition: {
+        buildType: CINCH_BUILD_TYPE,
+        externalParameters: { package: pid, profile: 'native', stageMode: 'refresh' },
+        resolvedDependencies: [],
+      },
+      runDetails: { builder: { id: 'local:cinch' }, metadata: {} },
+    },
+  };
+}
+
+function provenanceEnvelope(pkg, pid, key) {
+  const payload = Buffer.from(JSON.stringify(provenanceStatement(pkg, pid)), 'utf8');
+  const signatures = [];
+  if (key) {
+    signatures.push({
+      keyid: key.keyid,
+      sig: sign('sha256', pae(PAYLOAD_TYPE, payload), {
+        key: key.privateKey,
+        dsaEncoding: 'ieee-p1363',
+      }).toString('base64'),
+    });
+  }
+  return {
+    payloadType: PAYLOAD_TYPE,
+    payload: payload.toString('base64'),
+    signatures,
+  };
+}
+
+test('cinch registry verifies provenance attestations', async (t) => {
+  const keyPair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const publicJwk = keyPair.publicKey.export({ format: 'jwk' });
+  const keyid = sha256Hex(canonicalJson(publicJwk));
+  const trustedKey = {
+    keyid,
+    privateKey: keyPair.privateKey,
+    publicKey: publicJwk,
+  };
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'cinch-provenance-'));
+  const registry = await createRegistry({
+    dataDir,
+    adminToken: ADMIN,
+    provenanceKeys: { [keyid]: publicJwk },
+    port: 0,
+  });
+  t.after(async () => {
+    await registry.close();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+  const base = registry.url;
+  async function call(pathname, { method = 'GET', token, body } = {}) {
+    const headers = {};
+    if (token) headers.authorization = `Bearer ${token}`;
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    const response = await fetch(base + pathname, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, json: text ? JSON.parse(text) : null };
+  }
+  const alice = await call('/api/v1/principals', {
+    method: 'POST',
+    body: { handle: 'alice' },
+  });
+  const token = alice.json.token;
+
+  const unsigned = makePackage('alice/unsigned', '0.1.0');
+  const unsignedId = computedId(unsigned);
+  const unsignedPublish = await call('/api/v1/packages', {
+    method: 'POST',
+    token,
+    body: {
+      ...unsigned,
+      visibility: 'public',
+      attestations: [{
+        predicateType: PROVENANCE_PREDICATE,
+        envelope: provenanceEnvelope(unsigned, unsignedId),
+      }],
+    },
+  });
+  assert.equal(unsignedPublish.status, 201);
+  const unsignedMeta = await call('/api/v1/packages/alice%2Funsigned/0.1.0');
+  assert.equal(unsignedMeta.status, 200);
+  assert.equal(unsignedMeta.json.attestations[0].verified, false);
+  assert.equal(unsignedMeta.json.attestations[0].verification, 'unsigned-l1');
+  assert.equal(unsignedMeta.json.attestations[0].level, 'SLSA_BUILD_LEVEL_1');
+
+  const signed = makePackage('alice/signed', '0.1.0');
+  const signedId = computedId(signed);
+  const signedPublish = await call('/api/v1/packages', {
+    method: 'POST',
+    token,
+    body: {
+      ...signed,
+      visibility: 'public',
+      attestations: [{
+        predicateType: PROVENANCE_PREDICATE,
+        envelope: provenanceEnvelope(signed, signedId, trustedKey),
+      }],
+    },
+  });
+  assert.equal(signedPublish.status, 201);
+  const signedMeta = await call('/api/v1/packages/alice%2Fsigned/0.1.0');
+  assert.equal(signedMeta.status, 200);
+  assert.equal(signedMeta.json.attestations[0].verified, true);
+  assert.equal(signedMeta.json.attestations[0].verification, 'trusted-builder');
+  assert.equal(signedMeta.json.attestations[0].level, 'SLSA_BUILD_LEVEL_2');
+
+  const wrong = makePackage('alice/wrong', '0.1.0');
+  const wrongPublish = await call('/api/v1/packages', {
+    method: 'POST',
+    token,
+    body: {
+      ...wrong,
+      visibility: 'public',
+      attestations: [{
+        predicateType: PROVENANCE_PREDICATE,
+        envelope: provenanceEnvelope(wrong, computedId(signed)),
+      }],
+    },
+  });
+  assert.equal(wrongPublish.status, 400);
 });

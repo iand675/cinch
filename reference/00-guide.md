@@ -44,7 +44,7 @@ The Rust implementation is the present authority. This guide does not use the se
 
 # Find a specific operation
 
-The [library directory](../library/00-index.md) contains the actual embedded and source-distributed APIs, including public types, constructors, class methods, values, fixities, and instances. [Compiler-provided vocabulary](20-compiler-vocabulary.md) covers special forms installed directly by the checker. Site search indexes these pages; the separate package catalogue still contains labelled sample data.
+The [library directory](../library/00-index.md) contains the actual embedded and source-distributed APIs, including public types, constructors, class methods, values, fixities, and instances. [Compiler-provided vocabulary](20-compiler-vocabulary.md) covers special forms installed directly by the checker. Site search indexes these pages; the separate package catalogue is generated at build time from a live registry, or from an explicit offline marker.
 
 # Reference conventions
 

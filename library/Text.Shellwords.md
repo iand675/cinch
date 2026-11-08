@@ -90,9 +90,9 @@ left open.
 
 [Source](/reference-sources/Text.Shellwords.cinch) · line 80
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedSingleQuote</span> :: <span class="tok-constructor">ShellwordsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedSingleQuote</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedDoubleQuote</span> :: <span class="tok-constructor">ShellwordsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedDoubleQuote</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span></code></pre>
 
 # Values
 
@@ -100,7 +100,7 @@ left open.
 
 ## `render-shellwords-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-shellwords-error</span> :: (<span class="tok-constructor">ShellwordsError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-shellwords-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Shellwords.cinch)
 
@@ -108,7 +108,7 @@ left open.
 
 ## `shellwords-escape`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-escape</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-escape</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Shellwords.cinch)
 
@@ -116,7 +116,7 @@ left open.
 
 ## `shellwords-join`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-join</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-join</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Escape every element and separate with one space (Ruby's
 `shelljoin`).
@@ -127,7 +127,7 @@ Escape every element and separate with one space (Ruby's
 
 ## `shellwords-split`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-split</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">ShellwordsError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-split</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 `acc` holds the words emitted so far in reverse; `word` holds the
 current word's scalars in reverse; `started` records whether a word

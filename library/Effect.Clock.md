@@ -92,7 +92,7 @@ it (`TimedOut`).
 
 ## `clock-monotonic-ns`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-monotonic-ns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-monotonic-ns</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 Nanoseconds since an arbitrary origin: non-decreasing across
 calls (two readings never go backwards).
@@ -103,7 +103,7 @@ calls (two readings never go backwards).
 
 ## `clock-wall-ns`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-wall-ns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clock-wall-ns</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 Nanoseconds since the Unix epoch (the clamped range above).
 
@@ -113,7 +113,7 @@ Nanoseconds since the Unix epoch (the clamped range above).
 
 ## `duration-from-millis`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-millis</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-millis</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Clock.cinch)
 
@@ -121,7 +121,7 @@ Nanoseconds since the Unix epoch (the clamped range above).
 
 ## `duration-millis`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-millis</span> :: (<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-millis</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Clock.cinch)
 
@@ -129,7 +129,7 @@ Nanoseconds since the Unix epoch (the clamped range above).
 
 ## `monotonic-elapsed`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">monotonic-elapsed</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Duration</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">monotonic-elapsed</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>))</code></pre>
 
 The time between two monotonic readings (the first earlier):
 milliseconds, truncated. A duration is never negative, so readings

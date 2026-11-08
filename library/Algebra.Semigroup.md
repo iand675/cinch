@@ -51,7 +51,7 @@ lives with its type and a newtype's home is its class module.
 
 ## `Semigroup.<>`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;&gt;</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -61,7 +61,7 @@ lives with its type and a newtype's home is its class module.
 
 ## `combine-pairs`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">combine-pairs</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">sa</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">combine-pairs</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">sa</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
 
 One round of a balanced combine: adjacent pairs combined in order,
 an odd last value carried unchanged (shared with Algebra.Monoid's
@@ -73,7 +73,7 @@ an odd last value carried unchanged (shared with Algebra.Monoid's
 
 ## `sconcat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sconcat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sconcat</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 `sconcat`: combine the whole list with `<>`, in order, or `None`
 when there is nothing to combine. The carrier is `List a` and the
@@ -95,7 +95,7 @@ every step, O(n^2) bytes, where the rounds copy O(n log n).
 
 ## `stimes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stimes</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stimes</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 `stimes n x`: `n` copies of `x` combined with `<>`. A `Nat` cannot
 be negative, but it can be zero, and a bare `Semigroup` has no
@@ -119,8 +119,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Algebra.Semigroup.Semigroup_Function` | `Semigroup (t -> u)` | Implicit |
-| `Algebra.Semigroup.Semigroup_Pair` | `Semigroup (t, u)` | Implicit |
+| `Algebra.Semigroup.Semigroup_Function` | `Algebra.Semigroup.Semigroup (t -> u)` | Implicit |
+| `Algebra.Semigroup.Semigroup_Pair` | `Algebra.Semigroup.Semigroup (t, u)` | Implicit |
 
 **`Algebra.Semigroup.Semigroup_Function`**: Structural: pointwise combination of functions into a semigroup.
 (t -> u) is a semigroup whenever the result is; the constraint is

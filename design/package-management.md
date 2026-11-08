@@ -44,8 +44,9 @@ Three consequences follow.
 3. The manifest describes a package set but has no edges. The missing layer is
    dependency resolution and distribution, not a new package format.
 
-The website's `/packages/` catalogue is sample documentation data. It is not a
-registry, and its dependency names are not a protocol.
+The website's `/packages/` catalogue is a static render of a registry's public
+releases. It is not itself a registry, and its dependency names are registry
+facts, not a protocol.
 
 # 2 Thesis: content identity plus checked compatibility
 

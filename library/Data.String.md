@@ -71,7 +71,7 @@ never one a caller retains.
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 342
+[Source](/reference-sources/Data.String.cinch) · line 341
 
 <a id="value-636f70792d62797465732d696e746f"></a>
 
@@ -89,7 +89,7 @@ loop here boxed a `Nat` for every index step.
 
 ## `empty-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty-string</span> :: <span class="tok-constructor">String</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty-string</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -97,7 +97,7 @@ loop here boxed a `Nat` for every index step.
 
 ## `pack`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pack</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pack</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Haskell's `Data.String` pair: `pack` is the `List Char` view of a
 string, `unpack` its inverse (new conversions: no `String`/`List
@@ -124,7 +124,7 @@ that end test, so it answers `i` as a malformed sequence does.
 
 ## `string-byte-length`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-byte-length</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-byte-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -132,7 +132,7 @@ that end test, so it answers `i` as a malformed sequence does.
 
 ## `string-char-at`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -140,7 +140,7 @@ that end test, so it answers `i` as a malformed sequence does.
 
 ## `string-char-at-from`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))))</code></pre>
 
 The scalar value at code point index `n`, by scan (O(n)).
 
@@ -150,19 +150,19 @@ The scalar value at code point index `n`, by scan (O(n)).
 
 ## `string-compare`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-compare</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-compare</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
 
 Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 354
+[Source](/reference-sources/Data.String.cinch) · line 353
 
 <a id="value-737472696e672d636f6e636174"></a>
 
 ## `string-concat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -170,7 +170,7 @@ identifier against dozens of literals.
 
 ## `string-concat-all`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat-all</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat-all</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Every string in the list, in order, in one pass: the buffer is made
 once, at the end of the list, sized to the pieces' total, and each
@@ -186,7 +186,7 @@ is valid UTF-8, so the buffer wraps without a decode. This is the
 
 ## `string-from-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -194,7 +194,7 @@ is valid UTF-8, so the buffer wraps without a decode. This is the
 
 ## `string-length`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-length</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -212,7 +212,7 @@ Length in Unicode scalar values (O(n) scan).
 
 ## `string-repeat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-repeat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-repeat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 `s` repeated `n` times (the run-building helper the padding and
 numeric-format sites spelled out as fixed byte runs): one buffer of
@@ -224,7 +224,7 @@ numeric-format sites spelled out as fixed byte runs): one buffer of
 
 ## `string-slice`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-slice</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-slice</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
@@ -236,7 +236,7 @@ takes its `start < end` evidence from the test).
 
 ## `string-to-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-to-bytes</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-to-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 A copy of the backing (the conversion out copies: the caller may
 mutate its copy freely and the `String` never changes).
@@ -247,7 +247,7 @@ mutate its copy freely and the `String` never changes).
 
 ## `unpack`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unpack</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unpack</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -255,7 +255,7 @@ mutate its copy freely and the `String` never changes).
 
 ## `utf8-at`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -263,7 +263,7 @@ mutate its copy freely and the `String` never changes).
 
 ## `utf8-char`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-char</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-char</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -302,7 +302,7 @@ byte at all).
 
 ## `utf8-encode-width`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-encode-width</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">4</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-encode-width</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">4</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Data.String.cinch)
 
@@ -353,11 +353,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.String.Eq_String` | `Eq String` | Implicit |
-| `Data.String.Hash_String` | `Hash String` | Implicit |
-| `Data.String.Monoid_String` | `Monoid String` | Implicit |
-| `Data.String.Ord_String` | `Ord String` | Implicit |
-| `Data.String.Semigroup_String` | `Semigroup String` | Implicit |
+| `Data.String.Eq_String` | `Relation.Eq.Eq Data.String.String` | Implicit |
+| `Data.String.Hash_String` | `Data.Hash.Hash Data.String.String` | Implicit |
+| `Data.String.Monoid_String` | `Algebra.Monoid.Monoid Data.String.String` | Implicit |
+| `Data.String.Ord_String` | `Relation.Ord.Ord Data.String.String` | Implicit |
+| `Data.String.Semigroup_String` | `Algebra.Semigroup.Semigroup Data.String.String` | Implicit |
 
 **`Data.String.Hash_String`**: The digest of the UTF-8 backing through the `Bytes` instance
 (Data.Bytes owns the byte fold, so the two instances agree by
@@ -372,4 +372,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `eb33baef6f92bc39b36b9db2aac139073f131ae306237970781311ee57877ebb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/String.cinch`. Source SHA-256: `27a381efd32575a2b0ca0c4a0d9f3a9c982b64b731d672caad03ba04a997ae79`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

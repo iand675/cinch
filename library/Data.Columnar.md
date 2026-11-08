@@ -31,7 +31,7 @@ This module exports no type declarations.
 
 ## `columnar-array`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-array</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-array</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -39,7 +39,7 @@ This module exports no type declarations.
 
 ## `columnar-column`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-column</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-column</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -47,7 +47,7 @@ This module exports no type declarations.
 
 ## `columnar-columns`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-columns</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-columns</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -55,7 +55,7 @@ This module exports no type declarations.
 
 ## `columnar-get`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -63,7 +63,7 @@ This module exports no type declarations.
 
 ## `columnar-left`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-left</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-left</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -71,7 +71,7 @@ This module exports no type declarations.
 
 ## `columnar-right`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-right</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-right</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -79,7 +79,7 @@ This module exports no type declarations.
 
 ## `columnar-rows`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-rows</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-rows</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 
@@ -87,7 +87,7 @@ This module exports no type declarations.
 
 ## `columnar-zip`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-zip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-zip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)))))</code></pre>
 
 [Source](/reference-sources/Data.Columnar.cinch)
 

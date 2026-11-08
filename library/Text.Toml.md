@@ -102,13 +102,13 @@ with the reason.
 
 [Source](/reference-sources/Text.Toml.cinch) · line 100
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDuplicateKey</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDuplicateKey</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDateTime</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDateTime</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlNotRepresentable</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">TomlError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlNotRepresentable</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
 
 # Values
 
@@ -116,7 +116,7 @@ with the reason.
 
 ## `toml-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TomlError</span> <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
 
 [Source](/reference-sources/Text.Toml.cinch)
 
@@ -124,7 +124,7 @@ with the reason.
 
 ## `toml-print`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-print</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TomlError</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-print</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 Printing (total, deterministic; emission order stated in the
 header).

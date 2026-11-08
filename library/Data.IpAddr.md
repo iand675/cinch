@@ -72,9 +72,9 @@ implement; each is a named boundary, never a silent gap):
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V4Addr</span> :: (<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">IpAddr</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V4Addr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V6Addr</span> :: (<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">IpAddr</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V6Addr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)</code></pre>
 
 <a id="type-497046616d696c79"></a>
 
@@ -87,9 +87,9 @@ predicates; one total witness keeps the answer exhaustive).
 
 [Source](/reference-sources/Data.IpAddr.cinch) · line 69
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv4Family</span> :: <span class="tok-constructor">IpFamily</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv4Family</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv6Family</span> :: <span class="tok-constructor">IpFamily</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv6Family</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span></code></pre>
 
 <a id="type-49707634"></a>
 
@@ -118,7 +118,7 @@ Exactly eight 16-bit groups, most significant first.
 
 ## `ip-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-bytes</span> :: (<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -126,7 +126,7 @@ Exactly eight 16-bit groups, most significant first.
 
 ## `ip-family`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-family</span> :: (<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">IpFamily</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-family</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span>)</code></pre>
 
 The sum over the families.
 
@@ -136,7 +136,7 @@ The sum over the families.
 
 ## `ip-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">IpAddr</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -144,7 +144,7 @@ The sum over the families.
 
 ## `ip-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-to-string</span> :: (<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -152,7 +152,7 @@ The sum over the families.
 
 ## `ipv4-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-bytes</span> :: (<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -160,7 +160,7 @@ The sum over the families.
 
 ## `ipv4-from-octets`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-from-octets</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ipv4</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-from-octets</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span>)))))</code></pre>
 
 The smart constructor: octets outside 0..=255 are refused, so no
 caller can build an `Ipv4` the parser would never produce.
@@ -171,7 +171,7 @@ caller can build an `Ipv4` the parser would never produce.
 
 ## `ipv4-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ipv4</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span>))</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -179,7 +179,7 @@ caller can build an `Ipv4` the parser would never produce.
 
 ## `ipv4-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-to-string</span> :: (<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -187,7 +187,7 @@ caller can build an `Ipv4` the parser would never produce.
 
 ## `ipv6-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-bytes</span> :: (<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -195,7 +195,7 @@ caller can build an `Ipv4` the parser would never produce.
 
 ## `ipv6-from-groups`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-from-groups</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ipv6</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-from-groups</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span>))</code></pre>
 
 The smart constructor: exactly eight groups, each 0..=65535.
 
@@ -205,7 +205,7 @@ The smart constructor: exactly eight groups, each 0..=65535.
 
 ## `ipv6-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Ipv6</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span>))</code></pre>
 
 [Source](/reference-sources/Data.IpAddr.cinch)
 
@@ -213,7 +213,7 @@ The smart constructor: exactly eight groups, each 0..=65535.
 
 ## `ipv6-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-to-string</span> :: (<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Canonical rendering: lower-case hex, the chosen zero run spelled
 `::`, at most one `::` per address.
@@ -226,12 +226,12 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.IpAddr.Eq_IpAddr` | `Eq IpAddr` | Implicit |
-| `Data.IpAddr.Eq_Ipv4` | `Eq Ipv4` | Implicit |
-| `Data.IpAddr.Eq_Ipv6` | `Eq Ipv6` | Implicit |
-| `Data.IpAddr.Ord_IpAddr` | `Ord IpAddr` | Implicit |
-| `Data.IpAddr.Ord_Ipv4` | `Ord Ipv4` | Implicit |
-| `Data.IpAddr.Ord_Ipv6` | `Ord Ipv6` | Implicit |
+| `Data.IpAddr.Eq_IpAddr` | `Relation.Eq.Eq Data.IpAddr.IpAddr` | Implicit |
+| `Data.IpAddr.Eq_Ipv4` | `Relation.Eq.Eq Data.IpAddr.Ipv4` | Implicit |
+| `Data.IpAddr.Eq_Ipv6` | `Relation.Eq.Eq Data.IpAddr.Ipv6` | Implicit |
+| `Data.IpAddr.Ord_IpAddr` | `Relation.Ord.Ord Data.IpAddr.IpAddr` | Implicit |
+| `Data.IpAddr.Ord_Ipv4` | `Relation.Ord.Ord Data.IpAddr.Ipv4` | Implicit |
+| `Data.IpAddr.Ord_Ipv6` | `Relation.Ord.Ord Data.IpAddr.Ipv6` | Implicit |
 
 **`Data.IpAddr.Eq_Ipv4`**: Instances (they live with their type; D159's parked deviation is
 over).

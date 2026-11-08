@@ -110,15 +110,15 @@ kernel delivers to nothing).
 
 [Source](/reference-sources/Effect.Signal.cinch) · line 90
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigNone</span> :: <span class="tok-constructor">Signal</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigNone</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigHup</span> :: <span class="tok-constructor">Signal</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigHup</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigInt</span> :: <span class="tok-constructor">Signal</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigInt</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigKill</span> :: <span class="tok-constructor">Signal</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigKill</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigTerm</span> :: <span class="tok-constructor">Signal</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigTerm</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
 
 <a id="type-5369676e616c4572726f72"></a>
 
@@ -130,9 +130,9 @@ Why a delivery did not happen.
 
 [Source](/reference-sources/Effect.Signal.cinch) · line 98
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalNotDelivered</span> :: <span class="tok-constructor">SignalError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalNotDelivered</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalInvalidNumber</span> :: <span class="tok-constructor">SignalError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalInvalidNumber</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span></code></pre>
 
 # Values
 
@@ -140,7 +140,7 @@ Why a delivery did not happen.
 
 ## `signal-number`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-number</span> :: (<span class="tok-constructor">Signal</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-number</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The host's POSIX number for a signal (the table is the host's;
 see the header).
@@ -151,7 +151,7 @@ see the header).
 
 ## `signal-probe`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-probe</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-probe</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 Probe `pid` without delivering anything (the zero signal): `Ok ()`
 when the process exists and the caller may signal it, the named
@@ -164,7 +164,7 @@ how a caller checks the target before a real delivery.
 
 ## `signal-send`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-send</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Signal</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-send</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 Deliver `sig` to `pid` (pid first, then the signal): the named
 error on any failure, `Ok ()` when the kernel accepted it.

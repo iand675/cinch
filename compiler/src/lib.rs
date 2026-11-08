@@ -22,6 +22,7 @@ pub mod lexer;
 pub mod lsp;
 pub mod parser;
 pub mod pkg;
+pub mod provenance;
 pub mod rc;
 pub mod repl;
 pub mod repl_tui;

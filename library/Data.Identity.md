@@ -64,7 +64,7 @@ declarations), so no per-type operator stand-ins are defined here.
 
 ## `ap-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
 
 Applicative body: apply a wrapped function to a wrapped value.
 
@@ -74,7 +74,7 @@ Applicative body: apply a wrapped function to a wrapped value.
 
 ## `bind-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
 
 Monad body: sequence a dependent computation.
 
@@ -84,7 +84,7 @@ Monad body: sequence a dependent computation.
 
 ## `join-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Identity</span> (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>))</code></pre>
 
 Monad body: collapse one layer.
 
@@ -94,7 +94,7 @@ Monad body: collapse one layer.
 
 ## `lift-a2-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">c</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">c</span>))))</code></pre>
 
 Applicative body: lift a two-argument function.
 
@@ -104,7 +104,7 @@ Applicative body: lift a two-argument function.
 
 ## `map-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
 
 Functor body: map over the wrapped value.
 
@@ -114,7 +114,7 @@ Functor body: map over the wrapped value.
 
 ## `pure-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>))</code></pre>
 
 Applicative body.
 
@@ -124,7 +124,7 @@ Applicative body.
 
 ## `run-identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 Elimination: the wrapped value.
 
@@ -136,9 +136,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Identity.Applicative_Identity` | `Applicative Identity` | Implicit |
-| `Data.Identity.Functor_Identity` | `Functor Identity` | Implicit |
-| `Data.Identity.Monad_Identity` | `Monad Identity` | Implicit |
+| `Data.Identity.Applicative_Identity` | `Category.Applicative.Applicative Data.Identity.Identity` | Implicit |
+| `Data.Identity.Functor_Identity` | `Category.Functor.Functor Data.Identity.Identity` | Implicit |
+| `Data.Identity.Monad_Identity` | `Category.Monad.Monad Data.Identity.Identity` | Implicit |
 
 **`Data.Identity.Functor_Identity`**: The class instances (instances live with their type), defined
 through the bodies above.

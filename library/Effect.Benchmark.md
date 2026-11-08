@@ -79,7 +79,7 @@ always one this module read.
 
 [Source](/reference-sources/Effect.Benchmark.cinch) · line 62
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">BenchmarkReport</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>))</code></pre>
 
 # Values
 
@@ -87,7 +87,7 @@ always one this module read.
 
 ## `benchmark-elapsed-ns`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-elapsed-ns</span> :: (<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-elapsed-ns</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Benchmark.cinch)
 
@@ -95,7 +95,7 @@ always one this module read.
 
 ## `benchmark-label`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-label</span> :: (<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-label</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Benchmark.cinch)
 
@@ -103,7 +103,7 @@ always one this module read.
 
 ## `benchmark-measure`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-measure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">BenchmarkReport</span>, <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-measure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>, <span class="tok-variable">a</span>)))</code></pre>
 
 Run `work` and report the monotonic span around it, together with
 `work`'s own value so a measurement never discards the result. The
@@ -117,7 +117,7 @@ span clamps at zero (a duration is never negative).
 
 ## `benchmark-realtime`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-realtime</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Duration</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-realtime</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>)</code></pre>
 
 The same interval as `benchmark-measure`, truncated to whole
 milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's
@@ -130,7 +130,7 @@ value is deliberately dropped, so callers wanting it use
 
 ## `benchmark-table`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-table</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-table</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The table: a header, one row per report in input order, and the
 total row. Labels are the caller's, printed verbatim. The rows are

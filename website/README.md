@@ -11,7 +11,7 @@ npm run dev      # http://localhost:4321
 npm run build    # static output in website/dist/
 npm run preview  # serve the build
 npm run check    # astro check (TypeScript and content types)
-npm run verify:preview # audit built package pages, links, sample ZIPs, and checksums
+npm run verify:preview # audit registry-derived package routes, links, and download archives
 ```
 
 The devenv shell provides Node 24 and npm from nixpkgs. Astro 7 requires Node 22.23 or newer; `website/.node-version` pins 24.21.0 for fnm and asdf when working outside devenv.
@@ -80,15 +80,24 @@ The selected wordmark is `public/brand/cinch-wordmark-instrument-v2.webp`. It re
 
 ## Package and release prototypes
 
-`/packages/` is a static catalogue with eight sample libraries. Search covers package names, modules, declarations, signatures, and descriptions; category and result-type filters are reflected in the URL. Package pages include README text, dependencies, version history, and modules. Module references include linked types, constructor documentation, examples, declaration permalinks, and a sample source listing. Version selection filters declarations by their `since` version.
+`/packages/` is a static catalogue generated at build time from public releases in a Cinch registry. Search covers package names, modules, paths, and descriptions; category and result-type filters are reflected in the URL. Package pages show the published README, declared dependencies, version history, module list, release identity, and a registry-pinned install command. Module pages show the manifest name and path, the package identity, declared dependencies, and the published source. Registry releases do not carry declaration signatures, so module pages do not invent them: they state that generated `.cinchdoc` data is required for declaration-level documentation.
 
-The fixture model lives in `src/lib/catalogue.ts`; editing it regenerates the versioned package, module, and declaration-source routes. `/packages/index.json` exposes the same sample data. These pages are marked as sample data and excluded from search-engine indexing. They do not publish packages or extract documentation from the compiler.
+`src/lib/catalogue.ts` reads `GET /api/v1/index`, then each release's metadata and bundle. Astro builds the site statically, so all registry requests happen once during `npm run build`; the published site makes no registry request from a browser.
 
-Package, module, declaration-source, and download pages share `PlatformLayout.astro`. Their Light / Dark / System selector uses the same `starlight-theme` preference as the docs, initializes before first paint, and follows system changes in System mode. `src/styles/platform-theme.css` defines the warm paper and dark olive palettes; the header, footer, and instrument wells retain their dark surfaces in both modes. Native controls and scrollbars follow their surrounding surfaces.
+| Variable | Effect |
+| --- | --- |
+| `CINCH_CATALOGUE_REGISTRY` | Base URL of the registry. Defaults to `http://127.0.0.1:8787`, the local prototype. |
+| `CINCH_CATALOGUE_OFFLINE=1` | Build a minimal catalogue with no package data. The page says the build is offline. |
+
+The build fails when the registry is unreachable, returns no public releases, or a release manifest cannot be read, unless `CINCH_CATALOGUE_OFFLINE=1` is set. It never falls back to sample libraries. `/packages/index.json` exposes the same model with `sample: false`, the registry URL, and the build time.
+
+`node scripts/verify-catalogue.mjs` starts `registry/server.mjs` with a temporary data directory, publishes `fixture/hello@1.2.3`, builds the site against it, checks the package, module, and source pages, and runs `verify-preview.py`.
+
+Package, module, module-source, and download pages share `PlatformLayout.astro`. Their Light / Dark / System selector uses the same `starlight-theme` preference as the docs, initializes before first paint, and follows system changes in System mode. `src/styles/platform-theme.css` defines the warm paper and dark olive palettes; the header, footer, and instrument wells retain their dark surfaces in both modes. Native controls and scrollbars follow their surrounding surfaces.
 
 `/downloads/` demonstrates release-channel and platform selection. `src/lib/downloads.ts` generates eight deterministic sample ZIPs, each containing only a README and release metadata, plus matching SHA-256 sidecars. No compiler is included. Repository and source-download links use the real GitHub project configured in `src/lib/project.ts`. Replace the fixtures with real release metadata and artifacts when those become available.
 
-After `npm run build`, run `npm run verify:preview` to check generated links and anchors, version-specific declarations, ZIP contents, checksums, and shared project navigation.
+After `npm run build`, run `npm run verify:preview`. It derives the expected package, version, module, and source routes from `/packages/index.json`, checks links and anchors, rejects sample labels on live pages, and checks the separate download ZIPs and checksums.
 
 
 ## Reader documentation and verification

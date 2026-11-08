@@ -60,7 +60,7 @@ The strict boolean algebra (primitive types specification, section 6).
 
 ## `bool`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bool</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bool</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
 
 The boolean fold: `bool f t b` is `t` when `b` is `True` and `f`
 otherwise (`Data.Bool.bool`), the elimination form matching the
@@ -151,11 +151,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Bool.Codec_Bool` | `Codec Bool` | Implicit |
-| `Data.Bool.Eq_Bool` | `Eq Bool` | Implicit |
-| `Data.Bool.Hash_Bool` | `Hash Bool` | Implicit |
-| `Data.Bool.JsonCodec_Bool` | `JsonCodec Bool` | Implicit |
-| `Data.Bool.Ord_Bool` | `Ord Bool` | Implicit |
+| `Data.Bool.Codec_Bool` | `Text.Codec.Codec Bool` | Implicit |
+| `Data.Bool.Eq_Bool` | `Relation.Eq.Eq Bool` | Implicit |
+| `Data.Bool.Hash_Bool` | `Data.Hash.Hash Bool` | Implicit |
+| `Data.Bool.JsonCodec_Bool` | `Text.Codec.JsonCodec Bool` | Implicit |
+| `Data.Bool.Ord_Bool` | `Relation.Ord.Ord Bool` | Implicit |
 
 **`Data.Bool.Codec_Bool`**: The A6 column codec for booleans (modules specification section
 11's `CodecGenerator.derive` vocabulary, decision D65's covered

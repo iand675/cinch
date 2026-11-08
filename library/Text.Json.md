@@ -102,7 +102,7 @@ sit under a lambda (the D302 top-level value discipline).
 
 [Source](/reference-sources/Text.Json.cinch) · line 194
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkJParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkJParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
 <a id="type-4a5265706c79"></a>
 
@@ -116,9 +116,9 @@ there).
 
 [Source](/reference-sources/Text.Json.cinch) · line 187
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JOk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JOk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
 
 <a id="type-4a5374617465"></a>
 
@@ -133,7 +133,7 @@ compiler's spans).
 
 [Source](/reference-sources/Text.Json.cinch) · line 165
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JState</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">JState</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JState</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span>))))</code></pre>
 
 # Values
 
@@ -141,7 +141,7 @@ compiler's spans).
 
 ## `attempt-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -149,7 +149,7 @@ compiler's spans).
 
 ## `between-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">open</span> <span class="tok-variable">close</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">open</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">close</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">open</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">close</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">open</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">close</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -157,7 +157,7 @@ compiler's spans).
 
 ## `canonical-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-bytes</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -165,7 +165,7 @@ compiler's spans).
 
 ## `canonical-hash`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-hash</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-hash</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -173,7 +173,7 @@ compiler's spans).
 
 ## `canonical-json`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-json</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -181,7 +181,7 @@ compiler's spans).
 
 ## `choice-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -189,7 +189,7 @@ compiler's spans).
 
 ## `digest-hex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -197,7 +197,7 @@ compiler's spans).
 
 ## `expect-eof`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: <span class="tok-constructor">JParser</span> <span class="tok-constructor">Unit</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -205,7 +205,7 @@ compiler's spans).
 
 ## `fail-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -213,7 +213,7 @@ compiler's spans).
 
 ## `json-eq`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-eq</span> :: (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -221,7 +221,7 @@ compiler's spans).
 
 ## `json-value`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-value</span> :: <span class="tok-constructor">JParser</span> <span class="tok-constructor">Json</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -229,7 +229,7 @@ compiler's spans).
 
 ## `label-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -237,7 +237,7 @@ compiler's spans).
 
 ## `look-ahead-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -245,7 +245,7 @@ compiler's spans).
 
 ## `many-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -253,7 +253,7 @@ compiler's spans).
 
 ## `optional-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -261,7 +261,7 @@ compiler's spans).
 
 ## `or-else`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -269,7 +269,7 @@ compiler's spans).
 
 ## `parse-bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -277,7 +277,7 @@ compiler's spans).
 
 ## `parse-fmap`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -285,7 +285,7 @@ compiler's spans).
 
 ## `parse-json`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-json</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">ParseOutcome</span> <span class="tok-constructor">Json</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -293,7 +293,7 @@ compiler's spans).
 
 ## `parse-pure`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -301,7 +301,7 @@ compiler's spans).
 
 ## `print-json`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">print-json</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">print-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -309,7 +309,7 @@ compiler's spans).
 
 ## `run-jparser-fn`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-jparser-fn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-jparser-fn</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -317,7 +317,7 @@ compiler's spans).
 
 ## `satisfy-byte`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-byte</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-byte</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -325,7 +325,7 @@ compiler's spans).
 
 ## `sep-by-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">JParser</span> <span class="tok-variable">s</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">s</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -333,7 +333,7 @@ compiler's spans).
 
 ## `some-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">JParser</span> (<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Json.cinch)
 
@@ -343,7 +343,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Text.Json.JsonCodec_Json` | `JsonCodec Json` | Implicit |
+| `Text.Json.JsonCodec_Json` | `Text.Codec.JsonCodec Data.Json.Json` | Implicit |
 
 **`Text.Json.JsonCodec_Json`**: JsonCodec's identity column (the class and its decode-error
 vocabulary live in `Text.Codec`; the `I64`/`Bool` instances live

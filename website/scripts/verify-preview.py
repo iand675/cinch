@@ -30,7 +30,7 @@ def resolve(path):
     return file / 'index.html' if not file.suffix or file.is_dir() else file
 
 pages = sorted((root / 'packages').rglob('*.html')) + [root/'downloads/index.html']
-assert len(pages) > 70, 'Package, version, API and declaration-source pages must all be built'
+assert (root/'packages/index.html').exists(), 'the package catalogue page must be built'
 links = 0
 for file in pages:
     parsed = page(file)
@@ -47,20 +47,58 @@ for file in pages:
         links += 1
 
 catalogue = json.loads((root/'packages/index.json').read_text())
-assert catalogue['sample'] is True
-assert len(catalogue['packages']) == 8
-for package in catalogue['packages']:
-    for version in package['versions']:
-        assert (root/f"packages/{package['name']}/{version}/index.html").exists()
-        for module in package['modules']:
-            assert (root/f"packages/{package['name']}/{version}/{module['name']}/index.html").exists()
-            assert (root/f"packages/{package['name']}/{version}/{module['name']}/source/index.html").exists()
-assert 'decl-with-timeout' in page(root/'packages/cinch-http/0.4.0/Net.Http.Client/index.html').ids
-assert 'decl-with-timeout' not in page(root/'packages/cinch-http/0.3.0/Net.Http.Client/index.html').ids
+assert catalogue['sample'] is False, 'the catalogue must not advertise sample data'
+assert isinstance(catalogue.get('builtAt'), str) and catalogue['builtAt'], 'build time is required'
+assert isinstance(catalogue.get('offline'), bool)
+
+if catalogue['offline']:
+    assert catalogue['packages'] == [], 'offline builds must not carry package data'
+    assert catalogue.get('registry') is None, 'offline builds have no registry source'
+    index_html = (root/'packages/index.html').read_text().lower()
+    assert 'offline catalogue' in index_html, 'the offline page must say the catalogue is offline'
+    assert 'sample data' not in index_html
+    print(f'Checked {len(pages)} package/download pages and {links} local links for an offline catalogue.')
+else:
+    registry = catalogue.get('registry')
+    assert isinstance(registry, str) and registry, 'a live catalogue must name its registry'
+    packages = catalogue['packages']
+    assert packages, 'a live catalogue must contain at least one public release'
+    index_html = (root/'packages/index.html').read_text()
+    assert registry in index_html, 'the catalogue index does not name its registry'
+    assert 'sample data' not in index_html.lower(), 'the live catalogue index still says sample data'
+    assert 'name="robots"' not in index_html, 'the live catalogue index must be indexable'
+    expected_pages = 0
+    for package in packages:
+        assert package['registry'] == registry, (package['name'], 'registry mismatch')
+        assert package['releases'], (package['name'], 'no releases')
+        for release in package['releases']:
+            base = root/'packages'/package['name']/release['version']
+            package_page = base/'index.html'
+            assert package_page.exists(), (package['name'], release['version'], 'package page missing')
+            expected_pages += 1
+            package_html = package_page.read_text()
+            assert registry in package_html, (package['name'], 'package page does not name its registry')
+            assert f'--registry {registry}' in package_html, (package['name'], 'install command must name the registry')
+            assert 'sample data' not in package_html.lower()
+            assert 'name="robots"' not in package_html, (package['name'], 'live package page must be indexable')
+            for module in release['modules']:
+                module_page = base/module['name']/'index.html'
+                source_page = base/module['name']/'source'/'index.html'
+                assert module_page.exists(), (package['name'], release['version'], module['name'], 'module page missing')
+                assert source_page.exists(), (package['name'], release['version'], module['name'], 'source page missing')
+                expected_pages += 2
+                module_html = module_page.read_text()
+                assert 'sample api' not in module_html.lower()
+                assert 'sample data' not in module_html.lower()
+                if not module['declarations']:
+                    assert '.cinchdoc' in module_html, (module['name'], 'page must explain generated declaration data')
+                assert 'sample listing' not in source_page.read_text().lower()
+    built_pages = len(list((root/'packages').rglob('*.html')))
+    assert built_pages >= expected_pages + 2, (built_pages, expected_pages, 'missing catalogue routes')
 
 archives = sorted((root/'downloads/files').glob('*.zip'))
 # Every release ships every target, so the archive count follows the data.
-assert archives, 'no sample archives were built'
+assert archives, 'no sample download archives were built'
 manifests = [json.loads(zipfile.ZipFile(a).read('release.json')) for a in archives]
 assert len({(m['channel'], m['target']) for m in manifests}) == len(archives), 'duplicate release target'
 assert len({m['target'] for m in manifests}) * len({m['channel'] for m in manifests}) == len(archives), 'a release is missing a target'
@@ -81,4 +119,4 @@ for file in [root/'index.html',root/'downloads/index.html',root/'packages/index.
     assert '/downloads/' in page(file).links and '/packages/' in page(file).links
 for file in (root/'tutorials').rglob('*.html'):
     assert repository in page(file).links and '/downloads/' in page(file).links and '/packages/' in page(file).links
-print(f'Checked {len(pages)} package/download pages, {links} local links, versioned API anchors, {len(archives)} ZIPs and checksums, and shared navigation.')
+print(f'Checked {len(pages)} package/download pages, {links} local links, catalogue routes, {len(archives)} ZIPs and checksums, and shared navigation.')

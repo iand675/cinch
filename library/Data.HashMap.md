@@ -85,7 +85,7 @@ Module scheme (design/base-library.md): the type's home carries its
 
 ## `hash-map-delete`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-delete</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-delete</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
 
 Removal: the bucket loses the key's entry, and a bucket left empty
 drops its digest node from the spine, so deleting every key leaves
@@ -97,7 +97,7 @@ the same `STip` spine `hash-map-empty` has (nothing accumulates).
 
 ## `hash-map-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
@@ -105,7 +105,7 @@ the same `STip` spine `hash-map-empty` has (nothing accumulates).
 
 ## `hash-map-filter`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-filter</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-filter</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
 
 Keep the entries the predicate accepts, rebuilt through
 `hash-map-from-pairs`. The rebuild, not a structural filter, is why
@@ -119,7 +119,7 @@ rejoin problem. The predicate sees the key as well as the value.
 
 ## `hash-map-fold`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>))) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>))) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 A RIGHT fold in `hash-map-to-list`'s order: the fold visits every
 entry exactly once, and that order is the buckets' unstable order,
@@ -134,7 +134,7 @@ empty map is the identity). The right direction is what makes the
 
 ## `hash-map-from-pairs`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-from-pairs</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-from-pairs</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
 
 Pairs fold in from the head, so an EARLIER pair wins a repeated
 key (the head is inserted last into the fold of the tail), like
@@ -146,7 +146,7 @@ Data.Map's `map-from-pairs`.
 
 ## `hash-map-insert`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-insert</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-insert</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
@@ -154,7 +154,7 @@ Data.Map's `map-from-pairs`.
 
 ## `hash-map-is-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-is-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 Named `hash-map-is-empty` because the bare `is-empty` is the
 list's (`List a -> Bool`) and there is no overloading to share one
@@ -166,7 +166,7 @@ spelling; the module prefix is how the family disambiguates.
 
 ## `hash-map-keys`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-keys</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">k</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-keys</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">k</span>))</code></pre>
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
@@ -174,7 +174,7 @@ spelling; the module prefix is how the family disambiguates.
 
 ## `hash-map-lookup`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-lookup</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">v</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-lookup</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">v</span>)))</code></pre>
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
@@ -182,7 +182,7 @@ spelling; the module prefix is how the family disambiguates.
 
 ## `hash-map-map`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">w</span> . ((<span class="tok-variable">v</span> -&gt; <span class="tok-variable">w</span>) -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">w</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">v</span> -&gt; <span class="tok-variable">w</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">w</span>)))</code></pre>
 
 Rewrite the values: the keys and their digests are unchanged, so
 the spine's shape and cached heights carry over and no `Hash`/`Eq`
@@ -194,7 +194,7 @@ is needed (Data.Map's `map`).
 
 ## `hash-map-size`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-size</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-size</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The entry count: the buckets' lengths summed over the spine.
 
@@ -204,7 +204,7 @@ The entry count: the buckets' lengths summed over the spine.
 
 ## `hash-map-to-list`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-to-list</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)))</code></pre>
 
 The entries in the buckets' unstable order (see the refusal in the
 header): the ordered views live at Data.Map.
@@ -215,7 +215,7 @@ header): the ordered views live at Data.Map.
 
 ## `hash-map-union`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-union</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-union</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
 
 The LEFT map's value wins a shared key (Data.Map's `union`): the
 left map's entries are inserted into the right, and
@@ -230,7 +230,7 @@ exactly once.
 
 ## `hash-map-union-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-union-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-variable">v</span>)) -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-union-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">h</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">k</span>, <span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-variable">v</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
 
 The union of `hash-map-union` with a shared key combined instead
 of chosen: `f` sees the LEFT value first and the right value
@@ -242,7 +242,7 @@ second (Data.Map's `unionWith`).
 
 ## `hash-map-values`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-values</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-variable">v</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash-map-values</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">HashMap</span>.<span class="tok-constructor">HashMap</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">v</span>))</code></pre>
 
 [Source](/reference-sources/Data.HashMap.cinch)
 
@@ -252,7 +252,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.HashMap.FromMap_HashMap` | `FromMap (HashMap k v) k v` | Implicit |
+| `Data.HashMap.FromMap_HashMap` | `Data.FromMap.FromMap ((Data.HashMap.HashMap k) v) k v` | Implicit |
 
 **`Data.HashMap.FromMap_HashMap`**: Map literals at `HashMap` (surface grammar local amendments
 section 10).

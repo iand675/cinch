@@ -164,9 +164,9 @@ shape: an illegal argument is a value, never a fault).
 
 [Source](/reference-sources/Effect.Random.cinch) · line 151
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyBound</span> :: <span class="tok-constructor">RandomError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyBound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Random</span>.<span class="tok-constructor">RandomError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyRange</span> :: <span class="tok-constructor">RandomError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyRange</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Random</span>.<span class="tok-constructor">RandomError</span></code></pre>
 
 # Values
 
@@ -174,7 +174,7 @@ shape: an illegal argument is a value, never a fault).
 
 ## `hex-of-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-of-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-of-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Two characters per byte, lower case (`0`..`9` then `a`..`f`): the
 rendering a token, a digest echo or a temp name reads. A `String` is
@@ -188,7 +188,7 @@ it total, the `Data.Sym`/`Data.Complex` convention).
 
 ## `random-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-bytes</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-bytes</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bytes</span>)</code></pre>
 
 `n` bytes from the OS entropy source, exactly `n` (`n = 0` is the
 legal empty request). Every draw here names this call; nothing holds
@@ -200,7 +200,7 @@ state between calls.
 
 ## `random-hex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-hex</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-hex</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 `n` bytes of OS entropy as 2n lower-case hex characters (Ruby's
 `SecureRandom.hex` shape, over this module's own draw rather than a
@@ -212,7 +212,7 @@ hash composition).
 
 ## `random-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
 
 One full machine word of entropy as a `Nat`: uniform over
 `0 .. 2^64 - 1` (eight bytes, so no acceptance region is needed).
@@ -228,7 +228,7 @@ does).
 
 ## `random-nat-below`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat-below</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">RandomError</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat-below</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Random</span>.<span class="tok-constructor">RandomError</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 A uniform value below `bound`: rejection sampling over
 `byte-width bound` bytes, in the acceptance region the header
@@ -242,7 +242,7 @@ bound the draw's `NonZero` divisor.
 
 ## `random-nat-in-range`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat-in-range</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">RandomError</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-nat-in-range</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Random</span>.<span class="tok-constructor">RandomError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 A uniform value in `lo .. hi - 1` (inclusive lower, exclusive
 upper): the offset draw shifted by `lo`. An empty range (`hi <= lo`,

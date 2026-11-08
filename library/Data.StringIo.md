@@ -107,7 +107,7 @@ exceeds.
 
 [Source](/reference-sources/Data.StringIo.cinch) · line 84
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SeekOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">StringIoError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SeekOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIoError</span>))</code></pre>
 
 # Values
 
@@ -115,7 +115,7 @@ exceeds.
 
 ## `string-io-eof`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-eof</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-eof</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 At or past the last byte: a read returns nothing and the cursor
 does not move.
@@ -126,7 +126,7 @@ does not move.
 
 ## `string-io-from-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">StringIo</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)</code></pre>
 
 The conversion in copies (the wrap/copy discipline Data.String
 states for its backing): the caller keeps its mutable buffer and a
@@ -139,7 +139,7 @@ starts at the beginning.
 
 ## `string-io-len`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-len</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-len</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.StringIo.cinch)
 
@@ -147,7 +147,7 @@ starts at the beginning.
 
 ## `string-io-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-new</span> :: <span class="tok-constructor">StringIo</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-new</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span></code></pre>
 
 [Source](/reference-sources/Data.StringIo.cinch)
 
@@ -155,7 +155,7 @@ starts at the beginning.
 
 ## `string-io-pos`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-pos</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-pos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.StringIo.cinch)
 
@@ -163,7 +163,7 @@ starts at the beginning.
 
 ## `string-io-read`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">StringIo</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)))</code></pre>
 
 Read up to n bytes from the cursor, advancing by the number
 consumed. At or past the end the result is the empty buffer and the
@@ -176,7 +176,7 @@ Ruby's nil is not spelled here).
 
 ## `string-io-read-line`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read-line</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">StringIo</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read-line</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
 
 Read through the next LF (0x0A), inclusive; the last line without a
 terminator yields the rest of the buffer.
@@ -187,7 +187,7 @@ terminator yields the rest of the buffer.
 
 ## `string-io-rewind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-rewind</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">StringIo</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-rewind</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)</code></pre>
 
 The cursor to the start: what was read is read again.
 
@@ -197,7 +197,7 @@ The cursor to the start: what was read is read again.
 
 ## `string-io-seek`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-seek</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">StringIoError</span> <span class="tok-constructor">StringIo</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-seek</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)))</code></pre>
 
 The cursor to an absolute byte offset. A target past the buffer
 length is the named refusal: this module never pads, so the cursor
@@ -211,7 +211,7 @@ cursor is a `Nat`).
 
 ## `string-io-to-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-to-bytes</span> :: (<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-to-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 The conversion out copies too, for the same reason.
 
@@ -221,7 +221,7 @@ The conversion out copies too, for the same reason.
 
 ## `string-io-truncate`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-truncate</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">StringIo</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-truncate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
 
 Shrink the buffer to at most n bytes (a larger n is a no-op: this
 never extends, matching Ruby's `truncate`). The cursor is clamped
@@ -233,7 +233,7 @@ into the new length, which keeps 0 <= pos <= length.
 
 ## `string-io-write`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-write</span> :: (<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">StringIo</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-write</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
 
 Write at the cursor: `bs` overwrites the bytes already there and
 extends the buffer when it runs past the end; the bytes after the

@@ -1,0 +1,30 @@
+---
+import PlatformLayout from '../../../../../../layouts/PlatformLayout.astro';
+import { loadCatalogue, moduleUrl } from '../../../../../../lib/catalogue';
+
+export async function getStaticPaths() {
+  const catalogue = await loadCatalogue();
+  return catalogue.packages.flatMap((p) =>
+    p.releases.flatMap((release) =>
+      release.modules.map((module) => ({
+        params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version, module: module.name },
+        props: { package: p, release, module },
+      })),
+    ),
+  );
+}
+
+const { package: p, release, module: m } = Astro.props;
+const version = release.version;
+const lines = m.source ?? [];
+const downloadPath = release.packageId.replace(/^sha256:/, '');
+---
+<PlatformLayout title={`${m.name} · module source`} description={`Published source for ${m.name} in ${p.name} ${version}.`} section="packages" sample={false}>
+  <div class="package-topbar"><a href={moduleUrl(p, m, version)}>← {m.name} module reference</a><span class="sample-badge">REGISTRY SOURCE</span></div>
+  <section class="source-page">
+    <div class="platform-eyebrow mono"><span>{p.name} / {version}</span><span>{m.path || 'path not recorded in the manifest'}</span></div>
+    <h1>Module source.</h1>
+    <p>This listing is the exact source file stored in the registry release. It is not generated documentation and it is not checked here; the compiler remains the authority for whether the module checks.</p>
+    {lines.length > 0 ? <div class="source-listing">{lines.map((line, index) => <div class="source-line" id={`L${index + 1}`}><a href={`#L${index + 1}`} aria-label={`Line ${index + 1}`}>{index + 1}</a><code>{line || ' '}</code></div>)}</div> : <aside class="preview-note compact"><span class="mono">SOURCE UNAVAILABLE</span><p>The registry metadata for this release did not provide the source bundle at build time. Release identity <code style="overflow-wrap:anywhere">{release.packageId}</code>. Read the bundle directly from <a href={`${p.registry}/api/v1/download/${downloadPath}`}>{p.registry}/api/v1/download/{downloadPath}</a>.</p></aside>}
+  </section>
+</PlatformLayout>

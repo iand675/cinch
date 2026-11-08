@@ -45,7 +45,7 @@ This module exports no type declarations.
 
 ## `intern`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intern</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Sym</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Sym</span>)</code></pre>
 
 The prelude surface of section 9.
 
@@ -55,7 +55,7 @@ The prelude surface of section 9.
 
 ## `sym-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sym-name</span> :: (<span class="tok-constructor">Sym</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sym-name</span> :: (<span class="tok-constructor">Sym</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.Sym.cinch)
 
@@ -65,10 +65,10 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Sym.Eq_Sym` | `Eq Sym` | Implicit |
-| `Data.Sym.Hash_Sym` | `Hash Sym` | Implicit |
-| `Data.Sym.Ord_Sym` | `Ord Sym` | Implicit |
-| `Data.Sym.Show_Sym` | `Show Sym` | Implicit |
+| `Data.Sym.Eq_Sym` | `Relation.Eq.Eq Sym` | Implicit |
+| `Data.Sym.Hash_Sym` | `Data.Hash.Hash Sym` | Implicit |
+| `Data.Sym.Ord_Sym` | `Relation.Ord.Ord Sym` | Implicit |
+| `Data.Sym.Show_Sym` | `Text.Show.Show Sym` | Implicit |
 
 **`Data.Sym.Eq_Sym`**: `Eq` is identity: the same interned cell (section 9).
 **`Data.Sym.Hash_Sym`**: The digest is the interned name's bytes through the `Bytes`

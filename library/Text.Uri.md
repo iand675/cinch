@@ -90,7 +90,7 @@ brackets; a present-but-empty `host` is the empty authority of
 
 [Source](/reference-sources/Text.Uri.cinch) · line 88
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUri</span> :: (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Uri</span>)))))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUri</span> :: (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>)))))))</code></pre>
 
 <a id="type-5572694572726f72"></a>
 
@@ -102,15 +102,15 @@ Errors: every malformed reference names the rule it broke.
 
 [Source](/reference-sources/Text.Uri.cinch) · line 124
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPercentEscape</span> :: <span class="tok-constructor">UriError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPercentEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadScheme</span> :: <span class="tok-constructor">UriError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadScheme</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPort</span> :: <span class="tok-constructor">UriError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPort</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadIpv6Host</span> :: <span class="tok-constructor">UriError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadIpv6Host</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadUtf8</span> :: <span class="tok-constructor">UriError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadUtf8</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
 
 # Values
 
@@ -118,7 +118,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `render-uri-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-uri-error</span> :: (<span class="tok-constructor">UriError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-uri-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -126,7 +126,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `uri-decode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-decode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">UriError</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -134,7 +134,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `uri-encode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-encode</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-encode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -142,7 +142,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `uri-fragment`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-fragment</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-fragment</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -150,7 +150,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `uri-host`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -158,7 +158,7 @@ Errors: every malformed reference names the rule it broke.
 
 ## `uri-host-ip`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host-ip</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">IpAddr</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host-ip</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
 
 The address a host names, when it names one: a bracketed literal is
 an IPv6 address, a bare host that parses as IPv4 is one, and any
@@ -170,7 +170,7 @@ other host (a registered name, or an unbracketed IPv6) is `None`.
 
 ## `uri-normalize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-normalize</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Uri</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-normalize</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>)</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -178,7 +178,7 @@ other host (a registered name, or an unbracketed IPv6) is `None`.
 
 ## `uri-parse`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-parse</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">UriError</span> <span class="tok-constructor">Uri</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>))</code></pre>
 
 Parsing (RFC 3986 appendix B's grammar, with the checks the
 grammar needs and the appendix's regex cannot carry).
@@ -189,7 +189,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-path`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-path</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-path</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -197,7 +197,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-port`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-port</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-port</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -205,7 +205,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-query`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-query</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-query</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -213,7 +213,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-resolve`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-resolve</span> :: (<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Uri</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-resolve</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -221,7 +221,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-scheme`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-scheme</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-scheme</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 
@@ -229,7 +229,7 @@ grammar needs and the appendix's regex cannot carry).
 
 ## `uri-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-to-string</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-to-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Printing: the exact inverse of parsing (the round-trip law).
 
@@ -239,7 +239,7 @@ Printing: the exact inverse of parsing (the round-trip law).
 
 ## `uri-userinfo`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-userinfo</span> :: (<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-userinfo</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Uri.cinch)
 

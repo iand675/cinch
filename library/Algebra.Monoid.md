@@ -170,7 +170,7 @@ Semigroup instance (two monoids live on Nat; the newtype chooses).
 
 ## `Monoid.mempty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mempty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mempty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
 
 
@@ -178,7 +178,7 @@ Semigroup instance (two monoids live on Nat; the newtype chooses).
 
 ## `Monoid.mconcat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mconcat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mconcat</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 `mconcat`: combine the whole list with `<>`, in order, or `mempty`
 for the empty list. This is the operation the text homes kept
@@ -210,25 +210,25 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Algebra.Monoid.Group_Dual` | `Group (Dual t)` | Implicit |
-| `Algebra.Monoid.Monoid_All` | `Monoid All` | Implicit |
-| `Algebra.Monoid.Monoid_Any` | `Monoid Any` | Implicit |
-| `Algebra.Monoid.Monoid_Dual` | `Monoid (Dual t)` | Implicit |
-| `Algebra.Monoid.Monoid_Endo` | `Monoid (Endo t)` | Implicit |
-| `Algebra.Monoid.Monoid_First` | `Monoid (First t)` | Implicit |
-| `Algebra.Monoid.Monoid_Function` | `Monoid (t -> u)` | Implicit |
-| `Algebra.Monoid.Monoid_Last` | `Monoid (Last t)` | Implicit |
-| `Algebra.Monoid.Monoid_Pair` | `Monoid (t, u)` | Implicit |
-| `Algebra.Monoid.Monoid_Product` | `Monoid Product` | Implicit |
-| `Algebra.Monoid.Monoid_Sum` | `Monoid Sum` | Implicit |
-| `Algebra.Monoid.Semigroup_All` | `Semigroup All` | Implicit |
-| `Algebra.Monoid.Semigroup_Any` | `Semigroup Any` | Implicit |
-| `Algebra.Monoid.Semigroup_Dual` | `Semigroup (Dual t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Endo` | `Semigroup (Endo t)` | Implicit |
-| `Algebra.Monoid.Semigroup_First` | `Semigroup (First t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Last` | `Semigroup (Last t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Product` | `Semigroup Product` | Implicit |
-| `Algebra.Monoid.Semigroup_Sum` | `Semigroup Sum` | Implicit |
+| `Algebra.Monoid.Group_Dual` | `Algebra.Group.Group (Algebra.Monoid.Dual t)` | Implicit |
+| `Algebra.Monoid.Monoid_All` | `Algebra.Monoid.Monoid Algebra.Monoid.All` | Implicit |
+| `Algebra.Monoid.Monoid_Any` | `Algebra.Monoid.Monoid Algebra.Monoid.Any` | Implicit |
+| `Algebra.Monoid.Monoid_Dual` | `Algebra.Monoid.Monoid (Algebra.Monoid.Dual t)` | Implicit |
+| `Algebra.Monoid.Monoid_Endo` | `Algebra.Monoid.Monoid (Algebra.Monoid.Endo t)` | Implicit |
+| `Algebra.Monoid.Monoid_First` | `Algebra.Monoid.Monoid (Algebra.Monoid.First t)` | Implicit |
+| `Algebra.Monoid.Monoid_Function` | `Algebra.Monoid.Monoid (t -> u)` | Implicit |
+| `Algebra.Monoid.Monoid_Last` | `Algebra.Monoid.Monoid (Algebra.Monoid.Last t)` | Implicit |
+| `Algebra.Monoid.Monoid_Pair` | `Algebra.Monoid.Monoid (t, u)` | Implicit |
+| `Algebra.Monoid.Monoid_Product` | `Algebra.Monoid.Monoid Algebra.Monoid.Product` | Implicit |
+| `Algebra.Monoid.Monoid_Sum` | `Algebra.Monoid.Monoid Algebra.Monoid.Sum` | Implicit |
+| `Algebra.Monoid.Semigroup_All` | `Algebra.Semigroup.Semigroup Algebra.Monoid.All` | Implicit |
+| `Algebra.Monoid.Semigroup_Any` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Any` | Implicit |
+| `Algebra.Monoid.Semigroup_Dual` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Dual t)` | Implicit |
+| `Algebra.Monoid.Semigroup_Endo` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Endo t)` | Implicit |
+| `Algebra.Monoid.Semigroup_First` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.First t)` | Implicit |
+| `Algebra.Monoid.Semigroup_Last` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Last t)` | Implicit |
+| `Algebra.Monoid.Semigroup_Product` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Product` | Implicit |
+| `Algebra.Monoid.Semigroup_Sum` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Sum` | Implicit |
 
 **`Algebra.Monoid.Group_Dual`**: The opposite group: `invert (Dual x)` is `Dual (invert x)`. The
 inverse laws hold in the opposite order (instances live with
@@ -241,4 +241,4 @@ class default, eta-expanded by the checker to this carrier's arity.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Monoid.cinch`. Source SHA-256: `7f71172956f30dbc67374308cbb6a582b905921936183ff366d2a05c56e05258`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Algebra/Monoid.cinch`. Source SHA-256: `8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

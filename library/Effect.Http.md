@@ -114,23 +114,23 @@ socket layer's own named failure (wrapped, not flattened).
 
 [Source](/reference-sources/Effect.Http.cinch) · line 112
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadStatusLine</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadStatusLine</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadHeaderLine</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadHeaderLine</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedTransferEncoding</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedTransferEncoding</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBodyTooLarge</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBodyTooLarge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpTruncatedBody</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpTruncatedBody</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadUrl</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadUrl</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNoTls</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNoTls</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedScheme</span> :: <span class="tok-constructor">HttpError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedScheme</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNetworkError</span> :: (<span class="tok-constructor">NetError</span> -&gt; <span class="tok-constructor">HttpError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNetworkError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span>)</code></pre>
 
 <a id="type-4874747052657175657374"></a>
 
@@ -144,7 +144,7 @@ when it is empty or does not start with one.
 
 [Source](/reference-sources/Effect.Http.cinch) · line 149
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpRequest</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">HttpRequest</span>))))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpRequest</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span>))))))</code></pre>
 
 <a id="type-48747470526573706f6e7365"></a>
 
@@ -157,7 +157,7 @@ kept, in arrival order) and the decoded body bytes.
 
 [Source](/reference-sources/Effect.Http.cinch) · line 178
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">HttpResponse</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))))</code></pre>
 
 # Values
 
@@ -165,7 +165,7 @@ kept, in arrival order) and the decoded body bytes.
 
 ## `http-body`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-body</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -173,7 +173,7 @@ kept, in arrival order) and the decoded body bytes.
 
 ## `http-get`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))</code></pre>
 
 GET `url` on a fresh connection. The URL is parsed with Text.Uri. An
 `https` URL is refused (HttpNoTls); any non-`http` scheme (or none) is
@@ -186,7 +186,7 @@ missing port is 80.
 
 ## `http-header`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 The FIRST value of `name`, matched case-insensitively (ASCII folding:
 a header name is ASCII, so `Content-Length` and `content-length` are
@@ -198,7 +198,7 @@ the same name, and no locale folding is done), or `None`.
 
 ## `http-header-all`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-all</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-all</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 Every value of `name`, matched case-insensitively, in arrival order
 (a repeated header keeps every value).
@@ -209,7 +209,7 @@ Every value of `name`, matched case-insensitively, in arrival order
 
 ## `http-headers`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-headers</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-headers</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -217,7 +217,7 @@ Every value of `name`, matched case-insensitively, in arrival order
 
 ## `http-reason`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-reason</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-reason</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -225,7 +225,7 @@ Every value of `name`, matched case-insensitively, in arrival order
 
 ## `http-request`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))</code></pre>
 
 Send `q` on a fresh connection and read the whole reply. The default
 bound (max-response-bytes) applies; use http-request-max for an
@@ -237,7 +237,7 @@ explicit one.
 
 ## `http-request-body`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-body</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -245,7 +245,7 @@ explicit one.
 
 ## `http-request-headers`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-headers</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-headers</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -253,7 +253,7 @@ explicit one.
 
 ## `http-request-host`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-host</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-host</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -261,7 +261,7 @@ explicit one.
 
 ## `http-request-max`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-max</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">HttpError</span> <span class="tok-constructor">HttpResponse</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-max</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>)))</code></pre>
 
 Send `q` with an explicit bound on the received bytes (headers plus
 body). Refuses past it with HttpBodyTooLarge.
@@ -272,7 +272,7 @@ body). Refuses past it with HttpBodyTooLarge.
 
 ## `http-request-method`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-method</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-method</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -280,7 +280,7 @@ body). Refuses past it with HttpBodyTooLarge.
 
 ## `http-request-path`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-path</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-path</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -288,7 +288,7 @@ body). Refuses past it with HttpBodyTooLarge.
 
 ## `http-request-port`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-port</span> :: (<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-port</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -296,7 +296,7 @@ body). Refuses past it with HttpBodyTooLarge.
 
 ## `http-status`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-status</span> :: (<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-status</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Http.cinch)
 
@@ -315,7 +315,7 @@ no-framing case and the header section share it).
 
 ## `render-http-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-http-error</span> :: (<span class="tok-constructor">HttpError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-http-error</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The diagnostic line for a named error.
 

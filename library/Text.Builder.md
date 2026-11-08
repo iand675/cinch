@@ -78,7 +78,7 @@ its newline; `BBytes` carries a raw byte slice (which need not be UTF-8).
 
 ## `builder-add-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Builder</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span>))</code></pre>
 
 Append a raw byte slice as one piece: O(1), no copy of the slice.
 
@@ -88,7 +88,7 @@ Append a raw byte slice as one piece: O(1), no copy of the slice.
 
 ## `builder-add-int`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-int</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Builder</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-int</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span>))</code></pre>
 
 Append a decimal `Int` (rendered by `Text.Show`).
 
@@ -98,7 +98,7 @@ Append a decimal `Int` (rendered by `Text.Show`).
 
 ## `builder-add-line`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-line</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Builder</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-line</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span>))</code></pre>
 
 Append the text and a single LF as one piece.
 
@@ -108,7 +108,7 @@ Append the text and a single LF as one piece.
 
 ## `builder-add-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Builder</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span>))</code></pre>
 
 Append a decimal `Nat` (rendered by `Text.Show`).
 
@@ -118,7 +118,7 @@ Append a decimal `Nat` (rendered by `Text.Show`).
 
 ## `builder-add-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-string</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Builder</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-add-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span>))</code></pre>
 
 Append a string as one piece: O(1), no copy of the string's bytes.
 
@@ -128,7 +128,7 @@ Append a string as one piece: O(1), no copy of the string's bytes.
 
 ## `builder-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-bytes</span> :: (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 Exact size and fixed-length pieces make the checked copy pass succeed.
 Preserve the original semantics if those private invariants ever disagree:
@@ -140,7 +140,7 @@ recompute with the range-checked fill, never return truncated text.
 
 ## `builder-chunks`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-chunks</span> :: (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-chunks</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 How many pieces are pending: one per append, so a test can assert that
 appends do not re-copy. O(number of pieces).
@@ -151,7 +151,7 @@ appends do not re-copy. O(number of pieces).
 
 ## `builder-is-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-is-empty</span> :: (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-is-empty</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 Whether a builder has no pending pieces. Structural: a builder is empty
 exactly when it was never appended to, so an appended empty string counts
@@ -163,7 +163,7 @@ as a piece.
 
 ## `builder-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-new</span> :: <span class="tok-constructor">Builder</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-new</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span></code></pre>
 
 The empty builder (no pending pieces).
 
@@ -173,7 +173,7 @@ The empty builder (no pending pieces).
 
 ## `builder-run`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-run</span> :: (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-run</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The flattened string: flatten once, then decode the UTF-8. A builder
 built through the string, line, nat and int surface is always valid UTF-8;
@@ -185,7 +185,7 @@ a raw byte chunk that is not yields the empty string (see the header).
 
 ## `builder-size`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-size</span> :: (<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">builder-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Builder</span>.<span class="tok-constructor">Builder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The exact total byte length of the flattened result, without flattening
 (a line piece counts its LF). O(number of pieces).

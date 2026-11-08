@@ -92,15 +92,15 @@ to turn into an invented address.
 
 [Source](/reference-sources/Effect.Resolv.cinch) · line 82
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvNotFound</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvPermissionDenied</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvInvalidArgument</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvIoError</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvMalformedAnswer</span> :: <span class="tok-constructor">ResolvError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvMalformedAnswer</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
 
 # Values
 
@@ -108,7 +108,7 @@ to turn into an invented address.
 
 ## `answer-addresses`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-addresses</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">IpAddr</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-addresses</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
 
 The addresses alone, in the resolver's order.
 
@@ -118,7 +118,7 @@ The addresses alone, in the resolver's order.
 
 ## `answer-family-count`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-family-count</span> :: (<span class="tok-constructor">IpFamily</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-family-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
 
 How many answers belong to `fam`.
 
@@ -128,7 +128,7 @@ How many answers belong to `fam`.
 
 ## `answer-has-family`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-has-family</span> :: (<span class="tok-constructor">IpFamily</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-has-family</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 Whether any answer belongs to `fam`.
 
@@ -138,7 +138,7 @@ Whether any answer belongs to `fam`.
 
 ## `resolve`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">List</span> (<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)))))</code></pre>
 
 Resolve `host` (UTF-8 host text) at `port` (0..=65535) into the
 typed answer list, or the named error. Each `<ip>:<port>` line the
@@ -153,7 +153,7 @@ property and never a silent filter.
 
 ## `resolve-addresses`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve-addresses</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">IpAddr</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve-addresses</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)))</code></pre>
 
 The name-only convenience: `resolve host` at port 0 and the port
 discarded, so a caller that wants just the addresses (Ruby's

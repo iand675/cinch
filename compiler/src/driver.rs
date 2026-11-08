@@ -45,68 +45,215 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
     // `PRELUDE_FACADE` (with the generated vocabulary appended) rather
     // than through this entry.
     ("Prelude.cinch", PRELUDE_FACADE),
-    ("Data/Core.cinch", include_str!("../prelude/Data/Core.cinch")),
-    ("Relation/Eq.cinch", include_str!("../prelude/Relation/Eq.cinch")),
-    ("Relation/Ord.cinch", include_str!("../prelude/Relation/Ord.cinch")),
-    ("Algebra/Arithmetic.cinch", include_str!("../prelude/Algebra/Arithmetic.cinch")),
-    ("Algebra/Bits.cinch", include_str!("../prelude/Algebra/Bits.cinch")),
-    ("Function/Combinators.cinch", include_str!("../prelude/Function/Combinators.cinch")),
+    (
+        "Data/Core.cinch",
+        include_str!("../prelude/Data/Core.cinch"),
+    ),
+    (
+        "Relation/Eq.cinch",
+        include_str!("../prelude/Relation/Eq.cinch"),
+    ),
+    (
+        "Relation/Ord.cinch",
+        include_str!("../prelude/Relation/Ord.cinch"),
+    ),
+    (
+        "Algebra/Arithmetic.cinch",
+        include_str!("../prelude/Algebra/Arithmetic.cinch"),
+    ),
+    (
+        "Algebra/Bits.cinch",
+        include_str!("../prelude/Algebra/Bits.cinch"),
+    ),
+    (
+        "Function/Combinators.cinch",
+        include_str!("../prelude/Function/Combinators.cinch"),
+    ),
     ("Data/Nat.cinch", include_str!("../prelude/Data/Nat.cinch")),
     ("Data/Int.cinch", include_str!("../prelude/Data/Int.cinch")),
-    ("Data/Option.cinch", include_str!("../prelude/Data/Option.cinch")),
-    ("Data/Result.cinch", include_str!("../prelude/Data/Result.cinch")),
-    ("Data/List.cinch", include_str!("../prelude/Data/List.cinch")),
+    (
+        "Data/Option.cinch",
+        include_str!("../prelude/Data/Option.cinch"),
+    ),
+    (
+        "Data/Result.cinch",
+        include_str!("../prelude/Data/Result.cinch"),
+    ),
+    (
+        "Data/List.cinch",
+        include_str!("../prelude/Data/List.cinch"),
+    ),
     // The enumeration class behind the range literals collects after
     // `Data.List` (its `List` type); its instances live with their
     // types in `Data.Nat`/`Data.Int`.
-    ("Data/Enum.cinch", include_str!("../prelude/Data/Enum.cinch")),
-    ("Data/Ordering.cinch", include_str!("../prelude/Data/Ordering.cinch")),
-    ("Data/Char.cinch", include_str!("../prelude/Data/Char.cinch")),
-    ("Data/Bool.cinch", include_str!("../prelude/Data/Bool.cinch")),
-    ("Data/Machine.cinch", include_str!("../prelude/Data/Machine.cinch")),
-    ("Data/Bytes.cinch", include_str!("../prelude/Data/Bytes.cinch")),
+    (
+        "Data/Enum.cinch",
+        include_str!("../prelude/Data/Enum.cinch"),
+    ),
+    (
+        "Data/Ordering.cinch",
+        include_str!("../prelude/Data/Ordering.cinch"),
+    ),
+    (
+        "Data/Char.cinch",
+        include_str!("../prelude/Data/Char.cinch"),
+    ),
+    (
+        "Data/Bool.cinch",
+        include_str!("../prelude/Data/Bool.cinch"),
+    ),
+    (
+        "Data/Machine.cinch",
+        include_str!("../prelude/Data/Machine.cinch"),
+    ),
+    (
+        "Data/Bytes.cinch",
+        include_str!("../prelude/Data/Bytes.cinch"),
+    ),
     ("Data/Map.cinch", include_str!("../prelude/Data/Map.cinch")),
-    ("Data/String.cinch", include_str!("../prelude/Data/String.cinch")),
-    ("Data/Json.cinch", include_str!("../prelude/Data/Json.cinch")),
-    ("Data/Producer.cinch", include_str!("../prelude/Data/Producer.cinch")),
-    ("Data/Target.cinch", include_str!("../prelude/Data/Target.cinch")),
-    ("Data/Path.cinch", include_str!("../prelude/Data/Path.cinch")),
-    ("Effect/Sequencing.cinch", include_str!("../prelude/Effect/Sequencing.cinch")),
-    ("Effect/Concurrent.cinch", include_str!("../prelude/Effect/Concurrent.cinch")),
-    ("Effect/Clock.cinch", include_str!("../prelude/Effect/Clock.cinch")),
-    ("Effect/Fs.cinch", include_str!("../prelude/Effect/Fs.cinch")),
-    ("Effect/Process.cinch", include_str!("../prelude/Effect/Process.cinch")),
-    ("Effect/Io.cinch", include_str!("../prelude/Effect/Io.cinch")),
-    ("Data/FromList.cinch", include_str!("../prelude/Data/FromList.cinch")),
-    ("Data/FromMap.cinch", include_str!("../prelude/Data/FromMap.cinch")),
-    ("Text/Show.cinch", include_str!("../prelude/Text/Show.cinch")),
+    (
+        "Data/String.cinch",
+        include_str!("../prelude/Data/String.cinch"),
+    ),
+    (
+        "Data/Json.cinch",
+        include_str!("../prelude/Data/Json.cinch"),
+    ),
+    (
+        "Data/Producer.cinch",
+        include_str!("../prelude/Data/Producer.cinch"),
+    ),
+    (
+        "Data/Target.cinch",
+        include_str!("../prelude/Data/Target.cinch"),
+    ),
+    (
+        "Data/Path.cinch",
+        include_str!("../prelude/Data/Path.cinch"),
+    ),
+    (
+        "Effect/Sequencing.cinch",
+        include_str!("../prelude/Effect/Sequencing.cinch"),
+    ),
+    (
+        "Effect/Concurrent.cinch",
+        include_str!("../prelude/Effect/Concurrent.cinch"),
+    ),
+    (
+        "Effect/Clock.cinch",
+        include_str!("../prelude/Effect/Clock.cinch"),
+    ),
+    (
+        "Effect/Fs.cinch",
+        include_str!("../prelude/Effect/Fs.cinch"),
+    ),
+    (
+        "Effect/Process.cinch",
+        include_str!("../prelude/Effect/Process.cinch"),
+    ),
+    (
+        "Effect/Io.cinch",
+        include_str!("../prelude/Effect/Io.cinch"),
+    ),
+    (
+        "Data/FromList.cinch",
+        include_str!("../prelude/Data/FromList.cinch"),
+    ),
+    (
+        "Data/FromMap.cinch",
+        include_str!("../prelude/Data/FromMap.cinch"),
+    ),
+    (
+        "Text/Show.cinch",
+        include_str!("../prelude/Text/Show.cinch"),
+    ),
     // `Data.Sym` collects after `Text.Show` (its `Show` instance) and
     // `Data.String` (its name conversions); the facade collects after
     // the whole family.
     ("Data/Sym.cinch", include_str!("../prelude/Data/Sym.cinch")),
     // The class modules and the newer families continue here; the
     // manifest's order, not this table's, decides where each is checked.
-    ("Algebra/Semigroup.cinch", include_str!("../prelude/Algebra/Semigroup.cinch")),
-    ("Algebra/Group.cinch", include_str!("../prelude/Algebra/Group.cinch")),
-    ("Algebra/Semiring.cinch", include_str!("../prelude/Algebra/Semiring.cinch")),
-    ("Algebra/Monoid.cinch", include_str!("../prelude/Algebra/Monoid.cinch")),
-    ("Category/Functor.cinch", include_str!("../prelude/Category/Functor.cinch")),
-    ("Category/Applicative.cinch", include_str!("../prelude/Category/Applicative.cinch")),
-    ("Category/Monad.cinch", include_str!("../prelude/Category/Monad.cinch")),
-    ("Category/Alternative.cinch", include_str!("../prelude/Category/Alternative.cinch")),
-    ("Category/Foldable.cinch", include_str!("../prelude/Category/Foldable.cinch")),
-    ("Category/Traversable.cinch", include_str!("../prelude/Category/Traversable.cinch")),
-    ("Data/Identity.cinch", include_str!("../prelude/Data/Identity.cinch")),
-    ("Data/Const.cinch", include_str!("../prelude/Data/Const.cinch")),
-    ("Data/Compose.cinch", include_str!("../prelude/Data/Compose.cinch")),
-    ("Data/NonEmpty.cinch", include_str!("../prelude/Data/NonEmpty.cinch")),
-    ("Data/Sorted.cinch", include_str!("../prelude/Data/Sorted.cinch")),
-    ("Data/NonZero.cinch", include_str!("../prelude/Data/NonZero.cinch")),
-    ("Data/Ascii.cinch", include_str!("../prelude/Data/Ascii.cinch")),
+    (
+        "Algebra/Semigroup.cinch",
+        include_str!("../prelude/Algebra/Semigroup.cinch"),
+    ),
+    (
+        "Algebra/Group.cinch",
+        include_str!("../prelude/Algebra/Group.cinch"),
+    ),
+    (
+        "Algebra/Semiring.cinch",
+        include_str!("../prelude/Algebra/Semiring.cinch"),
+    ),
+    (
+        "Algebra/Monoid.cinch",
+        include_str!("../prelude/Algebra/Monoid.cinch"),
+    ),
+    (
+        "Category/Functor.cinch",
+        include_str!("../prelude/Category/Functor.cinch"),
+    ),
+    (
+        "Category/Applicative.cinch",
+        include_str!("../prelude/Category/Applicative.cinch"),
+    ),
+    (
+        "Category/Monad.cinch",
+        include_str!("../prelude/Category/Monad.cinch"),
+    ),
+    (
+        "Category/Alternative.cinch",
+        include_str!("../prelude/Category/Alternative.cinch"),
+    ),
+    (
+        "Category/Foldable.cinch",
+        include_str!("../prelude/Category/Foldable.cinch"),
+    ),
+    (
+        "Category/Traversable.cinch",
+        include_str!("../prelude/Category/Traversable.cinch"),
+    ),
+    (
+        "Data/Identity.cinch",
+        include_str!("../prelude/Data/Identity.cinch"),
+    ),
+    (
+        "Data/Const.cinch",
+        include_str!("../prelude/Data/Const.cinch"),
+    ),
+    (
+        "Data/Compose.cinch",
+        include_str!("../prelude/Data/Compose.cinch"),
+    ),
+    (
+        "Data/NonEmpty.cinch",
+        include_str!("../prelude/Data/NonEmpty.cinch"),
+    ),
+    (
+        "Data/Sorted.cinch",
+        include_str!("../prelude/Data/Sorted.cinch"),
+    ),
+    (
+        "Data/NonZero.cinch",
+        include_str!("../prelude/Data/NonZero.cinch"),
+    ),
+    (
+        "Data/Ascii.cinch",
+        include_str!("../prelude/Data/Ascii.cinch"),
+    ),
     ("Data/Set.cinch", include_str!("../prelude/Data/Set.cinch")),
-    ("Data/Hash.cinch", include_str!("../prelude/Data/Hash.cinch")),
-    ("Text/Codec.cinch", include_str!("../prelude/Text/Codec.cinch")),
-    ("Data/HashMap.cinch", include_str!("../prelude/Data/HashMap.cinch")),
+    (
+        "Data/Hash.cinch",
+        include_str!("../prelude/Data/Hash.cinch"),
+    ),
+    (
+        "Text/Codec.cinch",
+        include_str!("../prelude/Text/Codec.cinch"),
+    ),
+    (
+        "Data/HashMap.cinch",
+        include_str!("../prelude/Data/HashMap.cinch"),
+    ),
 ];
 
 /// One module of a package manifest: the name, the source path, and
@@ -159,7 +306,7 @@ impl Package {
     /// variant is unsigned, so every field is a string, a boolean or an
     /// array.
     pub fn parse(text: &str) -> Result<Package> {
-        use crate::interface::{JsonValue, parse_json};
+        use crate::interface::{parse_json, JsonValue};
         let wrap = |e: crate::interface::ParseError| Error::plain(format!("package manifest: {e}"));
         let doc = parse_json(text).map_err(wrap)?;
         let obj = doc.as_object().map_err(wrap)?;
@@ -174,20 +321,24 @@ impl Package {
             let o = m.as_object().map_err(wrap)?;
             let name = match o.get("name").map(|v| v.as_str()) {
                 Some(Ok(s)) => s.to_string(),
-                _ => return Err(Error::plain("package manifest: a module entry needs `name`")),
+                _ => {
+                    return Err(Error::plain(
+                        "package manifest: a module entry needs `name`",
+                    ))
+                }
             };
             let path = match o.get("path").map(|v| v.as_str()) {
                 Some(Ok(s)) => s.to_string(),
-                _ => return Err(Error::plain("package manifest: a module entry needs `path`")),
+                _ => {
+                    return Err(Error::plain(
+                        "package manifest: a module entry needs `path`",
+                    ))
+                }
             };
             // `embedded` is recorded for a reader's benefit; the source
             // table is what decides whether a path has bytes.
             let facade = matches!(o.get("facade"), Some(JsonValue::Bool(true)));
-            modules.push(PackageModule {
-                name,
-                path,
-                facade,
-            });
+            modules.push(PackageModule { name, path, facade });
         }
         let mut order: Vec<String> = Vec::new();
         for n in field("order")?.as_array().map_err(wrap)? {
@@ -216,11 +367,15 @@ impl Package {
         self.order
             .iter()
             .map(|name| {
-                let m = self.modules.iter().find(|m| &m.name == name).ok_or_else(|| {
-                    Error::plain(format!(
-                        "package manifest: `{name}` is in `order` but has no module entry"
-                    ))
-                })?;
+                let m = self
+                    .modules
+                    .iter()
+                    .find(|m| &m.name == name)
+                    .ok_or_else(|| {
+                        Error::plain(format!(
+                            "package manifest: `{name}` is in `order` but has no module entry"
+                        ))
+                    })?;
                 embedded_source(&m.path).ok_or_else(|| {
                     Error::plain(format!(
                         "package manifest: no embedded source for `{}`",
@@ -295,10 +450,16 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     let mut headers = Vec::new();
     let facade_at = base_package().facade_index();
     for (i, (path, source)) in prelude_sources().into_iter().enumerate() {
-        let source = if i == facade_at { facade_src.as_str() } else { source };
+        let source = if i == facade_at {
+            facade_src.as_str()
+        } else {
+            source
+        };
         let toks = layout::layout(lexer::lex(source)?)?;
-        headers.extend(crate::parser::fixity_headers(&toks)
-            .map_err(|e| Error::plain(format!("{path}: {e}")))?);
+        headers.extend(
+            crate::parser::fixity_headers(&toks)
+                .map_err(|e| Error::plain(format!("{path}: {e}")))?,
+        );
     }
     let mut exported_fixities = crate::parser::export_fixity_headers(&headers, &HashMap::new())?;
     let base = exported_fixities
@@ -310,19 +471,18 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     let mut early: Vec<crate::ast::Module> = Vec::new();
     let mut late: Vec<crate::ast::Module> = Vec::new();
     let mut tables = exported_fixities.clone();
-    let mut parse_into =
-        |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
-            let parsed = parse_source(src, path, &base, &tables)?;
-            for (m, f) in &parsed.fixities {
-                fixities.insert(m.clone(), f.clone());
-            }
-            for (m, f) in &parsed.exported_fixities {
-                tables.insert(m.clone(), f.clone());
-                exported_fixities.insert(m.clone(), f.clone());
-            }
-            out.extend(parsed.modules);
-            Ok(())
-        };
+    let mut parse_into = |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
+        let parsed = parse_source(src, path, &base, &tables)?;
+        for (m, f) in &parsed.fixities {
+            fixities.insert(m.clone(), f.clone());
+        }
+        for (m, f) in &parsed.exported_fixities {
+            tables.insert(m.clone(), f.clone());
+            exported_fixities.insert(m.clone(), f.clone());
+        }
+        out.extend(parsed.modules);
+        Ok(())
+    };
     // The manifest's order decides everything. Every module listed
     // before the facade is an early home (checked before it, so the
     // facade's `export` items can read its surface); the facade itself
@@ -351,7 +511,12 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     // intrinsic type identities. Mark the actual declarations, never a
     // module/file spelling that source code could imitate. Distinct base
     // types with the same spelling also retain their separate owners.
-    fn intrinsic_decl(decl: &mut crate::ast::Decl, owner: &str, counts: &mut HashMap<String, usize>, mark: bool) {
+    fn intrinsic_decl(
+        decl: &mut crate::ast::Decl,
+        owner: &str,
+        counts: &mut HashMap<String, usize>,
+        mark: bool,
+    ) {
         use crate::ast::Decl;
         let name = match decl {
             Decl::Attributed { inner, .. } => return intrinsic_decl(inner, owner, counts, mark),
@@ -362,14 +527,22 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
             _ => return,
         };
         if mark {
-            let identity = if counts[&name.text] == 1 { name.text.clone() } else { format!("{owner}.{}", name.text) };
+            let identity = if counts[&name.text] == 1 {
+                name.text.clone()
+            } else {
+                format!("{owner}.{}", name.text)
+            };
             name.mark_intrinsic_type(owner, identity);
-        } else { *counts.entry(name.text.clone()).or_default() += 1; }
+        } else {
+            *counts.entry(name.text.clone()).or_default() += 1;
+        }
     }
     let mut type_counts = HashMap::new();
     for mark in [false, true] {
         for module in &mut modules {
-            for decl in &mut module.decls { intrinsic_decl(decl, &module.name.text, &mut type_counts, mark); }
+            for decl in &mut module.decls {
+                intrinsic_decl(decl, &module.name.text, &mut type_counts, mark);
+            }
         }
     }
     Ok(PreludeSources {
@@ -532,7 +705,10 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
-    let dir = entry_path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let dir = entry_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
     let mut sources: HashMap<String, String> = HashMap::new();
     let mut module_file: HashMap<String, PathBuf> = HashMap::new();
     let mut imports: HashMap<String, Vec<String>> = HashMap::new();
@@ -633,8 +809,8 @@ fn load_project(entry_path: &Path) -> Result<Project> {
             )
         })
         .collect();
-    let mut order = crate::interface::topo_order(&graph)
-        .map_err(|e| Error::plain(e.to_string()))?;
+    let mut order =
+        crate::interface::topo_order(&graph).map_err(|e| Error::plain(e.to_string()))?;
     order.retain(|m| module_file.contains_key(m));
     Ok(Project {
         module_file,
@@ -732,8 +908,10 @@ fn write_artifacts(
         std::fs::write(&p, iface.to_json())
             .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
     }
-    let mut modules: Vec<(&str, String)> =
-        ifaces.iter().map(|i| (i.module.as_str(), i.iface_hash())).collect();
+    let mut modules: Vec<(&str, String)> = ifaces
+        .iter()
+        .map(|i| (i.module.as_str(), i.iface_hash()))
+        .collect();
     modules.sort();
     let mut prims: Vec<String> = Vec::new();
     let mut foreign: Vec<String> = Vec::new();
@@ -902,10 +1080,18 @@ fn write_artifacts(
                 ("name", (&b.name).into()),
                 ("symbol", (&b.symbol).into()),
                 ("export", b.export.into()),
-                ("core_params", J::arr(&b.call.core_params, |t| t.spelling().into())),
-                ("core_results", J::arr(&b.call.core_results, |t| t.spelling().into())),
+                (
+                    "core_params",
+                    J::arr(&b.call.core_params, |t| t.spelling().into()),
+                ),
+                (
+                    "core_results",
+                    J::arr(&b.call.core_results, |t| t.spelling().into()),
+                ),
             ]);
-            let J::Obj(fields) = &mut row else { unreachable!() };
+            let J::Obj(fields) = &mut row else {
+                unreachable!()
+            };
             if let Some(ret) = &b.call.ret {
                 fields.insert(
                     "ret_area".to_string(),
@@ -1081,7 +1267,11 @@ fn write_artifacts(
         ),
         (
             "trusted",
-            vec!["LLVM code generation", "the runtime and its instruction model"].into(),
+            vec![
+                "LLVM code generation",
+                "the runtime and its instruction model",
+            ]
+            .into(),
         ),
     ]);
     // Staging build identity (modules specification section 10): the mode,
@@ -1100,7 +1290,13 @@ fn write_artifacts(
         ("compiler", env!("CARGO_PKG_VERSION").into()),
         (
             "generated",
-            J::Obj(report.generated.iter().map(|(m, names)| (m.clone(), names.into())).collect()),
+            J::Obj(
+                report
+                    .generated
+                    .iter()
+                    .map(|(m, names)| (m.clone(), names.into()))
+                    .collect(),
+            ),
         ),
         (
             "inputs",
@@ -1361,9 +1557,8 @@ pub fn wit_for_source(file: &Path) -> Result<Vec<crate::interface::WitAdapter>> 
     for w in wits {
         let text = std::fs::read_to_string(&w)
             .map_err(|e| Error::plain(format!("{}: {e}", w.display())))?;
-        let pkg = crate::parser::parse_wit(&text).map_err(|e| {
-            Error::plain(format!("{}: {e}", w.display()))
-        })?;
+        let pkg = crate::parser::parse_wit(&text)
+            .map_err(|e| Error::plain(format!("{}: {e}", w.display())))?;
         out.push(crate::interface::build_wit_adapter(
             &pkg,
             crate::interface::CanonicalAbi::Wasi03,
@@ -1411,7 +1606,11 @@ fn parse_family_and_user(
     user_src: &str,
     user_file: &str,
     scx: &mut StagingCx,
-) -> Result<(PreludeSources, crate::parser::ParsedModules, HashMap<String, String>)> {
+) -> Result<(
+    PreludeSources,
+    crate::parser::ParsedModules,
+    HashMap<String, String>,
+)> {
     let prelude = parse_prelude(adapters)?;
     // The user source parses against the facade's base table plus every
     // embedded family module's own fixity table: an operator's fixity is
@@ -1419,7 +1618,12 @@ fn parse_family_and_user(
     // `design/compiled-interface-metadata.md` section 2.1, rule 3), so
     // `import Algebra.Semigroup` supplies `<>`'s fixity exactly as it
     // supplies the name, and no consumer redeclares it.
-    let user = parse_source(user_src, user_file, &prelude.base, &prelude.exported_fixities)?;
+    let user = parse_source(
+        user_src,
+        user_file,
+        &prelude.base,
+        &prelude.exported_fixities,
+    )?;
     let mut hashes = HashMap::new();
     let mut files = HashMap::new();
     let mut fixities = prelude.fixities.clone();
@@ -1531,7 +1735,11 @@ fn runtime_lock(shared: bool) -> Option<std::fs::File> {
         .write(true)
         .open(dir.join(".cinch-runtime.lock"))
         .ok()?;
-    let held = if shared { file.lock_shared() } else { file.lock() };
+    let held = if shared {
+        file.lock_shared()
+    } else {
+        file.lock()
+    };
     // A filesystem without advisory locking still builds and links, just
     // without the cross-process guarantee.
     held.ok()?;
@@ -1541,8 +1749,13 @@ fn runtime_lock(shared: bool) -> Option<std::fs::File> {
 #[cfg(feature = "jit")]
 pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
     let archive = ensure_runtime()?;
-    let dir = archive.parent().ok_or_else(|| Error::plain("runtime archive has no parent directory"))?;
-    let dylib = dir.join(format!("libcinchruntime.{}", std::env::consts::DLL_EXTENSION));
+    let dir = archive
+        .parent()
+        .ok_or_else(|| Error::plain("runtime archive has no parent directory"))?;
+    let dylib = dir.join(format!(
+        "libcinchruntime.{}",
+        std::env::consts::DLL_EXTENSION
+    ));
     if dylib.exists() {
         return Ok(dylib);
     }
@@ -1555,7 +1768,9 @@ pub(crate) fn ensure_runtime_dylib() -> Result<std::path::PathBuf> {
         .status()
         .map_err(|e| Error::plain(format!("failed to build the runtime shared library: {e}")))?;
     if !status.success() || !dylib.exists() {
-        return Err(Error::plain("libcinchruntime shared library was not produced"));
+        return Err(Error::plain(
+            "libcinchruntime shared library was not produced",
+        ));
     }
     Ok(dylib)
 }
@@ -1603,12 +1818,16 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
         .status()
         .map_err(|e| Error::plain(format!("failed to build the runtime crate: {e}")))?;
     if !status.success() {
-        return Err(Error::plain("building compiler/runtime (cinchruntime) failed"));
+        return Err(Error::plain(
+            "building compiler/runtime (cinchruntime) failed",
+        ));
     }
     if debug.exists() {
         Ok(debug)
     } else {
-        Err(Error::plain("libcinchruntime.a not found after building the runtime"))
+        Err(Error::plain(
+            "libcinchruntime.a not found after building the runtime",
+        ))
     }
 }
 
@@ -1745,7 +1964,13 @@ pub fn driver_with(
     path: &Path,
     out: Option<&Path>,
 ) -> Result<i32> {
-    driver_with_profile(mode, stage_mode, path, out, &crate::core::TargetProfile::native())
+    driver_with_profile(
+        mode,
+        stage_mode,
+        path,
+        out,
+        &crate::core::TargetProfile::native(),
+    )
 }
 
 /// [`driver_with`] with an explicit target profile (the driving bounds
@@ -1780,7 +2005,9 @@ pub fn driver_with_profile_opts(
     opts: &DriverOptions,
 ) -> Result<i32> {
     if mode != Mode::EmitObject && !opts.object_roots.is_empty() {
-        return Err(Error::plain("explicit object roots require emit-object mode"));
+        return Err(Error::plain(
+            "explicit object roots require emit-object mode",
+        ));
     }
     let project = load_project(path)?;
     let adapters = wit_for_source(path)?;
@@ -1820,7 +2047,10 @@ pub fn driver_with_profile_opts(
     let mut files: HashMap<String, String> = HashMap::new();
     for name in &project.order {
         let key = project.module_file[name].display().to_string();
-        hashes.insert(name.clone(), crate::interface::content_hash(&project.sources[&key]));
+        hashes.insert(
+            name.clone(),
+            crate::interface::content_hash(&project.sources[&key]),
+        );
         files.insert(name.clone(), key);
     }
     // The embedded family is hashed too, so its interfaces witness their
@@ -1868,7 +2098,18 @@ pub fn driver_with_profile_opts(
         let (program, opt) = crate::specialize::optimize(&program, profile)?;
         (program, opt, Vec::new())
     };
-    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters, opts)?;
+    write_artifacts(
+        &out_dir,
+        &entry_stem,
+        &ifaces,
+        &manifest_path,
+        &report,
+        &program,
+        &opt,
+        profile,
+        &adapters,
+        opts,
+    )?;
     if mode == Mode::Check {
         return Ok(0);
     }
@@ -1930,47 +2171,101 @@ pub fn driver_with_profile_opts(
 /// Emit a closed library dependency object. Its physical manifest records the
 /// complete checked interface closure; source exports still come only from
 /// those interfaces. The final executable supplies apply and one layout table.
-fn write_object(profile: &crate::core::TargetProfile, program: &crate::core::Program,
-                ifaces: &[crate::interface::Iface], families: &[crate::specialize::MethodFamily], path: &Path, out: Option<&Path>) -> Result<i32> {
-    use crate::interface::{JsonValue as J, parse_json};
+fn write_object(
+    profile: &crate::core::TargetProfile,
+    program: &crate::core::Program,
+    ifaces: &[crate::interface::Iface],
+    families: &[crate::specialize::MethodFamily],
+    path: &Path,
+    out: Option<&Path>,
+) -> Result<i32> {
+    use crate::interface::{parse_json, JsonValue as J};
     let object = codegen::emit_object_for(profile, program)?;
-    let out = out.map(Path::to_path_buf).unwrap_or_else(|| path.with_extension("o"));
+    let out = out
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| path.with_extension("o"));
     let ir_path = out.with_extension("ll");
     let abi_path = out.with_extension("abi.json");
     if out == ir_path || out == abi_path {
-        return Err(Error::plain("emit-object output must differ from its .ll and .abi.json companions"));
+        return Err(Error::plain(
+            "emit-object output must differ from its .ll and .abi.json companions",
+        ));
     }
     // A failed rebuild must not leave an old manifest advertising new code.
     if abi_path.exists() {
-        std::fs::remove_file(&abi_path).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+        std::fs::remove_file(&abi_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     }
-    std::fs::write(&ir_path, &object.ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    let output = std::process::Command::new(clang()).arg("-c").arg(&ir_path).arg("-o").arg(&out)
-        .output().map_err(|e| Error::plain(format!("compile library object: {e}")))?;
+    std::fs::write(&ir_path, &object.ir)
+        .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    let output = std::process::Command::new(clang())
+        .arg("-c")
+        .arg(&ir_path)
+        .arg("-o")
+        .arg(&out)
+        .output()
+        .map_err(|e| Error::plain(format!("compile library object: {e}")))?;
     if !output.status.success() {
-        return Err(Error::plain(format!("compile library object failed:\n{}", String::from_utf8_lossy(&output.stderr))));
+        return Err(Error::plain(format!(
+            "compile library object failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     let mut abi = parse_json(&object.abi).map_err(|e| Error::plain(e.to_string()))?;
-    let J::Obj(ref mut fields) = abi else { unreachable!() };
-    let interfaces = ifaces.iter().map(|iface| {
-        Ok(J::obj([
-            ("module", iface.module.as_str().into()),
-            ("iface_hash", iface.iface_hash().into()),
-            ("interface", parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?),
-        ]))
-    }).collect::<Result<Vec<_>>>()?;
+    let J::Obj(ref mut fields) = abi else {
+        unreachable!()
+    };
+    let interfaces = ifaces
+        .iter()
+        .map(|iface| {
+            Ok(J::obj([
+                ("module", iface.module.as_str().into()),
+                ("iface_hash", iface.iface_hash().into()),
+                (
+                    "interface",
+                    parse_json(&iface.to_json()).map_err(|e| Error::plain(e.to_string()))?,
+                ),
+            ]))
+        })
+        .collect::<Result<Vec<_>>>()?;
     fields.insert("interfaces".into(), J::Arr(interfaces));
-    fields.insert("method_families".into(), J::Arr(families.iter().map(|family| J::obj([
-        ("class", family.class.as_str().into()),
-        ("declared_methods", (family.declared_methods as u64).into()),
-        ("slots", J::Arr(family.slots.iter().map(|slot| J::obj([
-            ("logical", (slot.logical as u64).into()), ("physical", (slot.physical as u64).into()),
-            ("own", crate::repr::letters(&slot.own).into()),
-        ])).collect())),
-    ])).collect()));
+    fields.insert(
+        "method_families".into(),
+        J::Arr(
+            families
+                .iter()
+                .map(|family| {
+                    J::obj([
+                        ("class", family.class.as_str().into()),
+                        ("declared_methods", (family.declared_methods as u64).into()),
+                        (
+                            "slots",
+                            J::Arr(
+                                family
+                                    .slots
+                                    .iter()
+                                    .map(|slot| {
+                                        J::obj([
+                                            ("logical", (slot.logical as u64).into()),
+                                            ("physical", (slot.physical as u64).into()),
+                                            ("own", crate::repr::letters(&slot.own).into()),
+                                        ])
+                                    })
+                                    .collect(),
+                            ),
+                        ),
+                    ])
+                })
+                .collect(),
+        ),
+    );
     let bytes = std::fs::read(&out).map_err(|e| Error::plain(format!("{}: {e}", out.display())))?;
-    fields.insert("object_content_hash".into(), crate::interface::content_hash_bytes(&bytes).into());
-    std::fs::write(&abi_path, abi.to_canonical_string()).map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    fields.insert(
+        "object_content_hash".into(),
+        crate::interface::content_hash_bytes(&bytes).into(),
+    );
+    std::fs::write(&abi_path, abi.to_canonical_string())
+        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     Ok(0)
 }
 
@@ -1994,7 +2289,10 @@ pub fn run_source_profile(src: &str, profile: &crate::core::TargetProfile) -> Re
 }
 
 /// Specialize, compile and run a checked program.
-pub fn run_program(program: &crate::core::Program, profile: &crate::core::TargetProfile) -> Result<i32> {
+pub fn run_program(
+    program: &crate::core::Program,
+    profile: &crate::core::TargetProfile,
+) -> Result<i32> {
     run_program_objects(program, profile, &[])
 }
 
@@ -2027,13 +2325,49 @@ pub fn run_program_objects(
 /// code resolves the same `cinch_*` boundary as a native build.
 #[cfg(feature = "jit")]
 pub fn jit_file(path: &Path) -> Result<i32> {
-    let tmp = tempfile::tempdir().map_err(|e| Error::plain(format!("jit scratch directory: {e}")))?;
+    let tmp =
+        tempfile::tempdir().map_err(|e| Error::plain(format!("jit scratch directory: {e}")))?;
     let ir_path = tmp.path().join("program.ll");
-    driver_opts(Mode::EmitIr, path, Some(&ir_path), &DriverOptions::default())?;
+    driver_opts(
+        Mode::EmitIr,
+        path,
+        Some(&ir_path),
+        &DriverOptions::default(),
+    )?;
     let ir = std::fs::read_to_string(&ir_path)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     let runtime = ensure_runtime_dylib()?;
     crate::jit::run_main(&ir, &runtime)
+}
+
+/// Load one installed package object into an embedded LLJIT engine and call
+/// one of its zero-arity units.
+///
+/// The engine loads the runtime shared library and registers the layout
+/// prefix the object's physical manifest records before the lookup, so a
+/// unit that allocates, copies, or drops values runs against the same
+/// runtime boundary as a native build. The symbol must name a unit the
+/// manifest defines with arity zero; a call through a mismatched physical
+/// signature is refused rather than made.
+#[cfg(feature = "jit")]
+pub fn jit_package_symbol(object: &Path, symbol: &str) -> Result<i64> {
+    let runtime = ensure_runtime_dylib()?;
+    let mut engine = crate::jit::JitEngine::new(Some(&runtime))?;
+    let package = engine.add_package_object(object)?;
+    let arity = package.units.get(symbol).copied().ok_or_else(|| {
+        Error::plain(format!(
+            "{}: the object's ABI manifest defines no unit {symbol:?} ({} units recorded)",
+            package.object.display(),
+            package.units.len()
+        ))
+    })?;
+    if arity != 0 {
+        return Err(Error::plain(format!(
+            "{}: unit {symbol:?} has arity {arity}; this entry point calls zero-arity units only",
+            package.object.display()
+        )));
+    }
+    engine.call_i64(symbol)
 }
 
 /// Compile and run a source string linked with extra objects; used by
@@ -2053,7 +2387,8 @@ pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<(
     let program = crate::rc::insert(program, &profile)?;
     let ir = codegen::emit_for(&profile, &program)?;
     let ir_path = out.with_extension("ll");
-    std::fs::write(&ir_path, &ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    std::fs::write(&ir_path, &ir)
+        .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     link_with(&ir_path, out, objects)
 }
 

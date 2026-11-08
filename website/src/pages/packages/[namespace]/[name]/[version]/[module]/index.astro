@@ -1,0 +1,48 @@
+---
+import PlatformLayout from '../../../../../../layouts/PlatformLayout.astro';
+import PackageNavigation from '../../../../../../components/catalogue/PackageNavigation.astro';
+import VersionSelect from '../../../../../../components/catalogue/VersionSelect.astro';
+import ApiSignature from '../../../../../../components/catalogue/ApiSignature.astro';
+import { loadCatalogue, packageUrl, moduleUrl, symbolId, declarationsFor, dependencyLabel } from '../../../../../../lib/catalogue';
+
+export async function getStaticPaths() {
+  const catalogue = await loadCatalogue();
+  return catalogue.packages.flatMap((p) =>
+    p.releases.flatMap((release) =>
+      release.modules.map((module) => ({
+        params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version, module: module.name },
+        props: { package: p, release, module },
+      })),
+    ),
+  );
+}
+
+const catalogue = await loadCatalogue();
+const { package: p, release, module: m } = Astro.props;
+const version = release.version;
+const latest = p.version;
+const declarations = declarationsFor(m, version);
+const groups = [
+  { id: 'types', title: 'Types and classes', items: declarations.filter((d) => d.kind !== 'function') },
+  { id: 'functions', title: 'Functions and values', items: declarations.filter((d) => d.kind === 'function') },
+].filter((group) => group.items.length > 0);
+const known = new Map(catalogue.packages.map((pkg) => [pkg.name, pkg]));
+const sourceUrl = `${moduleUrl(p, m, version)}source/`;
+---
+<PlatformLayout title={`${m.name} · ${p.name} ${version}`} description={m.description || `${m.name} from ${p.name} ${version}`} section="packages" sample={false}>
+  <div class="package-topbar"><div><a href="/packages/">Packages</a><span>/</span><a href={packageUrl(p, version)}>{p.name}</a><span>/</span><span>{m.name}</span></div><span class="sample-badge">{declarations.length > 0 ? 'DECLARATIONS' : 'REGISTRY MODULE'}</span></div>
+  <div class="package-workspace api-workspace">
+    <PackageNavigation package={p} version={version} modules={release.modules} moduleName={m.name}/>
+    <article class="package-article api-article">
+      <header class="package-title"><div class="platform-eyebrow mono">{declarations.length > 0 ? 'MODULE REFERENCE' : 'MODULE RECORD'}<VersionSelect package={p} version={version} module={m}/></div><h1>{m.name}</h1><p>{m.description || 'The release manifest lists this module without a description.'}</p><div class="module-title-links"><a href={sourceUrl}>Module source ↗</a>{declarations.length > 0 && <a href="#synopsis">Synopsis ↓</a>}</div></header>
+      {version !== latest && <aside class="older-version">Version {version}. <a href={moduleUrl(p, m)}>Read {latest} →</a></aside>}
+      <aside class="older-version">Manifest path <code>{m.path || 'not recorded'}</code>. Release identity <code style="overflow-wrap:anywhere">{release.packageId}</code>.</aside>
+      {declarations.length > 0 && <section class="api-synopsis" id="synopsis"><div class="section-rule mono">SYNOPSIS</div><div class="synopsis-list">{declarations.map((d) => <a href={`#${symbolId(d.name)}`}><code>{d.signature}</code></a>)}</div></section>}
+      {groups.map((group) => <section class="api-group" id={group.id}><h2>{group.title}</h2>{group.items.map((d) => <article class="api-declaration" id={symbolId(d.name)}><div class="declaration-heading"><h3>{d.name}</h3><div><span class="mono">{d.kind}</span><a href={`#${symbolId(d.name)}`} aria-label={`Permalink to ${d.name}`}>§</a><a href={`${sourceUrl}#${symbolId(d.name)}`}>Source ↗</a></div></div><pre class="signature-well"><ApiSignature text={d.signature} package={p} module={m} version={version}/></pre><p>{d.description}</p>{d.since && <p class="since-note mono">Since {d.since}</p>}{d.constructors && <div class="constructor-list"><h4 class="mono">CONSTRUCTORS</h4>{d.constructors.map((c) => <div id={`ctor-${symbolId(c.name)}`}><pre><ApiSignature text={c.signature} package={p} module={m} version={version}/></pre><p>{c.description}</p></div>)}</div>}{d.example && <div class="api-example"><h4 class="mono">EXAMPLE</h4><pre><code>{d.example}</code></pre></div>}</article>)}</section>)}
+      {declarations.length === 0 && <section class="api-group" id="facts"><div class="section-rule mono">MODULE FACTS</div><h2>What this release publishes</h2><ul class="dependency-list"><li><span>Module name</span><code>{m.name}</code></li><li><span>Manifest path</span><code>{m.path || 'not recorded'}</code></li><li><span>Package</span><code>{p.name} {version}</code></li><li><span>License</span><code>{release.license}</code></li></ul></section>}
+      <section class="api-group" id="dependencies"><div class="section-rule mono">DEPENDENCIES</div><h2>Package dependencies</h2>{release.dependencies.length > 0 ? <ul class="dependency-list">{release.dependencies.map((dependency) => { const target = known.get(dependency.name); return <li>{target ? <a href={packageUrl(target)}>{dependency.name}</a> : <span>{dependency.name}</span>}<code>{dependencyLabel(dependency)}</code></li>; })}</ul> : <p>This release declares no package dependencies.</p>}</section>
+      <aside class="preview-note compact"><span class="mono">DECLARATION DATA</span><p>Declaration-level documentation requires generated <code>.cinchdoc</code> data. This registry release carries the manifest and source files only, so this page does not print inferred signatures or examples. The module source page shows the published text.</p></aside>
+    </article>
+    <aside class="declaration-index"><span class="mono">ON THIS PAGE</span>{declarations.length > 0 ? <a href="#synopsis">Synopsis</a> : <a href="#facts">Module facts</a>}<a href="#dependencies">Dependencies</a>{groups.map((group) => <><a class="index-group" href={`#${group.id}`}>{group.title}</a>{group.items.map((d) => <a href={`#${symbolId(d.name)}`}>{d.name}</a>)}</>)}<a href={sourceUrl}>Module source</a></aside>
+  </div>
+</PlatformLayout>

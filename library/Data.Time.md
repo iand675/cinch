@@ -99,7 +99,7 @@ midnight, below one day. Not exported (the invariant above);
 
 [Source](/reference-sources/Data.Time.cinch) · line 95
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Time</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Time</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
 
 <a id="type-54696d6550617273654572726f72"></a>
 
@@ -114,11 +114,11 @@ diagnostics survive the composition).
 
 [Source](/reference-sources/Data.Time.cinch) · line 102
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotATime</span> :: <span class="tok-constructor">TimeParseError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotATime</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimeFieldsOutOfRange</span> :: <span class="tok-constructor">TimeParseError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimeFieldsOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadDatePart</span> :: (<span class="tok-constructor">DateParseError</span> -&gt; <span class="tok-constructor">TimeParseError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadDatePart</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span>)</code></pre>
 
 # Values
 
@@ -126,7 +126,7 @@ diagnostics survive the composition).
 
 ## `add-duration`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-duration</span> :: (<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-duration</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
 
 Move forward by `d` (a whole number of milliseconds; the day
 carries).
@@ -137,7 +137,7 @@ carries).
 
 ## `cmp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -145,7 +145,7 @@ carries).
 
 ## `date-part`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-part</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Date</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -153,7 +153,7 @@ carries).
 
 ## `diff`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff</span> :: (<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Duration</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>))</code></pre>
 
 The distance between two instants in whole milliseconds (truncated
 toward zero): unsigned, because `Duration` is, so the caller reads
@@ -165,7 +165,7 @@ direction from `cmp` (the refusal above).
 
 ## `from-epoch-nanos`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-nanos</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Time</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-nanos</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>)</code></pre>
 
 The inverse: every `Int` is an instant, so the result is total and
 the floored split keeps the day's remainder non-negative for the
@@ -177,7 +177,7 @@ pre-epoch instants too.
 
 ## `from-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">TimeParseError</span> <span class="tok-constructor">Time</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
 
 Strict ISO 8601 date-time: the date half (Data.Date's reader, so
 its `NotADate`/`InvalidDate` survive as `BadDatePart`), `T`, then
@@ -193,7 +193,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `hour`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hour</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hour</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -201,7 +201,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `minute`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minute</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minute</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -209,7 +209,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `nanosecond`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanosecond</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanosecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -217,7 +217,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `nanoseconds-of-day`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanoseconds-of-day</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanoseconds-of-day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -225,7 +225,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `second`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">second</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">second</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Time.cinch)
 
@@ -233,7 +233,7 @@ is the fields refusal (`24:00:00`, `00:60:00`).
 
 ## `sub-duration`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-duration</span> :: (<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Time</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-duration</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
 
 Move backward by `d`.
 
@@ -243,7 +243,7 @@ Move backward by `d`.
 
 ## `time`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Time</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>)))</code></pre>
 
 The only constructor: a nanosecond count inside the day. At or past
 the day's end is `None`, so an out-of-range `Time` has no
@@ -255,7 +255,7 @@ representation.
 
 ## `to-epoch-nanos`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-nanos</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
 
@@ -265,7 +265,7 @@ Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 `YYYY-MM-DDTHH:MM:SS` (the date half is Data.Date's rendering), with
 `.fffffffff` appended when the sub-second field is non-zero. No
@@ -281,8 +281,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Time.Eq_Time` | `Eq Time` | Implicit |
-| `Data.Time.Ord_Time` | `Ord Time` | Implicit |
+| `Data.Time.Eq_Time` | `Relation.Eq.Eq Data.Time.Time` | Implicit |
+| `Data.Time.Ord_Time` | `Relation.Ord.Ord Data.Time.Time` | Implicit |
 
 **`Data.Time.Eq_Time`**: Instances (the class spellings of `cmp`; instances live with their
 type per design/base-library.md).

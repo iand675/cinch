@@ -66,7 +66,7 @@ defined here.
 
 ## `get-const`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-const</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
 
 Elimination: the carried value.
 
@@ -76,7 +76,7 @@ Elimination: the carried value.
 
 ## `map-const`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-const</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">b</span>)))</code></pre>
 
 Functor body: the carried value is unchanged and the function is
 ignored (the constant functor).
@@ -89,8 +89,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Const.Applicative_Const` | `Applicative (Const m)` | Implicit |
-| `Data.Const.Functor_Const` | `Functor (Const m)` | Implicit |
+| `Data.Const.Applicative_Const` | `Category.Applicative.Applicative (Data.Const.Const m)` | Implicit |
+| `Data.Const.Functor_Const` | `Category.Functor.Functor (Data.Const.Const m)` | Implicit |
 
 **`Data.Const.Applicative_Const`**: The applicative (D157's waiter is discharged at the prelude
 split): `pure` fabricates the `Monoid` payload and `<*>` combines

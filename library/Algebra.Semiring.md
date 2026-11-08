@@ -59,7 +59,7 @@ Data.Int, beside their other instances.
 
 ## `Semiring.zero`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zero</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zero</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
 
 
@@ -67,7 +67,7 @@ Data.Int, beside their other instances.
 
 ## `Semiring.one`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">one</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">one</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
 
 
 
@@ -75,7 +75,7 @@ Data.Int, beside their other instances.
 
 ## `Semiring.add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -83,7 +83,7 @@ Data.Int, beside their other instances.
 
 ## `Semiring.mul`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
 
 
 

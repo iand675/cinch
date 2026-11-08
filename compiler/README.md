@@ -38,15 +38,39 @@ cinch repl
 cinch pkg add alice/library@0.1.0 --registry http://127.0.0.1:8787
 cinch pkg publish --registry http://127.0.0.1:8787 --project . --token "$CINCH_REGISTRY_TOKEN"
 cinch pkg verify --project .
+cinch pkg verify --slsa --project .
 ```
 
-`cinch pkg add` fetches a registry release, writes it under the project's
-`vendor/` tree, checks it into interfaces, emits `package.o` and its ABI
-manifest, and updates `.cinchlock`. It resolves exact and semver registry
-dependencies to one version per name by fixed-point intersection and accepts
-`--token` for private releases. `publish` uploads `.cinchpkg` with its module
-files; `verify` rechecks lock identity, source hashes, object hash, and
-interfaces locally. Path/git dependencies and provenance verification remain
+`cinch pkg add` fetches a registry release or reads a local source, writes it
+under the project's `vendor/` tree, checks it into interfaces, emits
+`package.o` and its ABI manifest, and updates `.cinchlock`. Registry
+dependencies resolve to one version per name by fixed-point intersection and
+accept `--token` for private releases.
+
+```sh
+cinch pkg add ./libs/bytes --project .
+cinch pkg add --path ./libs/bytes --project .
+cinch pkg add /repos/bytes --git-rev "$(git -C /repos/bytes rev-parse HEAD)" --project .
+cinch pkg add --git https://example/bytes --git-rev v1.2.0 --project .
+cinch pkg install --project .          # install the project .cinchpkg dependencies
+cinch pkg install --project . --locked # refuse any lock rewrite
+```
+
+A path package's own `source: "path"` entries resolve relative to its own
+directory, and `source: "git"` entries are cloned at their `rev`. Path and git
+identity is the content root over the canonical manifest and the sorted source
+hashes; the version string is a selection hint that only names the vendor
+directory. `.cinchlock` records `package_id` as that content root and
+`source.kind` as `path` or `git` with the authored path, URL, and revision.
+Git checkouts are cached under `CINCH_STORE/git-packages/`, keyed by URL and
+revision; the cache is never trusted as identity. A registry release that
+declares a path or git dependency is rejected, because registry metadata cannot
+carry a usable local source.
+
+`publish` uploads `.cinchpkg` with its module files and an unsigned L1 SLSA
+provenance attestation. `verify` rechecks lock identity, source hashes, object
+hash, and interfaces locally; `verify --slsa` checks the recorded L1 provenance
+subject and build fields. Client-side L2 builder roots and VSA issuance remain
 absent.
 
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
@@ -57,6 +81,7 @@ The optional embedded ORC backend is built with the `jit` feature:
 ```sh
 cargo build --features jit --bin cinch
 cinch jit examples/compiler/fib.cinch
+cinch jit --package-object vendor/acme/library/0.1.0/package.o --call Library.value
 ```
 
 `cinch jit` compiles the checked program to LLVM IR and executes its `main`
@@ -66,6 +91,17 @@ the program's layout table before the entry runs. It requires LLVM with the C
 ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
 The feature is off by default, so the ordinary compiler build does not depend on
 LLVM.
+
+`cinch jit --package-object package.o --call Library.value` loads an installed
+package object instead of a source program. It validates the object's
+`package.abi.json` against this host and the object bytes, checks the installed
+`.cinchif` files whose modules the manifest names, adds the object with
+`LLVMOrcLLJITAddObjectFile`, registers the recorded layout prefix (and
+reclamation, when the object was built with it), and prints the value of one
+zero-arity unit. A symbol the manifest does not define, or defines with a
+nonzero arity, is refused. This mode loads one object and calls one unit; it
+does not run a project that imports the package, because the project's own IR
+still defines every unit of its vendored dependency closure.
 
 `cinch doc` is the documentation-comment front end. It parses `.cinchdoc`
 canonical JSON, looks up symbols, indexes a source tree, runs `cinch test`
@@ -79,11 +115,30 @@ object, its LLVM text (`library.ll`) and physical ABI (`library.abi.json`).
 The object includes the checked dependency closure. It has no process entry
 and does not register a layout table. A consumer must supply `__apply` and
 register one combined table containing the exact recorded layout prefix
-before calling library code. Ordinary `build` does not yet consume these
-objects. See [the object linkage contract](../design/runtime-object-linkage.md).
+before calling library code. See
+[the object linkage contract](../design/runtime-object-linkage.md).
 Use `--object-roots roots.json` to request concrete generic function, dictionary
 and method variants needed by a separate consumer. The manifest records the
 actual class method slot families used by the resulting object.
+
+Ordinary `build` and `run` do not consume these objects yet. A project build
+still checks and compiles every vendored dependency source, so its IR defines
+the same units as the dependency object: an installed object carries its whole
+checked closure, including the embedded prelude, and every one of those units
+is also emitted by the project. Linking both therefore fails on duplicate
+symbols. A correct build-time consumer needs three things the Rust frontend
+does not have today. First, lowering that excludes consumed units and declares
+them from the physical manifest, materializing their first-class values through
+the `<unit>.object-closure` accessor instead of the `.clo` storage that is
+internal to the object. Second, a layout seed that preserves the manifest's
+recorded table prefix before any consumer descriptor is allocated. Third,
+admission of the object bytes, the interface closure, the target profile, the
+method slot plan, and the concrete representation variants a consumer demands.
+The driver also has no interface-only checker: a check always reads module
+sources, so consumed modules cannot simply be dropped from the project. The
+self-hosted stage compiler consumes bundles through its own
+`--interfaces`/`--objects` path; that consumer is not wired into the Rust
+development CLI.
 
 The Cinch stage compiler consumes a matching bundle through
 `--emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR`. Admission checks

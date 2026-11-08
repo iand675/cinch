@@ -69,7 +69,7 @@ context propagates through.
 
 [Source](/reference-sources/Effect.Trace.cinch) · line 59
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
 
 # Values
 
@@ -77,7 +77,7 @@ context propagates through.
 
 ## `end-marker`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-marker</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-marker</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 The scope-end marker a collecting handler's `end-span` clause
 conses onto the resumption chain; `span-scope` consumes it. The
@@ -85,11 +85,27 @@ name is the scope being closed (the bracket pair's check).
 
 [Source](/reference-sources/Effect.Trace.cinch) · line 74
 
+<a id="value-656e642d7370616e"></a>
+
+## `end-span`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+
+[Source](/reference-sources/Effect.Trace.cinch)
+
+<a id="value-7370616e"></a>
+
+## `span`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+
+[Source](/reference-sources/Effect.Trace.cinch)
+
 <a id="value-7370616e2d7265636f7264"></a>
 
 ## `span-record`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-record</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-record</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
 
 A span record: `{"name": ..., "fields": ..., "children": [...]}`,
 where children are the collected records of the scope (log,
@@ -101,7 +117,7 @@ metric and nested span records).
 
 ## `span-scope`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-scope</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Json</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-scope</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))))</code></pre>
 
 The collecting handler's `span` clause body: wrap `scope` (the
 resumption's records) in the span record, children ending at the

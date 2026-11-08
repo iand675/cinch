@@ -83,7 +83,7 @@ validity invariant above; `date` is the only constructor).
 
 [Source](/reference-sources/Data.Date.cinch) · line 78
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Date</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)))</code></pre>
 
 <a id="type-4461746550617273654572726f72"></a>
 
@@ -97,9 +97,9 @@ never yields a partially trusted value, so there is no third case.
 
 [Source](/reference-sources/Data.Date.cinch) · line 84
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADate</span> :: <span class="tok-constructor">DateParseError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADate</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidDate</span> :: <span class="tok-constructor">DateParseError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidDate</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span></code></pre>
 
 # Values
 
@@ -107,7 +107,7 @@ never yields a partially trusted value, so there is no third case.
 
 ## `add-days`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Date</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
 
 `n` days later (crossing month and year boundaries by construction).
 
@@ -117,7 +117,7 @@ never yields a partially trusted value, so there is no third case.
 
 ## `cmp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 [Source](/reference-sources/Data.Date.cinch)
 
@@ -125,7 +125,7 @@ never yields a partially trusted value, so there is no third case.
 
 ## `date`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Date</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))))</code></pre>
 
 The only constructor: month 1..=12, day 1..=that month's length.
 `None` is the refusal for every other field combination, so an
@@ -137,7 +137,7 @@ out-of-range `Date` has no representation.
 
 ## `day`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Date.cinch)
 
@@ -145,7 +145,7 @@ out-of-range `Date` has no representation.
 
 ## `day-of-week`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-week</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-week</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The weekday, 0 for Sunday through 6 for Saturday (Ruby's `wday`).
 1970-01-01 (day 0) is a Thursday, hence the +4; the modulo is
@@ -157,7 +157,7 @@ floored so the pre-epoch days land in range too.
 
 ## `day-of-year`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-year</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 1 on January 1, the year's length on December 31.
 
@@ -179,7 +179,7 @@ is consulted with one).
 
 ## `diff-days`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff-days</span> :: (<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff-days</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>))</code></pre>
 
 The days elapsed from the first argument to the second: `diff-days
 start finish`, negative when `finish` precedes `start`. The exact
@@ -191,7 +191,7 @@ inverse of `add-days`/`sub-days` in both directions.
 
 ## `from-epoch-days`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-days</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Date</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-days</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
 
 The inverse: every `Int` is a day, so the result is total. The
 fields come out of the decomposition already in range (the
@@ -204,7 +204,7 @@ directly rather than routing through `date`'s `Option`.
 
 ## `from-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">DateParseError</span> <span class="tok-constructor">Date</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
 
 Strict ISO 8601: an optional `-`, at least four year digits, and
 two-digit month and day separated by `-`, with nothing before or
@@ -230,7 +230,7 @@ ones). Ruby's `Date.gregorian_leap?` is the same predicate.
 
 ## `month`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">month</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">month</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Date.cinch)
 
@@ -238,7 +238,7 @@ ones). Ruby's `Date.gregorian_leap?` is the same predicate.
 
 ## `sub-days`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Date</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
 
 `n` days earlier.
 
@@ -248,7 +248,7 @@ ones). Ruby's `Date.gregorian_leap?` is the same predicate.
 
 ## `to-epoch-days`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-days</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-days</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 The day number of `d` counted from 1970-01-01 (negative before it).
 This is the shifted-era decomposition (days-from-civil), which is
@@ -262,7 +262,7 @@ at a non-negative remainder for the negative years too.
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.Date.cinch)
 
@@ -270,7 +270,7 @@ at a non-negative remainder for the negative years too.
 
 ## `year`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">year</span> :: (<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Data.Date.cinch)
 
@@ -280,8 +280,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Date.Eq_Date` | `Eq Date` | Implicit |
-| `Data.Date.Ord_Date` | `Ord Date` | Implicit |
+| `Data.Date.Eq_Date` | `Relation.Eq.Eq Data.Date.Date` | Implicit |
+| `Data.Date.Ord_Date` | `Relation.Ord.Ord Data.Date.Date` | Implicit |
 
 **`Data.Date.Eq_Date`**: Instances (the class spellings of `cmp`; instances live with their
 type per design/base-library.md).

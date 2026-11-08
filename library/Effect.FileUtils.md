@@ -81,17 +81,17 @@ its `FsError` from, in this home's vocabulary).
 
 [Source](/reference-sources/Effect.FileUtils.cinch) · line 66
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotFound</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsAlreadyExists</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsAlreadyExists</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIsADirectory</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIsADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotADirectory</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsPermissionDenied</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIoError</span> :: <span class="tok-constructor">FileUtilsError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
 
 # Values
 
@@ -99,7 +99,7 @@ its `FsError` from, in this home's vocabulary).
 
 ## `cp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cp</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cp</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 `cp src dst`: copy a regular file's bytes from `src` to `dst`
 (read plus write). A directory `src` is `FileUtilsIsADirectory`,
@@ -114,7 +114,7 @@ atomic replacement is write-then-`fs-rename`, which `mv` uses).
 
 ## `mkdir-p`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mkdir-p</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mkdir-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `mkdir-p p`: create `p` and every missing parent, like `mkdir -p`.
 An existing directory is success (idempotent); a non-directory at
@@ -126,7 +126,7 @@ An existing directory is success (idempotent); a non-directory at
 
 ## `mv`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mv</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mv</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 `mv src dst`: move `src` to `dst` with `fs-rename`, the POSIX
 atomic rename. It is used rather than copy-then-remove because it
@@ -141,7 +141,7 @@ price is the OS's own rule that a rename cannot cross a filesystem
 
 ## `rm`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `rm p`: remove what `p` names WITHOUT recursion: a regular file,
 a symlink (the link itself, never its target: the intrinsic
@@ -156,7 +156,7 @@ path is `FileUtilsNotFound`.
 
 ## `rm-r`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm-r</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm-r</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `rm-r p`: remove what `p` names recursively: a file, a symlink, or
 a whole directory subtree. A symlink is removed as the LINK (the
@@ -169,7 +169,7 @@ walk does not follow links), so the target is never touched.
 
 ## `temp-dir`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-dir</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Path</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-dir</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>))</code></pre>
 
 `temp-dir u`: create (and name) a fresh directory under the
 platform temp directory. The name carries the 128-bit nonce and the
@@ -183,7 +183,7 @@ rather than reused.
 
 ## `temp-file`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-file</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Path</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-file</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>))</code></pre>
 
 `temp-file u`: create (and name) a fresh EMPTY file under the
 platform temp directory. UNIQUENESS: the same 128-bit nonce; the
@@ -202,7 +202,7 @@ named rather than guessed away by a retry loop.
 
 ## `touch`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">touch</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">touch</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
 
 `touch p`: create `p` as an empty file when it does not exist and
 leave an existing file's contents unchanged (the cheap touch; it

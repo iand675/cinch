@@ -43,8 +43,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Ordering.Monoid_Ordering` | `Monoid Ordering` | Implicit |
-| `Data.Ordering.Semigroup_Ordering` | `Semigroup Ordering` | Implicit |
+| `Data.Ordering.Monoid_Ordering` | `Algebra.Monoid.Monoid Data.Ordering.Ordering` | Implicit |
+| `Data.Ordering.Semigroup_Ordering` | `Algebra.Semigroup.Semigroup Data.Ordering.Ordering` | Implicit |
 
 **`Data.Ordering.Monoid_Ordering`**: `EQ` is the identity (moved from Algebra.Monoid).
 **`Data.Ordering.Semigroup_Ordering`**: Lexicographic composition of comparisons: `compare x y <> compare

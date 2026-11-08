@@ -98,7 +98,7 @@ is the surface rule that makes the omission bind).
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 90
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BigDecimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BigDecimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 <a id="type-426967446563696d616c4572726f72"></a>
 
@@ -112,7 +112,7 @@ for "unparsed" that a value could be confused with.
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 109
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">BigDecimalError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span>)</code></pre>
 
 <a id="type-526f756e64696e67"></a>
 
@@ -127,19 +127,19 @@ infinity, toward negative infinity.
 
 [Source](/reference-sources/Data.BigDecimal.cinch) · line 97
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundUp</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundUp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundDown</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundDown</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfUp</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfUp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfDown</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfDown</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfEven</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfEven</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundCeiling</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundCeiling</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundFloor</span> :: <span class="tok-constructor">Rounding</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundFloor</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
 
 # Values
 
@@ -147,7 +147,7 @@ infinity, toward negative infinity.
 
 ## `abs`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -155,7 +155,7 @@ infinity, toward negative infinity.
 
 ## `add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Exact addition: both operands are read at the smaller exponent
 (the scaling is exact, a power of ten times a bignum), so every
@@ -167,7 +167,7 @@ digit of either operand survives.
 
 ## `big-decimal`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">big-decimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">big-decimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 The normalising smart constructor: the trailing zeros of the
 unscaled part move into the exponent, so `big-decimal 10 (-2)`,
@@ -180,7 +180,7 @@ is `BigDecimal 0 0` whatever exponent it arrived with.
 
 ## `cmp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 Comparison (the order `sub` induces).
 
@@ -190,7 +190,7 @@ Comparison (the order `sub` induces).
 
 ## `div`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">BigDecimal</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)))))</code></pre>
 
 `p` fractional digits, rounded by `mode`, then normalised.
 
@@ -210,7 +210,7 @@ to spell.
 
 ## `exponent`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exponent</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exponent</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -218,7 +218,7 @@ to spell.
 
 ## `from-int`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -226,7 +226,7 @@ to spell.
 
 ## `from-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">BigDecimalError</span> <span class="tok-constructor">BigDecimal</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 The literal reader: `[+-]? ( digits ( "." digits )? | "." digits )`.
 Every other shape (empty, a lone sign, a lone point, a trailing
@@ -239,7 +239,7 @@ carrying the text.
 
 ## `mul`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Exact multiplication: the unscaled parts multiply and the
 exponents add, which is the representation's own product rule.
@@ -250,7 +250,7 @@ exponents add, which is the representation's own product rule.
 
 ## `neg`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -258,7 +258,7 @@ exponents add, which is the representation's own product rule.
 
 ## `render-big-decimal-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-big-decimal-error</span> :: (<span class="tok-constructor">BigDecimalError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-big-decimal-error</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -266,7 +266,7 @@ exponents add, which is the representation's own product rule.
 
 ## `round`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)))</code></pre>
 
 Rounding a value to `p` fractional digits: the division by one at
 the same precision, written without a divisor test. With `k`
@@ -281,7 +281,7 @@ stands between `round` and its result.
 
 ## `sub`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">BigDecimal</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
 
 Subtraction is addition of the negation: the alignment above is
 the only place exponents are reconciled, and a negated value is
@@ -293,7 +293,7 @@ still canonical, so the exactness argument is the same one.
 
 ## `to-f64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The one conversion to a binary float: the exact decimal text,
 read by the runtime's correctly-rounded decimal parser. Nothing
@@ -305,7 +305,7 @@ else in this module sees an `F64`.
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The plain decimal: no exponent notation, sign first, a leading
 `0.` when the fraction is wider than the digit run.
@@ -316,7 +316,7 @@ The plain decimal: no exponent notation, sign first, a leading
 
 ## `unscaled`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unscaled</span> :: (<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unscaled</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Data.BigDecimal.cinch)
 
@@ -326,8 +326,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.BigDecimal.Eq_BigDecimal` | `Eq BigDecimal` | Implicit |
-| `Data.BigDecimal.Ord_BigDecimal` | `Ord BigDecimal` | Implicit |
+| `Data.BigDecimal.Eq_BigDecimal` | `Relation.Eq.Eq Data.BigDecimal.BigDecimal` | Implicit |
+| `Data.BigDecimal.Ord_BigDecimal` | `Relation.Ord.Ord Data.BigDecimal.BigDecimal` | Implicit |
 
 **`Data.BigDecimal.Eq_BigDecimal`**: The class spellings of `cmp`: canonical form makes the recursive
 field comparison agree, and routing both through `cmp` is what

@@ -11,6 +11,7 @@ import {
   tokenHash,
 } from './canonical.mjs';
 import { badRequest, conflict, gone, notFound, unauthorized } from './errors.mjs';
+import { PROVENANCE_PREDICATE, isProvenanceType, verifyProvenance } from './provenance.mjs';
 
 const MAX_FILE_BYTES = 24 * 1024 * 1024;
 const MAX_README = 64 * 1024;
@@ -133,7 +134,7 @@ function validateManifest(input, files) {
   return input;
 }
 
-function validateAttestations(input) {
+function validateAttestations(input, packageId, trustedKeys) {
   if (input === undefined || input === null) return [];
   if (!Array.isArray(input)) throw badRequest('attestations must be an array');
   if (input.length > 32) throw badRequest('at most 32 attestations per release');
@@ -146,7 +147,21 @@ function validateAttestations(input) {
       throw badRequest(`attestation ${index} needs a DSSE envelope`);
     }
     const digest = canonicalDigest(item.envelope);
-    return { predicateType: item.predicateType, envelope: item.envelope, digest };
+    let verification = null;
+    if (isProvenanceType(item.predicateType)) {
+      verification = verifyProvenance(item.envelope, packageId, trustedKeys);
+      if (!verification.ok) {
+        throw badRequest(`attestation ${index}: ${verification.reason}`);
+      }
+    }
+    return {
+      predicateType: item.predicateType,
+      envelope: item.envelope,
+      digest,
+      verified: verification?.verified ? 1 : 0,
+      level: verification?.level ?? null,
+      verification: verification?.verification ?? null,
+    };
   });
 }
 
@@ -177,7 +192,7 @@ function likePattern(text) {
   return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
-export async function openStore(dataDir, { adminToken, signer }) {
+export async function openStore(dataDir, { adminToken, signer, provenanceKeys = {} }) {
   await mkdir(path.join(dataDir, 'blobs'), { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, 'registry.db'));
   db.exec(`
@@ -233,6 +248,8 @@ export async function openStore(dataDir, { adminToken, signer }) {
       envelope_json TEXT NOT NULL,
       digest TEXT NOT NULL,
       verified INTEGER NOT NULL DEFAULT 0,
+      level TEXT,
+      verification TEXT,
       PRIMARY KEY (package_id, digest)
     );
     CREATE TABLE IF NOT EXISTS statements (
@@ -253,6 +270,9 @@ export async function openStore(dataDir, { adminToken, signer }) {
     );
     INSERT OR IGNORE INTO meta(key, value) VALUES ('index_sequence', '0');
   `);
+  const attestationColumns = db.prepare('PRAGMA table_info(attestations)').all().map((row) => row.name);
+  if (!attestationColumns.includes('level')) db.exec('ALTER TABLE attestations ADD COLUMN level TEXT');
+  if (!attestationColumns.includes('verification')) db.exec('ALTER TABLE attestations ADD COLUMN verification TEXT');
 
   const store = {
     db,
@@ -507,7 +527,7 @@ export async function openStore(dataDir, { adminToken, signer }) {
       if (db.prepare('SELECT 1 FROM packages WHERE package_id = ?').get(pid)) {
         throw conflict(`package identity ${pid} already exists`);
       }
-      const attestationRecords = validateAttestations(attestations);
+      const attestationRecords = validateAttestations(attestations, pid, provenanceKeys);
       const encodedFiles = Object.fromEntries(
         Object.entries(validatedFiles).map(([filePath, bytes]) => [
           filePath,
@@ -551,8 +571,8 @@ export async function openStore(dataDir, { adminToken, signer }) {
         );
         for (const item of attestationRecords) {
           db.prepare(
-            'INSERT INTO attestations(package_id, predicate_type, envelope_json, digest, verified) VALUES (?, ?, ?, ?, 0)',
-          ).run(pid, item.predicateType, canonicalJson(item.envelope), item.digest);
+            'INSERT INTO attestations(package_id, predicate_type, envelope_json, digest, verified, level, verification) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          ).run(pid, item.predicateType, canonicalJson(item.envelope), item.digest, item.verified, item.level, item.verification);
         }
         db.exec('COMMIT');
       } catch (error) {
@@ -580,13 +600,19 @@ export async function openStore(dataDir, { adminToken, signer }) {
 
     attestations(pid) {
       return db
-        .prepare('SELECT predicate_type, envelope_json, digest, verified FROM attestations WHERE package_id = ?')
+        .prepare('SELECT predicate_type, envelope_json, digest, verified, level, verification FROM attestations WHERE package_id = ?')
         .all(pid)
         .map((row) => ({
           predicateType: row.predicate_type,
           envelope: JSON.parse(row.envelope_json),
           digest: row.digest,
           verified: Boolean(row.verified),
+          level: row.predicate_type === PROVENANCE_PREDICATE
+            ? row.level ?? (row.verified ? 'SLSA_BUILD_LEVEL_2' : 'SLSA_BUILD_LEVEL_1')
+            : null,
+          verification: row.predicate_type === PROVENANCE_PREDICATE
+            ? row.verification ?? (row.verified ? 'trusted-builder' : 'unsigned-l1')
+            : null,
         }));
     },
 

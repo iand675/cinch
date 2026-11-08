@@ -92,9 +92,9 @@ faulted.
 
 [Source](/reference-sources/Data.Rational.cinch) · line 76
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZeroDenominator</span> :: <span class="tok-constructor">RationalError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZeroDenominator</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DivideByZero</span> :: <span class="tok-constructor">RationalError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DivideByZero</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span></code></pre>
 
 # Values
 
@@ -102,7 +102,7 @@ faulted.
 
 ## `add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
 
 Exact arithmetic: one cross-product over the bignum, then one
 reduction. The denominators are positive products, and `normalise`
@@ -114,7 +114,7 @@ resolves the sign the addition itself cannot introduce.
 
 ## `denominator`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">denominator</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">denominator</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Data.Rational.cinch)
 
@@ -122,7 +122,7 @@ resolves the sign the addition itself cannot introduce.
 
 ## `div`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">RationalError</span> <span class="tok-constructor">Rational</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)))</code></pre>
 
 Division, the one partial operation: a zero divisor (a zero
 numerator on the right) is the named refusal, otherwise the cross
@@ -134,7 +134,7 @@ product `n1*d2 / d1*n2` normalises.
 
 ## `from-int`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Rational</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)</code></pre>
 
 The integer embedding `x/1`, already normalised (1 is coprime to
 every integer).
@@ -145,7 +145,7 @@ every integer).
 
 ## `mul`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
 
 [Source](/reference-sources/Data.Rational.cinch)
 
@@ -153,7 +153,7 @@ every integer).
 
 ## `numerator`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">numerator</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">numerator</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Data.Rational.cinch)
 
@@ -161,7 +161,7 @@ every integer).
 
 ## `rational`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">RationalError</span> <span class="tok-constructor">Rational</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)))</code></pre>
 
 The smart constructor and the only general route to a `Rational`:
 a zero denominator is the named refusal, everything else
@@ -173,7 +173,7 @@ normalises.
 
 ## `rational-cmp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational-cmp</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational-cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 Order by cross multiplication: both denominators are positive, so
 `n1*d2` against `n2*d1` has the sign of `x - y`. `Relation.Ord`
@@ -186,7 +186,7 @@ and the instance below derives the operators from it.
 
 ## `render-rational-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-rational-error</span> :: (<span class="tok-constructor">RationalError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-rational-error</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.Rational.cinch)
 
@@ -194,7 +194,7 @@ and the instance below derives the operators from it.
 
 ## `sub`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Rational</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
 
 [Source](/reference-sources/Data.Rational.cinch)
 
@@ -202,7 +202,7 @@ and the instance below derives the operators from it.
 
 ## `to-f64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The value as a machine float (see the boundary note in the
 header).
@@ -213,7 +213,7 @@ header).
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The reduced rendering `n/d`: `1/2` for `Rational(1,2)`, `-1/2` for
 `Rational(-1,2)`, and `n/1` (not `n`) for a whole number, Ruby's
@@ -227,9 +227,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Rational.Eq_Rational` | `Eq Rational` | Implicit |
-| `Data.Rational.Hash_Rational` | `Hash Rational` | Implicit |
-| `Data.Rational.Ord_Rational` | `Ord Rational` | Implicit |
+| `Data.Rational.Eq_Rational` | `Relation.Eq.Eq Data.Rational.Rational` | Implicit |
+| `Data.Rational.Hash_Rational` | `Data.Hash.Hash Data.Rational.Rational` | Implicit |
+| `Data.Rational.Ord_Rational` | `Relation.Ord.Ord Data.Rational.Rational` | Implicit |
 
 **`Data.Rational.Eq_Rational`**: Structural equality IS value equality: the invariant makes the
 representative unique, so equal values compare equal.

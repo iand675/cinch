@@ -69,7 +69,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 ## `prod-fold`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Producer.cinch)
 
@@ -77,7 +77,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 ## `prod-fold-go`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold-go</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-variable">b</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold-go</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-variable">b</span>))))</code></pre>
 
 [Source](/reference-sources/Data.Producer.cinch)
 
@@ -85,7 +85,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 ## `prod-map`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-map</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">b</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Producer.cinch)
 
@@ -93,7 +93,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 ## `prod-take`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Producer</span> (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Producer.cinch)
 
@@ -101,7 +101,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 
 ## `prod-take-step`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take-step</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Step</span> (<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take-step</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Producer.cinch)
 

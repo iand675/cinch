@@ -573,10 +573,10 @@ route('GET', '/packages/:name', ({ res, store, params }) => {
 
 // ---------------------------------------------------------------- server
 
-export async function createRegistry({ dataDir, adminToken, port = 8787, host = '127.0.0.1' }) {
+export async function createRegistry({ dataDir, adminToken, provenanceKeys = {}, port = 8787, host = '127.0.0.1' }) {
   if (!adminToken) throw new Error('adminToken is required');
   const signer = await openSigner(dataDir);
-  const store = await openStore(dataDir, { adminToken, signer });
+  const store = await openStore(dataDir, { adminToken, signer, provenanceKeys });
   const server = http.createServer((req, res) => {
     Promise.resolve()
       .then(() => handleRequest(req, res, store, signer))
@@ -616,7 +616,11 @@ if (isMain) {
   const generated = !process.env.CINCH_REGISTRY_ADMIN_TOKEN;
   const adminToken = process.env.CINCH_REGISTRY_ADMIN_TOKEN ?? randomBytes(24).toString('hex');
   const port = Number(process.env.PORT ?? 8787);
-  const registry = await createRegistry({ dataDir, adminToken, port });
+  let provenanceKeys = {};
+  if (process.env.CINCH_PROVENANCE_KEYS) {
+    provenanceKeys = JSON.parse(process.env.CINCH_PROVENANCE_KEYS);
+  }
+  const registry = await createRegistry({ dataDir, adminToken, provenanceKeys, port });
   console.log(`Cinch registry listening on ${registry.url}`);
   console.log(`Data directory: ${dataDir}`);
   console.log(`Registry key: ${registry.signer.keyid}`);

@@ -72,7 +72,7 @@ and a value outside the column's range.
 
 ## `Codec.encode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
 
 
@@ -80,7 +80,7 @@ and a value outside the column's range.
 
 ## `Codec.decode`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -96,7 +96,7 @@ and a value outside the column's range.
 
 ## `JsonCodec.encode-json`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode-json</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 
 
@@ -104,7 +104,7 @@ and a value outside the column's range.
 
 ## `JsonCodec.decode-json`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode-json</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">JsonDecodeError</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>) <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -114,7 +114,7 @@ and a value outside the column's range.
 
 ## `json-error-message`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-error-message</span> :: (<span class="tok-constructor">JsonDecodeError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Codec.cinch)
 

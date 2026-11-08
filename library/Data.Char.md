@@ -35,7 +35,7 @@ This module exports no type declarations.
 
 ## `char-code`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-code</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">1114111</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-code</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">1114111</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The scalar value as a `Nat`: the conversion the text and data
 homes all spelled out by hand before this was its home. A scalar
@@ -47,7 +47,7 @@ value is at most 0x10FFFF, and the result says so.
 
 ## `char-from-code`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-from-code</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-from-code</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))</code></pre>
 
 The inverse, partial exactly as `u32-to-char` is: a value outside
 the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
@@ -72,7 +72,7 @@ and values above 0x10FFFF.
 
 ## `digit-value`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 `Some 0..9` for the ASCII digits, `None` otherwise (the caller
 has already decided what a non-digit means).
@@ -107,7 +107,7 @@ has already decided what a non-digit means).
 
 ## `hex-digit-value`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
 
@@ -232,7 +232,7 @@ arm returns the input unchanged (never a magic placeholder).
 
 ## `u32-to-char`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-char</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-char</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))</code></pre>
 
 [Source](/reference-sources/Data.Char.cinch)
 
@@ -242,9 +242,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Char.Eq_Char` | `Eq Char` | Implicit |
-| `Data.Char.Hash_Char` | `Hash Char` | Implicit |
-| `Data.Char.Ord_Char` | `Ord Char` | Implicit |
+| `Data.Char.Eq_Char` | `Relation.Eq.Eq Char` | Implicit |
+| `Data.Char.Hash_Char` | `Data.Hash.Hash Char` | Implicit |
+| `Data.Char.Ord_Char` | `Relation.Ord.Ord Char` | Implicit |
 
 **`Data.Char.Hash_Char`**: The scalar value is the digest (instances live with their type).
 

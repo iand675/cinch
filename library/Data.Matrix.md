@@ -92,15 +92,15 @@ wrong-shaped result.
 
 [Source](/reference-sources/Data.Matrix.cinch) · line 70
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RaggedRows</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RaggedRows</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>)))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DimensionMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DimensionMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VectorMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VectorMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IndexOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IndexOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotSquare</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">MatrixError</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotSquare</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))</code></pre>
 
 # Values
 
@@ -108,7 +108,7 @@ wrong-shaped result.
 
 ## `add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -116,7 +116,7 @@ wrong-shaped result.
 
 ## `at`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">at</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>))))</code></pre>
 
 The cell, or a named `IndexOutOfRange`. Both indices are
 zero-based; the guard makes `row-of`/`element-of` total so their
@@ -128,7 +128,7 @@ fallback is never observed.
 
 ## `cols`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cols</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cols</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -136,7 +136,7 @@ fallback is never observed.
 
 ## `determinant`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">determinant</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">determinant</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>))</code></pre>
 
 Cofactor expansion along the first row (see the header: O(n!) time,
 each minor rebuild O(n^2)). A non-square matrix is refused before
@@ -148,7 +148,7 @@ any expansion.
 
 ## `equals`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -156,7 +156,7 @@ any expansion.
 
 ## `equals-within`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals-within</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals-within</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -164,7 +164,7 @@ any expansion.
 
 ## `identity`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Matrix</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -172,7 +172,7 @@ any expansion.
 
 ## `matrix`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">matrix</span> :: (<span class="tok-constructor">List</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">matrix</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>))</code></pre>
 
 Construct a matrix from its rows: the first row fixes the width
 and every later row must match it. Ragged input is refused here,
@@ -185,7 +185,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `mul`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -193,7 +193,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `mul-vector`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-vector</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> (<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-vector</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>))))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -201,7 +201,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `rows`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rows</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rows</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -209,7 +209,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `scale`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scale</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Matrix</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scale</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -217,7 +217,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `sub`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Matrix</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -225,7 +225,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 
@@ -233,7 +233,7 @@ matrix. An empty row list is the 0x0 matrix.
 
 ## `transpose`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: (<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Matrix</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)</code></pre>
 
 [Source](/reference-sources/Data.Matrix.cinch)
 

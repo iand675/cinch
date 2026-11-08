@@ -95,13 +95,13 @@ algorithm's own output, the module does not normalize it).
 
 [Source](/reference-sources/Text.Digest.cinch) · line 87
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha256</span> :: <span class="tok-constructor">Digest</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha256</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha512</span> :: <span class="tok-constructor">Digest</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha512</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha1</span> :: <span class="tok-constructor">Digest</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha1</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestMd5</span> :: <span class="tok-constructor">Digest</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestMd5</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
 
 # Values
 
@@ -109,7 +109,7 @@ algorithm's own output, the module does not normalize it).
 
 ## `digest-bytes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-bytes</span> :: (<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
 
 The digest of `b` under the named algorithm: content identity, the
 algorithm's own output width (see `digest-length`).
@@ -120,7 +120,7 @@ algorithm's own output width (see `digest-length`).
 
 ## `digest-hex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The digest of `b` as lower-case hex, two characters per byte (2N
 characters for an N-byte digest).
@@ -131,7 +131,7 @@ characters for an N-byte digest).
 
 ## `digest-length`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-length</span> :: (<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The digest's width in bytes: the length of `digest-bytes`' result
 (so `2 * digest-length d` is the length of `digest-hex`'s).
@@ -142,7 +142,7 @@ The digest's width in bytes: the length of `digest-bytes`' result
 
 ## `digest-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-name</span> :: (<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The algorithm's conventional name (`"sha256"` ...), the accessor a
 report or filename keys on.
@@ -153,7 +153,7 @@ report or filename keys on.
 
 ## `digest-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-string</span> :: (<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
 
 The digest of `s`' UTF-8 encoding (the encode-then-digest law).
 
@@ -175,7 +175,7 @@ secret; the result is a 32-byte buffer.
 
 ## `hmac-sha256-hex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hmac-sha256-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hmac-sha256-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The HMAC-SHA-256 tag as lower-case hex (the same rendering as
 `digest-hex`, 64 characters).

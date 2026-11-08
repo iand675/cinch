@@ -408,7 +408,7 @@ F64.
 
 ## `checked-add-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -416,7 +416,7 @@ F64.
 
 ## `checked-add-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -424,7 +424,7 @@ F64.
 
 ## `checked-add-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -432,7 +432,7 @@ F64.
 
 ## `checked-add-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -440,7 +440,7 @@ F64.
 
 ## `checked-add-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -448,7 +448,7 @@ F64.
 
 ## `checked-add-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -456,7 +456,7 @@ F64.
 
 ## `checked-add-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -464,7 +464,7 @@ F64.
 
 ## `checked-add-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -472,7 +472,7 @@ F64.
 
 ## `checked-add-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -480,7 +480,7 @@ F64.
 
 ## `checked-add-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -488,7 +488,7 @@ F64.
 
 ## `checked-div-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -496,7 +496,7 @@ F64.
 
 ## `checked-div-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -504,7 +504,7 @@ F64.
 
 ## `checked-div-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -512,7 +512,7 @@ F64.
 
 ## `checked-div-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -520,7 +520,7 @@ F64.
 
 ## `checked-div-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -528,7 +528,7 @@ F64.
 
 ## `checked-div-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -536,7 +536,7 @@ F64.
 
 ## `checked-div-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -544,7 +544,7 @@ F64.
 
 ## `checked-div-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -552,7 +552,7 @@ F64.
 
 ## `checked-div-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -560,7 +560,7 @@ F64.
 
 ## `checked-div-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -568,7 +568,7 @@ F64.
 
 ## `checked-f32-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i16</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -576,7 +576,7 @@ F64.
 
 ## `checked-f32-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -584,7 +584,7 @@ F64.
 
 ## `checked-f32-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i64</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -592,7 +592,7 @@ F64.
 
 ## `checked-f32-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i8</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -600,7 +600,7 @@ F64.
 
 ## `checked-f32-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-isize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-isize</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -608,7 +608,7 @@ F64.
 
 ## `checked-f32-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u16</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u16</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -616,7 +616,7 @@ F64.
 
 ## `checked-f32-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -624,7 +624,7 @@ F64.
 
 ## `checked-f32-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u64</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -632,7 +632,7 @@ F64.
 
 ## `checked-f32-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u8</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u8</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -640,7 +640,7 @@ F64.
 
 ## `checked-f32-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-usize</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-usize</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -648,7 +648,7 @@ F64.
 
 ## `checked-f64-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i16</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -656,7 +656,7 @@ F64.
 
 ## `checked-f64-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i32</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -664,7 +664,7 @@ F64.
 
 ## `checked-f64-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -672,7 +672,7 @@ F64.
 
 ## `checked-f64-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i8</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -680,7 +680,7 @@ F64.
 
 ## `checked-f64-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-isize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-isize</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -688,7 +688,7 @@ F64.
 
 ## `checked-f64-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u16</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u16</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -696,7 +696,7 @@ F64.
 
 ## `checked-f64-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u32</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u32</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -704,7 +704,7 @@ F64.
 
 ## `checked-f64-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -712,7 +712,7 @@ F64.
 
 ## `checked-f64-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u8</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u8</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -720,7 +720,7 @@ F64.
 
 ## `checked-f64-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-usize</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-usize</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -728,7 +728,7 @@ F64.
 
 ## `checked-i16-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -736,7 +736,7 @@ F64.
 
 ## `checked-i16-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i32</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -744,7 +744,7 @@ F64.
 
 ## `checked-i16-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i64</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -752,7 +752,7 @@ F64.
 
 ## `checked-i16-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i8</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -760,7 +760,7 @@ F64.
 
 ## `checked-i16-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-isize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-isize</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -768,7 +768,7 @@ F64.
 
 ## `checked-i16-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -776,7 +776,7 @@ F64.
 
 ## `checked-i16-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u32</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u32</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -784,7 +784,7 @@ F64.
 
 ## `checked-i16-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u64</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u64</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -792,7 +792,7 @@ F64.
 
 ## `checked-i16-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u8</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u8</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -800,7 +800,7 @@ F64.
 
 ## `checked-i16-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-usize</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-usize</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -808,7 +808,7 @@ F64.
 
 ## `checked-i32-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i16</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -816,7 +816,7 @@ F64.
 
 ## `checked-i32-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -824,7 +824,7 @@ F64.
 
 ## `checked-i32-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i64</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -832,7 +832,7 @@ F64.
 
 ## `checked-i32-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i8</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -840,7 +840,7 @@ F64.
 
 ## `checked-i32-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-isize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-isize</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -848,7 +848,7 @@ F64.
 
 ## `checked-i32-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u16</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u16</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -856,7 +856,7 @@ F64.
 
 ## `checked-i32-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -864,7 +864,7 @@ F64.
 
 ## `checked-i32-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u64</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u64</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -872,7 +872,7 @@ F64.
 
 ## `checked-i32-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u8</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u8</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -880,7 +880,7 @@ F64.
 
 ## `checked-i32-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-usize</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-usize</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -888,7 +888,7 @@ F64.
 
 ## `checked-i64-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i16</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -896,7 +896,7 @@ F64.
 
 ## `checked-i64-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i32</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -904,7 +904,7 @@ F64.
 
 ## `checked-i64-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -912,7 +912,7 @@ F64.
 
 ## `checked-i64-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i8</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -920,7 +920,7 @@ F64.
 
 ## `checked-i64-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-isize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-isize</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -928,7 +928,7 @@ F64.
 
 ## `checked-i64-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u16</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u16</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -936,7 +936,7 @@ F64.
 
 ## `checked-i64-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u32</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u32</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -944,7 +944,7 @@ F64.
 
 ## `checked-i64-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -952,7 +952,7 @@ F64.
 
 ## `checked-i64-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u8</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u8</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -960,7 +960,7 @@ F64.
 
 ## `checked-i64-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-usize</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-usize</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -968,7 +968,7 @@ F64.
 
 ## `checked-i8-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i16</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -976,7 +976,7 @@ F64.
 
 ## `checked-i8-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i32</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -984,7 +984,7 @@ F64.
 
 ## `checked-i8-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i64</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -992,7 +992,7 @@ F64.
 
 ## `checked-i8-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 Checked, saturating and wrapping integer conversions; float to
 integer is checked or saturating (it is never total).
@@ -1003,7 +1003,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-isize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-isize</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1011,7 +1011,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u16</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u16</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1019,7 +1019,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u32</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u32</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1027,7 +1027,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u64</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u64</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1035,7 +1035,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1043,7 +1043,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-i8-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-usize</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-usize</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1051,7 +1051,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i16</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1059,7 +1059,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i32</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1067,7 +1067,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i64</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1075,7 +1075,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i8</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1083,7 +1083,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1091,7 +1091,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u16</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u16</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1099,7 +1099,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u32</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u32</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1107,7 +1107,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u64</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u64</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1115,7 +1115,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u8</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u8</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1123,7 +1123,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-isize-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-usize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-usize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1131,7 +1131,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1139,7 +1139,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1147,7 +1147,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1155,7 +1155,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1163,7 +1163,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1171,7 +1171,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1179,7 +1179,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1187,7 +1187,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1195,7 +1195,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1203,7 +1203,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-mul-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1211,7 +1211,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1219,7 +1219,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1227,7 +1227,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1235,7 +1235,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1243,7 +1243,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1251,7 +1251,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1259,7 +1259,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1267,7 +1267,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1275,7 +1275,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1283,7 +1283,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-neg-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1291,7 +1291,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1299,7 +1299,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1307,7 +1307,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1315,7 +1315,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1323,7 +1323,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1331,7 +1331,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1339,7 +1339,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1347,7 +1347,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1355,7 +1355,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1363,7 +1363,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-rem-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1371,7 +1371,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1379,7 +1379,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1387,7 +1387,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1395,7 +1395,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1403,7 +1403,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1411,7 +1411,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1419,7 +1419,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1427,7 +1427,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1435,7 +1435,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1443,7 +1443,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shl-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1451,7 +1451,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1459,7 +1459,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1467,7 +1467,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1475,7 +1475,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1483,7 +1483,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1491,7 +1491,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1499,7 +1499,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1507,7 +1507,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1515,7 +1515,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1523,7 +1523,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-shr-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1531,7 +1531,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i16</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1539,7 +1539,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i32</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1547,7 +1547,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1555,7 +1555,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i8</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1563,7 +1563,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-isize</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1571,7 +1571,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1579,7 +1579,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1587,7 +1587,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1595,7 +1595,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1603,7 +1603,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-sub-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1611,7 +1611,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1619,7 +1619,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i32</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1627,7 +1627,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i64</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1635,7 +1635,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i8</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1643,7 +1643,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-isize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-isize</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1651,7 +1651,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1659,7 +1659,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u32</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u32</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1667,7 +1667,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u64</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u64</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1675,7 +1675,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u8</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u8</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1683,7 +1683,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u16-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-usize</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-usize</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1691,7 +1691,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i16</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1699,7 +1699,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1707,7 +1707,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i64</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1715,7 +1715,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i8</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1723,7 +1723,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-isize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-isize</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1731,7 +1731,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u16</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u16</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1739,7 +1739,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1747,7 +1747,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u64</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u64</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1755,7 +1755,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u8</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u8</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1763,7 +1763,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u32-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-usize</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-usize</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1771,7 +1771,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i16</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1779,7 +1779,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i32</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1787,7 +1787,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1795,7 +1795,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i8</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1803,7 +1803,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-isize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-isize</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1811,7 +1811,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u16</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u16</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1819,7 +1819,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u32</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u32</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1827,7 +1827,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1835,7 +1835,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u8</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u8</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1843,7 +1843,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u64-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-usize</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-usize</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1851,7 +1851,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i16</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1859,7 +1859,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i32</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1867,7 +1867,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i64</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1875,7 +1875,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1883,7 +1883,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-isize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-isize</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1891,7 +1891,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u16</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u16</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1899,7 +1899,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u32</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u32</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1907,7 +1907,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u64</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u64</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1915,7 +1915,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u8</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1923,7 +1923,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-u8-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-usize</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-usize</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1931,7 +1931,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i16</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1939,7 +1939,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i32</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1947,7 +1947,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i64</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1955,7 +1955,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i8</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1963,7 +1963,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-isize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-isize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-isize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1971,7 +1971,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u16</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u16</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1979,7 +1979,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u32</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u32</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1987,7 +1987,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u64</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u64</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -1995,7 +1995,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u8</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u8</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2003,7 +2003,7 @@ integer is checked or saturating (it is never total).
 
 ## `checked-usize-to-usize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2522,7 +2522,7 @@ defined `MalformedDecimal` fault (exit 71).
 
 ## `i16-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2530,7 +2530,7 @@ defined `MalformedDecimal` fault (exit 71).
 
 ## `i16-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-32768</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">32767</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2570,7 +2570,7 @@ defined `MalformedDecimal` fault (exit 71).
 
 ## `i32-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-2147483648</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">2147483647</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I32</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-2147483648</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">2147483647</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2586,7 +2586,7 @@ defined `MalformedDecimal` fault (exit 71).
 
 ## `i64-le-byte`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-le-byte</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-le-byte</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 One little-endian byte of an `I64` at shift `k` bits (the A6
 INTEGER column format, modules specification section 11).
@@ -2645,7 +2645,7 @@ INTEGER column format, modules specification section 11).
 
 ## `i8-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i16</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2653,7 +2653,7 @@ INTEGER column format, modules specification section 11).
 
 ## `i8-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2661,7 +2661,7 @@ INTEGER column format, modules specification section 11).
 
 ## `i8-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">I8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">-128</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">127</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3035,7 +3035,7 @@ matters.
 
 ## `mask-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mask-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">a1</span> :: <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> ((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">a1</span>)) <span class="tok-constructor">I64</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mask-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">m</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-variable">refined</span> ((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">m</span>)) <span class="tok-constructor">I64</span>)))</code></pre>
 
 A mask with a non-negative mask word: the `bit-and` of any word
 with `m >= 0` lies in `[0, m]` (the and clears the sign bit and
@@ -3050,7 +3050,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">32767</span>) <span class="tok-constructor">I16</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i16</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">32767</span>) <span class="tok-constructor">I16</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3058,7 +3058,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">2147483647</span>) <span class="tok-constructor">I32</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i32</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">2147483647</span>) <span class="tok-constructor">I32</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3066,7 +3066,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">9223372036854775807</span>) <span class="tok-constructor">I64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i64</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">9223372036854775807</span>) <span class="tok-constructor">I64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3074,7 +3074,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">127</span>) <span class="tok-constructor">I8</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i8</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">127</span>) <span class="tok-constructor">I8</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3090,7 +3090,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">65535</span>) <span class="tok-constructor">U16</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u16</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">65535</span>) <span class="tok-constructor">U16</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3098,7 +3098,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">4294967295</span>) <span class="tok-constructor">U32</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u32</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">4294967295</span>) <span class="tok-constructor">U32</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3106,7 +3106,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">18446744073709551615</span>) <span class="tok-constructor">U64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u64</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">18446744073709551615</span>) <span class="tok-constructor">U64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3114,7 +3114,7 @@ the high bit) is an ordinary use of it.
 
 ## `max-bound-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">255</span>) <span class="tok-constructor">U8</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u8</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">255</span>) <span class="tok-constructor">U8</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3146,7 +3146,7 @@ the high bit) is an ordinary use of it.
 
 ## `min-bound-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-32768</span>) <span class="tok-constructor">I16</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i16</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">-32768</span>) <span class="tok-constructor">I16</span>)</code></pre>
 
 I16 (16 bits).
 
@@ -3156,7 +3156,7 @@ I16 (16 bits).
 
 ## `min-bound-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-2147483648</span>) <span class="tok-constructor">I32</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i32</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">-2147483648</span>) <span class="tok-constructor">I32</span>)</code></pre>
 
 I32 (32 bits).
 
@@ -3166,7 +3166,7 @@ I32 (32 bits).
 
 ## `min-bound-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-9223372036854775808</span>) <span class="tok-constructor">I64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i64</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">-9223372036854775808</span>) <span class="tok-constructor">I64</span>)</code></pre>
 
 I64 (64 bits).
 
@@ -3176,7 +3176,7 @@ I64 (64 bits).
 
 ## `min-bound-i8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">-128</span>) <span class="tok-constructor">I8</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i8</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">-128</span>) <span class="tok-constructor">I8</span>)</code></pre>
 
 I8 (8 bits).
 A bound states its value, so `nat-from-i64 max-bound-i64` and the
@@ -3198,7 +3198,7 @@ Isize (64 bits, target word).
 
 ## `min-bound-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u16</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U16</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u16</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U16</span>)</code></pre>
 
 U16 (16 bits).
 
@@ -3208,7 +3208,7 @@ U16 (16 bits).
 
 ## `min-bound-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u32</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U32</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u32</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U32</span>)</code></pre>
 
 U32 (32 bits).
 
@@ -3218,7 +3218,7 @@ U32 (32 bits).
 
 ## `min-bound-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u64</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U64</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u64</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U64</span>)</code></pre>
 
 U64 (64 bits).
 
@@ -3228,7 +3228,7 @@ U64 (64 bits).
 
 ## `min-bound-u8`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u8</span> :: <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U8</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u8</span> :: (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-number">0</span>) <span class="tok-constructor">U8</span>)</code></pre>
 
 U8 (8 bits).
 
@@ -5024,7 +5024,7 @@ Usize (64 bits, target word).
 
 ## `total-order-f32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5032,7 +5032,7 @@ Usize (64 bits, target word).
 
 ## `total-order-f64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Ordering</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">total-order-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5136,7 +5136,7 @@ Usize (64 bits, target word).
 
 ## `u16-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5144,7 +5144,7 @@ Usize (64 bits, target word).
 
 ## `u16-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5160,7 +5160,7 @@ Usize (64 bits, target word).
 
 ## `u16-to-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-nat</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">65535</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-nat</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">65535</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5176,7 +5176,7 @@ Usize (64 bits, target word).
 
 ## `u16-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5184,7 +5184,7 @@ Usize (64 bits, target word).
 
 ## `u16-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">65535</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5216,7 +5216,7 @@ Usize (64 bits, target word).
 
 ## `u32-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U32</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5232,7 +5232,7 @@ Usize (64 bits, target word).
 
 ## `u32-to-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-nat</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">4294967295</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-nat</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">4294967295</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5248,7 +5248,7 @@ Usize (64 bits, target word).
 
 ## `u32-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-u64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U32</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">4294967295</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5312,7 +5312,7 @@ Usize (64 bits, target word).
 
 ## `u8-to-i16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i16</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5320,7 +5320,7 @@ Usize (64 bits, target word).
 
 ## `u8-to-i32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5328,7 +5328,7 @@ Usize (64 bits, target word).
 
 ## `u8-to-i64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">I64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5344,7 +5344,7 @@ Usize (64 bits, target word).
 
 ## `u8-to-nat`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-nat</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-nat</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 The unsigned machine integers as the `Nat` of the same value: the
 widening conversion's range is the evidence `nat-from-i64` needs,
@@ -5356,7 +5356,7 @@ and the result keeps it.
 
 ## `u8-to-u16`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u16</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U16</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u16</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U16</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5364,7 +5364,7 @@ and the result keeps it.
 
 ## `u8-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u32</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U32</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5372,7 +5372,7 @@ and the result keeps it.
 
 ## `u8-to-u64`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u64</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u64</span> :: ((<span class="tok-variable">x</span> :: <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">255</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">x</span>)) <span class="tok-constructor">U64</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -6721,38 +6721,38 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Machine.Bits_I16` | `Bits I16` | Implicit |
-| `Data.Machine.Bits_I32` | `Bits I32` | Implicit |
-| `Data.Machine.Bits_I64` | `Bits I64` | Implicit |
-| `Data.Machine.Bits_I8` | `Bits I8` | Implicit |
-| `Data.Machine.Bits_Isize` | `Bits Isize` | Implicit |
-| `Data.Machine.Bits_U16` | `Bits U16` | Implicit |
-| `Data.Machine.Bits_U32` | `Bits U32` | Implicit |
-| `Data.Machine.Bits_U64` | `Bits U64` | Implicit |
-| `Data.Machine.Bits_U8` | `Bits U8` | Implicit |
-| `Data.Machine.Bits_Usize` | `Bits Usize` | Implicit |
-| `Data.Machine.Codec_I64` | `Codec I64` | Implicit |
-| `Data.Machine.Eq_I16` | `Eq I16` | Implicit |
-| `Data.Machine.Eq_I32` | `Eq I32` | Implicit |
-| `Data.Machine.Eq_I64` | `Eq I64` | Implicit |
-| `Data.Machine.Eq_I8` | `Eq I8` | Implicit |
-| `Data.Machine.Eq_Isize` | `Eq Isize` | Implicit |
-| `Data.Machine.Eq_U16` | `Eq U16` | Implicit |
-| `Data.Machine.Eq_U32` | `Eq U32` | Implicit |
-| `Data.Machine.Eq_U64` | `Eq U64` | Implicit |
-| `Data.Machine.Eq_U8` | `Eq U8` | Implicit |
-| `Data.Machine.Eq_Usize` | `Eq Usize` | Implicit |
-| `Data.Machine.JsonCodec_I64` | `JsonCodec I64` | Implicit |
-| `Data.Machine.Ord_I16` | `Ord I16` | Implicit |
-| `Data.Machine.Ord_I32` | `Ord I32` | Implicit |
-| `Data.Machine.Ord_I64` | `Ord I64` | Implicit |
-| `Data.Machine.Ord_I8` | `Ord I8` | Implicit |
-| `Data.Machine.Ord_Isize` | `Ord Isize` | Implicit |
-| `Data.Machine.Ord_U16` | `Ord U16` | Implicit |
-| `Data.Machine.Ord_U32` | `Ord U32` | Implicit |
-| `Data.Machine.Ord_U64` | `Ord U64` | Implicit |
-| `Data.Machine.Ord_U8` | `Ord U8` | Implicit |
-| `Data.Machine.Ord_Usize` | `Ord Usize` | Implicit |
+| `Data.Machine.Bits_I16` | `Algebra.Bits.Bits I16` | Implicit |
+| `Data.Machine.Bits_I32` | `Algebra.Bits.Bits I32` | Implicit |
+| `Data.Machine.Bits_I64` | `Algebra.Bits.Bits I64` | Implicit |
+| `Data.Machine.Bits_I8` | `Algebra.Bits.Bits I8` | Implicit |
+| `Data.Machine.Bits_Isize` | `Algebra.Bits.Bits Isize` | Implicit |
+| `Data.Machine.Bits_U16` | `Algebra.Bits.Bits U16` | Implicit |
+| `Data.Machine.Bits_U32` | `Algebra.Bits.Bits U32` | Implicit |
+| `Data.Machine.Bits_U64` | `Algebra.Bits.Bits U64` | Implicit |
+| `Data.Machine.Bits_U8` | `Algebra.Bits.Bits U8` | Implicit |
+| `Data.Machine.Bits_Usize` | `Algebra.Bits.Bits Usize` | Implicit |
+| `Data.Machine.Codec_I64` | `Text.Codec.Codec I64` | Implicit |
+| `Data.Machine.Eq_I16` | `Relation.Eq.Eq I16` | Implicit |
+| `Data.Machine.Eq_I32` | `Relation.Eq.Eq I32` | Implicit |
+| `Data.Machine.Eq_I64` | `Relation.Eq.Eq I64` | Implicit |
+| `Data.Machine.Eq_I8` | `Relation.Eq.Eq I8` | Implicit |
+| `Data.Machine.Eq_Isize` | `Relation.Eq.Eq Isize` | Implicit |
+| `Data.Machine.Eq_U16` | `Relation.Eq.Eq U16` | Implicit |
+| `Data.Machine.Eq_U32` | `Relation.Eq.Eq U32` | Implicit |
+| `Data.Machine.Eq_U64` | `Relation.Eq.Eq U64` | Implicit |
+| `Data.Machine.Eq_U8` | `Relation.Eq.Eq U8` | Implicit |
+| `Data.Machine.Eq_Usize` | `Relation.Eq.Eq Usize` | Implicit |
+| `Data.Machine.JsonCodec_I64` | `Text.Codec.JsonCodec I64` | Implicit |
+| `Data.Machine.Ord_I16` | `Relation.Ord.Ord I16` | Implicit |
+| `Data.Machine.Ord_I32` | `Relation.Ord.Ord I32` | Implicit |
+| `Data.Machine.Ord_I64` | `Relation.Ord.Ord I64` | Implicit |
+| `Data.Machine.Ord_I8` | `Relation.Ord.Ord I8` | Implicit |
+| `Data.Machine.Ord_Isize` | `Relation.Ord.Ord Isize` | Implicit |
+| `Data.Machine.Ord_U16` | `Relation.Ord.Ord U16` | Implicit |
+| `Data.Machine.Ord_U32` | `Relation.Ord.Ord U32` | Implicit |
+| `Data.Machine.Ord_U64` | `Relation.Ord.Ord U64` | Implicit |
+| `Data.Machine.Ord_U8` | `Relation.Ord.Ord U8` | Implicit |
+| `Data.Machine.Ord_Usize` | `Relation.Ord.Ord Usize` | Implicit |
 
 **`Data.Machine.Codec_I64`**: The A6 column codec for integers (decision D65's covered set):
 8 bytes little-endian.

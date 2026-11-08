@@ -1,0 +1,56 @@
+---
+import PlatformLayout from '../../../../../layouts/PlatformLayout.astro';
+import PackageNavigation from '../../../../../components/catalogue/PackageNavigation.astro';
+import VersionSelect from '../../../../../components/catalogue/VersionSelect.astro';
+import { loadCatalogue, packageUrl, moduleUrl, declarationsFor, dependencyLabel } from '../../../../../lib/catalogue';
+
+export async function getStaticPaths() {
+  const catalogue = await loadCatalogue();
+  return catalogue.packages.flatMap((p) =>
+    p.releases.map((release) => ({
+      params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version },
+      props: { package: p, release },
+    })),
+  );
+}
+
+const catalogue = await loadCatalogue();
+const { package: p, release } = Astro.props;
+const version = release.version;
+const latest = p.version;
+const known = new Map(catalogue.packages.map((pkg) => [pkg.name, pkg]));
+const installCommand = `cinch pkg add ${p.name}@${version} --registry ${p.registry}`;
+---
+<PlatformLayout title={`${p.name} ${version}`} description={release.synopsis} section="packages" sample={false}>
+  <div class="package-topbar"><a href="/packages/">← Package catalogue</a><span class="sample-badge">{release.yanked ? 'YANKED RELEASE' : 'REGISTRY RELEASE'}</span></div>
+  <div class="package-workspace">
+    <PackageNavigation package={p} version={version} modules={release.modules}/>
+    <article class="package-article">
+      <header class="package-title"><div class="platform-eyebrow mono"><span>{release.category} / LIBRARY</span><VersionSelect package={p} version={version}/></div><h1>{p.name}</h1><p>{release.synopsis}</p><div class="package-facts mono"><span>{release.license}</span><span>{release.modules.length} {release.modules.length===1?'module':'modules'}</span><span>{release.maintainer}</span></div></header>
+      {version !== latest && <aside class="older-version">You are reading {version}. <a href={packageUrl(p)}>Open the latest release, {latest} →</a></aside>}
+      {release.yanked && <aside class="older-version">The registry marks this release as yanked. Prefer a later version unless you need these exact bytes.</aside>}
+      <aside class="older-version">Release identity <code style="overflow-wrap:anywhere">{release.packageId}</code>. Read at build time from <code>{p.registry}</code> in namespace <code>{p.namespace}</code>.</aside>
+      <nav class="package-sections" aria-label="Package sections"><a href="#readme">Readme</a><a href="#modules">Modules</a><a href="#dependencies">Dependencies</a><a href="#versions">Versions</a><a href="#install">Install</a></nav>
+      <section class="package-readme" id="readme"><div class="section-rule mono">01 / README</div><h2>About this library</h2>{release.readme.map((text) => <p>{text}</p>)}{release.modules.length > 0 && <div class="usage-fragment"><span class="mono">IMPORT A MODULE</span><pre><code>{`module Main where\n  import ${release.modules[0].name}`}</code></pre></div>}</section>
+      <section id="modules"><div class="section-rule mono">02 / MODULES</div><h2>Module reference</h2>{release.modules.length > 0 ? <div class="module-table">{release.modules.map((m) => <a href={moduleUrl(p, m, version)}><div><h3>{m.name}</h3><p>{m.description || 'No module description is published in this release.'}</p></div><span class="mono">{m.path || m.name} · {declarationsFor(m, version).length} declarations <b aria-hidden="true">↗</b></span></a>)}</div> : <p>This release declares no modules, so the registry has no module pages to build.</p>}</section>
+      <section id="dependencies"><div class="section-rule mono">03 / DEPENDENCIES</div><h2>Dependencies</h2>{release.dependencies.length > 0 ? <ul class="dependency-list">{release.dependencies.map((dependency) => { const target = known.get(dependency.name); return <li>{target ? <a href={packageUrl(target)}>{dependency.name}</a> : <span>{dependency.name}</span>}<code>{dependencyLabel(dependency)}</code></li>; })}</ul> : <p>This release declares no package dependencies.</p>}</section>
+      <section id="versions"><div class="section-rule mono">04 / VERSIONS</div><h2>Versions</h2><ul class="version-list">{p.versions.map((candidate) => <li><a href={packageUrl(p, candidate)}>{candidate}</a><span class="mono">{candidate === latest ? 'Latest' : p.yanked.includes(candidate) ? 'Yanked' : 'Older release'}</span></li>)}</ul></section>
+      <section id="install"><div class="section-rule mono">05 / INSTALL</div><h2>Install in a project</h2><p>Run this from the project root. The command fetches the release, writes its sources under <code>vendor/</code>, checks them into interfaces, and emits the package object.</p><div class="usage-fragment install-command"><span class="mono">PROJECT INSTALL</span><pre><code>{installCommand}</code></pre><button type="button" class="install-copy mono" data-install-command={installCommand}>Copy command</button></div><p class="mono">The command names the registry explicitly, so it installs the release this page was built from. See <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the install and verification boundaries.</p></section>
+    </article>
+  </div>
+</PlatformLayout>
+
+<script>
+const copyButton = document.querySelector<HTMLButtonElement>('[data-install-command]');
+copyButton?.addEventListener('click', async () => {
+  const command = copyButton.dataset.installCommand;
+  if (!command) return;
+  try {
+    await navigator.clipboard.writeText(command);
+    copyButton.textContent = 'Copied';
+    window.setTimeout(() => { copyButton.textContent = 'Copy command'; }, 1600);
+  } catch {
+    copyButton.textContent = 'Select the command';
+  }
+});
+</script>

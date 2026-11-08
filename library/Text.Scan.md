@@ -71,11 +71,11 @@ types).
 
 [Source](/reference-sources/Text.Scan.cinch) · line 401
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnusedFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnusedFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedFormatBrace</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FormatError</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedFormatBrace</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
 
 # Values
 
@@ -83,7 +83,7 @@ types).
 
 ## `format`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Result</span> <span class="tok-constructor">FormatError</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -91,7 +91,7 @@ types).
 
 ## `render-format-error`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-format-error</span> :: (<span class="tok-constructor">FormatError</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-format-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -99,7 +99,7 @@ types).
 
 ## `string-capitalize-ascii`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-capitalize-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-capitalize-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -107,7 +107,7 @@ types).
 
 ## `string-center`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-center</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-center</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 Center in `w` scalars; the extra space of an odd pad goes right.
 
@@ -117,7 +117,7 @@ Center in `w` scalars; the extra space of an odd pad goes right.
 
 ## `string-char-index-of`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-index-of</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-index-of</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The scalar index of the first occurrence of a single scalar (the
 one-scalar special case of `string-index-of`; `None` when the
@@ -130,7 +130,7 @@ rule above).
 
 ## `string-chomp`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chomp</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chomp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Drop one trailing line ending: LF, CRLF or CR.
 
@@ -140,7 +140,7 @@ Drop one trailing line ending: LF, CRLF or CR.
 
 ## `string-chop`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chop</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chop</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Drop the last scalar.
 
@@ -150,7 +150,7 @@ Drop the last scalar.
 
 ## `string-contains`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-contains</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-contains</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -158,7 +158,7 @@ Drop the last scalar.
 
 ## `string-downcase-ascii`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-downcase-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-downcase-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -166,7 +166,7 @@ Drop the last scalar.
 
 ## `string-drop`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -174,7 +174,7 @@ Drop the last scalar.
 
 ## `string-drop-while`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -182,7 +182,7 @@ Drop the last scalar.
 
 ## `string-ends-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-ends-with</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-ends-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -190,7 +190,7 @@ Drop the last scalar.
 
 ## `string-index-of`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-index-of</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-index-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 The scalar index where `needle` first occurs in `s` (an empty
 needle occurs at 0).
@@ -201,7 +201,7 @@ needle occurs at 0).
 
 ## `string-join`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 Join with a separator between every pair.
 
@@ -211,7 +211,7 @@ Join with a separator between every pair.
 
 ## `string-lines`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lines</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lines</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The lines of a string: the segments between LF scalars, with one
 trailing empty segment dropped when the string ends in LF (an
@@ -223,7 +223,7 @@ empty string has no lines).
 
 ## `string-lstrip`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lstrip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lstrip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -231,7 +231,7 @@ empty string has no lines).
 
 ## `string-normalize-newlines`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-normalize-newlines</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-normalize-newlines</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Line-ending normalization (the one normalization the UTF-8
 layers permit: CRLF and lone CR fold to LF).
@@ -242,7 +242,7 @@ layers permit: CRLF and lone CR fold to LF).
 
 ## `string-pad-left`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-left</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-left</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 Padding (scalar widths, spaces).
 
@@ -252,7 +252,7 @@ Padding (scalar widths, spaces).
 
 ## `string-pad-right`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-right</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-right</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -260,7 +260,7 @@ Padding (scalar widths, spaces).
 
 ## `string-rstrip`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-rstrip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-rstrip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -268,7 +268,7 @@ Padding (scalar widths, spaces).
 
 ## `string-split-at`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-at</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-at</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 Splitting at a scalar count, over scalar boundaries (a count past
 the end puts everything in the first part; 0 puts everything in
@@ -280,7 +280,7 @@ the second).
 
 ## `string-split-on`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-on</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-on</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
 
 Split at every occurrence of the separator (the separators are
 removed). Trailing empty pieces are dropped (Ruby's default) and
@@ -293,7 +293,7 @@ an empty separator splits into single-scalar strings (Ruby's
 
 ## `string-starts-with`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-starts-with</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-starts-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -301,7 +301,7 @@ an empty separator splits into single-scalar strings (Ruby's
 
 ## `string-strip`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-strip</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-strip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Trimming and case (ASCII).
 
@@ -311,7 +311,7 @@ Trimming and case (ASCII).
 
 ## `string-take`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 [Source](/reference-sources/Text.Scan.cinch)
 
@@ -319,7 +319,7 @@ Trimming and case (ASCII).
 
 ## `string-take-while`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The longest prefix (suffix) whose scalars all satisfy `p`; unlike
 `string-take`/`string-drop` the cut is predicate-driven, so the
@@ -331,7 +331,7 @@ caller supplies the scalar test.
 
 ## `string-unlines`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unlines</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unlines</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The inverse of `string-lines`: every line followed by LF, so
 `string-unlines (string-lines s)` is `s` with exactly one trailing
@@ -345,7 +345,7 @@ the last line unterminated.
 
 ## `string-unwords`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unwords</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unwords</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The inverse of `string-words`: a single space between elements
 (the empty list is the empty string, matching `string-words ""`).
@@ -356,7 +356,7 @@ The inverse of `string-words`: a single space between elements
 
 ## `string-upcase-ascii`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-upcase-ascii</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-upcase-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 ASCII case mapping only (the honest boundary: no Unicode case
 data exists in the UTF-8 layers).
@@ -367,7 +367,7 @@ data exists in the UTF-8 layers).
 
 ## `string-words`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-words</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-words</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
 
 The whitespace-separated words (ASCII whitespace runs delimit).
 

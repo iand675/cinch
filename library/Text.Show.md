@@ -56,7 +56,7 @@ text through string literals, which ordinary terms now carry.
 
 ## `Show.show`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">show</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">show</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Show</span>.<span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 
 
@@ -66,7 +66,7 @@ text through string literals, which ordinary terms now carry.
 
 ## `char-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-string</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-string</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Show.cinch)
 
@@ -74,7 +74,7 @@ text through string literals, which ordinary terms now carry.
 
 ## `int-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-to-string</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-to-string</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Signed decimal for `Int`, built from bignum division so values
 beyond i64 format correctly: the magnitude is a `Nat` (`0 - x` for
@@ -110,7 +110,7 @@ lies inside the buffer, and each digit is `48 + n % 10 <= 57`.
 
 ## `nat-to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-string</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-string</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Text.Show.cinch)
 
@@ -128,12 +128,12 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Text.Show.Show_Bool` | `Show Bool` | Implicit |
-| `Text.Show.Show_Char` | `Show Char` | Implicit |
-| `Text.Show.Show_Int` | `Show Int` | Implicit |
-| `Text.Show.Show_Nat` | `Show Nat` | Implicit |
-| `Text.Show.Show_Ordering` | `Show Ordering` | Implicit |
-| `Text.Show.Show_String` | `Show String` | Implicit |
+| `Text.Show.Show_Bool` | `Text.Show.Show Bool` | Implicit |
+| `Text.Show.Show_Char` | `Text.Show.Show Char` | Implicit |
+| `Text.Show.Show_Int` | `Text.Show.Show Int` | Implicit |
+| `Text.Show.Show_Nat` | `Text.Show.Show Nat` | Implicit |
+| `Text.Show.Show_Ordering` | `Text.Show.Show Data.Ordering.Ordering` | Implicit |
+| `Text.Show.Show_String` | `Text.Show.Show Data.String.String` | Implicit |
 
 **`Text.Show.Show_Bool`**: The fixed text: each renders as its literal constructor spelling
 (probed in compiler/tests/string_literals.rs).

@@ -324,18 +324,17 @@ module Data.String where
       out
 
   unpack :: String -> List Char
-  unpack s = unpack-from s 0 (string-length s)
+  unpack s = unpack-from (string-bytes-raw s) 0 Nil
 
   -- The scalar value of a character (the encoding family above).
   char-code :: Char -> Nat
   char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
 
-  unpack-from :: String -> Nat -> Nat -> List Char
-  unpack-from s i n =
-    if i >= n then Nil
-    else case string-char-at s i of
-      None -> Nil
-      Some c -> Cons c (unpack-from s (i + 1) n)
+  -- Advance by the decoded byte width so each scalar is decoded once.
+  unpack-from :: Bytes -> Nat -> List Char -> List Char
+  unpack-from b i acc = case utf8-at b i of
+    None -> reverse acc
+    Some (c, width) -> unpack-from b (i + width) (Cons c acc)
 
   -- Byte-wise comparison; UTF-8 preserves scalar value order under
   -- byte-wise lexicographic order, so this is also code point order.

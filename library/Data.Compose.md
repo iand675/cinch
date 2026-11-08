@@ -41,7 +41,7 @@ family's shape is complete.
 
 ## `get-compose`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-compose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . (<span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> ((<span class="tok-variable">g</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-compose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Compose</span>.<span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Compose.cinch)
 

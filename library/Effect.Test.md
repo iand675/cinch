@@ -105,7 +105,7 @@ failure list carries (test name, failing assertion, message).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 156
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailure</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">CaseFailure</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailure</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span>)))</code></pre>
 
 <a id="type-436173654f7574636f6d65"></a>
 
@@ -118,9 +118,9 @@ observed (law 3), plus the failure detail when it failed.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 173
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CasePassed</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">CaseOutcome</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CasePassed</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailed</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">CaseOutcome</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CaseFailed</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
 <a id="type-436865636b"></a>
 
@@ -136,9 +136,9 @@ a failing case is reportable rather than fatal.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 99
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pass</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Check</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pass</span> :: (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)</code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fail</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fail</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>))</code></pre>
 
 <a id="type-5265706f7274"></a>
 
@@ -151,7 +151,7 @@ outcome per case in run order.
 
 [Source](/reference-sources/Effect.Test.cinch) · line 194
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Report</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Report</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Report</span> :: (<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span>)</code></pre>
 
 <a id="type-5465737443617365"></a>
 
@@ -166,7 +166,7 @@ reporting (see the refusals).
 
 [Source](/reference-sources/Effect.Test.cinch) · line 141
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TestCase</span> :: (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Check</span>) -&gt; <span class="tok-constructor">TestCase</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TestCase</span> :: (<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span>))</code></pre>
 
 # Values
 
@@ -174,7 +174,7 @@ reporting (see the refusals).
 
 ## `assert`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>))</code></pre>
 
 The condition holds. `assert "one-plus-one" (1 + 1 == 2)`.
 
@@ -184,7 +184,7 @@ The condition holds. `assert "one-plus-one" (1 + 1 == 2)`.
 
 ## `assert-eq`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert-eq</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Check</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">assert-eq</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Show</span>.<span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)))</code></pre>
 
 The two values are equal, rendered through `Show` so the message
 names both. `assert-eq "sum" (1 + 1) 2`.
@@ -195,7 +195,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `case-body`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-body</span> :: (<span class="tok-constructor">TestCase</span> -&gt; (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">Check</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span> -&gt; (<span class="tok-constructor">Unit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)))</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -203,7 +203,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `case-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-name</span> :: (<span class="tok-constructor">TestCase</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">case-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -211,7 +211,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `failure-assertion`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-assertion</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-assertion</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -219,7 +219,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `failure-case`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-case</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-case</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -227,7 +227,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `failure-message`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-message</span> :: (<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">failure-message</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -235,7 +235,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `outcome-assertions`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-assertions</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-assertions</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -243,7 +243,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `outcome-name`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-name</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -251,7 +251,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `outcome-ok`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-ok</span> :: (<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">outcome-ok</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -259,7 +259,7 @@ names both. `assert-eq "sum" (1 + 1) 2`.
 
 ## `refute`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Check</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>))</code></pre>
 
 The condition fails. `refute "not-two" (1 == 2)`.
 
@@ -269,7 +269,7 @@ The condition fails. `refute "not-two" (1 == 2)`.
 
 ## `refute-eq`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute-eq</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Check</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">refute-eq</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ea</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Show</span>.<span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Check</span>)))</code></pre>
 
 The two values differ (Minitest's `refute_equal`), rendered
 through `Show`.
@@ -280,7 +280,7 @@ through `Show`.
 
 ## `render-report`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-report</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-report</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The summary Minitest prints: one block per failure (its number,
 the case, the failing assertion and the message), a blank line,
@@ -295,7 +295,7 @@ the rest of the report at every failure.
 
 ## `report-assertions`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-assertions</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-assertions</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -303,7 +303,7 @@ the rest of the report at every failure.
 
 ## `report-failures`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-failures</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">CaseFailure</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-failures</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseFailure</span>))</code></pre>
 
 The failing cases, in run order.
 
@@ -313,7 +313,7 @@ The failing cases, in run order.
 
 ## `report-ok`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-ok</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-ok</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
 
 True when no case failed (an empty report is ok: nothing ran,
 nothing failed).
@@ -324,7 +324,7 @@ nothing failed).
 
 ## `report-outcomes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-outcomes</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">List</span> <span class="tok-constructor">CaseOutcome</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-outcomes</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">CaseOutcome</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -332,7 +332,7 @@ nothing failed).
 
 ## `report-runs`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-runs</span> :: (<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">report-runs</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
 
 [Source](/reference-sources/Effect.Test.cinch)
 
@@ -340,7 +340,7 @@ nothing failed).
 
 ## `run-suite`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-suite</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">TestCase</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Report</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-suite</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">TestCase</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Report</span>)</code></pre>
 
 Run every case, reporting each one through the `Io r` capability
 as it finishes (one line: `<name>` prefixed by its verdict), and

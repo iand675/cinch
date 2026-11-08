@@ -30,7 +30,7 @@ This module exports no type declarations.
 
 ## `tensor-data`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-data</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-data</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Data.Tensor.cinch)
 
@@ -38,7 +38,7 @@ This module exports no type declarations.
 
 ## `tensor-get`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-get</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
 
 [Source](/reference-sources/Data.Tensor.cinch)
 
@@ -46,7 +46,7 @@ This module exports no type declarations.
 
 ## `tensor-reshape`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-reshape</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-reshape</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>))))</code></pre>
 
 [Source](/reference-sources/Data.Tensor.cinch)
 
@@ -54,7 +54,7 @@ This module exports no type declarations.
 
 ## `tensor-set`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-set</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>)))))</code></pre>
 
 [Source](/reference-sources/Data.Tensor.cinch)
 
@@ -62,7 +62,7 @@ This module exports no type declarations.
 
 ## `tensor-shape`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-shape</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tensor-shape</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 [Source](/reference-sources/Data.Tensor.cinch)
 

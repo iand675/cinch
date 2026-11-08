@@ -58,7 +58,7 @@ module (the class homes collect in dependency order).
 
 ## `Monad.>>=`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;&gt;=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;&gt;=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Monad</span>.<span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 
@@ -66,7 +66,7 @@ module (the class homes collect in dependency order).
 
 ## `Monad.join`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>))) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Monad</span>.<span class="tok-constructor">Monad</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
 
 
 
@@ -76,7 +76,7 @@ module (the class homes collect in dependency order).
 
 ## `<=<`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=&lt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=&lt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Monad</span>.<span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
 
 Right to left: `g <=< f` is `f >=> g`, the direction that reads
 like function composition. Eta-expanded to the signature's arity
@@ -90,7 +90,7 @@ two against an arity-three signature).
 
 ## `>=>`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">mon</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Monad</span>.<span class="tok-constructor">Monad</span> <span class="tok-variable">m</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>)) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">m</span> <span class="tok-variable">c</span>))))</code></pre>
 
 Left to right: `f >=> g` is the sequenced pair, the order effects
 run and results flow in.
@@ -109,7 +109,7 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Category.Monad.Monad_Function` | `Monad (((->) r))` | Implicit |
+| `Category.Monad.Monad_Function` | `Category.Monad.Monad ((->) r)` | Implicit |
 
 **`Category.Monad.Monad_Function`**: Structural: feed a function's result into the continuation.
 

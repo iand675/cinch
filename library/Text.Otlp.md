@@ -58,7 +58,7 @@ This module exports no type declarations.
 
 ## `any-value`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">any-value</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">any-value</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 One `Json` value as an OTLP `AnyValue` (the protobuf-JSON
 mapping): strings, int64-as-string, doubles, bools, arrays as
@@ -71,7 +71,7 @@ value.
 
 ## `attributes`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attributes</span> :: (<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attributes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
 
 A record's fields as OTLP attributes: `[{"key": ..., "value":
 <AnyValue>}, ...]` in object-spine order.
@@ -82,7 +82,7 @@ A record's fields as OTLP attributes: `[{"key": ..., "value":
 
 ## `format-traceparent`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-traceparent</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-traceparent</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 Format the context back to its `traceparent` header: parse and
 format round trip exactly (the header is canonical lowercase).
@@ -93,7 +93,7 @@ format round trip exactly (the header is canonical lowercase).
 
 ## `otlp-export`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">otlp-export</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span> -&gt; (<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Json</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">otlp-export</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
 
 The envelope over the collected records: `resourceLogs` carries
 the log records, `resourceMetrics` the metric records and
@@ -107,7 +107,7 @@ id of the roots (the incoming span) and the span's trace flags.
 
 ## `parse-traceparent`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-traceparent</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-traceparent</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>)))</code></pre>
 
 Parse a `traceparent` header into the trace context of some
 identity `r`. Refused (as `None`) unless the header is exactly the

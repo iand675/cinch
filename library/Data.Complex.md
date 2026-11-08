@@ -108,7 +108,7 @@ observations below are the only way out); `complex` is the surface.
 
 ## `abs`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The magnitude |a + bi| = sqrt(a^2 + b^2). Naive formula (no scaling):
 a part large enough to overflow the squares yields an infinite
@@ -120,7 +120,7 @@ magnitude, which is the honest IEEE result for this spelling.
 
 ## `add`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi) + (c + di): componentwise (the field's addition).
 
@@ -130,7 +130,7 @@ magnitude, which is the honest IEEE result for this spelling.
 
 ## `arg`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arg</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 The four-quadrant argument: the angle of `a + bi` in (-pi, pi], zero
 for the origin. The axis cases are exact; the other quadrants defer to
@@ -153,7 +153,7 @@ The named arctangent approximation (the header's refusal entry):
 
 ## `complex`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
 The smart constructor (Ruby's `Complex(a, b)`).
 
@@ -163,7 +163,7 @@ The smart constructor (Ruby's `Complex(a, b)`).
 
 ## `conjugate`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conjugate</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conjugate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
 The conjugate: the reflection across the real axis. An involution
 (`conjugate (conjugate z) == z`).
@@ -174,7 +174,7 @@ The conjugate: the reflection across the real axis. An involution
 
 ## `div`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi)/(c + di) = ((ac + bd) + (bc - ad)i) / (c^2 + d^2). A zero
 divisor yields IEEE NaN parts through `div-f64`, never a fault.
@@ -185,7 +185,7 @@ divisor yields IEEE NaN parts through `div-f64`, never a fault.
 
 ## `eq`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
 Structural equality: IEEE on each part.
 
@@ -195,7 +195,7 @@ Structural equality: IEEE on each part.
 
 ## `from-real`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-real</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-real</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
 A complex number with zero imaginary part.
 
@@ -205,7 +205,7 @@ A complex number with zero imaginary part.
 
 ## `imag-part`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">imag-part</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">imag-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Complex.cinch)
 
@@ -213,7 +213,7 @@ A complex number with zero imaginary part.
 
 ## `mul`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi)(c + di) = (ac - bd) + (ad + bc)i (the imaginary unit squares
 to -1, which is the `mul (complex 0 1) (complex 0 1) == complex -1 0`
@@ -225,7 +225,7 @@ identity above).
 
 ## `neg`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
 The additive inverse, componentwise.
 
@@ -235,7 +235,7 @@ The additive inverse, componentwise.
 
 ## `real-part`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">real-part</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">real-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Complex.cinch)
 
@@ -243,7 +243,7 @@ The additive inverse, componentwise.
 
 ## `sub`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Complex</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
 (a + bi) - (c + di): componentwise.
 
@@ -253,7 +253,7 @@ The additive inverse, componentwise.
 
 ## `to-string`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The `a+bi` form: a negative imaginary part renders with `-` and its
 magnitude (so `complex 1 -1` is `1-1i`), a non-negative one with `+`.
@@ -266,11 +266,11 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Complex.Add_Complex` | `Add Complex` | Implicit |
-| `Data.Complex.Eq_Complex` | `Eq Complex` | Implicit |
-| `Data.Complex.Mul_Complex` | `Mul Complex` | Implicit |
-| `Data.Complex.Neg_Complex` | `Neg Complex` | Implicit |
-| `Data.Complex.Sub_Complex` | `Sub Complex` | Implicit |
+| `Data.Complex.Add_Complex` | `Algebra.Arithmetic.Add Data.Complex.Complex` | Implicit |
+| `Data.Complex.Eq_Complex` | `Relation.Eq.Eq Data.Complex.Complex` | Implicit |
+| `Data.Complex.Mul_Complex` | `Algebra.Arithmetic.Mul Data.Complex.Complex` | Implicit |
+| `Data.Complex.Neg_Complex` | `Algebra.Arithmetic.Neg Data.Complex.Complex` | Implicit |
+| `Data.Complex.Sub_Complex` | `Algebra.Arithmetic.Sub Data.Complex.Complex` | Implicit |
 
 # Reference provenance
 

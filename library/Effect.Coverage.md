@@ -107,7 +107,7 @@ The recorder: hit counts keyed by site label. The tree is the
 
 [Source](/reference-sources/Effect.Coverage.cinch) · line 93
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Coverage</span> :: (<span class="tok-constructor">Map</span> <span class="tok-constructor">String</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Coverage</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Coverage</span> :: (<span class="tok-constructor">Map</span> <span class="tok-constructor">String</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>)</code></pre>
 
 # Values
 
@@ -115,7 +115,7 @@ The recorder: hit counts keyed by site label. The tree is the
 
 ## `coverage-counts`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-counts</span> :: (<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-counts</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
 
 Every site with its count, in ascending label order: the in-order
 walk of the search tree, so the order is byte-wise on the label
@@ -128,7 +128,7 @@ the hits arrived in.
 
 ## `coverage-hit`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-hit</span> :: (<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Coverage</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-hit</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>))</code></pre>
 
 Record one hit at `site`: the counter goes up by one, and a site
 not seen before starts at one. This is the one call a generated
@@ -140,7 +140,7 @@ instrumentation makes per instrumented site.
 
 ## `coverage-merge`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-merge</span> :: (<span class="tok-constructor">Coverage</span> -&gt; (<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Coverage</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-merge</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>))</code></pre>
 
 Combine two recorders: the counts at equal labels add, and a label
 present in only one side keeps its count. The identity element is
@@ -153,7 +153,7 @@ shape; the test checks both over sample recorders).
 
 ## `coverage-new`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-new</span> :: <span class="tok-constructor">Coverage</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-new</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span></code></pre>
 
 A recorder with no hits (the merge identity).
 
@@ -163,7 +163,7 @@ A recorder with no hits (the merge identity).
 
 ## `coverage-report`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-report</span> :: (<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">String</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-report</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
 The report: one line per site, `label` TAB count NEWLINE, then a
 final `total` TAB total NEWLINE. An empty recorder is the total
@@ -177,7 +177,7 @@ nesting `<>` would re-copy the rest of the report at every site.
 
 ## `coverage-total`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-total</span> :: (<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-total</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
 
 The sum of every count: the number of hits recorded.
 

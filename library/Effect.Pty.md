@@ -144,7 +144,7 @@ it only ever goes back to the runtime.
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 143
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pty</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Pty</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pty</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>)</code></pre>
 
 <a id="type-507479436f6d6d616e64"></a>
 
@@ -157,7 +157,7 @@ A program with its arguments and its environment additions
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 159
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyCommand</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">PtyCommand</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyCommand</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>)))</code></pre>
 
 <a id="type-5074794572726f72"></a>
 
@@ -171,13 +171,13 @@ codes.
 
 [Source](/reference-sources/Effect.Pty.cinch) · line 131
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyNotFound</span> :: <span class="tok-constructor">PtyError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyPermissionDenied</span> :: <span class="tok-constructor">PtyError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyInvalidArgument</span> :: <span class="tok-constructor">PtyError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyIoError</span> :: <span class="tok-constructor">PtyError</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
 
 # Values
 
@@ -185,7 +185,7 @@ codes.
 
 ## `pty-close`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-close</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-close</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>)</code></pre>
 
 Close the terminal: a child no wait reaped is killed and reaped
 first, and the handle is consumed. This is the one operation that
@@ -200,7 +200,7 @@ answer for a handle word that was never live.
 
 ## `pty-command`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">PtyCommand</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>))</code></pre>
 
 A command without environment additions.
 
@@ -210,7 +210,7 @@ A command without environment additions.
 
 ## `pty-command-with-env`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command-with-env</span> :: (<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">List</span> <span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">List</span> (<span class="tok-constructor">String</span>, <span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">PtyCommand</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command-with-env</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>)))</code></pre>
 
 A command with environment additions.
 
@@ -220,7 +220,7 @@ A command with environment additions.
 
 ## `pty-handle`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-handle</span> :: (<span class="tok-constructor">Pty</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
 
 The handle word of a terminal, for the layers above this one. The
 word is not a handle, and the projection is the one hole in the
@@ -236,7 +236,7 @@ operations hand out, not the bare word.
 
 ## `pty-open`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-open</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Pty</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-open</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>))</code></pre>
 
 Open a pseudo-terminal pair: the master and slave ends in a handle,
 or the named error. The slave belongs to the handle until a spawn
@@ -248,7 +248,7 @@ hands it to the child.
 
 ## `pty-read`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-read</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
 
 Read up to `max` bytes of the terminal's master (what the child
 wrote to its stdout or stderr, plus the terminal's echo of the
@@ -262,7 +262,7 @@ live, so the handle is handed back rather than dropped.
 
 ## `pty-resize`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-resize</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-resize</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
 
 Set the terminal's window size to `cols` columns by `rows` rows:
 the handle and the unit, or the handle and the named error (the
@@ -274,7 +274,7 @@ handle comes back for the same reason as `pty-write`'s).
 
 ## `pty-spawn`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-spawn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">PtyCommand</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Pty</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-spawn</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Option</span> <span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>)))</code></pre>
 
 Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
 this process's own directory): the same handle with the child beside
@@ -294,7 +294,7 @@ a closed one would be a trap for the caller.
 
 ## `pty-wait`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-wait</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-wait</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>))</code></pre>
 
 Wait for the child: the handle and its exit code (128 + the signal
 number for a signal death, the shell convention), or the handle and
@@ -307,7 +307,7 @@ not what ends the handle's life; `pty-close` is.
 
 ## `pty-write`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-write</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-write</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, <span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
 
 Write `bs` to the terminal's master (the child reads it on its
 stdin): the handle and the byte count (the whole buffer goes), or

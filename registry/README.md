@@ -26,6 +26,7 @@ Environment:
 | `PORT` | `8787` | HTTP port |
 | `CINCH_REGISTRY_DATA` | `registry/data` | SQLite database, blob store, and signing key |
 | `CINCH_REGISTRY_ADMIN_TOKEN` | generated and printed | Bootstrap admin token with `read`, `publish`, and `admin` scopes for `*` |
+| `CINCH_PROVENANCE_KEYS` | `{}` | JSON object mapping DSSE key ids to public JWK keys trusted for L2 builder provenance |
 
 The admin token is rotated into the database on every start. Store it outside the
 data directory in a real deployment.
@@ -199,8 +200,11 @@ data/
 ```
 
 The bundle is canonical JSON containing the manifest, base64 source files,
-visibility, and readme. Attestations are stored in SQLite and returned in package
-metadata with `verified: false`; SLSA verification is not implemented in v0.
+visibility, and readme. Attestations are stored in SQLite and returned in package metadata.
+Provenance attestations are checked structurally against the release identity.
+Unsigned envelopes are reported as `SLSA_BUILD_LEVEL_1`; envelopes signed by a
+key in `CINCH_PROVENANCE_KEYS` are reported as `SLSA_BUILD_LEVEL_2` with
+`verified: true`.
 
 ## Production gaps
 
@@ -210,7 +214,7 @@ This prototype is deliberately small. A public registry needs:
 - Rate limits, quotas, abuse reporting, malware scanning, and retention policy.
 - Object storage, a real database, backups, and multi-node consistency.
 - Per-namespace signed private indexes instead of a filtered view.
-- SLSA provenance and VSA verification at publish and fetch, not just storage.
+- VSA issuance and client-side trust in L2 builder keys; the registry currently performs structural L1 and optional trusted-key L2 verification.
 - Search indexing, a private package UI, and package documentation rendering.
 - CDN distribution for public blobs, mirroring, and anti-rollback snapshots.
 - Billing for private packages, legal takedown workflow, and audit retention.
@@ -223,7 +227,7 @@ This prototype is deliberately small. A public registry needs:
 | Section 2, content identity | `lib/canonical.mjs`, package identity check in `lib/store.mjs` |
 | Section 6, registry and private packages | `server.mjs` API, memberships, token scoping |
 | Section 6, withdrawal statements | `lib/store.mjs` `addStatement`, `lib/signer.mjs` DSSE |
-| Section 8, SLSA | Attestation storage and `registry-key`; verification is future work |
+| Section 8, SLSA | Structural L1 verification, optional trusted-builder L2 verification, attestation storage |
 
 The protocol is intentionally independent of this implementation. A Rust or
 self-hosted Cinch service can replace it without changing the client contract.

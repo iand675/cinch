@@ -50,7 +50,7 @@ data type it replaces (decision D151).
 
 ## `NonEmpty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonEmpty</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">List</span> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NotNull</span> <span class="tok-variable">xs</span></code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonEmpty</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NotNull</span> <span class="tok-variable">xs</span></code></pre>
 
 [Source](/reference-sources/Data.NonEmpty.cinch)
 
@@ -60,7 +60,7 @@ data type it replaces (decision D151).
 
 ## `non-empty`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-empty</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Option</span> (<span class="tok-constructor">NonEmpty</span> <span class="tok-variable">a</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">NonEmpty</span>.<span class="tok-constructor">NonEmpty</span> <span class="tok-variable">a</span>)))</code></pre>
 
 The total constructor (refinement types design: the total API):
 the runtime decision lives in the `Dec`/`decide` world and its
@@ -74,9 +74,9 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.NonEmpty.Foldable_NonEmpty` | `Foldable NonEmpty` | Implicit |
-| `Data.NonEmpty.Semigroup_NonEmpty` | `Semigroup (NonEmpty x)` | Implicit |
-| `Data.NonEmpty.Traversable_NonEmpty` | `Traversable NonEmpty` | Implicit |
+| `Data.NonEmpty.Foldable_NonEmpty` | `Category.Foldable.Foldable Data.NonEmpty.NonEmpty` | Implicit |
+| `Data.NonEmpty.Semigroup_NonEmpty` | `Algebra.Semigroup.Semigroup (Data.NonEmpty.NonEmpty x)` | Implicit |
+| `Data.NonEmpty.Traversable_NonEmpty` | `Category.Traversable.Traversable Data.NonEmpty.NonEmpty` | Implicit |
 
 **`Data.NonEmpty.Foldable_NonEmpty`**: The container's own folds (the transfer rule): they read the
 refined value as the list it is.
