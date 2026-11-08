@@ -20596,8 +20596,8 @@
       },
       {
         "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
-        "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "status": "running",
+        "phase": "complete syntax and editor suite",
         "passed": 0,
         "total": 39,
         "unit": "gates",
@@ -20715,5 +20715,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:10:58.748885+00:00"
+  "updatedAt": "2026-11-08T17:12:01.220967+00:00"
 }
