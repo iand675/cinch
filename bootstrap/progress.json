@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 52,
+          "verified": 54,
           "blocked": 8,
           "running": 3,
-          "pending": 36,
+          "pending": 34,
           "recheck": 6
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13623,21 +13623,21 @@
           {
             "id": "stage3:bootstrap_runtime_library_abi",
             "title": "bootstrap_runtime_library_abi",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:31:59.406978+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:40:20.844993+00:00",
+              "exitCode": 0,
+              "logSha256": "1b7aafe32150cc8df316cd74ef527759907d1e97fd1c60e04cb957b45dd5b793",
               "cases": [
                 {
                   "name": "library_abi_entries_describe_actual_workers_and_owned_closure_accessors",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13746,18 +13746,23 @@
           {
             "id": "stage3:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:40:22.800335+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -13949,21 +13954,21 @@
           {
             "id": "stage3:bootstrap_typed_indices",
             "title": "bootstrap_typed_indices",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typed_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:36:30.704046+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:40:03.292558+00:00",
+              "exitCode": 0,
+              "logSha256": "70ab7c1f83450a13f044fd579302e482d3ca7573b6cf8e8416d50704ef9612a4",
               "cases": [
                 {
                   "name": "typed_indices_preserve_sorts_scope_and_numeric_conversion",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14044,18 +14049,55 @@
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:40:04.669605+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "a_write_between_test_and_use_invalidates_the_fact",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_facts_go_stale_on_the_path_only",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_comparison_binds_its_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_list_binds_non_emptiness",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_three_way_comparison_binds_its_constructors",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_value_binds_literal_and_default_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "conditions_in_handled_computations_carry_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "else_branch_of_a_zero_test_discharges_non_zero",
+                  "status": "passed"
+                },
+                {
+                  "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18707,6 +18749,16 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
+        "title": "Development Stage1: Nat operations and allocation probe",
+        "status": "completed-with-failures",
+        "phase": "Boxed Nat operations and the wrong-carrier refusal passed. The original probe emitted IR and compiled its C source. The linker could not resolve private Main.build.",
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "source": "ca778bc9d81f2b425fb4e27107a15b7c5628ad30dd557d0fa7b66b778b18a110",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-nat-intrinsic-results.json"
+      },
+      {
         "title": "Fresh Stage0 through Stage3 rebuild",
         "status": "passed-bootstrap-chain-only",
         "phase": "Independent audit passed, including changed compiler source",
@@ -20554,10 +20606,10 @@
       }
     ],
     "counts": {
-      "verified": 326,
+      "verified": 328,
       "blocked": 13,
       "running": 14,
-      "pending": 266,
+      "pending": 264,
       "recheck": 61
     },
     "total": 680,
@@ -20566,5 +20618,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:38:49.190800+00:00"
+  "updatedAt": "2026-11-08T03:40:38.100524+00:00"
 }
