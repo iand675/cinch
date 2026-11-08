@@ -26,7 +26,7 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
       <button type="button" class="install-copy mono" id="install-copy">Copy command</button>
       <p class="mono" id="install-facts"></p>
     </div>
-    <aside class="preview-note"><span class="mono">REGISTRY LOOKUP</span><p>The browser reads public registry metadata. It does not execute the compiler. Run the copied command from the project you want to change; see <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the accepted release, dependency, and verification boundaries.</p></aside>
+    <aside class="preview-note"><span class="mono">REGISTRY LOOKUP</span><p>The browser reads public registry metadata. It does not execute the compiler and never receives a registry token. Run the copied command from the project you want to change; private releases need <code>CINCH_REGISTRY_TOKEN</code> or <code>--token</code>. See <a href="/reference/29-package-management/">packages, manifests, and the registry</a> for the accepted release, dependency, and verification boundaries.</p></aside>
   </section>
 </PlatformLayout>
 <script>
