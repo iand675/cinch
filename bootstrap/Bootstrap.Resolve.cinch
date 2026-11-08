@@ -485,9 +485,9 @@ module Bootstrap.Resolve where
   -- In a branch test, the structural former may also have the standard
   -- refinement constructor in scope. A distinct constructor keeps its
   -- ordinary binding and type.
-  nonzero-branch-former :: List Binding -> String -> Bool
-  nonzero-branch-former visible name = same name "NonZero" && (case lookup-binding name visible of
-    Some binding -> same (binding-symbol binding) (interface-global "Algebra.Arithmetic.NonZero")
+  branch-predicate-former :: List Binding -> String -> Bool
+  branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case lookup-binding name visible of
+    Some binding -> same name "NonZero" && same (binding-symbol binding) (interface-global "Algebra.Arithmetic.NonZero")
     None -> True)
   branch-literal :: String -> Expr -> Bool
   branch-literal expected syntax = case syntax of
@@ -495,10 +495,10 @@ module Bootstrap.Resolve where
     other -> False
   rename-branch-value :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-branch-value visible locals syntax = case syntax of
-    ECon sp name (EArg at input (EArgsEnd end)) | nonzero-branch-former visible name ->
+    ECon sp name (EArg at input (EArgsEnd end)) | branch-predicate-former visible name ->
       (case rename-expr visible locals input of
-        (value, errors) -> (ECon sp "#condition.nonzero" (EArg at value (EArgsEnd end)), errors))
-    EApp sp (ECon at name (EArgsEnd end)) input | nonzero-branch-former visible name ->
+        (value, errors) -> (ECon sp ("#condition." <> name) (EArg at value (EArgsEnd end)), errors))
+    EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
       rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
     EApp sp (EVar at name) input -> (case lookup-binding name visible of
       Some binding | not (has-name name locals) && same (binding-symbol binding) (interface-global "Data.Bool.not") ->

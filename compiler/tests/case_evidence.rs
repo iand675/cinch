@@ -737,6 +737,41 @@ module Main where
         ),
         &["the obligation `NotNull xs` needs"],
     );
+    expect_run(
+        "list-predicate-condition",
+        &format!(
+            "{defs}
+  byIf :: List Nat -> Nat
+  byIf xs = if NotNull xs then first xs else 0
+
+  byCase :: List Nat -> Nat
+  byCase xs = case NotNull xs of
+    True -> first xs
+    False -> 0
+
+  byGuard :: List Nat -> Nat
+  byGuard xs | NotNull xs = first xs
+  byGuard xs = 0
+
+  main :: Int
+  main = if byIf (Cons 3 Nil) == 3 && byIf Nil == 0 && byCase (Cons 4 Nil) == 4 && byCase Nil == 0 && byGuard (Cons 5 Nil) == 5 && byGuard Nil == 0 then 0 else 1
+"
+        ),
+        0,
+    );
+    expect_err(
+        "list-predicate-wrong-value",
+        &format!(
+            "{defs}
+  bad :: List Nat -> List Nat -> Nat
+  bad xs ys = if NotNull xs then first ys else 0
+
+  main :: Int
+  main = 0
+"
+        ),
+        &["the obligation `NotNull ys` needs"],
+    );
 }
 
 #[test]

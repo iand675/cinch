@@ -2523,8 +2523,9 @@ module Bootstrap.Infer where
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
     EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
     EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
-    ECon sp name (EArg at input (EArgsEnd end)) | same name "#condition.nonzero" ->
-      (case decision-unary classes kinds families env locals sp "NonZero" input st of
+    ECon sp name (EArg at input (EArgsEnd end)) | has name ["#condition.NonZero", "#condition.NotNull"] ->
+      let former = if same name "#condition.NonZero" then "NonZero" else "NotNull" in
+      (case decision-unary classes kinds families env locals sp former input st of
         (predicate, test, checked) -> (test, checked))
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
@@ -2660,7 +2661,7 @@ module Bootstrap.Infer where
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields (Some expected) st
-    ECon sp name fields | same name "#condition.nonzero" -> infer classes kinds families env locals expr st
+    ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
     EApp sp function argument -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
