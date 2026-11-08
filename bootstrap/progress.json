@@ -618,7 +618,7 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "recheck",
-        "detail": "Checked Nat and U32 samples and runtime wraparound passed. Original rewrite citations parse and resolve. Typed equation comparison, justification checking and assumption transport remain open.",
+        "detail": "The first typed rewrite build passed five of eight original law tests, including the declared law assumption. The resource correction, typed artifact assertion and proposition-valued signature method have separate gates.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-class-law-observations-results.json"
       },
@@ -17872,6 +17872,28 @@
     ],
     "active": [
       {
+        "title": "Run all 236 Rust targets on the integrated candidate",
+        "source": "e91197eb5f3d8fc8f680fb375675fd3268b469ebe7e1bec785633dce66d30d43",
+        "unit": "targets",
+        "passed": 0,
+        "total": 236,
+        "failed": 0,
+        "status": "running",
+        "phase": "clean-native-build",
+        "evidence": null
+      },
+      {
+        "title": "Run all 110 Cinch Stage 3 targets on the integrated candidate",
+        "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+        "unit": "targets",
+        "passed": 0,
+        "total": 110,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "build Stage 1 with the preceding compiler",
+        "evidence": null
+      },
+      {
         "title": "Run all 236 Rust targets on the preceding memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
@@ -20717,12 +20739,12 @@
         "title": "Replay records, nominal types and codata on the combined compiler",
         "unit": "controls",
         "status": "completed-with-failures",
-        "phase": "Combined candidate, starting from the pinned seed. replay the original codata target with the combined Stage 1",
+        "phase": "All 18 record checks and the original 34-case nominal test passed. The codata test run lacked selected compiler receipts and needs replay.",
         "passed": 19,
         "total": 20,
         "failed": 1,
         "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-records-and-rewrite-results.json"
       },
       {
         "title": "Check record interface shape in Rust and tooling",
@@ -20769,6 +20791,17 @@
         "evidence": null
       },
       {
+        "title": "Audit the first typed rewrite and law replay",
+        "unit": "controls",
+        "status": "completed-with-failures",
+        "phase": "Five of eight original law tests passed. The shipped citations were checked and the compiled interface records the declared law identity.",
+        "passed": 8,
+        "total": 11,
+        "failed": 3,
+        "source": "03e80a41769af7a78b00c1fcf78ab3e0a1aa24ee2e07cbf3552dfe1ac5f57fa1",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-records-and-rewrite-results.json"
+      },
+      {
         "title": "Check rewrite equations against cited laws and record assumptions",
         "unit": "controls",
         "status": "running",
@@ -20777,6 +20810,17 @@
         "total": 11,
         "failed": 0,
         "source": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
+        "evidence": null
+      },
+      {
+        "title": "Verify the five original targets through the standard Rust and Cinch harness",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. run the selected Cinch guard_coverage target",
+        "passed": 5,
+        "total": 10,
+        "failed": 0,
+        "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": null
       },
       {
@@ -20848,5 +20892,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:49:37.543574+00:00"
+  "updatedAt": "2026-11-08T23:51:22.015320+00:00"
 }
