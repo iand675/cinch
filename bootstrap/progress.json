@@ -21065,6 +21065,46 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage2-lowering-reproducer.json"
       },
       {
+        "title": "Independently verify the repaired ABI 7 fixed point",
+        "status": "waiting-fixed-point",
+        "phase": "Waiting fixed point",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "unit": "audit",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+      },
+      {
+        "title": "Run the 105 frontend groups with the repaired Stage 3",
+        "status": "waiting-stage3",
+        "phase": "Waiting stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 105,
+        "unit": "groups",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+      },
+      {
+        "title": "Run the 14 external checks with the repaired Stage 3",
+        "status": "waiting-stage3",
+        "phase": "Waiting stage3",
+        "passed": 0,
+        "failed": 0,
+        "total": 14,
+        "unit": "groups",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+      },
+      {
+        "title": "Run the 34 language examples with the repaired Stage 3",
+        "status": "waiting-matching-stage3-audit",
+        "phase": "Waiting matching stage3 audit",
+        "passed": 0,
+        "failed": 0,
+        "total": 34,
+        "unit": "groups",
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+      },
+      {
         "title": "Consolidate installed package execution metadata",
         "status": "passed-package-cinchif-only",
         "phase": "All 23 package, Native linking, and JIT tests passed.",
@@ -21089,5 +21129,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:32:18.296539+00:00"
+  "updatedAt": "2026-11-08T10:32:40.780528+00:00"
 }
