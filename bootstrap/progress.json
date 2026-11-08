@@ -20551,8 +20551,8 @@
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
         "status": "running",
-        "phase": "regex-check",
-        "passed": 6,
+        "phase": "regex-emit",
+        "passed": 7,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20760,5 +20760,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:17:21.069504+00:00"
+  "updatedAt": "2026-11-08T04:20:48.052584+00:00"
 }
