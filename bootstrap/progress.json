@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_nonzero_source, bootstrap_pi, bootstrap_pipeline",
-        "passed": 49,
+        "phase": "Bootstrap_pi, bootstrap_pipeline, bootstrap_proof",
+        "passed": 50,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -21107,9 +21107,9 @@
       },
       {
         "title": "Compile-check 235 Rust test harnesses and the JIT feature harness",
-        "status": "running",
-        "phase": "jit-test-harness",
-        "passed": 1,
+        "status": "passed",
+        "phase": "Cargo type-checked the entire default test inventory and the JIT feature harness on the integrated candidate.",
+        "passed": 2,
         "total": 2,
         "unit": "gates",
         "failed": 0,
@@ -21162,8 +21162,8 @@
       },
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
-        "status": "waiting-rust-harness-checks",
-        "phase": "Waiting for the matching compile-only Rust harness check.",
+        "status": "waiting-matching-stage2",
+        "phase": "Waiting for the matching Stage 2 build.",
         "passed": 0,
         "total": 236,
         "unit": "gates",
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:31:10.127261+00:00"
+  "updatedAt": "2026-11-08T16:32:13.165275+00:00"
 }
