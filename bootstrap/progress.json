@@ -506,7 +506,7 @@
   "candidatePublished": false,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "4/236 Rust targets and 0/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "5/236 Rust targets and 0/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -781,11 +781,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 4,
+          "verified": 5,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 231
+          "recheck": 230
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -2074,25 +2074,25 @@
           {
             "id": "native:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T16:55:40.741084+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T17:16:17.639416+00:00",
+              "exitCode": 0,
+              "logSha256": "8a959baf321d2e79b91c2d629556472f47b7bce2c87dd6d2fe6a44e3bc59800d",
               "cases": [
                 {
                   "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 1
           },
           {
             "id": "native:bootstrap_load",
@@ -9624,17 +9624,17 @@
           {
             "id": "native:repl",
             "title": "repl",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/repl.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:43:40.780813+00:00",
-              "finishedAt": "2026-11-08T02:45:09.905785+00:00",
-              "exitCode": 0,
-              "logSha256": "200a27d9576bd8f41883168f3d9df07c7001484e9a8b1a5feb8d2ab516b1fc49",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T17:16:17.648516+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "a_failed_load_keeps_the_previous_session",
@@ -9658,43 +9658,7 @@
                 },
                 {
                   "name": "load_and_reload_a_multi_file_project",
-                  "status": "passed"
-                },
-                {
-                  "name": "loaded_project_expressions_reuse_the_checked_closure",
-                  "status": "passed"
-                },
-                {
-                  "name": "multi_line_input_continues_until_the_block_closes",
-                  "status": "passed"
-                },
-                {
-                  "name": "plain_loop_handles_a_pipe",
-                  "status": "passed"
-                },
-                {
-                  "name": "runtime_backed_io_uses_the_native_compiler",
-                  "status": "passed"
-                },
-                {
-                  "name": "runtime_backed_probe_sees_a_loaded_module",
-                  "status": "passed"
-                },
-                {
-                  "name": "runtime_backed_probe_sees_a_session_definition",
-                  "status": "passed"
-                },
-                {
-                  "name": "runtime_backed_probe_uses_session_imports_and_the_project_directory",
-                  "status": "passed"
-                },
-                {
-                  "name": "type_kind_and_browse_outputs",
-                  "status": "passed"
-                },
-                {
-                  "name": "warm_expressions_reuse_the_checked_session",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20413,8 +20377,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_library_object",
-        "passed": 4,
+        "phase": "repl",
+        "passed": 5,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20508,11 +20472,11 @@
       }
     ],
     "counts": {
-      "verified": 290,
+      "verified": 291,
       "blocked": 0,
       "running": 4,
       "pending": 4,
-      "recheck": 408
+      "recheck": 407
     },
     "total": 706,
     "acceptanceVerified": 2,
@@ -20520,5 +20484,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:14:07.574835+00:00"
+  "updatedAt": "2026-11-08T17:16:30.267566+00:00"
 }
