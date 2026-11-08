@@ -19378,9 +19378,9 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-dependent-pattern-and-diagnostics-results.json"
       },
       {
-        "title": "Verify when a source rebuild can reuse the library object",
+        "title": "Earlier experiment with test fixtures that supplied library source",
         "status": "completed-overlays-with-failures",
-        "phase": "Core, Algebra and both edit refusals passed. Category differs on one law observation and Foldable cannot see a checked facade value.",
+        "phase": "This experiment checked when explicit source could reuse the compiled library object. Core, Algebra and both edit refusals passed. Two old Category and Foldable fixtures failed. Their current fixtures supply only client source and link the library object.",
         "passed": 4,
         "failed": 2,
         "total": 6,
@@ -19388,7 +19388,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-executable-source-copy-results.json"
       },
       {
-        "title": "Check explicit source rebuilds that depend on facade exports",
+        "title": "Earlier experiment with facade exports in source rebuilds",
         "status": "completed-overlays-with-failures",
         "phase": "original-algebra",
         "passed": 4,
@@ -19946,8 +19946,8 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "checking pinned provider",
-        "passed": 0,
+        "phase": "building stage1",
+        "passed": 1,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20133,5 +20133,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:05:35.845575+00:00"
+  "updatedAt": "2026-11-08T01:06:15.203672+00:00"
 }
