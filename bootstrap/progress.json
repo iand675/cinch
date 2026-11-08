@@ -20930,9 +20930,9 @@
       },
       {
         "title": "Cinch ordering branch facts from compiled interfaces",
-        "status": "running",
-        "phase": "probe-ordinary. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
-        "passed": 4,
+        "status": "passed-native-producer-and-cinch-keyed-ordering",
+        "phase": "probe-opaque-order. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
+        "passed": 6,
         "failed": 0,
         "total": 6,
         "unit": "gates",
@@ -20940,9 +20940,9 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-worker",
-        "phase": "waiting worker. The original runtime returned the old value after a callee wrote through the borrow. The candidate carries a shared, counted cell across calls.",
-        "passed": 0,
+        "status": "failed",
+        "phase": "runtime-suite. The original runtime returned the old value after a callee wrote through the borrow. The candidate carries a shared, counted cell across calls.",
+        "passed": 2,
         "failed": 0,
         "total": 9,
         "unit": "gates",
@@ -20962,5 +20962,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:52:11.820915+00:00"
+  "updatedAt": "2026-11-08T06:53:13.937278+00:00"
 }
