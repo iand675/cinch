@@ -1,0 +1,135 @@
+{
+  "c_source_sha256": "c862d12fcdfba40567659a16c77da847b472d22e8aed7a234f04aa58761179db",
+  "compiler_sha256": "96c30caae8dce8de0bc1767d18efc3784335f11742bd5181e7305590c220a9e2",
+  "compiler_source_sha256": "ca778bc9d81f2b425fb4e27107a15b7c5628ad30dd557d0fa7b66b778b18a110",
+  "diagnostic_control": {
+    "executable_sha256": "2165d49bc41dcec1941bca57d559df88125e16782fcd27589659f270ca9ff18b",
+    "ir_sha256": "df0a26d9b96b6f0bf80883f39cfc7b01fbfa84325457c355c40101b50627ffd7",
+    "original_ir_sha256": "ceea5216d2199779c5e5352ac3a128d36e340e0807438b44acd2bbd92c48dac4",
+    "outcomes": {
+      "debug": {
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0"
+      },
+      "drop": {
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "stderr": "cinch-leak: live=0 immortal=0 leaked=0"
+      },
+      "keep": {
+        "log_sha256": "fbe3943ac2df6a6bce31a7ec376a342c13a823293385a31a5269374a471355f2",
+        "stderr": "cinch-leak: live=14 immortal=0 leaked=14"
+      },
+      "quiet": {
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr": ""
+      },
+      "twice": {
+        "log_sha256": "e5a25f2f957522e296bb35c8437b21f725bb3af5ac8d3690f65fd81410d9b8c5",
+        "stderr": "cinchruntime: compiler bug: reference count operation on a freed or corrupt block"
+      }
+    },
+    "status": "passed-all-five-modes"
+  },
+  "entry_source_sha256": "0e6d8f7d33723924e707270a66cbe4a2e46c4a9b65fd8713bc14f077713f9c90",
+  "executable_sha256": "1f10f46d051c3f09458151494b12bfab0f3e179d3de09dc1508de8e497c4599f",
+  "full_goal_complete": false,
+  "interface_sha256": "9803c25825f47099a1a8f05e94ef03e5151cc62adf1bad4b79283248fef580be",
+  "library_source_sha256": "1d940e5cf660b172f58286d1948ded92873d4718acf0d872524ff5c09674e79b",
+  "metadata_sha256": "d75bc84f222d2c64a3fbdffb9aa750cfeaecf507e2521c7c70709b00243c61e2",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "nullary_allocations": {
+    "adders": {
+      "Nil": 1
+    },
+    "shapes": {
+      "Leaf": 4,
+      "Nil": 1
+    }
+  },
+  "object_sha256": "b9576c30f884bdd81dd9a12828f149b6fefcfbdbcb97f49e5562f11030db5c47",
+  "original_test_sha256": "04f37006581907117365664f0713e531943a59015125ff1260634c1d410a89c2",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emit-library-object",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "emit-entry-ir",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "compile-c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 74,
+      "expected_exit": 74,
+      "expected_leaked": 14,
+      "leaked": 20,
+      "log_sha256": "169dd33d9be27ad13b342668371608378d898c895e12e2030926bce683b1be99",
+      "name": "keep",
+      "status": "failed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": 0,
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "drop",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": 0,
+      "leaked": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "debug",
+      "status": "passed"
+    },
+    {
+      "exit_code": 71,
+      "expected_exit": 71,
+      "expected_leaked": null,
+      "leaked": null,
+      "log_sha256": "e5a25f2f957522e296bb35c8437b21f725bb3af5ac8d3690f65fd81410d9b8c5",
+      "name": "twice",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected_exit": 0,
+      "expected_leaked": null,
+      "leaked": null,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "quiet",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "scope": "Development Stage1 with checked object; manually modified IR is a diagnostic control.",
+  "stage1_receipt_sha256": "ba1fd13cf845e7387b2a5fcca24f5d3767d341bda6e884c87e77dba35efaf603",
+  "status": "audited-checked-object-link-with-six-extra-allocations",
+  "worker": {
+    "arity": 1,
+    "closure_entry": "AllocationFixture.build.object-closure",
+    "params": [
+      "R"
+    ],
+    "result": "O",
+    "symbol": "AllocationFixture.build"
+  }
+}

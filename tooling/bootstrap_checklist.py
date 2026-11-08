@@ -685,7 +685,20 @@ def build_checklist(root, cfg, previous=None):
     active=[]
     nat_path = 'bootstrap/current-schema10-nat-intrinsic-results.json'
     nat_audit = read(root / nat_path)
-    if (nat_audit.get('status') == 'audited-stage1-nat-intrinsics-original-link-failed'
+    object_path = 'bootstrap/current-schema10-allocation-object-abi-results.json'
+    object_audit = read(root / object_path)
+    if (object_audit.get('status') == 'audited-checked-object-link-with-six-extra-allocations'
+            and object_audit.get('compiler_sha256') == nat_audit.get('compiler_sha256')
+            and object_audit.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/alloc_accounting.rs', object_audit.get('original_test_sha256'))):
+        ownership = [row for row in object_audit['rows'] if 'expected_exit' in row]
+        active.append(dict(title='Development Stage1: checked allocation object',
+            status='completed-with-failures',
+            phase='The object linked. Four ownership modes passed. The kept structure counted 20 instead of 14 because six fieldless values were allocated. A diagnostic relink with static blocks restored 14 and passed all five modes. The compiler-source replay is pending.',
+            passed=sum(row['status'] == 'passed' for row in ownership),
+            failed=sum(row['status'] == 'failed' for row in ownership),
+            total=len(ownership), source=object_audit['compiler_source_sha256'], evidence=link(object_path)))
+    elif (nat_audit.get('status') == 'audited-stage1-nat-intrinsics-original-link-failed'
             and nat_audit.get('native_source_sha256') == native
             and matches_digest(root / 'compiler/tests/alloc_accounting.rs', nat_audit.get('original_test_sha256'))):
         rows = nat_audit['rows']

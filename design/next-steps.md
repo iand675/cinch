@@ -63,10 +63,17 @@ Development Stage1 now lowers both Nat operations on boxed operands. The
 linked test returns 149 with zero leaks, and the wrong carrier receives a
 type mismatch. The original allocation probe emits IR and its C source
 compiles. The linker then reports that the C probe calls the private
-`Main.build` symbol. The next replay puts the builder in a separately
-compiled object with a checked interface and retains all five ownership
-checks.
+`Main.build` symbol.
 See [the Stage1 Nat audit](../bootstrap/current-schema10-nat-intrinsic-results.json).
+
+Moving the builder into a separately compiled object resolves the link.
+Four of the five original ownership checks pass. The kept structure has
+20 live blocks against the expected 14. The staged emitter allocates four
+`Leaf` values and two `Nil` values that the Rust emitter represents as static
+blocks. Changing only those zero-field allocations in the emitted IR gives
+14 live blocks and passes all five checks. The compiler-source repair
+awaits a fresh Stage1 replay.
+See [the object replay and diagnostic relink](../bootstrap/current-schema10-allocation-object-abi-results.json).
 
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
