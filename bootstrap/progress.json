@@ -11860,10 +11860,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 7,
+          "verified": 8,
           "blocked": 0,
           "running": 3,
-          "pending": 79,
+          "pending": 78,
           "recheck": 16
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12238,17 +12238,17 @@
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:45:33.857342+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:52:57.403800+00:00",
+              "exitCode": 0,
+              "logSha256": "1f57f0b7acc6673f44a5c5fede4a5dee203e8665e2d9dd7e2e7986ebea7fc185",
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
@@ -12256,7 +12256,7 @@
                 },
                 {
                   "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12337,18 +12337,23 @@
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:52:58.269609+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -19818,8 +19823,8 @@
       {
         "title": "Run the first frontend shard on the audited published Stage3",
         "status": "running",
-        "phase": "bootstrap_checked_program. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
-        "passed": 5,
+        "phase": "bootstrap_decisions. Two argv tests used Stage3. Direct CLI forwarding is tracked separately.",
+        "passed": 6,
         "failed": 0,
         "total": 21,
         "unit": "original test targets",
@@ -20025,10 +20030,10 @@
       }
     ],
     "counts": {
-      "verified": 12,
+      "verified": 13,
       "blocked": 5,
       "running": 13,
-      "pending": 321,
+      "pending": 320,
       "recheck": 324
     },
     "total": 675,
@@ -20037,5 +20042,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:49:41.209010+00:00"
+  "updatedAt": "2026-11-08T01:53:03.857835+00:00"
 }
