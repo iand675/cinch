@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 90,
+          "verified": 88,
           "blocked": 4,
           "running": 0,
-          "pending": 6,
+          "pending": 8,
           "recheck": 5
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13127,27 +13127,18 @@
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "verified",
-            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
+            "state": "pending",
+            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:27:19.474528+00:00",
-              "finishedAt": "2026-11-08T02:32:35.402971+00:00",
-              "exitCode": 0,
-              "logSha256": "3fef12f28763de9f0b041c6500eca050460e6f8e7155cd315b4bca88ab5ce061",
-              "cases": [
-                {
-                  "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -13273,23 +13264,18 @@
           {
             "id": "stage3:bootstrap_nominals",
             "title": "bootstrap_nominals",
-            "state": "verified",
-            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "state": "pending",
+            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:00:56.013269+00:00",
-              "finishedAt": "2026-11-08T03:12:48.401642+00:00",
-              "exitCode": 0,
-              "logSha256": "0c4ecb26c4354cd33ffdd290b870c524886a47af99d2aefd998010098f35522c",
-              "cases": [
-                {
-                  "name": "imported_nominals_are_checked_with_defining_identities_in_cinch",
-                  "status": "passed"
-                }
-              ]
+              "status": "pending",
+              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior"
           },
@@ -20971,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_machine_values, bootstrap_manifest, bootstrap_measure_contracts",
-        "passed": 42,
+        "phase": "Bootstrap_machine_values, bootstrap_measure_contracts, bootstrap_module_scopes",
+        "passed": 43,
         "failed": 1,
         "total": 105,
         "unit": "groups",
@@ -21004,8 +20990,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_check",
-        "passed": 22,
+        "phase": "Bootstrap_checked_program",
+        "passed": 23,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -21239,10 +21225,10 @@
       }
     ],
     "counts": {
-      "verified": 379,
+      "verified": 377,
       "blocked": 16,
       "running": 10,
-      "pending": 163,
+      "pending": 165,
       "recheck": 107
     },
     "total": 675,
@@ -21251,5 +21237,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:06:24.369248+00:00"
+  "updatedAt": "2026-11-08T16:07:27.019922+00:00"
 }
