@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_effects, bootstrap_export_interfaces, bootstrap_export_types",
-        "passed": 22,
+        "phase": "Bootstrap_export_interfaces, bootstrap_export_types, bootstrap_function_preconditions",
+        "passed": 23,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21164,22 +21164,33 @@
       {
         "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
         "status": "completed-annotated-arrow-controls-with-failures",
-        "phase": "Failed cases: usage-interface-producer, usage-interface-consumer",
+        "phase": "All 24 behavior cases passed. The dependency scan rejected annotated arrows during interface export, which blocked the source-free consumer.",
         "passed": 24,
         "failed": 2,
         "total": 26,
         "unit": "cases",
-        "source": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca"
+        "source": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-thunks-and-linear-protocols-results.json"
       },
       {
-        "title": "Verify erased value arguments in source, checked interfaces, and generated code",
-        "status": "needs-annotated-baseline-repair",
-        "phase": "inspect the previous annotated arrow replay",
+        "title": "Verify erased value arguments and the repaired interface dependency scan",
+        "status": "running",
+        "phase": "build all 46 compiler modules and smoke-test Stage1",
         "passed": 0,
         "failed": 0,
         "total": 35,
         "unit": "cases",
-        "source": "dcedd58cfc4921bc1725f3ed1f186ee31a3f8c1c493d4b23cdd720bac16c7c23"
+        "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
+      },
+      {
+        "title": "Erase computational zero-usage arguments in Native",
+        "status": "failed",
+        "phase": "The checked I64 %0 signature still produces a Native LLVM worker with one i64 argument.",
+        "passed": 0,
+        "failed": 1,
+        "total": 1,
+        "unit": "ABI probe",
+        "source": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21270,5 +21281,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:03:16.843188+00:00"
+  "updatedAt": "2026-11-08T15:04:20.558851+00:00"
 }
