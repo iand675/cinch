@@ -20971,8 +20971,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_guarded_calls, bootstrap_handler_core, bootstrap_imported_nonzero",
-        "passed": 30,
+        "phase": "Bootstrap_guarded_calls, bootstrap_imported_nonzero, bootstrap_imported_preconditions",
+        "passed": 31,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21078,8 +21078,8 @@
       {
         "title": "Verify erased value arguments and the repaired interface dependency scan",
         "status": "running",
-        "phase": "Tactics",
-        "passed": 26,
+        "phase": "TacticsShadow",
+        "passed": 29,
         "failed": 0,
         "total": 35,
         "unit": "cases",
@@ -21184,5 +21184,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:25:27.710286+00:00"
+  "updatedAt": "2026-11-08T15:26:30.093011+00:00"
 }
