@@ -20356,8 +20356,8 @@
         "title": "Check linear and affine task capture transfers",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with checked task transfers",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. a_linear_capture_transfers_into_a_task_exactly_once",
+        "passed": 1,
         "total": 6,
         "failed": 0,
         "source": "411c07b631a469f118ae52fd6389217734ea49493d92c3f24a83066091e41e10"
@@ -20396,5 +20396,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:11:27.844823+00:00"
+  "updatedAt": "2026-11-08T18:12:50.335539+00:00"
 }
