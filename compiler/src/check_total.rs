@@ -318,6 +318,13 @@ impl Checker {
     }
 }
 
+fn ordering_arrow(ty: &Ty) -> Option<(&Ty, &Ty)> {
+    match ty {
+        Ty::Fun(domain, _, effects, result) if effects.is_pure() => Some((domain, result)),
+        _ => None,
+    }
+}
+
 fn ordering_if(term: &ECore) -> Option<(&ECore, &ECore, &ECore)> {
     match term {
         ECore::If(test, yes, no) => Some((test, &yes.body, &no.body)),
@@ -616,6 +623,43 @@ impl Checker {
                 total_body: graph.closure([implementation.0.as_str()]).ok()?,
             })
         }).collect()
+    }
+
+    fn interface_keyed_ordering(
+        &self,
+        value: &ValueInfo,
+        resolved: &crate::interface::ResolvedScheme,
+    ) -> Option<crate::interface::KeyedOrderingBody> {
+        let scheme = &value.scheme;
+        let [input, key] = scheme.params.as_slice() else { return None };
+        let [(_, order)] = scheme.ctx.as_slice() else { return None };
+        let input = Ty::Param(input.clone());
+        let key = Ty::Param(key.clone());
+        if order.class != self.signature_key("Relation.Ord", "Ord") || order.args.as_slice() != std::slice::from_ref(&key)
+            || !scheme.con_params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
+            || !scheme.prop_params.is_empty() || !scheme.evidence_params.is_empty() || !scheme.region_params.is_empty()
+            || !scheme.row_params.is_empty() || !scheme.obligs.is_empty()
+        {
+            return None;
+        }
+        let (project, rest) = ordering_arrow(&scheme.ty)?;
+        let (domain, codomain) = ordering_arrow(project)?;
+        let (first, rest) = ordering_arrow(rest)?;
+        let (second, result) = ordering_arrow(rest)?;
+        // The embedded Ordering type can have a short internal key. The
+        // portable declaration and the checked branch constructors carry its
+        // real nominal identity.
+        if domain != &input || codomain != &key || first != &input || second != &input
+            || !matches!(result, Ty::Adt(_, args) if args.is_empty())
+            || !resolved.nominals.iter().any(|nominal| nominal.kind == "data" && nominal.identity == "Data.Ordering.Ordering")
+        {
+            return None;
+        }
+        let (less_slot, greater_slot) = self.checked_ordering_helper(&fn_id(&value.module, &value.name))?;
+        Some(crate::interface::KeyedOrderingBody {
+            less_slot: less_slot as u64,
+            greater_slot: greater_slot as u64,
+        })
     }
 
     fn interface_value_body(&self, value: &ValueInfo) -> Option<crate::total::CheckedGraph> {

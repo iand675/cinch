@@ -52,6 +52,13 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         ("nested pure identity helpers","first :: forall a. a -> a\n  first x = x\n  second :: Bytes -> Bytes\n  second x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (first (second b)))\n  make b = Mark",0),
         ("ordinary byte helper has no identity authority","identity :: Bytes -> Bytes\n  identity x = []\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (identity b))\n  make b = Mark",4),
         ("wrong typed identity helper","identity :: Nat -> Nat\n  identity x = x\n  data Mark (n :: Nat) where\n    Mark :: Mark n\n  make :: (b :: Bytes) -> Mark (extent (identity b))\n  make b = Mark",4),
+        ("checked total buffer selection","pick :: Bool -> Bytes -> Bytes -> Bytes\n  pick flag b c = if flag then b else c\n  size :: using (extent (pick flag b c) > 0) => (flag :: Bool) -> (b :: Bytes) -> (c :: Bytes) -> refined (out > 0) Nat\n  size flag b c = extent (pick flag b c)",0),
+        ("buffer selection cannot exchange arguments","pick :: Bool -> Bytes -> Bytes -> Bytes\n  pick flag b c = if flag then b else c\n  size :: using (extent (pick flag b c) > 0) => (flag :: Bool) -> (b :: Bytes) -> (c :: Bytes) -> refined (out > 0) Nat\n  size flag b c = extent (pick flag c b)",4),
+        ("effectful buffer selection has no observation authority","pick :: Bool -> Bytes -> Bytes ->{Diverge} Bytes\n  pick flag b c = if flag then b else c\n  size :: using (extent (pick flag b c) > 0) => (flag :: Bool) -> (b :: Bytes) -> (c :: Bytes) -> Nat\n  size flag b c = 0",4),
+        ("checked nested constructor projection","data Inner where\n    Inner :: Bytes -> Nat -> Inner\n  data Outer where\n    Outer :: Nat -> Inner -> Outer\n  pick :: Outer -> Bytes\n  pick object = case object of\n    Outer _ inner -> case inner of\n      Inner buf _ -> buf\n  size :: using (extent (pick object) > 0) => (object :: Outer) -> refined (out > 0) Nat\n  size object = extent (pick object)",0),
+        ("projection facts retain the input value","data Box where\n    Box :: Bytes -> Box\n  pick :: Box -> Bytes\n  pick object = case object of Box buf -> buf\n  size :: using (extent (pick first) > 0) => (first :: Box) -> (second :: Box) -> refined (out > 0) Nat\n  size first second = extent (pick second)",4),
+        ("projection facts retain the selected field","data PairOfBuffers where\n    PairOfBuffers :: Bytes -> Bytes -> PairOfBuffers\n  left :: PairOfBuffers -> Bytes\n  left object = case object of PairOfBuffers first _ -> first\n  right :: PairOfBuffers -> Bytes\n  right object = case object of PairOfBuffers _ second -> second\n  size :: using (extent (left object) > 0) => (object :: PairOfBuffers) -> refined (out > 0) Nat\n  size object = extent (right object)",4),
+        ("partial constructor projection has no observation authority","data OptionalBuffer where\n    Full :: Bytes -> OptionalBuffer\n    Empty :: OptionalBuffer\n  pick :: OptionalBuffer -> Bytes\n  pick object = case object of Full buf -> buf\n  size :: using (extent (pick object) > 0) => (object :: OptionalBuffer) -> Nat\n  size object = 0",4),
         ("nonnegative observation","nonnegative :: Bytes -> refined (out >= 0) Nat\n  nonnegative b = extent b",0),
         ("machine-sized observation","bounded :: Bytes -> refined (out <= 9223372036854775807) Nat\n  bounded b = extent b",0),
         ("refined buffer introduction","keep :: using (extent b > 0) => (b :: Bytes) -> refined (extent out > 0) Bytes\n  keep b = b",0),
@@ -90,6 +97,14 @@ fn source_observations_use_declared_primitive_identity_and_actual_buffer() {
         }
         if name == "ordinary byte helper has no identity authority" { assert!(report.contains("byte observation input needs checked pure total reification"), "{name}: {report}"); }
         if name == "wrong typed identity helper" { assert!(report.contains("Bytes"), "{name}: {report}"); }
+        if name == "buffer selection cannot exchange arguments" { assert!(report.contains("refinement predicate is not established"), "{name}: {report}"); }
+        if name == "effectful buffer selection has no observation authority" { assert!(report.contains("byte observation input needs checked pure total reification"), "{name}: {report}"); }
+        if name == "projection facts retain the input value" || name == "projection facts retain the selected field" {
+            assert!(report.contains("refinement predicate is not established"), "{name}: {report}");
+        }
+        if name == "partial constructor projection has no observation authority" {
+            assert!(report.contains("byte observation input needs checked pure total reification"), "{name}: {report}");
+        }
         if name == "forall observation carrier" || name == "local function observation carrier" { assert!(report.contains("Bytes"), "{name}: {report}"); }
     }
     common::cleanup(&dir);

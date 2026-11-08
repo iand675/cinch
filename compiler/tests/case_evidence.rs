@@ -18,33 +18,35 @@
 
 mod common;
 
-use cinch::driver::{check_sources, run_source};
+use cinch::driver::Mode;
 use std::path::Path;
 use std::process::{Command, Output};
 
 fn expect_checks(name: &str, src: &str) {
-    if let Err(e) = check_sources(src, "<test>") {
+    let dir = common::project("caseev_check", &[("Main.cinch", src)]);
+    if let Err(e) = common::check(&dir, "Main.cinch") {
         panic!("{name}: expected the program to check, but it failed: {e}");
     }
+    common::cleanup(&dir);
 }
 
 fn expect_err(name: &str, src: &str, needles: &[&str]) {
-    match check_sources(src, "<test>") {
-        Ok(_) => panic!("{name}: expected an error containing {needles:?}, but the program checked"),
-        Err(e) => {
-            let msg = e.to_string();
-            for n in needles {
-                assert!(msg.contains(n), "{name}: error {msg:?} does not contain {n:?}");
-            }
-        }
+    let dir = common::project("caseev_refusal", &[("Main.cinch", src)]);
+    let message = common::check(&dir, "Main.cinch")
+        .expect_err(&format!("{name}: expected an error containing {needles:?}, but the program checked"));
+    for needle in needles {
+        assert!(message.contains(needle), "{name}: error {message:?} does not contain {needle:?}");
     }
+    common::cleanup(&dir);
 }
 
 fn expect_run(name: &str, src: &str, expected: i32) {
-    match run_source(src) {
+    let dir = common::project("caseev_run", &[("Main.cinch", src)]);
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
+    common::cleanup(&dir);
 }
 
 /// Obligation-bearing functions the programs below call: a refined
@@ -736,6 +738,41 @@ module Main where
 "
         ),
         &["the obligation `NotNull xs` needs"],
+    );
+    expect_run(
+        "list-predicate-condition",
+        &format!(
+            "{defs}
+  byIf :: List Nat -> Nat
+  byIf xs = if NotNull xs then first xs else 0
+
+  byCase :: List Nat -> Nat
+  byCase xs = case NotNull xs of
+    True -> first xs
+    False -> 0
+
+  byGuard :: List Nat -> Nat
+  byGuard xs | NotNull xs = first xs
+  byGuard xs = 0
+
+  main :: Int
+  main = if byIf (Cons 3 Nil) == 3 && byIf Nil == 0 && byCase (Cons 4 Nil) == 4 && byCase Nil == 0 && byGuard (Cons 5 Nil) == 5 && byGuard Nil == 0 then 0 else 1
+"
+        ),
+        0,
+    );
+    expect_err(
+        "list-predicate-wrong-value",
+        &format!(
+            "{defs}
+  bad :: List Nat -> List Nat -> Nat
+  bad xs ys = if NotNull xs then first ys else 0
+
+  main :: Int
+  main = 0
+"
+        ),
+        &["the obligation `NotNull ys` needs"],
     );
 }
 

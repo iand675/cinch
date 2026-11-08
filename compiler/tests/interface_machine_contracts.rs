@@ -13,8 +13,8 @@ fn quote(text: &str) -> String {
     }
     out.push('"'); out
 }
-fn producer() -> std::path::PathBuf {
-    let dir = common::project("machine_contract_producer", &[
+fn producer_project() -> std::path::PathBuf {
+    common::project("machine_contract_producer", &[
         ("A.cinch", r#"module A where
   import Data.Nat (nat-to-i64, nat-from-i64)
   import Data.Int (int-to-i64)
@@ -34,13 +34,12 @@ fn producer() -> std::path::PathBuf {
 "#),
         ("Facade.cinch", "module Facade where\n  import A (small as narrow, widen, small-int as narrow-int, fixed, fixed-unsigned)\n  export narrow, widen, narrow-int, fixed, fixed-unsigned\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
-    ]);
-    common::check_library_fixture_native(&dir, "Main.cinch").expect("emit real checked conversion and comparison contracts");
-    dir
+    ])
 }
 #[test]
 fn checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque() {
-    let dir = producer();
+    let dir = producer_project();
+    common::check(&dir, "Main.cinch").expect("emit the selected compiler's machine contracts");
     let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
     let a = read("A"); let facade = read("Facade");
     for (name, alias) in [("small", "narrow"), ("widen", "widen"), ("small-int", "narrow-int"), ("fixed", "fixed"), ("fixed-unsigned", "fixed-unsigned")] {
@@ -59,7 +58,9 @@ fn checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque() {
 }
 #[test]
 fn compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers() {
-    let source = producer();
+    let source = producer_project();
+    common::check_library_fixture_native(&source, "Main.cinch")
+        .expect("emit Native machine contracts for the Cinch consumer");
     let dir = common::project("machine_contract_consumer", &[
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),

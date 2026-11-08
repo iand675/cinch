@@ -7,7 +7,7 @@ module Bootstrap.TotalSemantics where
   import Data.Nat (nat-from-int, nat-to-int)
   import Algebra.Semigroup
 
-  export total-numeric-operation, total-numeric-comparison
+  export total-numeric-operation, total-numeric-comparison, total-boolean-negation
   export total-numeric-reading, total-bytes-reading, total-boolean-reading
 
   same :: String -> String -> Bool
@@ -100,6 +100,14 @@ module Bootstrap.TotalSemantics where
   total-numeric-comparison function = if not (same (total-result function) "Bool") then None else case expanded function of
     Some body -> if same (text (field "node" body)) "primitive" && comparison-inputs function (field "arguments" body) then relation (text (field "operation" body)) else None
     None -> None
+
+  total-boolean-negation :: TotalFunction -> Bool
+  total-boolean-negation function = case total-parameters function of
+    [input] -> same input "Bool" && same (total-result function) "Bool" && (case expanded function of
+      Some body -> same (text (field "node" body)) "primitive" && same (text (field "operation" body)) "BoolNot"
+        && (case field "arguments" body of JArr argument JArrEnd -> is-local 0 argument; other -> False)
+      None -> False)
+    other -> False
 
   -- This abstract evaluator reads only the already checked closed graph.
   -- Bytes carry their length, never contents or identity. Unknown Bool values

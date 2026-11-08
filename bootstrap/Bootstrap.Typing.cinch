@@ -95,7 +95,7 @@ module Bootstrap.Typing where
   close-typing-context-with-definitions :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> Option TypingContext
   close-typing-context-with-definitions kinds declarations effects datas definitions = let all = kernel-effect-kinds <> kinds in
     if nominal-kinds-closed all && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
-      (case close-globals-with-definitions declarations definitions of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions)); None -> None)
+      (case close-globals-with-source-data declarations definitions datas of Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions)); None -> None)
     else None
   wf :: TypingContext -> TypeScope -> UType -> Bool
   wf context scope ty = body-type-authorized (context-bodies context) ty && type-well-formed (context-kinds context) scope ty

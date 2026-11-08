@@ -192,6 +192,18 @@ printf 'selected LLVM output' > "$5"
     assert_eq!(drive(&frontend, Mode::EmitIr, &dir, entry, Some(output.clone())).unwrap(), 0);
     assert_eq!(std::fs::read_to_string(output).unwrap(), "selected LLVM output");
     assert!(dir.join("selected-was-invoked").is_file());
+    let configuration = dir.join("client objects.json");
+    std::fs::write(&configuration, "client object configuration").unwrap();
+    std::fs::write(&frontend.compiler, r#"#!/bin/sh
+if [ "$1" != '--emit-ir' ] || [ "$2" != '--interfaces' ] || [ "$4" != '--objects' ] || [ "$#" != 7 ]; then exit 94; fi
+if [ "$(cat "$5")" != 'client object configuration' ]; then exit 95; fi
+printf 'LLVM for the selected object' > "$7"
+"#).unwrap();
+    let output = dir.join("object-client.ll");
+    assert_eq!(common::external_frontend::drive_with_objects(
+        &frontend, Mode::EmitIr, &dir, entry, Some(output.clone()), Some(configuration),
+    ).unwrap(), 0);
+    assert_eq!(std::fs::read_to_string(output).unwrap(), "LLVM for the selected object");
     std::fs::write(&frontend.compiler, "#!/bin/sh\nexit 0\n").unwrap();
     let error = drive(&frontend, Mode::EmitIr, &dir, entry, None).unwrap_err();
     assert!(error.contains("without LLVM output"), "{error}");

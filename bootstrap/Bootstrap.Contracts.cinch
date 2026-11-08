@@ -167,6 +167,10 @@ module Bootstrap.Contracts where
   expr-references :: Expr -> List String
   expr-references e = case e of
     EVar s name -> Cons name Nil
+    -- The resolver keeps the bare predicate name only inside kernel decide.
+    -- Elaborating that test needs the checked list constructors in scope.
+    ECon s name args | same name "NotNull" ->
+      [interface-global "Data.Core.Nil", interface-global "Data.Core.Cons"] <> expr-references args
     ECon s name args -> Cons name (expr-references args)
     ERecord s name fields -> Cons name (expr-references fields)
     ERecordField s name value rest -> expr-references value <> expr-references rest

@@ -8,7 +8,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Foreign
-  import Bootstrap.Builtin (array-plan, array-type-name)
+  import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global)
@@ -992,11 +992,13 @@ module Bootstrap.RuntimeIr where
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-i64-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
+  builtin-known name = machine-i64-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
   machine-i64-builtin :: String -> Bool
   machine-i64-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.wrappingAddI64" || same name "cinch.prim.wrappingSubI64"
+  nat-arithmetic-builtin :: String -> Bool
+  nat-arithmetic-builtin name = case nat-arithmetic-extern name of Some external -> True; None -> False
   builtin-classes :: String -> List Nat
-  builtin-classes name = if machine-i64-builtin name then [0, 0] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
+  builtin-classes name = if machine-i64-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
   builtin-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   builtin-call definitions locals w sp name actuals givens args =
     let classes = builtin-classes name in
@@ -1040,8 +1042,13 @@ module Bootstrap.RuntimeIr where
          let decoded = line one (cat ["  ", value, " = call double @cinch_text_f64_from_decimal(i64 %arg0)"]) in
          let (two, result) = fresh (line decoded "  call void @cinch_drop(i64 %arg0)") "%v" in
          (line two (cat ["  ", result, " = bitcast double ", value, " to i64"]), result))
-      else (case call started "@cinch_bytes_len" ["%arg0"] of
-        (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))) in
+      else case nat-arithmetic-extern name of
+        Some external -> case call started (cat ["@", external]) ["%arg0", "%arg1"] of
+          (done, result) ->
+            let nat = UCon "Nat" KType in
+            (count-op False nat "%arg1" (count-op False nat "%arg0" done), result)
+        None -> (case call started "@cinch_bytes_len" ["%arg0"] of
+          (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))) in
     case lowered of (done, result) -> line (line done (cat ["  ret i64 ", result])) "}"
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
@@ -1464,13 +1471,13 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> if same name (checked-name first) && (same (checked-role first) "instance" || same (checked-role first) "implicit-instance") then Some first else instance-binding name rest
   extend-context :: List (Nat, Nat) -> RuntimeContext -> RuntimeContext
   extend-context bindings context = case context of RuntimeContext info bounds rigids pending done -> RuntimeContext info (bindings <> bounds) rigids pending done
-  external-field-map :: Writer -> CoreClass -> Scheme -> List (Nat, Nat, List Nat) -> Option (List Nat)
-  external-field-map w description factory slots = case slots of
+  external-field-map :: Writer -> CoreClass -> Scheme -> List Nat -> List (Nat, Nat, List Nat) -> Option (List Nat)
+  external-field-map w description factory factory-codes slots = case slots of
     Nil -> Some Nil
     Cons (logical, physical, codes) rest -> (case method-at logical (class-methods description) of
       Some member -> (case specialize-method description factory member of
-        Some sc -> (case class-bindings (scheme-params sc) codes of
-          Some bindings -> (case (word-class (extend-context bindings (writer-context w)) (scheme-body sc), external-field-map w description factory rest) of
+        Some sc -> (case class-bindings (scheme-params sc) (factory-codes <> codes) of
+          Some bindings -> (case (word-class (extend-context bindings (writer-context w)) (scheme-body sc), external-field-map w description factory factory-codes rest) of
             (Some code, Some more) -> Some (Cons (if list-length (scheme-requirements sc) == 0 then code else 1) more)
             other -> None)
           None -> None)
@@ -1480,10 +1487,14 @@ module Bootstrap.RuntimeIr where
   external-evidence definitions locals w sp ty name actuals args = case (program-object (writer-program w), instance-binding name (program-bindings (writer-program w))) of
     (Some provider, Some binding) -> (case scheme-classes (writer-context w) (scheme-params (checked-scheme binding)) actuals of
       Some codes -> (case object-dictionary name codes provider of
-        Some (unit, owner, context-count, fields) -> let sc = concrete-scheme (checked-scheme binding) actuals in
+        Some (unit, owner, context-count, fields) ->
+          let factory = checked-scheme binding in
+          let sc = concrete-scheme factory actuals in
           (case (class-owner (scheme-body sc), find-class owner (program-classes (writer-program w)), object-family owner provider) of
             (Some actual-owner, Some description, Some (declared, slots)) -> if not (same owner actual-owner) || declared /= list-length (class-methods description) || context-count /= list-length (scheme-requirements sc) then unsupported w sp "external factory disagrees with its checked class or context" else
-              (case (external-field-map w description sc slots, class-vector (writer-context w) (requirement-types (scheme-requirements sc)), unit-result unit) of
+              -- Specialize the closed declaration. The instantiated use can
+              -- contain caller-local rigid variables, including phantom types.
+              (case (external-field-map w description factory codes slots, class-vector (writer-context w) (requirement-types (scheme-requirements sc)), unit-result unit) of
                 (Some expected-fields, Some expected-params, Some 1) -> if not (same-classes expected-fields fields && same-classes expected-params (unit-params unit)) then unsupported w sp "external factory word ABI disagrees with its checked class fields" else
                   (case evidence-values definitions locals w args of
                     (ready, values) -> if list-length values /= context-count then unsupported ready sp "external factory context arity disagrees with checked evidence" else
@@ -1817,13 +1828,33 @@ module Bootstrap.RuntimeIr where
           let (planned, descriptor) = request-layout sp actual evaluated in
           allocate planned descriptor values)
     None -> unsupported w sp "malformed tuple argument spine"
+  -- A fieldless value is a static Obj. The header uses rc=0 and kind=1,
+  -- with the layout in bits48..63. Escaped blocks put the descriptor
+  -- before the header, so the payload address still has the header at -8.
+  static-constructor :: Writer -> Nat -> (Writer, String)
+  static-constructor w descriptor =
+    let escaped = descriptor >= 65535 in
+    let layout = if escaped then (65535 :: Nat) else descriptor in
+    let header = nat-to-string (layout * 281474976710656 + 1099511627776) in
+    let words = if escaped then "3" else "2" in
+    let offset = if escaped then "2" else "1" in
+    let prefix = if escaped then cat ["i64 ", nat-to-string descriptor, ", "] else "" in
+    let (named, storage) = fresh w "@empty-ctor" in
+    let block = cat ["[", words, " x i64]"] in
+    let declared = global named (cat [storage, " = private unnamed_addr constant ", block,
+      " [", prefix, "i64 ", header, ", i64 0], align 8"]) in
+    let (ready, result) = fresh declared "%v" in
+    (line ready (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block,
+      ", ptr ", storage, ", i64 0, i64 ", offset, ") to i64"]), result)
   allocate :: Writer -> Nat -> List String -> (Writer, String)
-  allocate w descriptor values =
-    let (allocated, pointer) = fresh w "%ptr" in
-    let ready = line allocated (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 ", nat-to-string (8 * list-length values), ", i64 ", nat-to-string descriptor, ")"]) in
-    let filled = store-fields ready pointer 0 values in
-    let (done, result) = fresh filled "%v" in
-    (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
+  allocate w descriptor values = case values of
+    Nil -> static-constructor w descriptor
+    Cons first rest ->
+      let (allocated, pointer) = fresh w "%ptr" in
+      let ready = line allocated (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 ", nat-to-string (8 * list-length values), ", i64 ", nat-to-string descriptor, ")"]) in
+      let filled = store-fields ready pointer 0 values in
+      let (done, result) = fresh filled "%v" in
+      (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
   store-fields :: Writer -> String -> Nat -> List String -> Writer
   store-fields w pointer index values = case values of
     Nil -> w
@@ -1932,6 +1963,7 @@ module Bootstrap.RuntimeIr where
     other -> (refuse w (Span 0 0 1 1) "malformed tuple pattern spine", Nil)
   guarded-expression :: List CoreDefinition -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   guarded-expression definitions locals w failed term = case term of
+    CRequire sp ty body -> guarded-expression definitions locals w failed body
     CGuard sp ty condition body -> case expression definitions locals w condition of
       (ready, value) -> guarded-expression definitions locals (continue-if ready value failed) failed body
     other -> expression definitions locals w term
@@ -2017,14 +2049,37 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
       (matched, bindings) -> case match-parameters rest (index + 1) failed matched of
         (done, more) -> (done, bindings <> more)
+  take-parameter-root :: String -> List Local -> Option (List Local)
+  take-parameter-root returned roots = case roots of
+    Nil -> None
+    Cons root rest -> case root of
+      Discard ty word | same returned word -> Some rest
+      other -> case take-parameter-root returned rest of
+        Some remaining -> Some (Cons root remaining)
+        None -> None
+  projection-return :: List Local -> List Local -> CoreTerm -> Option (String, List Local)
+  projection-return locals roots body = case body of
+    CForget at ty (CLocal sp original id name Nil) -> (case local id locals of
+      Some (declared, word) -> (case take-parameter-root word roots of
+        Some remaining -> Some (word, remaining)
+        None -> None)
+      None -> None)
+    other -> None
+  worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
+  worker-result definitions locals roots w failed body = case projection-return locals roots body of
+    -- The returning argument already owns a reference. Move that
+    -- reference to the result and release the other parameters.
+    Some (word, remaining) -> (drop-locals remaining w, word)
+    None -> case guarded-expression definitions locals w failed body of
+      (done, word) -> (drop-locals roots done, word)
   worker-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> List CoreClause -> Writer -> Writer
   worker-clauses definitions prefix roots offset clauses w = case clauses of
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexteq" in
       case match-parameters patterns offset failed one of
-        (matched, bindings) -> case guarded-expression definitions (bindings <> prefix) matched failed body of
-          (done, result) -> let returned = line (drop-locals roots done) (cat ["  ret i64 ", result]) in
+        (matched, bindings) -> case worker-result definitions (bindings <> prefix) roots matched failed body of
+          (done, result) -> let returned = line done (cat ["  ret i64 ", result]) in
             worker-clauses definitions prefix roots offset rest (line returned (cat [failed, ":"]))
   worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
   worker definitions classes w d = case d of

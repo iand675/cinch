@@ -346,7 +346,7 @@ module Bootstrap.Resolve where
   rename-predicate visible locals syntax = case syntax of
     TName s name -> if same name "NonZero" then syntax else rename-type visible locals syntax
     TApp s (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if same name "NonZero" then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
+      if has-name name ["NonZero", "NotNull"] then TApp s (TName at name) (TArg arg (rename-type visible locals input) (TArgsEnd end))
       else rename-type visible locals syntax
     TInfix s op first second -> TInfix s op (rename-predicate visible locals first) (rename-predicate visible locals second)
     other -> rename-type visible locals syntax
@@ -482,13 +482,37 @@ module Bootstrap.Resolve where
   builtin-decision-use visible locals expression = case expression of
     EVar sp name -> not (has-name name locals) && (case lookup-binding name visible of Some binding -> same (binding-symbol binding) "b.decide"; None -> False)
     other -> False
+  -- In a branch test, the structural former may also have the standard
+  -- refinement constructor in scope. A distinct constructor keeps its
+  -- ordinary binding and type.
+  branch-predicate-former :: List Binding -> String -> Bool
+  branch-predicate-former visible name = has-name name ["NonZero", "NotNull"] && (case lookup-binding name visible of
+    Some binding -> same name "NonZero" && same (binding-symbol binding) (interface-global "Algebra.Arithmetic.NonZero")
+    None -> True)
+  branch-literal :: String -> Expr -> Bool
+  branch-literal expected syntax = case syntax of
+    ECon sp name (EArgsEnd end) -> same name expected
+    other -> False
+  rename-branch-value :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
+  rename-branch-value visible locals syntax = case syntax of
+    ECon sp name (EArg at input (EArgsEnd end)) | branch-predicate-former visible name ->
+      (case rename-expr visible locals input of
+        (value, errors) -> (ECon sp ("#condition." <> name) (EArg at value (EArgsEnd end)), errors))
+    EApp sp (ECon at name (EArgsEnd end)) input | branch-predicate-former visible name ->
+      rename-branch-value visible locals (ECon sp name (EArg at input (EArgsEnd end)))
+    EApp sp (EVar at name) input -> (case lookup-binding name visible of
+      Some binding | not (has-name name locals) && same (binding-symbol binding) (interface-global "Data.Bool.not") ->
+        (case rename-branch-value visible locals input of
+          (value, errors) -> (EApp sp (EVar at (binding-symbol binding)) value, errors))
+      other -> rename-expr visible locals syntax)
+    other -> rename-expr visible locals syntax
   -- Predicate operators denote logical operations here. Ordinary applications
   -- retain their declaration-owned bindings and cannot become decision authority.
   rename-decision-syntax :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-decision-syntax visible locals syntax = case syntax of
-    ECon sp name arguments -> if same name "NonZero" || same name "Not" || same name "True" || same name "False" then
+    ECon sp name arguments -> if has-name name ["NonZero", "NotNull", "Not", "True", "False"] then
       (case rename-decision-syntax visible locals arguments of (args, errors) -> (ECon sp name args, errors)) else rename-expr visible locals syntax
-    EApp sp (ECon at name (EArgsEnd end)) input -> if same name "NonZero" || same name "Not" then
+    EApp sp (ECon at name (EArgsEnd end)) input -> if has-name name ["NonZero", "NotNull", "Not"] then
       (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (ECon at name (EArgsEnd end)) argument, errors)) else rename-expr visible locals syntax
     EApp sp (EVar at name) input -> if same name "Not" then (case rename-decision-syntax visible locals input of (argument, errors) -> (EApp sp (EVar at name) argument, errors)) else rename-expr visible locals syntax
     EBin sp operation first second -> if has-name operation ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] then
@@ -575,14 +599,15 @@ module Bootstrap.Resolve where
           (renamed-body, more) -> case rename-expr visible locals rest of
             (renamed-rest, tail-errors) -> (EHandlerClause s operation renamed-pats continuation renamed-body renamed-rest, errors <> op-errors <> more <> tail-errors)
     EHandlerEnd s -> (e, Nil)
-    EIf s c a b -> case rename-expr visible locals c of
-      (condition, errors) -> case rename-expr visible locals a of
-        (yes, more) -> case rename-expr visible locals b of
-          (no, tail-errors) -> (EIf s condition yes no, errors <> more <> tail-errors)
-    ECase s scrut alts -> case rename-expr visible locals scrut of
+    EIf s c a b -> case rename-branch-value visible locals c of
+      (condition, errors) ->
+        let (yes, more) = if branch-literal "False" b then rename-branch-value visible locals a else rename-expr visible locals a in
+        let (no, tail-errors) = if branch-literal "True" a then rename-branch-value visible locals b else rename-expr visible locals b in
+        (EIf s condition yes no, errors <> more <> tail-errors)
+    ECase s scrut alts -> case rename-branch-value visible locals scrut of
       (value, errors) -> case rename-alts visible locals alts of
         (cases, more) -> (ECase s value cases, errors <> more)
-    EGuarded s guard body -> case rename-expr visible locals guard of
+    EGuarded s guard body -> case rename-branch-value visible locals guard of
       (condition, errors) -> case rename-expr visible locals body of
         (rhs, more) -> (EGuarded s condition rhs, errors <> more)
     EAnn s x ty -> case rename-expr visible locals x of

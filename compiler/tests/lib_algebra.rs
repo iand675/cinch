@@ -6,10 +6,12 @@
 //! instance. The law checks are exhaustive over their sample sets (all
 //! ordered triples of the samples, all samples for the units).
 //!
-//! Every program is the real prelude module sources plus a `Main`
-//! module, compiled and run through the same driver the CLI uses.
+//! The law programs import the compiled standard library. Separate
+//! cases exercise Text.Regex and rebuilding the Algebra module sources.
 
-use cinch::driver::{driver, run_source, Mode};
+mod common;
+
+use cinch::driver::Mode;
 use std::path::PathBuf;
 
 const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.cinch");
@@ -118,36 +120,29 @@ fn main_module(body: &str) -> String {
     src
 }
 
-/// The whole program: the real module sources, then `Main`.
-fn whole_program(body: &str) -> String {
-    let mut src = String::new();
-    src.push_str(SEMIGROUP);
-    src.push('\n');
-    src.push_str(MONOID);
-    src.push('\n');
-    src.push_str(&main_module(body));
-    src
+fn expect_exit(name: &str, body: &str, expected: i32) {
+    expect_project_exit(name, &[("Main.cinch", &main_module(body))], expected);
 }
 
-fn expect_exit(name: &str, body: &str, expected: i32) {
-    match run_source(&whole_program(body)) {
+fn expect_project_exit(name: &str, files: &[(&str, &str)], expected: i32) {
+    let dir = std::env::temp_dir().join(format!("cinch_algebra_{}_{}", name, std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project dir");
+    for (file, source) in files {
+        std::fs::write(dir.join(file), source).expect("write module");
+    }
+    match common::drive(Mode::Run, &dir, "Main.cinch", None) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
+    common::cleanup(&dir);
 }
 
 /// A temp project for the `Text.Regex` consumer: the real module source
 /// beside a `Main`, so `import Text.Regex` resolves to it and every
 /// other import falls back to the embedded prelude.
 fn expect_regex_exit(name: &str, main: &str, expected: i32) {
-    let dir = std::env::temp_dir().join(format!("cinch_algebra_regex_{}_{}", name, std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp project dir");
-    std::fs::write(dir.join("Text.Regex.cinch"), REGEX).expect("write Text.Regex");
-    std::fs::write(dir.join("main.cinch"), main).expect("write main");
-    let code = driver(Mode::Run, &dir.join("main.cinch"), None).expect("regex run");
-    let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}");
+    expect_project_exit(name, &[("Text.Regex.cinch", REGEX), ("Main.cinch", main)], expected);
 }
 
 // ---------------------------------------------------------------- List
@@ -935,6 +930,7 @@ fn modules_load_as_a_multi_file_project() {
 "#,
     );
     std::fs::write(dir.join("Main.cinch"), main).expect("write Main");
-    let code = driver(Mode::Run, &dir.join("Main.cinch"), None).expect("multi-file run");
+    let code = common::run(&dir, "Main.cinch");
     assert_eq!(code, 0);
+    common::cleanup(&dir);
 }

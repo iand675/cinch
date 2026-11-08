@@ -22,6 +22,17 @@ lexical scope, dependency closure and acyclicity. Supported numeric result
 refinements must follow from independently derived body bounds. A pure scheme
 alone supplies no executable semantics.
 
+A value with the checked keyed ordering body may instead carry
+`keyed_ordering` with its `less_slot` and `greater_slot`. The producer reads
+both actual projections from the retained body and checks the two result
+branches and the equality fallthrough. Both projections use the same `Ord`
+argument and the same key application to each operand. Consumers require
+the defining value contract, the exact pure keyed signature and a checked
+`Ord` declaration in the dependency closure. The record describes how the
+helper chooses an `Ordering` constructor. Numeric facts also require
+executable comparison bodies for both slots of the dictionary selected at
+that call. An opaque dictionary grants no branch facts.
+
 ABI-checked primitive values also retain their own defining roots when calls
 have been inlined into ordinary Core. Admission follows the actual `PrimOp`
 and complete callable declaration, including purity and absence of hidden

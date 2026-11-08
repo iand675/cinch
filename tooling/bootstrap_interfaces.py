@@ -170,6 +170,15 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
         _resolved(value)
         if "total_body" not in value:
             raise ValueError("missing executable contract boundary")
+        if "keyed_ordering" in value:
+            ordering = value["keyed_ordering"]
+            if (not isinstance(ordering, dict) or set(ordering) != {"less_slot", "greater_slot"}
+                    or value["total_body"] is not None or value["resolved"] is None or value["arity"] != 4):
+                raise ValueError("invalid keyed ordering value body")
+            _integer(ordering["less_slot"])
+            _integer(ordering["greater_slot"])
+            if ordering["less_slot"] == ordering["greater_slot"]:
+                raise ValueError("keyed ordering body must read two distinct slots")
     if abi["symbols"] != sorted(f'{v["name"]}={v["symbol"]}' for v in exports["values"]):
         raise ValueError("ABI symbol table disagrees with checked exports")
     for declaration in exports["types"]:

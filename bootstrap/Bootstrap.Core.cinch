@@ -9,7 +9,7 @@ module Bootstrap.Core where
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Proof
   import Bootstrap.Total
-  import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison)
+  import Bootstrap.TotalSemantics (total-numeric-reading, total-bytes-reading, total-boolean-reading, total-numeric-operation, total-numeric-comparison, total-boolean-negation)
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
   import Bootstrap.ExportType (export-global)
@@ -19,7 +19,7 @@ module Bootstrap.Core where
   import Text.Lex (Span)
   import Algebra.Semigroup
 
-  export scoped-core-case-facts, core-alternative-covers, opening-value-types, opening-value-patterns
+  export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPVar, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
@@ -31,18 +31,21 @@ module Bootstrap.Core where
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
+  export scoped-list-index
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
   export scope-guarded-bodies, with-guarded-bindings, scoped-guarded-call-index, core-definition-contracts-closed, seal-definition-with-contracts
   export scoped-numeric-method-operation
   export ProofScope, make-proof-scope, scoped-prove-refinement, scoped-prove-predicates, scoped-core-predicates, scoped-core-condition, scoped-core-branch, scoped-core-let-fact, scoped-prove-subtraction, scoped-prove-division
+  export scoped-refinement-predicate
+  export scoped-core-equation-facts, extend-equation-prefix, pattern-value
   export scoped-total-call-index, scope-bodies, with-body-bindings, core-definition-bodies-closed, seal-definition-with-bodies
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export term-children
   export core-total-function
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
-  export core-source-body, core-total-function-uses, core-method-total-function
+  export core-source-body, core-source-function, core-total-function-uses, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
@@ -128,6 +131,7 @@ module Bootstrap.Core where
     UIndexForget value -> effect-type-scope qs value
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
+    UIndexList element fields -> effect-type-scope qs element && effect-type-scope qs fields
     UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
     URefine id name carrier predicate -> effect-binder qs id name carrier predicate
@@ -506,6 +510,9 @@ module Bootstrap.Core where
     UIndexForget input -> index-value-terms sp input
     UIndexPromote input -> index-value-terms sp input
     UIndexMath op first second -> index-value-terms sp first <> index-value-terms sp second
+    UIndexList element fields -> case fields of
+      UArg first rest -> index-value-terms sp first <> index-value-terms sp rest
+      other -> Nil
     UIndexCall function arguments -> index-argument-terms sp arguments
     other -> (case (value-carrier (type-kind value), index-of-type value) of (Some carrier, Some term) -> index-local-terms sp carrier term; other -> Nil)
   index-argument-terms :: Span -> UType -> List CoreTerm
@@ -795,6 +802,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexList element fields -> UIndexList (freeze element) (freeze fields)
     UIndexCall function args -> UIndexCall function (freeze args)
     UIndexPromote value -> UIndexPromote (freeze value)
     UIndexMath op left right -> UIndexMath op (freeze left) (freeze right)
@@ -833,6 +841,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-metas st body
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
+    UIndexList element fields -> type-metas st element <> type-metas st fields
     UIndexCall function args -> type-metas st args
     UIndexPromote value -> type-metas st value
     UIndexMath op left right -> type-metas st left <> type-metas st right
@@ -932,12 +941,15 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List CoreClause -> List CoreClause
-  seal-clauses bodies guards st clauses = case clauses of
+  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards st earlier clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      Cons (MkCoreClause s patterns (refresh-certificates (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope))) Nil frozen)) (seal-clauses bodies guards st rest)
+      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
+      let gamma = proof-patterns patterns scope in
+      let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
+      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -950,12 +962,15 @@ module Bootstrap.Core where
     None -> seal-definition-with-checked-contracts empty-body-bindings guards st definition
   seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
-    MkCoreDefinition s name sc openings givens private clauses -> MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens) (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st clauses)
+    MkCoreDefinition s name sc openings givens private clauses ->
+      MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st Nil clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexList element fields -> valid-type ty && closed-type element && closed-type fields
     UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexMath op left right -> valid-type ty && typed-index-admissible ty && closed-type left && closed-type right
@@ -1118,6 +1133,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-index-scope ids Nil body
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexList element fields -> type-index-scope bound rigid element && type-index-scope bound rigid fields
     UIndexCall function args -> type-index-scope bound rigid args
     UIndexPromote value -> type-index-scope bound rigid value
     UIndexMath op left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
@@ -1403,9 +1419,24 @@ module Bootstrap.Core where
   decision-index-reading gamma facts term = case actual-index gamma facts term of
     Some value -> (case typed-index-arithmetic gamma value of Some reading -> Some reading; None -> typed-index-arithmetic gamma (UIndexPromote value))
     None -> None
+  decision-not-null-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  decision-not-null-index gamma facts condition = case condition of
+    CCase sp ty input (CAlternative at empty no (CAlternative next nonempty yes (CAlternativesEnd end))) ->
+      (case (empty, nonempty) of
+        (CPConstructor nil-at nil-type nil args nil-ctor (CPDone nil-end),
+         CPConstructor cons-at cons-type cons params cons-ctor (CPField head (CPWild h-at h-type) (CPField tail (CPWild t-at t-type) (CPDone cons-end)))) ->
+          if string-compare nil (interface-global "Data.Core.Nil") == 0 && string-compare cons (interface-global "Data.Core.Cons") == 0
+            && contract-equal nil-type (core-type input) && contract-equal cons-type (core-type input)
+            && decision-constant False no && decision-constant True yes
+          then actual-index gamma facts input else None
+        other -> None)
+    other -> None
   decision-predicate-test :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   decision-predicate-test gamma facts predicate condition = case predicate of
     UPropLit value -> decision-constant value condition
+    UPropNotNull input -> (case decision-not-null-index gamma facts condition of
+      Some actual -> contract-equal input actual
+      None -> False)
     UPropNot input -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts input test && decision-constant False yes && decision-constant True no; other -> False)
     UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test gamma (branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
     UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)
@@ -1491,18 +1522,19 @@ module Bootstrap.Core where
   byte-length-variable id = AVariable (string-concat "#bytes-length:" (nat-to-string id))
   byte-length-function :: UType -> UType -> String -> String -> Bool
   byte-length-function result function symbol role = string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False)
-  byte-observation-id :: ProofScope -> UType -> Option Nat
-  byte-observation-id gamma value = if not (typed-index-admissible (UIndexByteLength value)) then None else case value of
+  byte-observation-reading :: ProofScope -> UType -> Option Arithmetic
+  byte-observation-reading gamma value = if not (typed-index-admissible (UIndexByteLength value)) then None else case value of
     UIndex carrier (IRigid id name level) -> case proof-local id gamma of
       Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
-        Some value -> byte-observation-id (scope-without-value id gamma) value
-        None -> Some id
+        Some value -> byte-observation-reading (scope-without-value id gamma) value
+        None -> Some (byte-length-variable id)
       None -> None
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if not (contract-equal carrier declared) then None else case scope-value id gamma of
-        Some value -> byte-observation-id (scope-without-value id gamma) (UIndexForget value)
-        None -> Some id
+        Some value -> byte-observation-reading (scope-without-value id gamma) (UIndexForget value)
+        None -> Some (byte-length-variable id)
       None -> None
+    UIndexCall function arguments -> total-value-call-key gamma value "Bytes"
     other -> None
 
   core-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
@@ -1512,7 +1544,7 @@ module Bootstrap.Core where
     CDischarge sp ty certificates body -> scoped-guarded-call-reading gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
-        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> None); None -> None)
+        (case actual-index gamma facts input of Some value -> byte-observation-reading gamma value; None -> None)
       else None
     CRefine s ty evidence body -> if certified-refinement gamma facts ty evidence body then core-arithmetic gamma facts body else None
     CRefineProof s ty witness body -> if scoped-refinement-proof gamma facts ty witness body then core-arithmetic gamma facts body else None
@@ -1551,6 +1583,11 @@ module Bootstrap.Core where
   comparison-name op = if string-compare op "<" == 0 then Some Less else if string-compare op "<=" == 0 then Some AtMost
     else if string-compare op "==" == 0 then Some Equal else if string-compare op "/=" == 0 then Some Unequal
     else if string-compare op ">=" == 0 then Some AtLeast else if string-compare op ">" == 0 then Some Greater else None
+  negated-condition-input :: ProofScope -> CoreTerm -> Option CoreTerm
+  negated-condition-input gamma term = case total-call-spine gamma term Nil of
+    Some (binding, [input]) ->
+      if bool-type (core-type input) && total-boolean-negation (binding-function binding) then Some input else None
+    other -> None
   scoped-core-condition :: ProofScope -> List Proposition -> CoreTerm -> Option Proposition
   scoped-core-condition gamma facts term = if not (bool-type (core-type term)) then None else case term of
     CPrimitive sp ty operation (CArgumentsEnd end) -> if string-compare operation "decision-true" == 0 then Some PTruth else if string-compare operation "decision-false" == 0 then Some PFalsehood else None
@@ -1564,6 +1601,9 @@ module Bootstrap.Core where
         (Some a, Some b) -> Some (PCompare relation a b)
         other -> None
       None -> None
+    CApply s ty function input -> (case negated-condition-input gamma term of
+      Some argument -> (case scoped-core-condition gamma facts argument of Some predicate -> Some (PNegate predicate); None -> None)
+      None -> None)
     CUse s ty name role Nil -> if string-compare role "constructor" == 0 then
       (if string-compare name "True" == 0 then Some PTruth else if string-compare name "False" == 0 then Some PFalsehood else None) else None
     CIf s ty condition yes no -> case scoped-core-condition gamma facts condition of
@@ -1571,6 +1611,9 @@ module Bootstrap.Core where
         (Some q, Some r) -> Some (PEither (PBoth p q) (PBoth (PNegate p) r))
         other -> None
       None -> None
+    CCase s ty input alternatives -> (case decision-not-null-index gamma facts term of
+      Some actual -> core-predicate gamma (UPropNotNull actual)
+      None -> None)
     other -> None
   -- Exact condition readings may be negated. Partial readings retain only
   -- implications for the branch actually taken: true p && q implies both
@@ -1589,6 +1632,9 @@ module Bootstrap.Core where
     case scoped-core-condition gamma facts condition of
       Some p -> Some (if positive then p else PNegate p)
       None -> case condition of
+        CApply s ty function input -> (case negated-condition-input gamma condition of
+          Some argument -> scoped-core-branch gamma facts argument (not positive)
+          None -> None)
         CIf sp ty test yes no -> if positive then
           (case scoped-core-condition gamma facts no of
             Some PFalsehood -> let first = scoped-core-branch gamma facts test True in
@@ -1610,22 +1656,116 @@ module Bootstrap.Core where
       (if positive then case-value-alias gamma facts value ty id else Nil)
         <> scoped-core-case-facts gamma facts value inner positive
     CPVar sp ty id name -> if positive then case-value-alias gamma facts value ty id else Nil
-    CPConstructor sp ty name Nil constructor (CPDone end) ->
-      if not (bool-type ty && bool-type constructor && bool-type (core-type value)) then Nil else
-        if string-compare name "True" == 0 || string-compare name "False" == 0 then
-          (case scoped-core-branch gamma facts value (if positive then string-compare name "True" == 0 else string-compare name "False" == 0) of
-            Some fact -> [fact]
-            None -> Nil)
-          else Nil
+    CPConstructor sp ty name Nil constructor (CPDone end) | bool-type ty && bool-type constructor && bool-type (core-type value) ->
+      if string-compare name "True" == 0 || string-compare name "False" == 0 then
+        (case scoped-core-branch gamma facts value (if positive then string-compare name "True" == 0 else string-compare name "False" == 0) of
+          Some fact -> [fact]
+          None -> Nil)
+        else Nil
+    CPConstructor sp ty name Nil constructor (CPDone end) | contract-equal ty ordering-result ->
+      ordering-case-facts gamma facts value ty constructor name positive
+    CPConstructor sp ty name actuals constructor fields -> case-list-shape gamma facts value ty name constructor fields positive
     CPInt sp ty text -> if not (contract-equal ty (core-type value)) then Nil else
       (case (core-arithmetic gamma facts value, core-arithmetic gamma facts (CInt sp ty text)) of
         (Some actual, Some literal) -> [PCompare (if positive then Equal else Unequal) actual literal]
         other -> Nil)
     other -> Nil
+  ordering-result :: UType
+  ordering-result = UCon (interface-global "Data.Ordering.Ordering") KType
+  ordering-row-comparison :: String -> Option Comparison
+  ordering-row-comparison name =
+    if string-compare name (interface-global "Data.Ordering.LT") == 0 then Some Less
+    else if string-compare name (interface-global "Data.Ordering.EQ") == 0 then Some Equal
+    else if string-compare name (interface-global "Data.Ordering.GT") == 0 then Some Greater
+    else None
+  ordering-case-facts :: ProofScope -> List Proposition -> CoreTerm -> UType -> UType -> String -> Bool -> List Proposition
+  ordering-case-facts gamma facts value ty constructor name positive =
+    if not (contract-equal ty ordering-result && contract-equal constructor ordering-result && contract-equal (core-type value) ordering-result) then Nil else
+      case ordering-row-comparison name of
+        Some comparison -> (case ordering-operands gamma facts value of
+          Some (left, right) -> let fact = PCompare comparison left right in [if positive then fact else PNegate fact]
+          None -> Nil)
+        None -> Nil
+  -- The helper describes only control flow. Both numerical method bodies
+  -- must belong to the same dictionary selected in this actual call.
+  ordering-slot-proves :: ProofScope -> String -> Nat -> UType -> UType -> String -> Bool
+  ordering-slot-proves gamma dictionary slot key factory relation = case selected-method-body dictionary slot (scope-bodies gamma) of
+    Some binding -> ordering-method-matches dictionary slot key factory binding && (case total-numeric-comparison (binding-function binding) of
+      Some actual -> string-compare actual relation == 0
+      None -> False)
+    None -> False
+  ordering-key-reading :: ProofScope -> List Proposition -> Span -> UType -> CoreTerm -> CoreTerm -> Option Arithmetic
+  ordering-key-reading gamma facts sp result key input = case key of
+    CLambda at ty (CPVar binder domain id name) (CLocal use actual same-id display Nil) ->
+      if id == same-id && contract-equal domain result && contract-equal actual result then core-arithmetic gamma facts input else None
+    other -> core-arithmetic gamma facts (CApply sp result key input)
+  ordering-operands :: ProofScope -> List Proposition -> CoreTerm -> Option (Arithmetic, Arithmetic)
+  ordering-operands gamma facts term = case term of
+    CApply sp result (CApply at next (CApply ap rest (CQualifiedUse source function name role [input, key] [CEInstance evidence factory dictionary Nil (CEArgumentsEnd end)]) project) first) second ->
+      case body-binding name (scope-bodies gamma) of
+        Some binding -> (case keyed-ordering-slots (binding-function binding) of
+          Some (less, greater) ->
+            if not (string-compare role "external" == 0 && string-compare (binding-role binding) role == 0
+                && valid-type input && integer-carrier key && contract-equal result ordering-result
+                && contract-equal function (UFun (UFun input key) (UFun input (UFun input result)))
+                && contract-equal (core-type project) (UFun input key)
+                && contract-equal (core-type first) input && contract-equal (core-type second) input
+                && contract-equal (core-effects project) (URow UEnd)
+                && ordering-slot-proves gamma dictionary less key factory "<"
+                && ordering-slot-proves gamma dictionary greater key factory ">") then None else
+              (case (ordering-key-reading gamma facts sp key project first, ordering-key-reading gamma facts sp key project second) of
+                (Some a, Some b) -> Some (a, b)
+                other -> None)
+          None -> None)
+        None -> None
+    other -> None
   case-value-alias :: ProofScope -> List Proposition -> CoreTerm -> UType -> Nat -> List Proposition
-  case-value-alias gamma facts value ty id = if not (integer-carrier ty && contract-equal ty (core-type value)) then Nil else
-    case core-arithmetic gamma facts value of
-      Some actual -> [PCompare Equal (proof-variable id) actual]
+  case-value-alias gamma facts value ty id = if not (contract-equal ty (core-type value)) then Nil else
+    if integer-carrier ty then
+      (case core-arithmetic gamma facts value of
+        Some actual -> [PCompare Equal (proof-variable id) actual]
+        None -> Nil)
+    else case core-list-element ty of
+      Some element -> (case actual-index gamma facts value of
+        Some index -> (case list-shape-reading gamma index of
+          Some actual -> [PCompare Equal (list-shape-variable id) actual]
+          None -> Nil)
+        None -> Nil)
+      None -> Nil
+  -- A list shape has its own proof identity. It is either empty (0) or
+  -- nonempty (1) and never serves as a reading of the list's elements.
+  list-shape-variable :: Nat -> Arithmetic
+  list-shape-variable id = AVariable (string-concat "#list-shape:" (nat-to-string id))
+  list-shape-reading :: ProofScope -> UType -> Option Arithmetic
+  list-shape-reading gamma index = if not (typed-index-admissible index) then None else case index of
+    UIndexList element UEnd -> Some (AInteger 0)
+    UIndexList element (UArg first rest) -> Some (AInteger 1)
+    UIndex carrier (IRigid id name level) -> (case (core-list-element carrier, proof-local id gamma) of
+      (Some element, Some declared) -> if contract-equal carrier declared then Some (list-shape-variable id) else None
+      other -> None)
+    other -> None
+  irrefutable-case-pattern :: UType -> CorePattern -> Bool
+  irrefutable-case-pattern expected pattern = case pattern of
+    CPWild sp ty -> contract-equal expected ty
+    CPVar sp ty id name -> contract-equal expected ty
+    CPAs sp ty id name inner -> contract-equal expected ty && irrefutable-case-pattern expected inner
+    other -> False
+  list-pattern-shape :: UType -> String -> UType -> CorePattern -> Bool -> Option Int
+  list-pattern-shape ty name constructor fields positive = case (core-list-element ty, fields) of
+    (Some element, CPDone end) ->
+      if string-compare name (interface-global "Data.Core.Nil") == 0 && contract-equal constructor ty then Some (if positive then 0 else 1) else None
+    (Some element, CPField sp head (CPField tail-at tail (CPDone end))) ->
+      if string-compare name (interface-global "Data.Core.Cons") == 0 && contract-equal constructor (UFun element (UFun ty ty))
+        && (positive || (irrefutable-case-pattern element head && irrefutable-case-pattern ty tail)) then Some (if positive then 1 else 0) else None
+    other -> None
+  case-list-shape :: ProofScope -> List Proposition -> CoreTerm -> UType -> String -> UType -> CorePattern -> Bool -> List Proposition
+  case-list-shape gamma facts value ty name constructor fields positive = if not (contract-equal ty (core-type value)) then Nil else
+    case list-pattern-shape ty name constructor fields positive of
+      Some shape -> (case actual-index gamma facts value of
+        Some index -> (case list-shape-reading gamma index of
+          Some actual -> [PCompare Equal actual (AInteger shape)]
+          None -> Nil)
+        None -> Nil)
       None -> Nil
   core-alternative-covers :: CoreTerm -> Bool
   core-alternative-covers body = case body of
@@ -1635,8 +1775,45 @@ module Bootstrap.Core where
     other -> True
   case-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
   case-branch-facts gamma facts value pattern positive = scoped-core-case-facts gamma facts value pattern positive <> facts
+  -- A pure guard on a pattern that always matches can fail only when the
+  -- guard is false. Read it in the outer scope so no row binding escapes.
+  scoped-core-case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
+  scoped-core-case-rest-facts gamma facts value pattern body =
+    if core-alternative-covers body then scoped-core-case-facts gamma facts value pattern False
+    else case body of
+      CGuard sp ty condition rhs ->
+        if irrefutable-case-pattern (core-type value) pattern && bool-type (core-type condition)
+          && contract-equal (core-effects condition) (URow UEnd) && proof-term gamma facts condition then
+          (case scoped-core-branch gamma facts condition False of Some fact -> [fact]; None -> Nil)
+        else Nil
+      other -> Nil
   case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
-  case-rest-facts gamma facts value pattern body = if core-alternative-covers body then case-branch-facts gamma facts value pattern False else facts
+  case-rest-facts gamma facts value pattern body = scoped-core-case-rest-facts gamma facts value pattern body <> facts
+  -- A failed earlier equation refutes a column only if every other
+  -- pattern always matches and the equation has no fallible guard.
+  extend-equation-prefix :: List CorePattern -> CoreTerm -> List (List CorePattern) -> List (List CorePattern)
+  extend-equation-prefix patterns body earlier = case body of
+    CRequire sp ty inner -> extend-equation-prefix patterns inner earlier
+    CError sp -> earlier
+    other -> if core-alternative-covers body then Cons patterns earlier else earlier
+  single-refutable-column :: List CorePattern -> List CorePattern -> Option (CorePattern, CorePattern) -> Option (CorePattern, CorePattern)
+  single-refutable-column before current found = case (before, current) of
+    (Nil, Nil) -> found
+    (Cons old earlier, Cons new later) ->
+      if irrefutable-case-pattern (pattern-type old) old then single-refutable-column earlier later found
+      else (case found of
+        None -> single-refutable-column earlier later (Some (old, new))
+        Some pair -> None)
+    other -> None
+  scoped-core-equation-facts :: ProofScope -> List (List CorePattern) -> List CorePattern -> List Proposition
+  scoped-core-equation-facts gamma earlier patterns = case earlier of
+    Nil -> Nil
+    Cons first rest ->
+      (case single-refutable-column first patterns None of
+        Some (prior, current) -> (case pattern-value current of
+          Some value -> scoped-core-case-facts gamma Nil value prior False
+          None -> Nil)
+        None -> Nil) <> scoped-core-equation-facts gamma rest patterns
   branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
   branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
     Some p -> Cons p facts
@@ -1757,15 +1934,24 @@ module Bootstrap.Core where
             Some fact -> Cons fact more
             None -> more) else more
       other -> more
-  refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
-  refinement-goal gamma facts ty body = case refinement-view ty of
+  refinement-obligation :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, Proposition)
+  refinement-obligation gamma facts ty body = case refinement-view ty of
     URefine id name carrier predicate -> if valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body then
       (case core-predicate gamma predicate of
-        Some independent -> Some independent
+        Some independent -> Some (predicate, independent)
         None -> case actual-index gamma facts body of
-          Some value -> core-predicate gamma (substitute-bound [(id, value)] predicate)
+          Some value -> let opened = substitute-bound [(id, value)] predicate in
+            (case core-predicate gamma opened of Some goal -> Some (opened, goal); None -> None)
           None -> None) else None
     other -> None
+  refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
+  refinement-goal gamma facts ty body = case refinement-obligation gamma facts ty body of
+    Some (predicate, goal) -> Some goal
+    None -> None
+  scoped-refinement-predicate :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option UType
+  scoped-refinement-predicate gamma facts ty body = case refinement-obligation gamma facts ty body of
+    Some (predicate, goal) -> Some predicate
+    None -> None
   -- The runtime allocator returns a Bytes buffer whose immutable length is
   -- exactly the checked Nat input. Validate a foreign declaration's proposed
   -- refinement against that kernel fact; source text supplies no assumption.
@@ -1946,7 +2132,7 @@ module Bootstrap.Core where
   typed-index-arithmetic :: ProofScope -> UType -> Option Arithmetic
   typed-index-arithmetic gamma value = if not (typed-index-admissible value) then None else case value of
     UIndexCall function args -> if not (integer-carrier (UCon (total-result function) KType)) then None else case body-function function (scope-bodies gamma) of Some binding -> (case total-index-arguments gamma (total-parameters function) args of Some values -> Some (ACall (body-call-key binding) values); None -> None); None -> None
-    UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
+    UIndexByteLength input -> byte-observation-reading gamma input
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if contract-equal carrier declared && (case refinement-view carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
@@ -1971,6 +2157,11 @@ module Bootstrap.Core where
     UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
+    UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
+    UPropNotNull value -> case list-shape-reading gamma value of
+      Some actual -> Some (PCompare Equal actual (AInteger 1))
+      None -> None
     UPropNonZeroPending value -> None
     other -> None
   scoped-core-predicates :: ProofScope -> UType -> Option (List Proposition)
@@ -2018,13 +2209,30 @@ module Bootstrap.Core where
     (Some left, Some right) -> let out = normalize (empty-store "Core mathematical index") (UIndexMath op left right) in if typed-index-admissible out then Some out else None
     other -> None
   actual-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
-  actual-index gamma facts term = case checked-total-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+  actual-index gamma facts term = case checked-total-index gamma facts term of
+    Some value -> Some value
+    None -> case scoped-list-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+  scoped-list-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-list-index gamma facts term = case term of
+    CUse sp ty name role actuals | string-compare name (interface-global "Data.Core.Nil") == 0 && string-compare role "constructor" == 0 ->
+      checked-list-index gamma facts term UEnd
+    CApply sp ty (CApply at partial (CUse origin constructor name role actuals) first) rest
+        | string-compare name (interface-global "Data.Core.Cons") == 0 && string-compare role "constructor" == 0 ->
+      (case (actual-index gamma facts first, actual-index gamma facts rest) of
+        (Some head, Some tail) -> checked-list-index gamma facts term (UArg head tail)
+        other -> None)
+    other -> None
+  checked-list-index :: ProofScope -> List Proposition -> CoreTerm -> UType -> Option UType
+  checked-list-index gamma facts term fields = case core-list-element (core-type term) of
+    Some element -> let index = UIndexList element fields in
+      if typed-index-admissible index && proof-term gamma facts term && contract-equal (core-effects term) (URow UEnd) then Some index else None
+    None -> None
   ordinary-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   ordinary-index gamma facts term = case term of
     CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term
     CApply s ty (CUse at function symbol role Nil) input ->
       if byte-length-function ty function symbol role then
-        (case actual-index gamma facts input of Some value -> (case byte-observation-id gamma value of Some id -> Some (UIndexByteLength value); None -> None); None -> None)
+        (case actual-index gamma facts input of Some value -> (case byte-observation-reading gamma value of Some reading -> Some (UIndexByteLength value); None -> None); None -> None)
       else None
     CForget s ty body -> if forgotten gamma facts ty body then (case body of
       CRefine at refined evidence actual -> actual-index gamma facts actual
@@ -2098,6 +2306,12 @@ module Bootstrap.Core where
     other -> False)
   pattern-type :: CorePattern -> UType
   pattern-type pattern = case pattern of CPVar s ty id name -> ty; CPProof s ty id name -> ty; CPAs s ty id name inner -> ty; CPWild s ty -> ty; CPInt s ty text -> ty; CPString s ty text -> ty; CPChar s ty text -> ty; CPConstructor s ty name actuals ctor fields -> ty; CPTuple s ty fields -> ty; other -> UError
+  pattern-value :: CorePattern -> Option CoreTerm
+  pattern-value pattern = case pattern of
+    CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
+    CPAs sp ty id name inner -> Some (CLocal sp ty id name Nil)
+    CPInt sp ty text -> Some (CInt sp ty text)
+    other -> None
   pattern-index :: CorePattern -> Option UType
   pattern-index pattern = case pattern of
     CPVar s ty id name -> Some (UIndex ty (IRigid id name 0))
@@ -2151,11 +2365,15 @@ module Bootstrap.Core where
     Some checked -> proof-contract-clauses-checked checked guards values expected clauses
     None -> False
   proof-contract-clauses-checked :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
-  proof-contract-clauses-checked bodies guards values expected clauses = case clauses of
+  proof-contract-clauses-checked bodies guards values expected clauses =
+    proof-equations (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
+  proof-equations :: ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
+  proof-equations scope expected earlier clauses = case clauses of
     Nil -> True
     Cons (MkCoreClause s patterns body) rest -> (case patterns-result expected patterns of
-      Some result -> proof-expected (proof-patterns patterns (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)))) Nil result body
-      None -> False) && proof-contract-clauses-checked bodies guards values expected rest
+      Some result -> let gamma = proof-patterns patterns scope in
+        proof-expected gamma (scoped-core-equation-facts gamma earlier patterns) result body
+      None -> False) && proof-equations scope expected (extend-equation-prefix patterns body earlier) rest
 
   selected-method-function :: ProofScope -> CoreTerm -> CoreTerm -> CoreTerm -> Option TotalFunction
   selected-method-function gamma method first second = case method of
@@ -2231,16 +2449,33 @@ module Bootstrap.Core where
   total-value-call-key gamma value sort = case value of
     UIndexCall function arguments -> (case body-function function (scope-bodies gamma) of
       Some binding -> if not (string-compare (total-result function) sort == 0) then None else
-        (case total-index-arguments gamma (total-parameters function) arguments of
+        (case body-index-arguments gamma function arguments of
           Some keys -> if string-compare sort "Bytes" == 0 then
             (case total-bytes-reading function keys of Some length -> Some length; None -> Some (ACall (string-concat "#total-bytes-length:" (binding-native binding)) keys))
             else (case total-boolean-reading function keys of Some flag -> Some (AInteger (if flag then 1 else 0)); None -> Some (ACall (body-call-key binding) keys))
           None -> None)
       None -> None)
     other -> None
+  body-index-arguments :: ProofScope -> TotalFunction -> UType -> Option Arithmetic
+  body-index-arguments gamma function arguments = if total-source-projection function then
+    (case (total-parameters function, arguments) of
+      ([domain], UArg value UEnd) -> (case nominal-index-key gamma (UCon domain KType) value of
+        Some key -> Some (AArgument key AArgumentsEnd)
+        None -> None)
+      other -> None)
+    else total-index-arguments gamma (total-parameters function) arguments
+  nominal-index-key :: ProofScope -> UType -> UType -> Option Arithmetic
+  nominal-index-key gamma expected value = case value of
+    UIndex carrier (IRigid id name level) -> case proof-local id gamma of
+      Some declared -> if not (contract-equal expected carrier && contract-equal carrier declared) then None else
+        (case scope-value id gamma of
+          Some alias -> nominal-index-key (scope-without-value id gamma) expected alias
+          None -> Some (AVariable ("#nominal-value:" <> nat-to-string id)))
+      None -> None
+    other -> None
   total-argument-key :: ProofScope -> String -> UType -> Option Arithmetic
   total-argument-key gamma sort value = if not (typed-index-admissible value && kind-equal (type-kind value) (value-kind (UCon sort KType))) then None else
-    if string-compare sort "Bytes" == 0 then (case byte-observation-id gamma value of Some id -> Some (byte-length-variable id); None -> total-value-call-key gamma value sort)
+    if string-compare sort "Bytes" == 0 then byte-observation-reading gamma value
     else if string-compare sort "Bool" == 0 then (case value of
       UIndex carrier (IRigid id name level) -> (case proof-local id gamma of Some declared -> if contract-equal carrier declared then Some (AVariable (string-concat "#total-bool:" (nat-to-string id))) else None; None -> None)
       other -> total-value-call-key gamma value sort)
@@ -2517,9 +2752,66 @@ module Bootstrap.Core where
       None -> None)
     None -> None
 
-  core-source-body :: List BodyBinding -> List CoreDefinition -> String -> Option BodyBinding
-  core-source-body bindings definitions native = case total-core-native-definition native definitions of
-    Some definition -> (case core-total-function bindings definitions native of
+  -- A projection can only select a field through exhaustive matches on
+  -- checked, monomorphic source constructors. Constructor and field
+  -- identities come from the real declaration and the retained pattern.
+  projection-constructor :: List CoreData -> String -> Option CoreConstructor
+  projection-constructor datas name = case datas of
+    Nil -> None
+    Cons nominal rest -> if string-compare name (core-data-name nominal) == 0 then
+      (case (core-data-kind nominal, core-data-params nominal, core-data-constructors nominal) of
+        (KType, Nil, [constructor]) -> Some constructor
+        other -> None)
+      else projection-constructor rest name
+  projection-fields :: UType -> UType -> Option (List UType)
+  projection-fields expected ty = case ty of
+    UFun domain result -> (case projection-fields expected result of Some fields -> Some (Cons domain fields); None -> None)
+    UCon name KType -> if contract-equal expected ty then Some Nil else None
+    other -> None
+  projection-bindings :: String -> List (String, Nat) -> Nat -> List UType -> CorePattern -> List (Nat, UType, List (String, Nat)) -> Option (List (Nat, UType, List (String, Nat)))
+  projection-bindings constructor path index fields pattern scope = case (fields, pattern) of
+    (Nil, CPDone sp) -> Some scope
+    (Cons ty rest, CPField sp (CPVar at actual id name) tail) -> if contract-equal ty actual then
+      projection-bindings constructor path (index + 1) rest tail (Cons (id, ty, path <> [(constructor, index)]) scope) else None
+    (Cons ty rest, CPField sp (CPWild at actual) tail) -> if contract-equal ty actual then
+      projection-bindings constructor path (index + 1) rest tail scope else None
+    other -> None
+  projection-local :: Nat -> UType -> List (Nat, UType, List (String, Nat)) -> Option (List (String, Nat))
+  projection-local id ty scope = case scope of
+    Nil -> None
+    Cons (bound, carrier, path) rest -> if id == bound then (if contract-equal ty carrier then Some path else None) else projection-local id ty rest
+  projection-expression :: List CoreData -> List (Nat, UType, List (String, Nat)) -> CoreTerm -> Option (List (String, Nat))
+  projection-expression datas scope term = case term of
+    CLocal sp (UCon name KType) id label Nil -> if string-compare name "Bytes" == 0 then projection-local id (UCon name KType) scope else None
+    CCase sp result (CLocal at (UCon carrier KType) id label Nil)
+      (CAlternative arm (CPConstructor pat matched constructor Nil ctor-type fields) body (CAlternativesEnd end)) ->
+        let input = UCon carrier KType in
+        if not (contract-equal matched input && contract-equal result (core-type body)) then None else
+          (case (projection-local id input scope, projection-constructor datas carrier) of
+            (Some path, Some definition) -> let sc = core-constructor-scheme definition in
+              if not (string-compare constructor (core-constructor-name definition) == 0 && contract-equal ctor-type (scheme-body sc)) then None else
+                (case (scheme-params sc, scheme-requirements sc, projection-fields input ctor-type) of
+                  (Nil, Nil, Some field-types) -> (case projection-bindings constructor path 0 field-types fields scope of
+                    Some inner -> projection-expression datas inner body
+                    None -> None)
+                  other -> None)
+            other -> None)
+    other -> None
+  core-byte-projection :: List CoreData -> CoreDefinition -> String -> Option TotalFunction
+  core-byte-projection datas definition native = if not (core-definition-closed definition && core-definition-result-types definition) then None else
+    let sc = core-scheme definition in
+    case (scheme-params sc, scheme-requirements sc, core-givens definition, scheme-body sc, core-clauses definition) of
+      (Nil, Nil, Nil, UFun (UCon domain KType) (UCon result KType), [MkCoreClause sp [CPVar at input id label] body]) ->
+        if not (string-compare result "Bytes" == 0 && contract-equal input (UCon domain KType) && contract-equal (core-effects body) (URow UEnd)) then None else
+          (case projection-expression datas [(id, input, Nil)] body of Some steps -> source-total-projection native domain steps; None -> None)
+      other -> None
+  core-source-function :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option TotalFunction
+  core-source-function bindings definitions datas native = case core-total-function bindings definitions native of
+    Some function -> Some function
+    None -> (case total-core-native-definition native definitions of Some definition -> core-byte-projection datas definition native; None -> None)
+  core-source-body :: List BodyBinding -> List CoreDefinition -> List CoreData -> String -> Option BodyBinding
+  core-source-body bindings definitions datas native = case total-core-native-definition native definitions of
+    Some definition -> (case core-source-function bindings definitions datas native of
       Some function -> check-source-body-binding (core-name definition) native (core-scheme definition) function
       None -> None)
     None -> None
@@ -2612,7 +2904,8 @@ module Bootstrap.Core where
     None -> None
   core-total-function-uses :: TotalFunction -> String -> Bool
   core-total-function-uses function name = case export-global name of
-    Ok native -> total-core-has-row native (total-core-members (total-core-field "definitions" (total-function-document function)))
+    Ok native -> if total-source-projection function then string-compare native (total-identity function) == 0
+      else total-core-has-row native (total-core-members (total-core-field "definitions" (total-function-document function)))
     Err error -> False
   total-core-has-row :: String -> List Json -> Bool
   total-core-has-row native rows = case rows of

@@ -16,12 +16,12 @@
 
 module Bootstrap.Pipeline where
 
-  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
+  import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name, module-span)
   import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
-  import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
+  import Bootstrap.Object (RuntimeObject, read-runtime-object-document)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
@@ -29,16 +29,20 @@ module Bootstrap.Pipeline where
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
   import Bootstrap.Stage (expand-stages)
-  import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
+  import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics, source-sections)
   import Bootstrap.Export (export-interfaces, interface-hash)
-  import Bootstrap.Interface (fnv-source-hash)
+  import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Data.Json
+  import Data.List (map)
   import Text.Json (canonical-bytes)
-  import Data.Path (Path, path-from-string, path-to-string)
+  import Text.Lex (bytes-slice, span-start, span-end, LToken, lt-span, lex-tokens, LexedTokens, LexedFail)
+  import Data.Nat (nat-to-int)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize)
   import Data.String (string-concat, string-to-bytes)
   import Effect.Fs (fs-read, fs-write)
+  import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
 
   -- Check-only preserves all frontend checks while stopping before emission.
@@ -148,20 +152,56 @@ module Bootstrap.Pipeline where
   compile-source-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
   compile-source-object publish manifest object-config source ir = case read-interfaces manifest of
     Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
-    Ok interfaces -> case read-runtime-object interfaces object-config of
+    Ok interfaces -> case read-runtime-object-document interfaces object-config of
       Err message -> write-failure ir (string-concat "bootstrap.object: " message) pipeline-interface-failed
-      Ok provider -> case fs-read (path-from-string source) of
-        Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-        Ok src -> case parse-program-with source src (interface-headers interfaces) of
-          Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-          Parsed program Nil -> (case checked-source program interfaces of
-            Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
-            Ok checked -> if publish then
-              (case write-checked-interfaces ir checked interfaces src of
-                0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-                code -> code)
-              else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
-          Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+      Ok (provider, metadata, object-path, object-bytes) -> emit-object-client publish interfaces provider metadata source ir
+  emit-object-client :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObject -> Json -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client publish interfaces provider metadata source ir = case fs-read (path-from-string source) of
+    Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+    Ok src -> case parse-program-with source src (interface-headers interfaces) of
+      Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+      Parsed program Nil -> (case check-object-source src program interfaces metadata of
+        Err message -> write-failure ir message pipeline-check-refused
+        Ok (checked, effective, replaced) -> if publish then
+          (case write-interface-output ir (export-object-interfaces checked effective src replaced) of
+            0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+            code -> code)
+          else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
+      Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+
+  run-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
+  run-source-with-object manifest config runtime prefix source words =
+    let ir = path-from-string (prefix <> ".ll") in
+    let executable = prefix <> ".exe" in
+    let object-copy = prefix <> ".library.o" in
+    let normalize-path = \name -> path-to-string (path-normalize (path-from-string name)) in
+    let paths = map normalize-path [manifest, config, runtime, source, path-to-string ir, path-to-string (refusal-path ir), executable, object-copy] in
+    if not (object-paths-distinct paths) then pipeline-bad-args
+    else case read-interfaces manifest of
+      Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+      Ok interfaces -> case read-runtime-object-document interfaces config of
+        Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+        Ok (provider, metadata, object-path, object-bytes) ->
+          if object-path-member (normalize-path object-path) paths then pipeline-bad-args
+          else case emit-object-client False interfaces provider metadata source ir of
+            0 -> (case fs-write (path-from-string object-copy) object-bytes of
+              Err error -> pipeline-write-failed
+              Ok written -> link-object-client ir executable object-copy runtime metadata words)
+            code -> code
+  link-object-client :: forall r. using (io :: Io r) => Path -> String -> String -> String -> Json -> List String ->{IO r, Diverge} Int
+  link-object-client ir executable object-copy runtime metadata words =
+    let arguments = ["-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] <> object-client-system-libs metadata in
+    case process-run (command (path-from-string "clang") arguments) "" of
+      Ok (0, output) -> let program = path-from-string executable in
+        let program-path = if path-is-absolute program then program else path-from-string ("./" <> executable) in
+        (case process-run (command program-path words) "" of
+          Ok (status, output) -> case ioWrite output of _ -> nat-to-int status
+          Err error -> write-failure ir "bootstrap.driver: cannot execute linked program" pipeline-emit-refused)
+      other -> write-failure ir "bootstrap.driver: could not link executable and runtime objects" pipeline-emit-refused
+  object-client-system-libs :: Json -> List String
+  object-client-system-libs metadata = case object-field "target" metadata of
+    JStr triple -> if string-contains "-linux" triple then ["-ldl", "-lpthread", "-lm"] else Nil
+    other -> Nil
 
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.
@@ -233,6 +273,89 @@ module Bootstrap.Pipeline where
                 Err message -> Err message
                 Ok (fresh, doc) -> recheck-source-overlays source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
       else recheck-source-overlays source program rest interfaces written
+
+  object-overlays :: List Module -> List LoadedInterface -> List Module
+  object-overlays modules interfaces = case modules of
+    Nil -> Nil
+    Cons first rest -> let name = module-name first in
+      (case overlay-interface name interfaces of
+        Some prior -> if embedded-library-home name then Cons first (object-overlays rest interfaces) else object-overlays rest interfaces
+        None -> object-overlays rest interfaces)
+
+  -- The source digest covers the whole file. The bundle writer adds two
+  -- newline separators after each file and the report scanner finds its range.
+  matches-source-digest :: Bytes -> Nat -> Nat -> Nat -> String -> Bool
+  matches-source-digest source begin end separators digest =
+    if begin < end && end <= bytes-len source then
+      sha256-hex (bytes-slice source begin end) == digest
+      || (if separators > 0 && bytes-get source (end - 1) == 10 then
+        matches-source-digest source begin (end - 1) (separators - 1) digest else False)
+    else False
+
+  -- The parser ends a module span at the next token, which can be past
+  -- the source separator. Every token belonging to this module must still
+  -- be within the authenticated bytes, even across a forged bundle label.
+  module-tokens-within :: List LToken -> Nat -> Nat -> Nat -> Bool
+  module-tokens-within tokens start finish end = case tokens of
+    Nil -> True
+    Cons token rest -> let location = lt-span token in
+      let at = span-start location in
+      if at >= finish then True
+      else if at >= start && span-end location > end then False
+      else module-tokens-within rest start finish end
+
+  matches-source-section :: Bytes -> List LToken -> Module -> List (Nat, Nat) -> String -> Bool
+  matches-source-section source tokens home sections digest = case sections of
+    Nil -> False
+    Cons (begin, end) rest -> let location = module-span home in
+      let start = span-start location in
+      if begin <= start && start < end then
+        matches-source-digest source begin end 2 digest && module-tokens-within tokens start (span-end location) end
+      else matches-source-section source tokens home rest digest
+
+  authenticate-source-overlays :: Bytes -> List LToken -> List (Nat, Nat) -> List Module -> Json -> Result String Unit
+  authenticate-source-overlays source tokens sections replacements digests = case replacements of
+    Nil -> Ok ()
+    Cons home rest -> let name = module-name home in
+      (case object-field name digests of
+        JStr digest -> if matches-source-section source tokens home sections digest then
+          authenticate-source-overlays source tokens sections rest digests
+          else Err ("bootstrap.object: rebuild the library object for changed source module " <> name)
+        other -> Err ("bootstrap.object: library object has no authenticated source for " <> name))
+
+  -- The provider already checked these exact bytes. Keep its contract
+  -- and remove the authenticated module from the client's source.
+  reuse-object-overlays :: Program -> List Module -> List LoadedInterface -> List (String, Json) -> Result String (Program, List (String, Json))
+  reuse-object-overlays program replacements interfaces written = case replacements of
+    Nil -> Ok (program, reverse written)
+    Cons home rest -> let name = module-name home in
+      (case (overlay-interface name interfaces, overlay-module name (program-modules program) Nil) of
+        (Some prior, Some (replacement, remaining)) -> (case overlay-module name remaining Nil of
+          Some duplicate -> Err ("bootstrap.object: duplicate source module " <> name)
+          None -> reuse-object-overlays (MkProgram (program-span program) remaining) rest interfaces (Cons (name, loaded-contract prior) written))
+        other -> Err ("bootstrap.object: missing authenticated source or contract for " <> name))
+
+  check-object-source :: Bytes -> Program -> List LoadedInterface -> Json -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
+  check-object-source source program interfaces metadata = case object-overlays (program-modules program) interfaces of
+    Nil -> check-object-client source program interfaces Nil
+    replacements -> case lex-tokens source of
+      LexedFail at reason -> Err "bootstrap.object: cannot authenticate unlexed source"
+      LexedTokens tokens -> (case authenticate-source-overlays source tokens (source-sections source) replacements (object-field "source_sha256" metadata) of
+          Err message -> Err message
+          Ok done -> case reuse-object-overlays program replacements interfaces Nil of
+            Err message -> Err message
+            Ok (remaining, written) -> check-object-client source remaining interfaces written)
+
+  check-object-client :: Bytes -> Program -> List LoadedInterface -> List (String, Json) -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
+  check-object-client source program interfaces written = case checked-source program interfaces of
+    Err errors -> Err (render-source-diagnostics source errors)
+    Ok checked -> Ok (checked, interfaces, written)
+
+  export-object-interfaces :: CheckedProgram -> List LoadedInterface -> Bytes -> List (String, Json) -> Result String (List (String, Json))
+  export-object-interfaces checked interfaces source replaced = case export-interfaces checked interfaces source of
+    Err message -> Err message
+    Ok rows -> Ok (replaced <> rows)
+
   compile-source-interfaces :: forall r. using (io :: Io r) => List LoadedInterface -> String -> Path ->{IO r, Diverge} Int
   compile-source-interfaces interfaces source prefix = case fs-read (path-from-string source) of
     Err error -> write-failure prefix "bootstrap.export: cannot read source" pipeline-read-failed
@@ -254,8 +377,6 @@ module Bootstrap.Pipeline where
     Cons (name, doc) rest -> case fs-write (path-from-string (string-concat (path-to-string prefix) (string-concat "." (string-concat name ".cinchif")))) (canonical-bytes doc) of
       Err error -> Err "cannot write checked interface"
       Ok done -> write-interface-files prefix rest
-  write-checked-interfaces :: forall r. using (io :: Io r) => Path -> CheckedProgram -> List LoadedInterface -> Bytes ->{IO r} Int
-  write-checked-interfaces prefix checked interfaces source = write-interface-output prefix (export-interfaces checked interfaces source)
   write-interface-output :: forall r. using (io :: Io r) => Path -> Result String (List (String, Json)) ->{IO r} Int
   write-interface-output prefix output = case output of
     Err message -> write-failure prefix (string-concat "bootstrap.export: " message) pipeline-emit-refused
@@ -438,14 +559,14 @@ module Bootstrap.Pipeline where
                   Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
                   Ok bytes -> case parse-program-with source bytes (interface-headers interfaces) of
                     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-                    Parsed program Nil -> (case checked-source program interfaces of
-                      Err errors -> write-failure ir (render-source-diagnostics bytes errors) pipeline-check-refused
-                      Ok checked -> prepare-library-object checked interfaces bytes provider document provider-code ir object abi prefix)
+                    Parsed program Nil -> (case check-object-source bytes program interfaces document of
+                      Err message -> write-failure ir message pipeline-check-refused
+                      Ok (checked, effective, replaced) -> prepare-library-object checked effective bytes replaced provider document provider-code ir object abi prefix)
                     Parsed program errors -> write-failure ir (render-bundle (Bundle source bytes errors)) pipeline-parse-failed
-  prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
-  prepare-library-object checked interfaces source provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
+  prepare-library-object :: forall r. using (io :: Io r) => CheckedProgram -> List LoadedInterface -> Bytes -> List (String, Json) -> RuntimeObject -> Json -> Bytes -> Path -> Path -> Path -> String ->{IO r, Diverge} Int
+  prepare-library-object checked interfaces source replaced provider document provider-code ir object abi prefix = case runtime-library-default-roots checked of
     Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-    Ok roots -> case export-interfaces checked interfaces source of
+    Ok roots -> case export-object-interfaces checked interfaces source replaced of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
       Ok exported -> case object-interface-closure exported (object-field "interfaces" document) of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused

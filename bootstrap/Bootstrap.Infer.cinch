@@ -412,11 +412,17 @@ module Bootstrap.Infer where
     (UCon name kind, actuals) -> case find-refinement name (context-aliases kinds) of
       Some (DRefine source name params binder predicate) -> case context-enter-alias name kinds of
         None -> bad sp "recursive refinement alias expansion" st
-        Some scoped -> case abstract-refinement sp name scoped params binder predicate st of
-          (Some former, checked) -> (apply-refinement-types former actuals, checked)
-          (None, checked) -> if list-length actuals < list-length params then (value, checked)
-            else case refinement-arguments sp scoped params actuals Nil Nil checked of
-              (locals, prepared) -> instantiate-refinement sp scoped locals binder predicate prepared
+        Some scoped ->
+          let (applied, checked) = case abstract-refinement sp name scoped params binder predicate st of
+                (Some former, prepared) -> (Some (apply-refinement-types former actuals), prepared)
+                (None, prepared) -> (None, prepared) in
+          case applied of
+            Some refined | valid-type (refinement-view refined) -> (refined, checked)
+            -- A predicate checked over an abstract carrier may fail at the
+            -- supplied arguments. Report it through the source checker.
+            other -> if list-length actuals < list-length params then bad sp "unsaturated refinement alias needs a checked type former" st
+              else case refinement-arguments sp scoped params actuals Nil Nil st of
+                (locals, prepared) -> instantiate-refinement sp scoped locals binder predicate prepared
       other -> (value, st)
     other -> (value, st)
   apply-refinement-types :: UType -> List UType -> UType
@@ -670,27 +676,33 @@ module Bootstrap.Infer where
       (Some (UPi id name domain row result), Some input) -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some (predicate-base-carrier result) else None
       other -> None)
     other -> None
-  convert-byte-operand :: TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
-  convert-byte-operand kinds locals sp argument st = case argument of
+  convert-byte-operand :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  convert-byte-operand external kinds locals sp argument st = case argument of
     TName at binding -> case lookup-local binding locals of
       Some value -> predicate-index-value sp (primitive-type "Bytes") value st
       None -> bad sp "byte observation input has no checked local identity" st
-    TApp at (TName called name) (TArg arg input (TArgsEnd end)) -> (case context-identity-observation name kinds of
-      Some sc -> (case open-scheme False sc st of
+    TApp at (TName called name) arguments -> (case (lookup-local name locals, context-identity-observation name kinds, arguments) of
+      (None, Some sc, TArg arg input (TArgsEnd end)) -> (case open-scheme False sc st of
         (function, pairs, opened) -> case function of
-          UFun domain result -> case convert-byte-operand kinds locals sp input opened of
+          UFun domain result -> case convert-byte-operand external kinds locals sp input opened of
             (value, checked) -> (value, unify sp result (primitive-type "Bytes") (unify sp domain (primitive-type "Bytes") checked))
           other -> bad sp "byte observation helper needs its checked pure identity type" opened)
-      None -> (case known-observation-input-type locals argument of
-        Some carrier -> let checked = unify sp (predicate-base-carrier carrier) (primitive-type "Bytes") st in
-          if list-length (store-errors checked) > list-length (store-errors st) then (UError, checked)
-          else bad sp "byte observation input needs checked pure total reification" checked
-        None -> bad sp "byte observation input needs checked pure total reification" st))
+      (None, identity, args) -> (case context-total-observation name kinds of
+        Some binding -> (case convert-total-call external kinds locals called name args st of
+          (value, checked) -> predicate-index-value sp (primitive-type "Bytes") value checked)
+        None -> reject-byte-application locals sp argument st)
+      other -> reject-byte-application locals sp argument st)
     other -> bad sp "byte observation input needs checked pure total reification" st
-  convert-byte-length :: TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
-  convert-byte-length kinds locals sp name argument st =
+  reject-byte-application :: List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
+  reject-byte-application locals sp argument st = case known-observation-input-type locals argument of
+    Some carrier -> let checked = unify sp (predicate-base-carrier carrier) (primitive-type "Bytes") st in
+      if list-length (store-errors checked) > list-length (store-errors st) then (UError, checked)
+      else bad sp "byte observation input needs checked pure total reification" checked
+    None -> bad sp "byte observation input needs checked pure total reification" st
+  convert-byte-length :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
+  convert-byte-length external kinds locals sp name argument st =
     if not (byte-length-binding name kinds) then bad sp "index expression needs checked scope, purity and totality" st
-    else case convert-byte-operand kinds locals sp argument st of
+    else case convert-byte-operand external kinds locals sp argument st of
       (input, checked) -> checked-typed-source-index sp (UIndexByteLength input) checked
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
   convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
@@ -707,7 +719,7 @@ module Bootstrap.Infer where
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length kinds locals sp name input st of
+      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
         (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
       other -> (case convert-total-call external kinds locals sp name arguments st of
         (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked)))
@@ -758,9 +770,15 @@ module Bootstrap.Infer where
     Cons error rest -> (UError, st)
     Nil -> reify-checked-argument sp env term st
   reify-checked-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
-  reify-checked-argument sp env term st = case scoped-total-call-index (proof-context env st) (proof-facts env) (map-term-types (normalize st) term) of
-    Some value -> checked-typed-source-index sp value st
-    None -> reify-ordinary-argument sp env term st
+  reify-checked-argument sp env term st =
+    let gamma = proof-context env st in
+    let facts = proof-facts env in
+    let checked = map-term-types (normalize st) term in
+    case scoped-total-call-index gamma facts checked of
+      Some value -> checked-typed-source-index sp value st
+      None -> case scoped-list-index gamma facts checked of
+        Some value -> checked-typed-source-index sp value st
+        None -> reify-ordinary-argument sp env term st
   reify-ordinary-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-ordinary-argument sp env term st = case term of
     CApply source ty (CUse at function symbol role Nil) input ->
@@ -848,12 +866,6 @@ module Bootstrap.Infer where
         other -> (MkLocalBinding name sc id level, st)
     other -> (MkLocalBinding name sc id level, st)
 
-  pattern-value :: CorePattern -> Option CoreTerm
-  pattern-value pattern = case pattern of
-    CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
-    CPAs sp ty id name inner -> Some (CLocal sp ty id name Nil)
-    CPInt sp ty text -> Some (CInt sp ty text)
-    other -> None
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
   bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
@@ -1537,15 +1549,23 @@ module Bootstrap.Infer where
     Some prior -> (context, if binding-equal prior binding then st else add-error sp "conflicting defining total body declarations" st)
     None -> (case context of MkTypeContext kinds aliases active observers effects source-classes -> (MkTypeContext kinds aliases active (Cons (TotalObservation (binding-name binding) binding) observers) effects source-classes, st))
   collect-total-metadata :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-total-metadata sp name native metadata classes kinds st = case field "total_body" metadata of
+  collect-total-metadata sp name native metadata classes kinds st = case field "keyed_ordering" metadata of
+    JNull -> collect-closed-body sp name native metadata classes kinds st
+    doc -> (case read-keyed-ordering native doc of
+      Some function -> collect-defining-body sp name native metadata classes kinds function st
+      None -> (kinds, add-error sp "invalid defining keyed ordering body" st))
+  collect-defining-body :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> TotalFunction -> Store -> (TypeContext, Store)
+  collect-defining-body sp name native metadata classes kinds function st = case imported-scheme sp classes kinds (TName sp "Int") metadata st of
+    (sc, checked) -> (case check-body-binding name native "external" sc function of
+      Some binding -> context-add-total sp binding kinds checked
+      None -> (kinds, add-error sp "executable body disagrees with its complete defining declaration" checked))
+  collect-closed-body :: Span -> String -> String -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-closed-body sp name native metadata classes kinds st = case field "total_body" metadata of
     JNull -> (kinds, st)
     doc -> (case check-total-graph doc of
       Some graph -> if not (total-graph-for-roots graph [native]) then (kinds, add-error sp "total body contains unrelated definitions" st)
         else (case total-function graph native of
-          Some function -> (case imported-scheme sp classes kinds (TName sp "Int") metadata st of
-            (sc, checked) -> (case check-body-binding name native "external" sc function of
-              Some binding -> context-add-total sp binding kinds checked
-              None -> (kinds, add-error sp "total body disagrees with its complete defining declaration" checked)))
+          Some function -> collect-defining-body sp name native metadata classes kinds function st
           None -> (kinds, add-error sp "total body has no actual defining value identity" st))
       None -> (kinds, add-error sp "invalid defining total body graph" st))
   collect-private-measures :: Span -> Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
@@ -1561,8 +1581,8 @@ module Bootstrap.Infer where
     Nil -> (kinds, st)
     Cons (DExternal sp name category syntax metadata) rest ->
       (case collect-private-measures sp (resolved-measures metadata) classes kinds st of
-        (with-private, checked) -> (case field "total_body" metadata of
-          JNull -> collect-body-contracts rest classes with-private checked
+        (with-private, checked) -> (case (field "total_body" metadata, field "keyed_ordering" metadata) of
+          (JNull, JNull) -> collect-body-contracts rest classes with-private checked
           doc -> if not (same category "value") then (kinds, add-error sp "total bodies require actual external value declarations" checked)
             else (case field "symbol" metadata of
               JStr native -> (case collect-total-metadata sp name native metadata classes with-private checked of
@@ -2309,6 +2329,10 @@ module Bootstrap.Infer where
   proof-case-env :: List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
   proof-case-env env value pattern positive st = prepend-proof-facts
     (scoped-core-case-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value) (map-pattern-types (normalize st) pattern) positive) env
+  proof-case-rest-env :: List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
+  proof-case-rest-env env value pattern body st = prepend-proof-facts
+    (scoped-core-case-rest-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
+      (map-pattern-types (normalize st) pattern) (map-term-types (normalize st) body)) env
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st = case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of
     Some fact -> Cons (MkProofBinding fact) (Cons binding env)
@@ -2386,7 +2410,7 @@ module Bootstrap.Infer where
   decision-predicate :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
   decision-predicate classes kinds families env locals syntax st = case syntax of
     ECon sp name (EArgsEnd end) -> if same name "True" || same name "False" then (UPropLit (same name "True"), decision-boolean sp (same name "True"), st) else decision-failure sp "predicate needs an executable checked decision procedure" st
-    ECon sp name (EArg at input (EArgsEnd end)) -> if same name "NonZero" || same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "unknown executable predicate former" st
+    ECon sp name (EArg at input (EArgsEnd end)) -> decision-unary classes kinds families env locals sp name input st
     EApp sp (ECon at name (EArgsEnd end)) input -> decision-unary classes kinds families env locals sp name input st
     EApp sp (EVar at name) input -> if same name "Not" then decision-unary classes kinds families env locals sp name input st else decision-failure sp "predicate calls need checked decision authority" st
     EIf sp first second (ECon at name (EArgsEnd end)) -> if same name "False" then decision-predicate classes kinds families env locals (EBin sp "&&" first second) st
@@ -2417,7 +2441,20 @@ module Bootstrap.Infer where
        case decision-value classes kinds families env locals carrier input st of
          (value, checked) -> case decision-index sp env carrier value checked of
            (index, done) -> (UPropNonZero index, CPrimitive sp (primitive-type "Bool") "/=" (CArgument sp value (CArgument sp (CInt sp carrier "0") (CArgumentsEnd sp))), done))
+    else if same name "NotNull" then decision-not-null classes kinds families env locals sp input st
     else decision-failure sp "unknown executable predicate former" st
+  decision-not-null :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (UType, CoreTerm, Store)
+  decision-not-null classes kinds families env locals sp input st = case fresh-meta KType st of
+    (element, opened) -> let list = collection-list element in
+      case check classes kinds families env locals input list opened of
+        (value, checked) -> case reify-argument sp env (map-term-types (normalize checked) value) checked of
+          (index, indexed) -> case bind-pattern classes kinds families env locals (PCon sp (interface-global "Data.Core.Nil") (PArgsEnd sp)) list indexed of
+            (empty-scope, empty, matched) ->
+              let cons = PCon sp (interface-global "Data.Core.Cons") (pat-spine sp [PWild sp, PWild sp]) in
+              case bind-pattern classes kinds families env locals cons list matched of
+                (nonempty-scope, nonempty, done) ->
+                  let branches = CAlternative sp empty (decision-boolean sp False) (CAlternative sp nonempty (decision-boolean sp True) (CAlternativesEnd sp)) in
+                  (UPropNotNull index, CCase sp (primitive-type "Bool") value branches, done)
   infer-decision :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Store -> (CoreTerm, Store)
   infer-decision classes kinds families env locals sp syntax st = case decision-predicate classes kinds families env locals syntax st of
     (predicate, condition, checked) -> let p = normalize checked predicate in let test = map-term-types (normalize checked) condition in let ty = decision-type p in
@@ -2494,6 +2531,10 @@ module Bootstrap.Infer where
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
     EProject sp value label -> infer-record-projection classes kinds families env locals sp value label st
     EVar s name -> case lookup-expression-value s kinds name env st of (term, checked) -> discharge-call classes s env term checked
+    ECon sp name (EArg at input (EArgsEnd end)) | has name ["#condition.NonZero", "#condition.NotNull"] ->
+      let former = if same name "#condition.NonZero" then "NonZero" else "NotNull" in
+      (case decision-unary classes kinds families env locals sp former input st of
+        (predicate, test, checked) -> (test, checked))
     ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     EList s args -> infer-collection classes kinds families env locals s args None st
     ELitInt s text -> checked-literal s (primitive-type "Int") text st
@@ -2628,6 +2669,7 @@ module Bootstrap.Infer where
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields (Some expected) st
+    ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
     EApp sp function argument -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
@@ -2712,9 +2754,31 @@ module Bootstrap.Infer where
   introduce-refinement :: List CheckedBinding -> Span -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
   introduce-refinement env sp expected term st = case store-errors st of
     Cons error rest -> (CError sp, st)
-    Nil -> case scoped-prove-refinement (proof-context env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
-      Some evidence -> (CRefine sp expected evidence term, st)
-      None -> term-error sp "refinement predicate is not established for this value (undischarged refinement obligation)" st
+    Nil -> let gamma = proof-context env st in
+      let facts = proof-facts env in
+      let refined = normalize st expected in
+      let value = map-term-types (normalize st) term in
+      case scoped-prove-refinement gamma facts refined value of
+        Some evidence -> (CRefine sp expected evidence term, st)
+        None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
+          case scoped-refinement-predicate gamma facts refined value of
+            Some predicate -> term-error sp (missing-obligation message predicate) st
+            None -> term-error sp message st
+
+  obligation-text :: UType -> String
+  obligation-text ty = case ty of
+    UCompare relation left right -> if same relation "Eq" then
+      string-concat-all ["Eq ", obligation-text left, " ", obligation-text right]
+      else string-concat-all [obligation-text left, " ", relation, " ", obligation-text right]
+    UPropNonZero body -> "NonZero " <> obligation-text body
+    UPropNonZeroPending body -> "NonZero " <> obligation-text body
+    UPropNotNull body -> "NotNull " <> obligation-text body
+    UIndexForget value -> obligation-text value
+    UIndexPromote value -> obligation-text value
+    other -> type-text ty
+  missing-obligation :: String -> UType -> String
+  missing-obligation message predicate = let shown = obligation-text predicate in
+    string-concat-all [message, " because the obligation `", shown, "` needs evidence and the checker found no evidence for `", shown, "`"]
   -- Hoisting an actual strict value binding out of a let-generalization
   -- level changes that binding's inference depth, not its identity. Retarget
   -- only references to that witnessed local; unrelated indices and all type
@@ -2732,6 +2796,8 @@ module Bootstrap.Infer where
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexList element fields ->
+      UIndexList (relocate-local-index binding new-level element) (relocate-local-index binding new-level fields)
     UIndexCall function args -> UIndexCall function (relocate-local-index binding new-level args)
     UIndexPromote value -> UIndexPromote (relocate-local-index binding new-level value)
     UIndexMath op left right -> UIndexMath op (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
@@ -2849,8 +2915,18 @@ module Bootstrap.Infer where
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-open-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
-    UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
-      (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
+    UProofFun predicate effects result -> case (fun, arg) of
+      -- Transparent constructors are synthesized with a scoped proof
+      -- lambda. A direct decide must check the same predicate, and the
+      -- payload must independently establish it before erasing the decision.
+      (CApply at ty (CLambda source outer (CPVar binder domain id name)
+        (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
+          (CRefineProof construct refined reference body))) value,
+       EApp decision head input) | decision-syntax-head env head ->
+        (case check classes kinds families env locals arg (decision-type predicate) st of
+          (checked-decision, checked) -> introduce-refinement env sp result value checked)
+      other -> case erased-argument sp env arg predicate st of
+        (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
       (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
     other -> case arrow-parts sp (core-type fun) st of
@@ -3248,7 +3324,7 @@ module Bootstrap.Infer where
     EAltsEnd s -> (CAlternativesEnd s, st)
     EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
       (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env bound scrut pattern True sb) locals body result sb of
-        (rhs, sr) -> case check-alternatives classes kinds families (if body-covers body then proof-case-env env scrut pattern False sr else env) locals scrut result rest sr of
+        (rhs, sr) -> case check-alternatives classes kinds families (proof-case-rest-env env scrut pattern rhs sr) locals scrut result rest sr of
           (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -3399,20 +3475,26 @@ module Bootstrap.Infer where
     Cons d rest -> imported-families rest
   clause-rows :: List (List Pat, Expr) -> List (List Pat)
   clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> if body-covers body then Cons ps (clause-rows rest) else clause-rows rest
-  check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (List CorePattern, CoreTerm, Store)
-  check-equation classes kinds families env locals ps body expected st = check-equation-effects classes kinds families env locals ps body expected (URow UEnd) st
-  check-equation-effects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
-  check-equation-effects classes kinds families env locals ps body expected allowed st = case ps of
-    Nil -> case check-required classes kinds families env locals body expected st of
-      (rhs, ss) -> (Nil, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss)
+  check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List (List CorePattern) -> List CorePattern -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
+  check-equation classes kinds families env locals earlier reversed ps body expected allowed st = case ps of
+    Nil -> let patterns = reverse reversed in
+      let bound = case earlier of
+            Nil -> env
+            Cons first rest -> prepend-proof-facts
+              (scoped-core-equation-facts (proof-context env st) (normalize-equation-prefix st earlier) (normalize-patterns st patterns)) env in
+      (case check-required classes kinds families bound locals body expected st of
+        (rhs, ss) -> (patterns, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss))
     Cons p rest -> case bind-arrow-pattern classes kinds families env locals p expected (include-effects (pat-span p) allowed (URow UEnd) st) of
-      (bound, pattern, row, result, checked) -> case check-equation-effects classes kinds families bound locals rest body result row checked of
-        (patterns, rhs, ss) -> (Cons pattern patterns, rhs, ss)
-  check-clauses :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> List (List Pat, Expr) -> Store -> (List CoreClause, Store)
-  check-clauses classes kinds families env locals ty cs st = case cs of
+      (bound, pattern, row, result, checked) -> check-equation classes kinds families bound locals earlier (Cons pattern reversed) rest body result row checked
+  normalize-equation-prefix :: Store -> List (List CorePattern) -> List (List CorePattern)
+  normalize-equation-prefix st earlier = case earlier of
+    Nil -> Nil
+    Cons first rest -> Cons (normalize-patterns st first) (normalize-equation-prefix st rest)
+  check-clauses :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> List (List CorePattern) -> List (List Pat, Expr) -> Store -> (List CoreClause, Store)
+  check-clauses classes kinds families env locals ty earlier cs st = case cs of
     Nil -> (Nil, st)
-    Cons (ps, body) rest -> case check-equation classes kinds families env locals ps body ty (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
-      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty rest sr of
+    Cons (ps, body) rest -> case check-equation classes kinds families env locals earlier Nil ps body ty (URow UEnd) (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
+      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty (extend-equation-prefix patterns rhs earlier) rest sr of
         (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
   bind-value-parameters :: List Quant -> List (Nat, UType) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   bind-value-parameters params pairs env st = case params of
@@ -3446,7 +3528,7 @@ module Bootstrap.Infer where
           let locals = annotation-locals <> opened-locals (scheme-params (checked-scheme b)) pairs in
           let (value-env, value-store) = bind-value-parameters (scheme-params (checked-scheme b)) pairs (bind-annotation-values annotation-locals env) ss in
           let (bound, givens, sg) = bind-requirements sp requirements value-env value-store in
-          let (clauses, checked) = check-clauses classes kinds families bound locals ty cs sg in
+          let (clauses, checked) = check-clauses classes kinds families bound locals ty Nil cs sg in
           let count = case cs of Nil -> 0; Cons (ps, body) rest -> list-length ps in
           let types = domains ty in
           let same-arity = clauses-full-arity cs count && count <= list-length types in
@@ -3898,13 +3980,13 @@ module Bootstrap.Infer where
                     let done = restore-level level checked-right in
                     if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
                       report-finite-law-samples sp name families env sampler dictionary givens
-                        (law-normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
+                        (normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
             (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked))
 
-  law-normalize-patterns :: Store -> List CorePattern -> List CorePattern
-  law-normalize-patterns st patterns = case patterns of
+  normalize-patterns :: Store -> List CorePattern -> List CorePattern
+  normalize-patterns st patterns = case patterns of
     Nil -> Nil
-    Cons p rest -> Cons (map-pattern-types (normalize st) p) (law-normalize-patterns st rest)
+    Cons p rest -> Cons (map-pattern-types (normalize st) p) (normalize-patterns st rest)
 
   unchecked-law :: String -> String
   unchecked-law reason = string-concat-all ["not checked (", reason, ")"]
@@ -4475,20 +4557,26 @@ module Bootstrap.Infer where
     UFunEff domain (URow UEnd) result -> source-total-atom domain && source-total-type result
     URefine id name (UCon carrier KType) predicate -> has carrier ["Nat", "Int", "I64"]
     other -> source-total-atom ty
-  source-total-candidate :: List (String, Kind) -> TypeContext -> TypeExpr -> Bool
-  source-total-candidate classes kinds syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
+  source-projection-domain :: UType -> Option String
+  source-projection-domain ty = case ty of
+    UFun (UCon domain KType) (UCon result KType) -> if same result "Bytes" && not (primitive domain) then Some domain else None
+    other -> None
+  source-total-candidate :: List (String, Kind) -> TypeContext -> List Decl -> TypeExpr -> Bool
+  source-total-candidate classes kinds declarations syntax = case make-scheme False classes kinds Nil syntax (empty-store "source total candidate") of
     (sc, checked) -> case (store-errors checked, scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil, Nil) -> source-total-type (scheme-body sc)
+      (Nil, Nil, Nil) -> source-total-type (scheme-body sc) || (case source-projection-domain (scheme-body sc) of
+        Some name -> (case source-total-find-data name declarations of Some decl -> True; None -> False)
+        None -> False)
       other -> False
-  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List String
-  source-total-names classes kinds declarations = case declarations of
+  source-total-names :: List (String, Kind) -> TypeContext -> List Decl -> List Decl -> List String
+  source-total-names classes kinds all declarations = case declarations of
     Nil -> Nil
-    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds syntax then Cons name (source-total-names classes kinds rest) else source-total-names classes kinds rest
-    Cons other rest -> source-total-names classes kinds rest
-  source-total-select :: List String -> List String -> List Decl -> List Decl
-  source-total-select names aliases declarations = case declarations of
+    Cons (DSig sp name syntax) rest -> if source-total-candidate classes kinds all syntax then Cons name (source-total-names classes kinds all rest) else source-total-names classes kinds all rest
+    Cons other rest -> source-total-names classes kinds all rest
+  source-total-select :: List String -> List String -> List String -> List Decl -> List Decl
+  source-total-select names aliases datas declarations = case declarations of
     Nil -> Nil
-    Cons declaration rest -> let more = source-total-select names aliases rest in
+    Cons declaration rest -> let more = source-total-select names aliases datas rest in
       case declaration of
         DSig sp name syntax -> if has name names then Cons declaration more else more
         DFun sp name clauses -> if has name names then Cons declaration more else more
@@ -4497,6 +4585,7 @@ module Bootstrap.Infer where
         DSource sp name metadata -> Cons declaration more
         DProof sp body -> Cons declaration more
         DRefine sp name parameters binder predicate -> if has name aliases then Cons declaration more else more
+        DData sp name parameters constructors -> if has name datas then Cons declaration more else more
         DForeign sp direction abi symbol name syntax -> (case intrinsic-contract symbol of Some specification -> Cons declaration more; None -> more)
         other -> more
   source-total-selected-references :: List String -> List Decl -> List String
@@ -4513,6 +4602,28 @@ module Bootstrap.Infer where
     Cons declaration rest -> case declaration of
       DRefine sp symbol parameters binder predicate -> if same symbol name then Some declaration else source-total-find-alias name rest
       other -> source-total-find-alias name rest
+  source-total-find-data :: String -> List Decl -> Option Decl
+  source-total-find-data name declarations = case declarations of
+    Nil -> None
+    Cons declaration rest -> case declaration of
+      DData sp symbol Nil constructors -> if same symbol name then Some declaration else source-total-find-data name rest
+      other -> source-total-find-data name rest
+  source-total-data-closure :: List Decl -> List String -> List String -> (List String, List String)
+  source-total-data-closure declarations pending seen = case pending of
+    Nil -> (seen, Nil)
+    Cons name rest -> if has name seen then source-total-data-closure declarations rest seen else
+      (case source-total-find-data name declarations of
+        Some declaration -> let refs = declaration-references [declaration] in
+          let (datas, more) = source-total-data-closure declarations (refs <> rest) (Cons name seen) in
+          (datas, refs <> more)
+        None -> source-total-data-closure declarations rest seen)
+  source-total-data-roots :: List String -> List Decl -> List String
+  source-total-data-roots names declarations = case declarations of
+    Nil -> Nil
+    Cons (DSig sp name (TFun arrow (TName at domain) (TName end result))) rest ->
+      if same result "Bytes" && has name names then Cons domain (source-total-data-roots names rest)
+      else source-total-data-roots names rest
+    Cons other rest -> source-total-data-roots names rest
   source-total-parameter-references :: List TypeParam -> List String
   source-total-parameter-references parameters = case parameters of
     Nil -> Nil
@@ -4545,12 +4656,15 @@ module Bootstrap.Infer where
     Nil -> Nil
     Cons name rest -> let more = source-total-from-checked rest preliminary in
       (case export-global name of
-        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) native of Some binding -> Cons binding more; None -> more)
+        Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) (elaboration-data preliminary) native of Some binding -> Cons binding more; None -> more)
         Err error -> more)
   source-total-preliminary :: String -> Module -> List String -> Elaboration
-  source-total-preliminary label m names = elaborate-module-with-source-bodies False (label <> " total bodies")
-    (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names
-      (source-total-alias-closure (module-decls m) (source-total-selected-references names (module-decls m)) Nil) (module-decls m))))
+  source-total-preliminary label m names = let declarations = module-decls m in
+    let refs = source-total-selected-references names declarations in
+    let (datas, data-refs) = source-total-data-closure declarations (source-total-data-roots names declarations) Nil in
+    let aliases = source-total-alias-closure declarations (refs <> data-refs) Nil in
+    elaborate-module-with-source-bodies False (label <> " total bodies")
+      (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
   source-total-individual :: String -> Module -> List String -> List String -> List BodyBinding
   source-total-individual label m all names = case names of
     Nil -> Nil
@@ -4559,7 +4673,8 @@ module Bootstrap.Infer where
       let preliminary = source-total-preliminary label m needed in
       (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
   source-total-bodies :: String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
-  source-total-bodies label m classes kinds = let names = source-total-names classes kinds (module-decls m) in
+  source-total-bodies label m classes kinds = let declarations = module-decls m in
+    let names = source-total-names classes kinds declarations declarations in
     case names of
       Nil -> Nil
       other -> let preliminary = source-total-preliminary label m names in
@@ -4583,7 +4698,7 @@ module Bootstrap.Infer where
     TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
     TName s name -> same name "True" || same name "False"
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) -> same name "Eq"
-    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> has name ["NonZero", "NotNull"]
     other -> False
   predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
   predicate-carrier locals syntax = case syntax of
@@ -4614,7 +4729,9 @@ module Bootstrap.Infer where
     TApp sp (TName at name) arguments -> byte-length-binding name kinds || (case context-total-observation name kinds of
       Some binding -> has (total-result (binding-function binding)) ["Nat", "Int"]
       None -> False)
-    TName sp name -> case lookup-local name locals of Some value -> (case value-carrier (type-kind value) of Some carrier -> math-carrier (predicate-base-carrier carrier); None -> False); None -> False
+    -- A local fixed-width value can be read as mathematical Int in a type
+    -- expression. This does not make its runtime operators proof terms.
+    TName sp name -> case lookup-local name locals of Some value -> (case value-carrier (type-kind value) of Some carrier -> predicate-math-carrier carrier; None -> False); None -> False
     TInfix sp op left right -> predicate-arithmetic-input kinds locals left && predicate-arithmetic-input kinds locals right
     TNegate sp body -> predicate-arithmetic-input kinds locals body
     TIndex sp text -> True
@@ -4633,7 +4750,7 @@ module Bootstrap.Infer where
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of
     TApp sp (TName at name) arguments -> (case (byte-length-binding name kinds, arguments) of
-      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length kinds locals sp name input st of
+      (True, TArg arg input (TArgsEnd end)) -> (case convert-byte-length external kinds locals sp name input st of
         (value, checked) -> predicate-index-value sp carrier value checked)
       other -> (case convert-total-call external kinds locals sp name arguments st of
         (value, checked) -> predicate-index-value sp carrier value checked))
@@ -4751,13 +4868,18 @@ module Bootstrap.Infer where
   discharge-call classes sp env input before = case resolve-ready-term classes (env-instances env) (env-givens env) input before of
     (term, st) -> discharge-checked-call sp env term st
   discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
-  discharge-checked-call sp env term st = case normalize st (core-type term) of
-    URequire predicates result -> case store-errors st of
-      Nil -> case scoped-prove-predicates (proof-context env st) (proof-facts env) (normalize st (core-type term)) of
-        Some evidence -> (CDischarge sp (required-body (normalize st (core-type term))) evidence term, st)
-        None -> term-error sp "function precondition is not established at this call" st
+  discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
+    case ty of
+      URequire predicates result -> case store-errors st of
+        Nil -> case scoped-prove-predicates (proof-context env st) (proof-facts env) ty of
+          Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
+          None -> let message = "function precondition is not established at this call" in
+            case (predicates, result) of
+              (UArg predicate UEnd, URequire more body) -> term-error sp message st
+              (UArg predicate UEnd, other) -> term-error sp (missing-obligation message predicate) st
+              other -> term-error sp message st
+        other -> (term, st)
       other -> (term, st)
-    other -> (term, st)
 
   apply-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-dependent classes sp env fun value st = case reify-argument sp env value st of
