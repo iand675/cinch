@@ -1780,12 +1780,11 @@ fn materialize(
         .map_err(|e| Error::plain(format!("{}: {e}", entry.display())))?;
     let object = source_dir.join("package.o");
     let abi = source_dir.join("package.abi.json");
-    let built = driver_opts(
-        Mode::EmitObject,
-        &entry,
-        Some(&object),
-        &DriverOptions::default(),
-    );
+    let options = DriverOptions {
+        emit_modules: module_names.clone(),
+        ..DriverOptions::default()
+    };
+    let built = driver_opts(Mode::EmitObject, &entry, Some(&object), &options);
     let _ = std::fs::remove_file(&entry);
     built.map_err(|e| Error::plain(format!("build package object: {e}")))?;
     let interfaces = source_dir.join("build");
@@ -2542,6 +2541,21 @@ mod tests {
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
         assert!(installed.interfaces.join("Library.cinchif").exists());
+        let abi: Value =
+            serde_json::from_slice(&std::fs::read(&installed.abi).expect("package ABI"))
+                .expect("package ABI JSON");
+        let units = abi["units"].as_array().expect("ABI units");
+        assert!(
+            units
+                .iter()
+                .all(|unit| unit["symbol"]
+                    .as_str()
+                    .is_some_and(|symbol| symbol == "Library"
+                        || symbol.starts_with("Library.")
+                        || symbol.starts_with("cinch.")
+                        || symbol.starts_with("<builtin>"))),
+            "package object must not bundle dependency modules, got {units:?}"
+        );
         let lock = std::fs::read_to_string(dir.join(".cinchlock")).expect("lock");
         assert!(lock.contains("acme/library"));
         std::fs::write(
@@ -3069,5 +3083,53 @@ mod tests {
             "{}",
             error.message
         );
+    }
+    #[test]
+    fn native_build_consumes_package_objects_and_dependencies() {
+        let dir = std::env::temp_dir().join(format!("cinch-pkg-native-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("project");
+        let install = |name: &str, module: &str, source: &[u8]| {
+            let manifest = json!({
+                "schema": 2,
+                "name": name,
+                "version": "0.1.0",
+                "modules": [{"name": module, "path": format!("{module}.cinch")}],
+                "order": [module],
+            });
+            let mut files = BTreeMap::new();
+            files.insert(format!("{module}.cinch"), source.to_vec());
+            let id = package_identity(&manifest, &files).expect("identity");
+            let bundle = json!({
+                "schema": 1,
+                "manifest": manifest,
+                "files": {format!("{module}.cinch"): base64_encode(source)},
+                "visibility": "public",
+            });
+            install_bundle(&dir, "http://registry.local", &id, &bundle, None, None)
+                .expect("install package")
+        };
+        let base = install(
+            "acme/base",
+            "Base",
+            b"module Base where\n  value :: Int\n  value = 7\n",
+        );
+        let top = install(
+            "acme/top",
+            "Top",
+            b"module Top where\n  import Base\n  answer :: Int\n  answer = value + 1\n",
+        );
+        std::fs::write(
+            dir.join("Main.cinch"),
+            "module Main where\n  import Top\n  main :: Int\n  main = answer\n",
+        )
+        .expect("entry");
+        let options = DriverOptions {
+            package_objects: vec![top.object.clone(), base.object.clone()],
+            ..DriverOptions::default()
+        };
+        let status = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
+            .expect("native build with package objects");
+        assert_eq!(status, 8);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

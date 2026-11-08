@@ -320,6 +320,21 @@ impl JitEngine {
         })
     }
 
+    /// Add a package object whose layout prefix is already covered by the
+    /// package object added later. Dependency objects are linked before the
+    /// root so their external symbols resolve; only the root registers the
+    /// combined layout prefix.
+    pub fn add_package_object_dependency(&mut self, object: &Path) -> Result<PackageObject> {
+        let abi = read_package_abi(object)?;
+        verify_package_interfaces(object, &abi.interfaces)?;
+        self.add_object_file(object)?;
+        Ok(PackageObject {
+            object: object.to_path_buf(),
+            units: abi.units,
+            layout_words: abi.layout_words.len(),
+        })
+    }
+
     /// Resolve a symbol in the main JIT dylib.
     pub fn lookup(&self, name: &str) -> Result<u64> {
         let name =
@@ -721,19 +736,30 @@ mod tests {
     /// The package identity `install_bundle` rechecks: SHA-256 over the
     /// canonical manifest and the sorted file rows.
     fn package_identity(manifest: &serde_json::Value, source: &[u8]) -> String {
+        package_identity_files(manifest, &[("Library.cinch", source)])
+    }
+
+    fn package_identity_files(manifest: &serde_json::Value, files: &[(&str, &[u8])]) -> String {
         let text = serde_json::to_string(manifest).expect("manifest JSON");
         let manifest = crate::interface::parse_json(&text)
             .expect("canonical manifest")
             .to_canonical_string();
-        let mut file = Sha256::new();
-        file.update(source);
-        let hash: String = file
-            .finalize()
+        let mut rows = files
             .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+            .map(|(path, source)| {
+                let mut file = Sha256::new();
+                file.update(source);
+                let hash: String = file
+                    .finalize()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect();
+                format!("{path}\t{hash}")
+            })
+            .collect::<Vec<_>>();
+        rows.sort();
         let mut identity = Sha256::new();
-        identity.update(format!("package\n{manifest}\nLibrary.cinch\t{hash}").as_bytes());
+        identity.update(format!("package\n{manifest}\n{}", rows.join("\n")).as_bytes());
         let digest: String = identity
             .finalize()
             .iter()
@@ -799,6 +825,88 @@ mod tests {
                 // recorded prefix was not installed first.
                 let boxed = engine.call_i64("Library.boxed").expect("call allocating unit") as u64;
                 assert_eq!(unsafe { *(boxed as *const u64) }, 85);
+            })
+            .expect("test thread")
+            .join()
+            .expect("test thread result");
+    }
+
+    #[test]
+    fn cross_object_references_resolve_in_one_jit_engine() {
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(|| {
+                use serde_json::json;
+                let project = tempfile::tempdir().expect("project");
+                let base_source = b"module Base where\n  value :: Int\n  value = 7\n";
+                let base_manifest = json!({
+                    "schema": 2,
+                    "name": "acme/base",
+                    "version": "0.1.0",
+                    "modules": [{"name": "Base", "path": "Base.cinch"}],
+                    "order": ["Base"],
+                });
+                let base_id =
+                    package_identity_files(&base_manifest, &[("Base.cinch", base_source)]);
+                let base_bundle = json!({
+                    "schema": 1,
+                    "manifest": base_manifest,
+                    "files": {"Base.cinch": base64(base_source)},
+                    "visibility": "public",
+                });
+                let base_installed = crate::pkg::install_bundle(
+                    project.path(),
+                    "http://registry.local",
+                    &base_id,
+                    &base_bundle,
+                    None,
+                    None,
+                )
+                .expect("install base");
+                let top_source =
+                    b"module Top where\n  import Base\n  answer :: Int\n  answer = value + 1\n";
+                let top_manifest = json!({
+                    "schema": 2,
+                    "name": "acme/top",
+                    "version": "0.1.0",
+                    "modules": [{"name": "Top", "path": "Top.cinch"}],
+                    "order": ["Top"],
+                });
+                let top_id = package_identity_files(&top_manifest, &[("Top.cinch", top_source)]);
+                let top_bundle = json!({
+                    "schema": 1,
+                    "manifest": top_manifest,
+                    "files": {"Top.cinch": base64(top_source)},
+                    "visibility": "public",
+                });
+                let top_installed = crate::pkg::install_bundle(
+                    project.path(),
+                    "http://registry.local",
+                    &top_id,
+                    &top_bundle,
+                    None,
+                    None,
+                )
+                .expect("install top");
+                let runtime = crate::driver::ensure_runtime_dylib().expect("runtime dylib");
+                let mut engine = JitEngine::new(Some(&runtime)).expect("JIT engine");
+                let base_object = engine
+                    .add_package_object_dependency(&base_installed.object)
+                    .expect("load base object");
+                assert!(base_object.units.contains_key("Base.value"));
+                let top_object = engine
+                    .add_package_object(&top_installed.object)
+                    .expect("load top object");
+                assert!(top_object.units.contains_key("Top.answer"));
+                assert!(
+                    top_object
+                        .units
+                        .keys()
+                        .all(|symbol| symbol.starts_with("Top.") || symbol.starts_with("cinch.")),
+                    "top object must not bundle Base: {:?}",
+                    top_object.units
+                );
+                assert_eq!(engine.call_i64("Top.answer").expect("call Top.answer"), 17);
             })
             .expect("test thread")
             .join()

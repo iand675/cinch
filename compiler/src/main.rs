@@ -1,4 +1,5 @@
 use cinch::driver::{driver_opts, DriverOptions, Mode};
+use std::path::PathBuf;
 use std::process::exit;
 
 const USAGE: &str = "\
@@ -20,9 +21,10 @@ usage:
   cinch doc highlight <file.cinch> [--out <html>]
   cinch repl                       interactive session in the current project
   cinch jit <file.cinch>           JIT-compile and run (requires the jit feature)
-  cinch jit --package-object <package.o> --call <symbol>
-                                   load an installed package object and call one
-                                   zero-arity unit (requires the jit feature)
+  cinch jit --package-object <package.o> [--package-dependency <dep.o>]... --call <symbol>
+                                   load an installed package object and its
+                                   dependency objects, then call one zero-arity
+                                   unit (requires the jit feature)
   cinch pkg add NAME@VERSION | PATH_DIR | URL --git-rev REV
                                    install a registry, path, or git package
   cinch pkg add --path DIR | --git URL --git-rev REV
@@ -32,6 +34,7 @@ usage:
 flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
+  --package-object <path>  link an installed package object in build/run
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --          everything after it is a program argument (run), so an
@@ -64,6 +67,7 @@ fn main() {
             {
                 let mut file: Option<&str> = None;
                 let mut object: Option<&str> = None;
+                let mut dependencies: Vec<PathBuf> = Vec::new();
                 let mut symbol: Option<&str> = None;
                 let mut i = 1;
                 while i < args.len() {
@@ -74,6 +78,16 @@ fn main() {
                                 Some(path) => object = Some(path),
                                 None => {
                                     eprintln!("cinch jit: --package-object needs a path");
+                                    exit(2);
+                                }
+                            }
+                        }
+                        "--package-dependency" => {
+                            i += 1;
+                            match args.get(i) {
+                                Some(path) => dependencies.push(PathBuf::from(path)),
+                                None => {
+                                    eprintln!("cinch jit: --package-dependency needs a path");
                                     exit(2);
                                 }
                             }
@@ -115,6 +129,7 @@ fn main() {
                     (None, Some(object), Some(symbol)) => {
                         match cinch::driver::jit_package_symbol(
                             std::path::Path::new(object),
+                            &dependencies,
                             symbol,
                         ) {
                             Ok(value) => {
@@ -201,6 +216,16 @@ fn main() {
                 }
             }
             "--rebuild" => opts.rebuild_store = true,
+            "--package-object" if matches!(mode, Mode::Build | Mode::Run) => {
+                i += 1;
+                match rest.get(i) {
+                    Some(path) => opts.package_objects.push(PathBuf::from(path)),
+                    None => {
+                        eprintln!("cinch: --package-object needs a path");
+                        exit(2);
+                    }
+                }
+            }
             // Everything after `--` is the run program's own argument
             // list, verbatim: `cinch run prog.cinch -- --rebuild x`.
             "--" => {

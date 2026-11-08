@@ -22,11 +22,11 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 | --- | --- |
 | `cinch check file.cinch` | Load imports, parse, check and emit checked metadata; do not link a native executable. |
 | `cinch emit-ir file.cinch -o file.ll` | Check and emit LLVM IR text. |
-| `cinch build file.cinch -o program` | Check, emit IR, invoke clang, and link the native runtime. |
+| `cinch build file.cinch -o program [--package-object package.o]` | Check, emit IR, invoke clang, link the native runtime, and optionally link installed package objects. Project IR excludes the object's modules and declares their symbols. |
 | `cinch run file.cinch [args...]` | Compile and execute; return the program's exit status. |
 | `cinch repl` | Start the interactive [REPL](26-repl.md) in the current project. |
 | `cinch jit file.cinch` | JIT-compile and run through embedded LLVM ORC when the compiler is built with the `jit` feature. |
-| `cinch jit --package-object package.o --call Library.value` | Load one installed package object through embedded LLVM ORC and print one zero-arity unit's value, when the compiler is built with the `jit` feature. |
+| `cinch jit --package-object package.o [--package-dependency dep.o]... --call Library.value` | Load installed package objects and their separately produced dependency objects through embedded LLVM ORC, then print one zero-arity unit's value. |
 | `cinch pkg add NAME@VERSION` | Install one registry release, its semver dependency closure, and its object/interfaces into the project; update `.cinchlock`. |
 | `cinch pkg add PATH_DIR` or `--path DIR` | Install the package at that directory, its path dependencies relative to it, and any registry or git dependencies it declares. |
 | `cinch pkg add URL --git-rev REV` or `--git URL --git-rev REV` | Clone a local path, `file://`, or https repository at a revision and install the package at its root. |
@@ -39,7 +39,7 @@ The checked-in `devenv.nix` still contains older `safelang` script and environme
 
 `cinch jit` is not part of the default build. Build it with `cargo build --features jit`; the build needs LLVM with the C ORC headers and library, and `CINCH_LLVM_CONFIG` can select a versioned `llvm-config`. The command emits the checked program's LLVM IR, loads the runtime shared library, installs the layout table, and calls the generated `main` through LLJIT. A build without the feature reports that the command is unavailable. A native `cinch build`/`cinch run` remains the default path.
 
-`cinch jit --package-object package.o --call Library.value` loads an installed package object instead of a source program. It checks `package.abi.json` against this host and the object bytes, verifies the installed `.cinchif` files whose modules the manifest names, registers the recorded layout prefix and reclamation mode, adds the object with `LLVMOrcLLJITAddObjectFile`, and prints the result of one zero-arity unit. A unit the manifest does not define, or one with a nonzero arity, is refused. `package.o` and `package.abi.json` are the pair `cinch pkg add` installs. This is an object-loading entry point, not dependency-object consumption by `build`: a project build still compiles its vendored sources, so linking the same object beside that IR currently fails on duplicate symbols.
+`cinch build --package-object package.o` emits project modules only, declares the object's modules, and links the object. `cinch jit --package-object package.o --package-dependency dep.o --call Top.answer` loads installed package objects and their dependency objects. It checks every `package.abi.json` against this host and the object bytes, verifies installed `.cinchif` files, adds dependency objects first with `LLVMOrcLLJITAddObjectFile`, registers the root object's layout prefix and reclamation mode, and prints one zero-arity unit. Package objects define only their own modules and generated primitive helpers. JIT and native `build` both consume the same object format; JIT loads dependency objects first, while `build` passes them to the linker and emits only project modules.
 
 `-o` takes one path and is meaningful for `emit-ir` and `build`. For reproducible scripts, pass it explicitly. `--rebuild` recomputes a package-store entry that fails verification instead of stopping on the verification error. It is not an optimizer flag or a command to disable all incremental work.
 

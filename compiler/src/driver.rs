@@ -1900,6 +1900,15 @@ pub struct DriverOptions {
     /// Concrete representation variants demanded by a library consumer.
     /// Used only by `EmitObject`; an empty list preserves ordinary roots.
     pub object_roots: Vec<crate::specialize::ObjectRoot>,
+    /// `EmitObject` only: modules whose units this object defines. Every
+    /// other module is an external dependency and is emitted as declarations,
+    /// so separately produced package objects do not duplicate one another.
+    /// Empty preserves the historical whole-closure object.
+    pub emit_modules: Vec<String>,
+    /// `Build`/`Run`: separately produced dependency objects to link. Their
+    /// recorded modules are excluded from emitted IR and resolved from the
+    /// object at link time.
+    pub package_objects: Vec<PathBuf>,
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
     /// leaving it alone. The compile path never fails over an entry's
@@ -1993,6 +2002,87 @@ pub fn driver_with_profile(
     )
 }
 
+fn package_object_modules(path: &Path) -> Result<Vec<String>> {
+    let abi_path = path.with_extension("abi.json");
+    let bytes = std::fs::read(&abi_path)
+        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    let abi: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    let object_bytes =
+        std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    let expected = abi
+        .get("object_content_hash")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            Error::plain(format!(
+                "{}: package object ABI has no object_content_hash",
+                abi_path.display()
+            ))
+        })?;
+    let actual = crate::interface::content_hash_bytes(&object_bytes);
+    if expected != actual {
+        return Err(Error::plain(format!(
+            "{}: object content hash does not match package.abi.json",
+            path.display()
+        )));
+    }
+    if let Some(interfaces) = abi.get("interfaces").and_then(serde_json::Value::as_array) {
+        let build = path.parent().map(|parent| parent.join("build"));
+        for interface in interfaces {
+            let Some(module) = interface.get("module").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let Some(expected_hash) = interface
+                .get("iface_hash")
+                .and_then(serde_json::Value::as_str)
+            else {
+                continue;
+            };
+            let Some(path) = build
+                .as_ref()
+                .map(|build| build.join(format!("{module}.cinchif")))
+            else {
+                continue;
+            };
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let iface = crate::interface::Iface::from_json(&text)
+                .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+            if iface.iface_hash() != expected_hash {
+                return Err(Error::plain(format!(
+                    "{}: interface hash does not match package.abi.json",
+                    path.display()
+                )));
+            }
+        }
+    }
+    let modules = abi
+        .get("modules")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            Error::plain(format!(
+                "{}: package object ABI has no modules array; rebuild it with this compiler",
+                path.display()
+            ))
+        })?;
+    modules
+        .iter()
+        .map(|module| {
+            module.as_str().map(str::to_string).ok_or_else(|| {
+                Error::plain(format!("{}: module entry is not a string", path.display()))
+            })
+        })
+        .collect()
+}
+
+fn object_paths(objects: &[PathBuf]) -> Vec<String> {
+    objects
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect()
+}
+
 /// [`driver_with_profile`] with explicit options: the whole compile,
 /// with the flags that are neither a mode nor a profile.
 #[allow(clippy::too_many_arguments)]
@@ -2009,7 +2099,27 @@ pub fn driver_with_profile_opts(
             "explicit object roots require emit-object mode",
         ));
     }
+    if mode != Mode::EmitObject && !opts.package_objects.is_empty() && mode == Mode::EmitIr {
+        return Err(Error::plain("package objects require build or run mode"));
+    }
+    let mut emit_modules = opts.emit_modules.clone();
     let project = load_project(path)?;
+    if !opts.package_objects.is_empty() {
+        let mut excluded = Vec::new();
+        for object in &opts.package_objects {
+            for module in package_object_modules(object)? {
+                if !excluded.contains(&module) {
+                    excluded.push(module);
+                }
+            }
+        }
+        emit_modules = project
+            .order
+            .iter()
+            .filter(|module| !excluded.contains(module))
+            .cloned()
+            .collect();
+    }
     let adapters = wit_for_source(path)?;
     let prelude = parse_prelude(&adapters)?;
     let prelude_fixities = prelude.base.clone();
@@ -2123,9 +2233,21 @@ pub fn driver_with_profile_opts(
     // unbalance inserted count operations.
     let program = crate::rc::insert(program, profile)?;
     if mode == Mode::EmitObject {
-        return write_object(profile, &program, &ifaces, &method_families, path, out);
+        return write_object(
+            profile,
+            &program,
+            &ifaces,
+            &method_families,
+            path,
+            out,
+            &emit_modules,
+        );
     }
-    let ir = codegen::emit_for(profile, &program)?;
+    let ir = if emit_modules.is_empty() {
+        codegen::emit_for(profile, &program)?
+    } else {
+        codegen::emit_for_modules(profile, &program, &emit_modules)?
+    };
     match mode {
         Mode::Check | Mode::EmitObject => unreachable!(),
         Mode::EmitIr => {
@@ -2145,7 +2267,9 @@ pub fn driver_with_profile_opts(
             let ir_path = out.with_extension("ll");
             std::fs::write(&ir_path, &ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-            link(&ir_path, &out)?;
+            let objects = object_paths(&opts.package_objects);
+            let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
+            link_with(&ir_path, &out, &refs)?;
             Ok(0)
         }
         Mode::Run => {
@@ -2154,7 +2278,9 @@ pub fn driver_with_profile_opts(
             let exe = tmp.join("program");
             std::fs::write(&ir_path, ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-            link(&ir_path, &exe)?;
+            let objects = object_paths(&opts.package_objects);
+            let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
+            link_with(&ir_path, &exe, &refs)?;
             // The program's own command line (the CLI's forwarded
             // words): the entry glue captures them, so the built
             // program reads them with `process-args`.
@@ -2178,9 +2304,10 @@ fn write_object(
     families: &[crate::specialize::MethodFamily],
     path: &Path,
     out: Option<&Path>,
+    emit_modules: &[String],
 ) -> Result<i32> {
     use crate::interface::{parse_json, JsonValue as J};
-    let object = codegen::emit_object_for(profile, program)?;
+    let object = codegen::emit_object_for_modules(profile, program, emit_modules)?;
     let out = out
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.with_extension("o"));
@@ -2350,9 +2477,12 @@ pub fn jit_file(path: &Path) -> Result<i32> {
 /// manifest defines with arity zero; a call through a mismatched physical
 /// signature is refused rather than made.
 #[cfg(feature = "jit")]
-pub fn jit_package_symbol(object: &Path, symbol: &str) -> Result<i64> {
+pub fn jit_package_symbol(object: &Path, dependencies: &[PathBuf], symbol: &str) -> Result<i64> {
     let runtime = ensure_runtime_dylib()?;
     let mut engine = crate::jit::JitEngine::new(Some(&runtime))?;
+    for dependency in dependencies {
+        engine.add_package_object_dependency(dependency)?;
+    }
     let package = engine.add_package_object(object)?;
     let arity = package.units.get(symbol).copied().ok_or_else(|| {
         Error::plain(format!(

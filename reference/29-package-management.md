@@ -25,11 +25,11 @@ Packages are currently a source distribution plus a deterministic one-version-pe
 - `cinch pkg publish --registry URL --project DIR --token TOKEN [--visibility public|private]` reads `.cinchpkg` and the module files, computes the release identity, and uploads the bundle with an unsigned L1 in-toto SLSA provenance attestation. The registry still authorizes the namespace and visibility.
 - `cinch pkg verify --slsa --project DIR` checks the local provenance file against the lock identity, predicate type, Cinch build type, external package parameter, and builder id. It reports `SLSA_BUILD_LEVEL_1`; a trusted builder signature raises the registry's claim to L2, but this client does not hold builder keys.
 - `cinch pkg verify --project DIR` checks every lock entry against its installed `.cinchpkg`, source files, object hash, and interface files. It is a local integrity check, not provenance; add `--slsa` for the recorded L1 provenance check.
-- Installed packages are importable by ordinary project source once the vendor tree is present. The source loader indexes the vendor tree recursively.
+- Package objects define only their own modules and generated primitive helpers. Dependency modules are external declarations, not bundled copies; the JIT loads dependency objects first and the root object registers the combined layout prefix. Installed packages are importable by ordinary project source once the vendor tree is present; the source loader indexes the vendor tree recursively.
 - `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
 - The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
 - Path, git, and registry packages share one closure. Cycles, two contents under one package name, two packages declaring one module name, and mixed local/registry name collisions are named errors before anything is written.
-- There is still no client-side L2 builder-key verification, VSA issuance, or package-object consumption by native project builds. JIT can load an installed `package.o` and call a zero-arity unit. An unsupported command prints usage and exits 2.
+- Native `build` and `run` consume installed package objects with `--package-object`; project IR keeps only project modules and declares object symbols. Client-side L2 builder-key verification and VSA issuance remain absent. An unsupported command prints usage and exits 2.
 
 | Surface | Current status |
 | --- | --- |
