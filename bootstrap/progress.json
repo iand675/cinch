@@ -20957,8 +20957,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_resolve, bootstrap_runtime_emit, bootstrap_runtime_ir",
-        "passed": 60,
+        "phase": "Bootstrap_runtime_emit, bootstrap_runtime_ir, bootstrap_runtime_objects",
+        "passed": 61,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -21195,12 +21195,12 @@
       },
       {
         "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
-        "status": "failed",
-        "phase": "AssertionError()",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 39,
         "unit": "gates",
-        "failed": 1,
+        "failed": 0,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
         "evidence": null
       },
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:03:39.833438+00:00"
+  "updatedAt": "2026-11-08T17:04:42.689086+00:00"
 }
