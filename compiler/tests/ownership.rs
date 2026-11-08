@@ -214,6 +214,22 @@ module Main where
 }
 
 #[test]
+fn erased_boundary_preserves_the_callees_effects() {
+    let src = r#"
+module Main where
+  import Effect.Io
+  ping :: forall r. using (io :: Io r) => Unit %0 ->{IO r} Unit
+  ping _ = ioWrite (string-to-bytes "ping")
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let unused = ping () in 0
+"#;
+    let (code, stdout) = cinch::driver::run_source_io(src, b"").expect("run erased IO call");
+    assert_eq!((code, stdout.as_str()), (0, "ping"));
+}
+
+#[test]
 fn erased_operand_must_typecheck_and_be_pure() {
     expect_err(
         "wrong-erased-operand-type",

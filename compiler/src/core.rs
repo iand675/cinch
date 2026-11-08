@@ -5065,9 +5065,10 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
 fn prim_is_pure(op: PrimOp) -> bool {
     // `eval` runs a reified program at runtime: it can fault and its
     // work is opaque here, so the optimizer must not reorder or drop it.
+    // A zero-word application runs a closure with its own effect row.
     // The platform ops mutate the filesystem, consume entropy and
     // deliver signals, so they are effects too.
-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::Platform(_))
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_))
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
