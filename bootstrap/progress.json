@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published memo compiler has a verified fixed point. Exact full suites and frontend parity are in progress.",
-  "activity": "3/105 Stage 3 targets verified and 8/236 Rust targets verified on the published memo revision.",
+  "activity": "3/105 Stage 3 targets verified and 9/236 Rust targets verified on the published memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17930,11 +17930,11 @@
         "title": "Run all 236 Rust targets on the published memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
-        "passed": 8,
+        "passed": 9,
         "total": 236,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "bootstrap_nominals",
+        "phase": "evidence_invalidation",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20694,9 +20694,9 @@
       {
         "title": "Rebuild the codata and memo compiler through Stage 3",
         "unit": "controls",
-        "status": "running",
-        "phase": "Cinch codata and memo compiler ladder. verify fixed point, smokes, interface consumer and changed-source rebuild.",
-        "passed": 5,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. verify fixed point, smokes, interface consumer and changed-source rebuild",
+        "passed": 6,
         "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20716,11 +20716,11 @@
       {
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to build Stage 1 with compiled primitive assumptions.",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with compiled primitive assumptions",
         "passed": 1,
         "total": 8,
-        "failed": 0,
+        "failed": 1,
         "source": "1e45838521fffaabffc68e66cd7b1215e2142bcceee6058d6abe2144c5bfc5c6",
         "evidence": null
       },
@@ -20761,8 +20761,8 @@
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. projection-via-returned-record",
-        "passed": 11,
+        "phase": "Isolated Stage 1 candidate. source-free-erased-projection",
+        "passed": 14,
         "total": 18,
         "failed": 0,
         "source": "c6320f4be12e902cc25ec25b146a12163d6e35b1905ddeeddd200847d8b4b68c",
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:51:25.614681+00:00"
+  "updatedAt": "2026-11-08T22:52:27.998779+00:00"
 }
