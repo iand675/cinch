@@ -1,0 +1,83 @@
+{
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "consumer_source": "module Main where\n  import ErasedLibrary\n  main :: Int\n  main = if discard-word (429865131 :: I64) == 7 && mixed 20 (829054163 :: I64) 22 == 42 then 0 else 1\n",
+  "full_goal_complete": false,
+  "native_compiler_sha256": "3faab5c863e76fe93934087939ade4507d9ecd802a4120120c88961e6487040b",
+  "native_ownership_tests": {
+    "log_sha256": "04d7464b2366900e751c32f10ef301f9886c42f2b56ef631b4d5677baa3ed2d0",
+    "name": "rust-ownership",
+    "status": "passed",
+    "tests_passed": 27
+  },
+  "native_revision": "3cb3f12e9667ced2705f51eacd368838ee0c59aa",
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "producer_source": "module ErasedLibrary where\n  export discard-word, mixed\n  discard-word :: I64 %0 -> Int\n  discard-word _ = 7\n  mixed :: Int -> I64 %0 -> Int -> Int\n  mixed first _ last = first + last\n",
+  "providers": {
+    "cinch": {
+      "checked_schemes": {
+        "discard-word": "(I64 %0 -> Int)",
+        "mixed": "(Int -> (I64 %0 -> (Int -> Int)))"
+      },
+      "client_ir_sha256": "e1ef6f8b50b943e19a1a60e987c97b85d52a27ad93b5728c3b1c1ea72d61803c",
+      "client_source_sha256": "c2205d6cc80c60c09478d1ca4cf24cbcf745e1d2a5ddb918e59f8d4c54fa4263",
+      "compiler_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 0,
+      "interface_hash": "3412174523426167709",
+      "leaked_allocations": 0,
+      "metadata_sha256": "c32e60a640a37520436991c5792bf1478d1e019b6c1ec4d8cf23087169895e9f",
+      "object_sha256": "08eb067cf1d331808073ab6939f6af51f755ce18361a03ac23d0830c4b564a1d",
+      "physical_units": {
+        "ErasedLibrary.discard-word": {
+          "arity": 0,
+          "params": [],
+          "result": "O"
+        },
+        "ErasedLibrary.mixed": {
+          "arity": 1,
+          "params": [
+            "T"
+          ],
+          "result": "O"
+        }
+      },
+      "producer_log_sha256": "fb5cb2b3419f7c1a3f8905d9c206c066244ffee43afb18efc3b8b9cfde63e202",
+      "source_sha256": "06f1066a9752506656d0fefc69d1b656b8b525bec3669ea707d96f57eccf7c98"
+    },
+    "rust": {
+      "checked_schemes": {
+        "discard-word": "(I64 %0 -> Int)",
+        "mixed": "(Int -> (I64 %0 -> (Int -> Int)))"
+      },
+      "client_ir_sha256": "5bf1c892c74a7b888faefe42359c4f2194f529fcd65845fed41674012a95cfe3",
+      "client_source_sha256": "c2205d6cc80c60c09478d1ca4cf24cbcf745e1d2a5ddb918e59f8d4c54fa4263",
+      "compiler_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "exit_code": 0,
+      "interface_hash": "8619806939011671551",
+      "leaked_allocations": 0,
+      "metadata_sha256": "6e60953d527ac77f712d9ddb99ef09653097d46f1b9f779e76a935b2b6ca58bf",
+      "object_sha256": "9dc99c24fe9925f4cbc78e09bb6938c4d6689c2f4a8ef58e433f8eecbc74d2d1",
+      "physical_units": {
+        "ErasedLibrary.discard-word": {
+          "arity": 0,
+          "params": [],
+          "result": "O"
+        },
+        "ErasedLibrary.mixed": {
+          "arity": 1,
+          "params": [
+            "T"
+          ],
+          "result": "O"
+        }
+      },
+      "producer_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_sha256": "06f1066a9752506656d0fefc69d1b656b8b525bec3669ea707d96f57eccf7c98"
+    }
+  },
+  "runtime_abi": 7,
+  "stage1_compiler_sha256": "5dc2faa3467207f8f810ccbdb22b464027de67f8aabbea9ec08dd94cd6674c65",
+  "stage1_revision": "0cde7ac02d5177ab43c798b45bc2d8f8fe3c0683",
+  "status": "audited-abi7-erased-object-parity"
+}
