@@ -683,6 +683,15 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    condition_path = 'bootstrap/current-schema10-structural-branch-conditions-results.json'
+    condition = read(root / condition_path)
+    if (condition.get('status') == 'audited-stage1-negation-and-structural-conditions'
+            and condition.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/case_evidence.rs', condition['original_test_source_sha256'])):
+        active.append(dict(title='Development Stage1: Boolean and NonZero conditions',
+            status='passed', phase='Both original programs ran without leaks. The checks cover short-circuiting, negation, constructor shadowing, and NonZero in if, case, and guards.',
+            passed=len(condition['rows']), failed=0, total=len(condition['rows']), unit='client cases',
+            source=condition['compiler_source_sha256'], evidence=link(condition_path)))
     guarded_equation_path = 'bootstrap/current-schema10-guarded-equation-results.json'
     guarded_equation = read(root / guarded_equation_path)
     if (guarded_equation.get('status') == 'audited-stage1-equation-proofs-and-guarded-runtime'

@@ -1,0 +1,120 @@
+{
+  "compiler_sha256": "cb74f27955f4531bbd2e27051b4242a19f9fb4aaf07cf6690c31798e5ed8d4d6",
+  "compiler_source_sha256": "41f4a2c737f29632b9b3a4cb6ea5455d37462a8e5710798ef960b1fd52c0a36d",
+  "fixture_correction_state_sha256": "9eacddf26488476cdb0e207d6ace7e549c9d3ce07ee3dbcb5dee6b5d90fcd7b4",
+  "full_goal_complete": false,
+  "initial_state_sha256": "d3467360597c92108bd8c530473901e2eca3c9538e923c04fd48dde720722d20",
+  "interfaces_sha256": "176888ecd734bd57bdd76910ce69ca194cbfa3cf87057dd696088a404f9ebd2c",
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_test_source_sha256": "02e587188ca04f04cf263f0aed74ab447dba8604a64293785b3e3a5493ee1c01",
+  "provider_object_sha256": "a0ef7115447d1149bf18ea85fe1673ff39eb60dfbaba1d996e7a3a1325f27a5f",
+  "revision": "7c43bbd1d403d61d2c97655c2481cf71d2c5ba93",
+  "rows": [
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "feb98d740a2d75d5464b5e8440bdef7f98a57fa95db54d44a718013abc8ebd85",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-short-circuit",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "582012e0dd43e95e1f538516c6e491065fa50ffce688ea85ecb10012deecefad",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:28:27: function precondition is not established at this call because the obligation `x < 5` needs evidence and the checker found no evidence for `x < 5`\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-or-refusal",
+      "source_sha256": "b34d816dbc190ae1f78445821b3d18b6e7d9cb984e1ff434285c54ea7e59e8f4",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "qualified-partial-negation",
+      "previous_source_sha256": "2de5299f32314044252289ad897f750cdb77aa369afdd87d1bbdb845f9589a5a",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "008d57e6314275344246602a3e01f84adfcf11c47660393c7ecb718f367f7cb3",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:30:55: function precondition is not established at this call because the obligation `x < 5` needs evidence and the checker found no evidence for `x < 5`\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "partial-negation-opposite-branch",
+      "previous_source_sha256": "5993e3abed751b911dbe8bec111a0fd7db48da6cd7e1100d3073226181b8189f",
+      "source_sha256": "ca39effcac03f8ffe8a27b5001b6e41026aec58cb7e642ba8bafbb3af9f0362b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:30:39: function precondition is not established at this call because the obligation `x < 5` needs evidence and the checker found no evidence for `x < 5`\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "shadowed-negation",
+      "source_sha256": "538ad773b50b029cacdc72d61a52e8a1a2d45126fefd4b5d38240a51c2c568cb",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "5cad73bad4755f159971b758369167b526ca19866dc16481336daf72bbfc72fa",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "original-structural-condition",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "c706d04b7b774e676c31db748228dab177a44b88dd9bcfadb627bcaf5e117a7c",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "expected_exit": 0,
+      "ir_sha256": "1185e6c9cc196ad2dc100c66b66d8af4fb4ccec2d90a2af94afb500c0837c1c5",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "structural-branch-positions",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "058732eaf77ae105941a391d583f573065f77724254dd8c7b1811561e56b5dc4",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:28:46: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero d` needs evidence and the checker found no evidence for `NonZero d`\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "structural-condition-false-branch",
+      "source_sha256": "d722abccd65a670444b8e5fb5945605dd2e2c68f692a53d99b895b5c91146845",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:31:16: type mismatch: expected Bool, found m.77_97_105_110_.70_108_97_103_\n",
+      "exit_code": 4,
+      "expected_exit": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "structural-constructor-shadow",
+      "source_sha256": "768e4b488fa349bc9c1417edb103c2c90cfc73f27ab41b444371b682ae4f1274",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "stage1_receipt_sha256": "1615c7c75ee18de16ef6a86f893107b40ecb7de841e72e7591495f0035c2dd31",
+  "status": "audited-stage1-negation-and-structural-conditions"
+}
