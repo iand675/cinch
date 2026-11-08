@@ -20522,8 +20522,8 @@
         "title": "Verify shared borrows and task scope exits",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with shared borrow and scope checks",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. original-task-shared-ref",
+        "passed": 1,
         "total": 8,
         "failed": 0,
         "source": "aba446b6ee08ec43847d46e7836a49909f0c4c04749f14c1c2660d3154ec39cf",
@@ -20564,5 +20564,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:56:24.327413+00:00"
+  "updatedAt": "2026-11-08T18:57:47.914958+00:00"
 }
