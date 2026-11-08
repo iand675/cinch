@@ -40,11 +40,12 @@ The export-closure repair passed the original anonymous-interface and
 refinement-closure targets in Rust and with the development Stage1.
 See [the refinement-interface audit](../bootstrap/current-schema10-refinement-export-closure-results.json).
 
-The original higher-kinded identity example now emits working IR. It ran
-with zero leaks. The oversized tuple still produces its lowering refusal
-and clears the previous IR. The complete runtime target will replay the
-higher-kinded example as an executable case.
-See [the runtime fixture replay](../bootstrap/current-schema10-higher-kind-runtime-fixture-results.json).
+The complete runtime-lowering target passed on the exact published Stage3.
+The higher-kinded identity example and both C ABI checks ran with zero
+leaks. The oversized tuple still produces its lowering refusal and clears
+the previous IR.
+See [the complete runtime target audit](../bootstrap/current-schema10-runtime-lowering-target-results.json)
+and [the focused fixture replay](../bootstrap/current-schema10-higher-kind-runtime-fixture-results.json).
 
 The original allocation probe reaches the published Stage3 and fails during
 IR emission. Its checked runtime imports for Nat addition and multiplication
