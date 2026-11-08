@@ -482,12 +482,12 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
 fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
         Decl::Equation { eq, .. } => {
-            ast::collect_term_refs(&eq.body, out);
+            for term in eq.terms() { ast::collect_term_refs(term, out); }
             local_refs(&eq.locals, out);
         }
         Decl::Instance(i) => {
             for m in &i.methods {
-                ast::collect_term_refs(&m.body, out);
+                for term in m.terms() { ast::collect_term_refs(term, out); }
                 local_refs(&m.locals, out);
             }
         }
@@ -495,7 +495,7 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
         // method's is the instance's.
         Decl::Signature(s) => {
             for eq in &s.defaults {
-                ast::collect_term_refs(&eq.body, out);
+                for term in eq.terms() { ast::collect_term_refs(term, out); }
                 local_refs(&eq.locals, out);
             }
         }

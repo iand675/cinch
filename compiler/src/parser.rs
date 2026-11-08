@@ -1189,7 +1189,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `name [clause attrs] pats = body [where locals]`: the clause
+    /// `name [clause attrs] pats [| guard] = body [where locals]`: the clause
     /// attributes sit between the function name and its first pattern
     /// (attribute annotations specification section 1.1).
     fn parse_equation_rest(&mut self, name: Name, allow_where: bool) -> Result<Equation> {
@@ -1199,6 +1199,12 @@ impl<'a> Parser<'a> {
         while self.starts_atomic_pattern() {
             pats.push(self.parse_atomic_pattern()?);
         }
+        let guard = if self.at(&Tok::Pipe) && allow_where {
+            self.bump();
+            Some(self.parse_term()?)
+        } else {
+            None
+        };
         self.expect(&Tok::Equals, "`=`")?;
         let body = self.parse_term()?;
         let mut locals = Vec::new();
@@ -1211,7 +1217,7 @@ impl<'a> Parser<'a> {
             self.bump();
             locals = self.parse_block_items("the local block", |p| p.parse_local_decl())?;
         }
-        Ok(Equation { attrs, name, pats, body, locals, span })
+        Ok(Equation { attrs, name, pats, guard, body, locals, span })
     }
 
     fn parse_import(&mut self) -> Result<Import> {
@@ -3892,7 +3898,7 @@ pub(crate) fn parse_record_declaration_fields_tokens(
 }
 
 fn resolve_equation(eq: &mut Equation, fix: &FixityTable) -> Result<()> {
-    resolve_term(&mut eq.body, fix)?;
+    for term in eq.terms_mut() { resolve_term(term, fix)?; }
     for l in &mut eq.locals {
         match l {
             LocalDecl::Eq { body, .. }

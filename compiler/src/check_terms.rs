@@ -4941,6 +4941,9 @@ impl Checker {
             if !self.match_idx_pats(&eq.pats, args, &mut bind) {
                 continue;
             }
+            if eq.guard.as_ref().is_some_and(|guard| !guard_always_true(guard)) {
+                return None;
+            }
             if let Some(r) = self.reduce_eq_body(&eq.body, &bind, fuel) {
                 return Some(r);
             }
@@ -6163,7 +6166,7 @@ impl Checker {
             self.check(&mut env2, body, &rest)
         } else {
             self.compile_rows(
-                vec![Row { pats: match_pats, guard: None, body: body.as_ref().clone(), env: env2,
+                vec![Row { pats: match_pats, guard: None, guard_locals: Vec::new(), body: body.as_ref().clone(), env: env2,
                     idx: 0, consumed: Vec::new(), weight: None, guard_weight: None, proof: None }],
                 match_cols, match_types, &rest, span, "a lambda argument combination",
             )
@@ -7569,6 +7572,7 @@ impl Checker {
             rows.push(Row {
                 pats: vec![self.expand_pat(&a.pat)?],
                 guard: a.guard.clone(),
+                guard_locals: Vec::new(),
                 body: a.body.clone(),
                 env: env.clone(),
                 idx: i,
@@ -7635,6 +7639,56 @@ impl Checker {
         true
     }
 
+    fn compile_guarded_row(
+        &mut self,
+        row: &Row,
+        guard: &ast::Term,
+        later: &[Row],
+        expected: &Ty,
+        span: ast::Span,
+        uncovered: &str,
+    ) -> Result<ECore> {
+        // The pattern and its where bindings run before the test. Their
+        // bindings are visible in the test and the body, never later rows.
+        for local in &row.consumed {
+            self.note_use(*local, span, &[], &row.env.dicts)?;
+        }
+        let mut scope = row.env.clone();
+        let (binds, group) = if row.guard_locals.is_empty() {
+            (Vec::new(), None)
+        } else {
+            self.elab_locals(&mut scope, &row.guard_locals, LocalForm::Plain)?
+        };
+        let (test, reading) = self.cond_reading(&mut scope.clone(), guard)?;
+        let guard_span = guard.span();
+        let body_type = if row.guard_locals.is_empty() { expected.clone() } else {
+            let expected = self.row_result(&row.env, expected);
+            self.numeric_contract_in_value_scope(&expected, &row.env, &scope)
+        };
+        let (body, passed) = self.isolate(|checker| {
+            let facts = Self::branch_facts(&reading, &BranchKey::Bool(true));
+            checker.bind_facts(&mut scope, &facts, reading.end, guard_span)?;
+            checker.check_pattern_row(row, &mut scope, &body_type)
+        })?;
+        let mut later = later.to_vec();
+        let facts = Self::branch_facts(&reading, &BranchKey::Bool(false));
+        for row in &mut later {
+            self.bind_facts(&mut row.env, &facts, reading.end, guard_span)?;
+        }
+        let (fallback, failed) = self.isolate(|checker| {
+            checker.compile_rows(later, Vec::new(), Vec::new(), expected, span, uncovered)
+        })?;
+        self.merge_branches(vec![passed, failed]);
+        if let Some(group) = &group {
+            self.discharge_group(group, expected, span)?;
+        }
+        Ok(wrap_lets(binds, ECore::If(
+            Box::new(test),
+            CBranch::weighted(row.guard_weight, body),
+            CBranch::weighted(row.guard_weight.map(|_| 1), fallback),
+        )))
+    }
+
     /// Pattern-matrix compilation with source-order, fall-through
     /// semantics: the first row that matches wins, and a guarded row whose
     /// guard fails falls through to the later rows. Compilation is the
@@ -7688,58 +7742,11 @@ impl Checker {
         }
         if types.is_empty() {
             let first = &rows[0];
-            if let Some(g) = first.guard.as_ref().filter(|g| !guard_always_true(g)) {
-                // The row's destructure runs on every path that reaches
-                // the row, before its guard.
-                for l in &first.consumed {
-                    self.note_use(*l, ctx_span, &[], &first.env.dicts)?;
-                }
-                // The guard is a Bool expression in the row's scope (all
-                // pattern variables bound); its effects join the enclosing
-                // performed scope. A failing guard falls through.
-                // A guard is a `Bool` column over the row: its `True`
-                // branch is the row's body, its `False` branch the
-                // fallthrough to the later rows, with facts by the same
-                // branch rule as any match.
-                let mut genv = first.env.clone();
-                let (gcore, reading) = self.cond_reading(&mut genv, g)?;
-                let gspan = g.span();
-                let (body_core, bm) = self.isolate(|s| {
-                    let mut env = first.env.clone();
-                    let facts = Self::branch_facts(&reading, &BranchKey::Bool(true));
-                    s.bind_facts(&mut env, &facts, reading.end, gspan)?;
-                    s.check_pattern_row(first, &mut env, expected)
-                })?;
-                // The refutation reaches the later rows whose names denote
-                // the same values as in this row (a later row's pattern
-                // may rebind a name to another part of the scrutinee;
-                // `bind_facts` checks each name).
-                let mut rest = rows[1..].to_vec();
-                let refuted = Self::branch_facts(&reading, &BranchKey::Bool(false));
-                for r in rest.iter_mut() {
-                    self.bind_facts(&mut r.env, &refuted, reading.end, gspan)?;
-                }
-                let (rest_core, rm) = self.isolate(|s| {
-                    s.compile_rows(
-                        rest,
-                        cols.clone(),
-                        types.clone(),
-                        expected,
-                        ctx_span,
-                        uncovered,
-                    )
-                })?;
-                self.merge_branches(vec![bm, rm]);
-                // The guard's own decision point (attribute annotations
-                // specification sections 2.1 and 3): the guard's weight
-                // annotates its pass outcome, and the reference base 1
-                // completes the pair for the fallthrough.
-                let gw = first.guard_weight;
-                return Ok(ECore::If(
-                    Box::new(gcore),
-                    CBranch::weighted(gw, body_core),
-                    CBranch::weighted(gw.map(|_| 1), rest_core),
-                ));
+            if let Some(guard) = first.guard.as_ref().filter(|guard| !guard_always_true(guard)) {
+                let compile = |checker: &mut Self| {
+                    checker.compile_guarded_row(first, guard, &rows[1..], expected, ctx_span, uncovered)
+                };
+                return if first.guard_locals.is_empty() { compile(self) } else { self.in_let(ctx_span, compile) };
             }
             for l in &first.consumed {
                 self.note_use(*l, ctx_span, &[], &first.env.dicts)?;
@@ -11318,6 +11325,7 @@ struct Row {
     proof: Option<ProofPatternScope>,
     pats: Vec<ast::Pat>,
     guard: Option<ast::Term>,
+    guard_locals: Vec<ast::LocalDecl>,
     body: ast::Term,
     env: Env,
     /// Source position among the match's rows, for fall-through order.

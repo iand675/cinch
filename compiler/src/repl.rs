@@ -488,6 +488,9 @@ impl Repl {
                 "cannot infer the type of `{name}` (it binds `where` locals); state its signature"
             ));
         }
+        if eq.guard.is_some() {
+            return Err(format!("cannot infer the type of guarded definition `{name}`; state its signature"));
+        }
         let term = if eq.pats.is_empty() {
             eq.body.clone()
         } else {

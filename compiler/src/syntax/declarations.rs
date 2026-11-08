@@ -396,13 +396,16 @@ pub(crate) fn function_code(spelling: &str, group: &[Decl]) -> Result<Term> {
     };
     let mut alternatives = Vec::new();
     for equation in equations {
+        if equation.guard.is_some() && !equation.locals.is_empty() {
+            return Err(Error::plain("Syntax.functionCode cannot move the shared where scope of a guarded equation"));
+        }
         let body = if equation.locals.is_empty() { equation.body } else {
             Term::Let(equation.locals, Box::new(equation.body), equation.span)
         };
         let pat = match width {
             0 => Pat::Unit(equation.span), 1 => equation.pats.into_iter().next().unwrap(), _ => Pat::Tuple(equation.pats, equation.span),
         };
-        alternatives.push(Alt { attrs: Vec::new(), pat, guard: None, guard_attrs: Vec::new(), body, span: equation.span });
+        alternatives.push(Alt { attrs: Vec::new(), pat, guard: equation.guard, guard_attrs: Vec::new(), body, span: equation.span });
     }
     let body = Term::Case(Box::new(scrutinee), alternatives, span);
     let patterns = arguments.into_iter().map(|name| Pat::Var(name.clone(), name.span)).collect::<Vec<_>>();
@@ -529,7 +532,7 @@ fn equation(eq: &mut Equation, visit: &mut impl FnMut(&mut Name, RefKind)) {
     visit(&mut eq.name, RefKind::Value);
     for pat in &mut eq.pats { pattern(pat, visit); }
     for decl in &mut eq.locals { local(decl, visit); }
-    term(&mut eq.body, visit);
+    for expression in eq.terms_mut() { term(expression, visit); }
 }
 
 fn term(body: &mut Term, visit: &mut impl FnMut(&mut Name, RefKind)) {

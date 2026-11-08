@@ -465,7 +465,7 @@ fn walk_local(decl: &LocalDecl, visit: &mut impl FnMut(&Term) -> Result<()>) -> 
 }
 
 fn walk_equation(eq: &ast::Equation, visit: &mut impl FnMut(&Term) -> Result<()>) -> Result<()> {
-    walk_term(&eq.body, visit)?;
+    for term in eq.terms() { walk_term(term, visit)?; }
     for local in &eq.locals {
         walk_local(local, visit)?;
     }
