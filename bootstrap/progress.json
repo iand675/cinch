@@ -17914,7 +17914,7 @@
             "id": "additional:integration",
             "title": "integration",
             "state": "blocked",
-            "detail": "18/39 original cases passed on this Stage 3. Two cases need the tagged Data.List.sum-list object entry.",
+            "detail": "18/39 original cases passed on this Stage 3. Two cases failed because this older object lacked Data.List.sum-list@T. The rebuilt object exports it, and both cases passed a separate replay.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json"
           }
@@ -20624,5 +20624,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:59:33.678085+00:00"
+  "updatedAt": "2026-11-08T19:59:57.127010+00:00"
 }
