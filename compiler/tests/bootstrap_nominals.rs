@@ -58,7 +58,7 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
         ("Unbound", "Int", Some(ResolvedScheme { measures: vec![], scheme: "Missing.Token".into(), nominals: vec![] })),
     ] {
         let mut iface = Iface::new(module, "");
-        iface.exports.values.push(ValueExport { total_body: None, name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), resolved, arity: 0 });
+        iface.exports.values.push(ValueExport { total_body: None, keyed_ordering: None, name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), resolved, arity: 0 });
         let path = dir.join(format!("{module}.cinchif"));
         std::fs::write(&path, iface.to_json()).unwrap();
         rows.push(format!("[{},{},{}]", quote(module), quote(&iface.iface_hash()), quote(&path.display().to_string())));
@@ -82,7 +82,7 @@ fn imported_nominals_are_checked_with_defining_identities_in_cinch() {
             iface.imports.push(IfaceRef { module: "A".into(), iface_hash: a.iface_hash() });
             vec![NominalContract { refinement: None, identity: "A.Token".into(), kind: "data".into(), parameters: vec![], constructors: Some(vec!["A.Mk".into()]) }]
         } else { vec![] };
-        iface.exports.values.push(ValueExport { total_body: None,
+        iface.exports.values.push(ValueExport { total_body: None, keyed_ordering: None,
             name: "value".into(), symbol: format!("{module}.value"), scheme: scheme.into(), arity: 1,
             resolved: Some(ResolvedScheme { measures: vec![], scheme: scheme.into(), nominals }),
         });
