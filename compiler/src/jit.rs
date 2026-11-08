@@ -290,7 +290,7 @@ impl JitEngine {
     }
 
     /// Add one installed package object (`package.o` beside its
-    /// `package.abi.json`) and register the layout prefix that manifest
+    /// `build/package.cinchif`) and register the layout prefix that interface
     /// records.
     ///
     /// The manifest is validated against this host's native profile and the
@@ -404,12 +404,6 @@ struct PackageAbi {
     reclaim: bool,
 }
 
-/// The ABI manifest `emit-object` writes beside an object (`package.o` has
-/// `package.abi.json`).
-fn package_abi_path(object: &Path) -> PathBuf {
-    object.with_extension("abi.json")
-}
-
 fn manifest_error(path: &Path, detail: impl std::fmt::Display) -> Error {
     Error::plain(format!("{}: {detail}", path.display()))
 }
@@ -421,12 +415,7 @@ fn manifest_error(path: &Path, detail: impl std::fmt::Display) -> Error {
 /// recorded object content hash must also match the bytes on disk, so a
 /// stale manifest never describes newer code.
 fn read_package_abi(object: &Path) -> Result<PackageAbi> {
-    let execution = object
-        .parent()
-        .map(|parent| parent.join("build").join("package.cinchif"));
-    let manifest_path = execution
-        .filter(|path| path.exists())
-        .unwrap_or_else(|| package_abi_path(object));
+    let manifest_path = crate::driver::package_execution_path(object);
     let text =
         std::fs::read_to_string(&manifest_path).map_err(|e| manifest_error(&manifest_path, e))?;
     let parsed = parse_json(&text).map_err(|e| manifest_error(&manifest_path, e))?;
@@ -454,6 +443,14 @@ fn read_package_abi(object: &Path) -> Result<PackageAbi> {
         return Err(manifest_error(
             &manifest_path,
             "unsupported object manifest schema",
+        ));
+    }
+    if string("kind")? != "package-execution"
+        || object.file_name().and_then(|name| name.to_str()) != Some(string("object")?)
+    {
+        return Err(manifest_error(
+            &manifest_path,
+            "invalid package execution interface for this object",
         ));
     }
     if number("runtime_abi")? != u64::from(crate::interface::RUNTIME_ABI_VERSION) {
@@ -781,8 +778,8 @@ mod tests {
             .stack_size(64 * 1024 * 1024)
             .spawn(|| {
                 use serde_json::json;
-                // The registry install path is what puts `package.o` and its
-                // `package.abi.json` in a project, so build the object the
+                // The registry install path writes `package.o` and its
+                // execution interface, so build the object the
                 // same way `cinch pkg add` does rather than fabricating one.
                 let project = tempfile::tempdir().expect("project");
                 // `boxed` allocates a constructor, so the call proves the
@@ -812,7 +809,13 @@ mod tests {
                 )
                 .expect("install package bundle");
                 assert!(installed.object.exists(), "install writes package.o");
-                assert!(installed.abi.exists(), "install writes package.abi.json");
+                assert_eq!(installed.abi, installed.interfaces.join("package.cinchif"));
+                assert!(installed.abi.is_file());
+                let old_sidecar = installed.object.with_extension("abi.json");
+                assert!(!old_sidecar.exists());
+                std::fs::rename(&installed.abi, &old_sidecar).unwrap();
+                assert!(read_package_abi(&installed.object).is_err());
+                std::fs::rename(&old_sidecar, &installed.abi).unwrap();
 
                 let runtime = crate::driver::ensure_runtime_dylib().expect("runtime dylib");
                 let mut engine = JitEngine::new(Some(&runtime)).expect("JIT engine");

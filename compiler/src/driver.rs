@@ -1903,7 +1903,8 @@ pub struct DriverOptions {
     /// `EmitObject` only: modules whose units this object defines. Every
     /// other module is an external dependency and is emitted as declarations,
     /// so separately produced package objects do not duplicate one another.
-    /// Empty preserves the historical whole-closure object.
+    /// Nonempty sets also select the installed package execution interface.
+    /// Empty preserves the standalone whole-closure object.
     pub emit_modules: Vec<String>,
     /// `Build`/`Run`: separately produced dependency objects to link. Their
     /// recorded modules are excluded from emitted IR and resolved from the
@@ -2002,17 +2003,28 @@ pub fn driver_with_profile(
     )
 }
 
-fn package_object_modules(path: &Path) -> Result<Vec<String>> {
-    let execution = path
-        .parent()
-        .map(|parent| parent.join("build").join("package.cinchif"));
-    let abi_path = execution
-        .filter(|candidate| candidate.exists())
-        .unwrap_or_else(|| path.with_extension("abi.json"));
+pub(crate) fn package_execution_path(object: &Path) -> PathBuf {
+    object.with_file_name("build").join("package.cinchif")
+}
+
+pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
+    let abi_path = package_execution_path(path);
     let bytes = std::fs::read(&abi_path)
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     let abi: serde_json::Value = serde_json::from_slice(&bytes)
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
+    let object = path.file_name().and_then(|name| name.to_str());
+    if abi.get("schema").and_then(serde_json::Value::as_u64) != Some(1)
+        || abi.get("kind").and_then(serde_json::Value::as_str) != Some("package-execution")
+        || object.is_none()
+        || abi.get("object").and_then(serde_json::Value::as_str) != object
+    {
+        return Err(Error::plain(format!(
+            "{}: invalid package execution interface for {}",
+            abi_path.display(),
+            path.display()
+        )));
+    }
     let runtime_abi = abi.get("runtime_abi").and_then(serde_json::Value::as_u64);
     let expected_runtime_abi = crate::interface::RUNTIME_ABI_VERSION;
     if runtime_abi != Some(u64::from(expected_runtime_abi)) {
@@ -2022,6 +2034,13 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             abi_path.display()
         )));
     }
+    Ok(abi)
+}
+
+fn package_object_modules(path: &Path) -> Result<Vec<String>> {
+    let abi_path = package_execution_path(path);
+    let abi = read_package_execution(path)?;
+    let expected_runtime_abi = crate::interface::RUNTIME_ABI_VERSION;
     let object_bytes =
         std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
     let expected = abi
@@ -2036,7 +2055,7 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
     let actual = crate::interface::content_hash_bytes(&object_bytes);
     if expected != actual {
         return Err(Error::plain(format!(
-            "{}: object content hash does not match package.abi.json",
+            "{}: object content hash does not match the package execution interface",
             path.display()
         )));
     }
@@ -2072,7 +2091,7 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             }
             if iface.iface_hash() != expected_hash {
                 return Err(Error::plain(format!(
-                    "{}: interface hash does not match package.abi.json",
+                    "{}: interface hash does not match the package execution interface",
                     path.display()
                 )));
             }
@@ -2333,10 +2352,14 @@ fn write_object(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.with_extension("o"));
     let ir_path = out.with_extension("ll");
-    let abi_path = out.with_extension("abi.json");
+    let abi_path = if emit_modules.is_empty() {
+        out.with_extension("abi.json")
+    } else {
+        package_execution_path(&out)
+    };
     if out == ir_path || out == abi_path {
         return Err(Error::plain(
-            "emit-object output must differ from its .ll and .abi.json companions",
+            "emit-object output must differ from its LLVM and ABI companions",
         ));
     }
     // A failed rebuild must not leave an old manifest advertising new code.
@@ -2363,6 +2386,16 @@ fn write_object(
     let J::Obj(ref mut fields) = abi else {
         unreachable!()
     };
+    if !emit_modules.is_empty() {
+        fields.insert("kind".into(), "package-execution".into());
+        fields.insert("modules".into(), J::arr(emit_modules, |name| name.as_str().into()));
+        let name = out.file_name().and_then(|name| name.to_str())
+            .ok_or_else(|| Error::plain("package object needs a UTF-8 file name"))?;
+        fields.insert("object".into(), name.into());
+        let directory = abi_path.parent().expect("package execution interface directory");
+        std::fs::create_dir_all(directory)
+            .map_err(|e| Error::plain(format!("{}: {e}", directory.display())))?;
+    }
     let interfaces = ifaces
         .iter()
         .map(|iface| {
