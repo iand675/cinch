@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bootstrap
+import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
@@ -105,6 +106,28 @@ class BootstrapContract(unittest.TestCase):
             bootstrap.write_json(root / "extra.cinchif", {"module": "Bootstrap.Check"})
             with self.assertRaisesRegex(bootstrap.BootstrapError, "duplicate canonical compiler interface"):
                 bootstrap.require_compiler_interfaces(root, files)
+
+    def test_base_manifest_excludes_compiler_sources_and_verifies_artifacts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            artifacts = directory / "library/build"
+            base = {"module": "Data.Core", "imports": []}
+            row = {"module": "Data.Core", "iface_hash": "checked-base-hash", "interface": base}
+            metadata = {"interfaces": [row]}
+            package = {"modules": [{"name": "Data.Core"}]}
+            base_file = artifacts / "Data.Core.cinchif"
+            bootstrap.write_json(base_file, base)
+            bootstrap.write_json(artifacts / "Bootstrap.Check.cinchif", {"module": "Bootstrap.Check"})
+            manifest = bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
+            self.assertEqual(manifest, {"schema": 1, "interfaces": [
+                ["Data.Core", "checked-base-hash", str(base_file.resolve())]]})
+            changed = {**base, "imports": [{"module": "Bootstrap.Check"}]}
+            bootstrap.write_json(base_file, changed)
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from its actual checked interface"):
+                bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
+            row["interface"] = changed
+            with self.assertRaisesRegex(bootstrap.BootstrapError, "depends on compiler implementation"):
+                bootstrap_objects.admitted_interfaces(bootstrap, metadata, package, directory)
 
     def test_runtime_abi_preparation_is_exact_and_part_of_source_identity(self):
         live = (bootstrap.ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch").read_bytes()

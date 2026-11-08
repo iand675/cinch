@@ -1,0 +1,1769 @@
+{
+  "compiler_source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+  "full_goal_complete": false,
+  "native_source_sha256": "881cff5557ca7b805e9aa98a094fa0c45fcccb5f14368453a04abdabeff3fafe",
+  "original_tooling_log_sha256": "a9f9e7b5a37e7374a9c034ffabee518d77574fb489328e538b8c7e92e89c1ee5",
+  "original_tooling_tests": 43,
+  "revision": "3e2bf9f5105f9acad7337a625c6ce3dca2bb6640",
+  "runs": [
+    {
+      "cases": [
+        {
+          "name": "check::float_integer_exactness_tests::decimal_exactness_matches_independent_binary_significands",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_carrier_compatibility_tests::carrier_usage_holes_do_not_authorize_type_index_or_effect_specialization",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_lambda_identity_tests::index_lambda_handles_survive_renaming_and_cannot_be_guessed",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_lambda_identity_tests::nested_index_lambda_scopes_restore_after_failure",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::a_shadowed_index_parameter_does_not_block_other_substitutions",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::checked_body_copy_instantiates_stage_call_rows_and_regions",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::index_dictionary_reification_requires_checked_runtime_scope",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::index_generic_copy_owns_its_deferred_evidence_and_preserves_outer_captures",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::index_headers_wait_for_complete_instances_even_when_one_matches",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::index_quote_copy_remaps_native_metadata_without_rebinding_source_names",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::index_substitution_does_not_capture_callers_same_named_evidence",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::native_substitution_preserves_instantiated_types_rows_regions_and_evidence",
+          "status": "passed"
+        },
+        {
+          "name": "check::index_substitution_tests::separate_dictionary_calls_keep_separate_dependent_result_indices",
+          "status": "passed"
+        },
+        {
+          "name": "check::interface_scheme_tests::explicit_value_and_proposition_parameter_kinds_are_published",
+          "status": "passed"
+        },
+        {
+          "name": "check::interface_scheme_tests::exported_preconditions_round_trip_with_their_argument_positions",
+          "status": "passed"
+        },
+        {
+          "name": "check::interface_scheme_tests::higher_kinded_parameter_annotations_survive_interface_rendering",
+          "status": "passed"
+        },
+        {
+          "name": "check::interface_scheme_tests::precondition_argument_names_do_not_capture_type_parameters",
+          "status": "passed"
+        },
+        {
+          "name": "check::interface_scheme_tests::repeated_member_binders_retain_their_own_inferred_kinds",
+          "status": "passed"
+        },
+        {
+          "name": "check::local_value_capability_tests::hidden_value_reads_keep_the_original_mutable_region_and_numeric_sort",
+          "status": "passed"
+        },
+        {
+          "name": "check::local_value_capability_tests::local_value_reification_and_export_require_structural_authority",
+          "status": "passed"
+        },
+        {
+          "name": "check::owned_effect_qualified_scope_tests::an_unbound_qualified_label_cannot_spell_a_private_owned_head",
+          "status": "passed"
+        },
+        {
+          "name": "check::owned_effect_scope_tests::frozen_symbolic_labels_and_type_names_cannot_acquire_an_owned_effect",
+          "status": "passed"
+        },
+        {
+          "name": "check::proof_value_scope_tests::logical_provenance_does_not_grant_source_names",
+          "status": "passed"
+        },
+        {
+          "name": "check::signature_scope_tests::signature_scope_keeps_synthetic_builtin_classes_available_to_captures",
+          "status": "passed"
+        },
+        {
+          "name": "check::signature_scope_tests::signature_scope_owned_handles_select_their_actual_member_without_spelling_fallback",
+          "status": "passed"
+        },
+        {
+          "name": "check::signature_scope_tests::signature_scope_uses_frozen_owners_and_never_repairs_absent_or_wrong_kind_names",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::cli_extract_writes_canonical_json",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::nested_fence_is_literal",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::parses_canonical_docs",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::parses_test_sections_and_protects_tags",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::render_uses_tree_sitter_highlighting",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::renders_named_parameter_sections",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::reports_orphans_and_duplicate_docs",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::runs_a_documentation_test_with_a_compiler",
+          "status": "passed"
+        },
+        {
+          "name": "cinchdoc::tests::uses_checked_interface_identity",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::adt_case_bound_field_and_wildcard",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::bool_ne_and_int_comparisons",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::bool_prims",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::bytes_copy_is_a_memmove_and_compare_orders_contents",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::bytes_out_of_bounds_faults",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::bytes_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::case_var_pattern_binds_scrutinee",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::const_big_beyond_i64_range",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::const_big_bignum_arithmetic",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::core_prim_arithmetic_chain",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::ctor_as_value_through_apply",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::div_rem_truncating",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::fault_falls_through_to_the_runtime_fault_path",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::instance_dictionary_and_method_call",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::int_cmp_immediate_drives_equality",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::int_div_and_rem_by_zero_trap_as_a_compiler_bug",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::lambda_captures_env",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::mixed_arity_mutual_tail_calls_run_in_constant_stack",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::mutual_tail_ping_pong_is_a_musttail_call",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::nat_arith_and_cmp_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::nat_sub_below_zero_is_a_compiler_bug_trap",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::neg_int_comparison_and_if",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::net_and_process_prims_answer_the_named_error_as_result",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::object_driver_records_checked_interface_closure",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::object_explicit_roots_and_method_families_link",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::object_layout_prefix_preserves_extended_pointer_maps",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::object_links_with_one_consumer_layout_table",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::object_rejects_process_entries_and_unchecked_representations",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::over_application",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::partial_application_then_rest",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::prim_fn_direct_call",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::self_tail_call_under_let_and_case",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::self_tail_recursion_runs_in_constant_stack",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::tail_call_fallback_on_unsaturated_call_is_reported",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::tail_report_marks_recursive_groups",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::tuple_block_projection",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::zero_arity_thunk_as_main",
+          "status": "passed"
+        },
+        {
+          "name": "codegen::tests::zero_field_ctor_pointer_identity",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::bignum_and_bytes_signatures",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::conversion_family_validation",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::optimizer_measure_bounds_transitive_unfolding",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::primitive_signatures",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::retired_int_family_does_not_resolve",
+          "status": "passed"
+        },
+        {
+          "name": "core::tests::symbol_round_trips",
+          "status": "passed"
+        },
+        {
+          "name": "highlight::tests::highlights_comments_skipped_by_the_grammar",
+          "status": "passed"
+        },
+        {
+          "name": "highlight::tests::highlights_keywords_and_constructors",
+          "status": "passed"
+        },
+        {
+          "name": "highlight::tests::replaces_only_plain_cinch_fences",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::accepts_surrogate_pairs",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::canonical_and_stable",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::canonical_string_escape_table",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::chain_detects_stale_metadata",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::coherence_dedupes_diamonds",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::coherence_rejects_duplicate_instances",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::hash_is_content_identity",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::identity_ignores_source_and_compiler",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::parser_is_strict",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::parses_json_with_insignificant_whitespace",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::refinement_definitions_round_trip_and_cannot_be_omitted",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::rejects_incomplete_current_schema_contracts",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::rejects_wrong_schema",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::round_trips",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::strings_escape_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::to_json_is_the_canonical_form",
+          "status": "passed"
+        },
+        {
+          "name": "interface::tests::topo_order_respects_imports_and_detects_cycles",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::closing_delimiter_closes_inner_implicit_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::do_block_with_let_statement_closes_by_indentation",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::empty_block_after_where_at_eof",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::eof_closes_all_implicit_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::equal_indent_separates_lower_indent_closes",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::explicit_braces_supply_the_block_verbatim",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::explicit_delimiters_shield_enclosing_layout",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::greater_indent_continues_the_item",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::handler_with_operand_does_not_take_the_lets_in",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::implicit_block_must_indent_farther",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_let_block_across_lines",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_let_block_on_one_line",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_closes_nested_blocks_above_let",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_must_not_cross_an_explicit_delimiter",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::in_without_let_block_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::inserted_tokens_are_marked_virtual",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::mismatched_delimiter_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::nested_blocks_close_on_outdent",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::nested_supply_clauses_match_in_order",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::tabs_rejected_by_the_lexer_before_layout",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::with_clause_and_let_interleave_by_nesting",
+          "status": "passed"
+        },
+        {
+          "name": "layout::tests::with_clause_in_passes_through",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::bare_tilde_is_reserved_but_runs_are_operators",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::comments_win_over_symbol_identifiers",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::dashes_glue_identifiers_on_both_sides",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::identifiers_and_keywords",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::minus_signs_versus_operators",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::multiplicities_are_reserved",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::numbers",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::operators_versus_reserved",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::reserved_punctuation_longest_first",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::splice_and_quote",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::strings_and_chars",
+          "status": "passed"
+        },
+        {
+          "name": "lexer::tests::tabs_in_indentation_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::application_spine_and_operator_values",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::codata_declarations_parse_observations",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::dollar_is_looser_than_infix_operators",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::dollar_is_right_associative_application",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::dollar_takes_a_full_term_on_the_right",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::effect_rows_and_thunk_lazy_types_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::effects_handlers_do_and_capabilities_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::fixity_table_conflicts_and_distinct_local_bindings",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::forall_arrow_using_and_dependent_types",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::implicit_prelude_operator_reexport_carries_its_fixity",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::import_renaming_and_exports_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::imported_fixities_cannot_be_redeclared",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::lambda_let_if_case_and_ascription_terms",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::left_associativity",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::local_blocks_hold_sigs_equations_and_pattern_bindings",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::memo_bindings_parse_and_tilde_stays_reserved_elsewhere",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::mixed_associativity_at_equal_precedence_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::module_parameters_and_instantiations_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::new_operator_without_fixity_is_prefix_only_despite_inherited_spelling",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::non_associative_chain_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::not_supported_declarations_are_named",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::not_supported_patterns_and_module_forms",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::not_supported_terms_are_named",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::operator_fixities_follow_selected_renamed_reexports",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::parses_every_declaration_form",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::parses_the_prelude",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::precedence_and_order_independence",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::private_fixity_context_is_not_implicitly_reexported",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::record_declarations_parse_and_erased_fields_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::right_associativity",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::staging_forms_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::tuple_list_and_record_patterns_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::tuple_types_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::tuples_lists_projection_and_record_construction_parse",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::undeclared_operator_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "parser::tests::upgrade_declarations_parse_their_components",
+          "status": "passed"
+        },
+        {
+          "name": "pkg::tests::bundle_materializes_sources_and_an_object",
+          "status": "passed"
+        },
+        {
+          "name": "pkg::tests::caret_ranges_select_compatible_majors",
+          "status": "passed"
+        },
+        {
+          "name": "repl_tui::tests::draws_header_transcript_and_editor",
+          "status": "passed"
+        },
+        {
+          "name": "repl_tui::tests::submit_updates_transcript_and_bindings",
+          "status": "passed"
+        },
+        {
+          "name": "repl_tui::tests::tab_completes_a_command",
+          "status": "passed"
+        },
+        {
+          "name": "repr::tests::base_unit_strips_one_vector_segment",
+          "status": "passed"
+        },
+        {
+          "name": "syntax::declarations::owned_effect_tests::effect_and_type_names_with_the_same_spelling_have_distinct_handles",
+          "status": "passed"
+        },
+        {
+          "name": "types::guarded_equality_tests::multi_term_equality_keeps_its_negated_goal_and_supporting_facts",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::alpha_conversion_preserves_free_dictionary_names_and_dependent_type_scope",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::declaration_placeholders_are_confined_to_provisional_unification",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::dictionary_identity_is_not_a_value_name",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::evidence_renaming_is_simultaneous_and_preserves_value_binders",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::evidence_substitution_cannot_capture_a_free_value",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::freshened_index_witnesses_do_not_cascade_or_capture_values",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::hidden_types_participate_in_occurs_checks_and_generalization",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::proposition_occurs_checks_follow_hidden_types_without_confusing_index_ids",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::provider_and_type_instantiations_are_part_of_index_identity",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::quantified_index_metadata_checks_every_namespace_and_argument_kind",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::reflexive_index_and_proposition_metas_are_not_infinite_types",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::source_arity_excludes_dictionaries_and_implicit_values",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::substitution_reaches_types_evidence_and_implicit_values_without_capture",
+          "status": "passed"
+        },
+        {
+          "name": "types::index_instantiation_tests::unification_checks_evidence_and_rolls_back_failed_type_inference",
+          "status": "passed"
+        },
+        {
+          "name": "types::local_value_identity_tests::local_value_substitution_crosses_instantiation_types_without_capturing_names",
+          "status": "passed"
+        },
+        {
+          "name": "types::local_value_identity_tests::local_values_cannot_be_selected_by_a_spelling_or_dictionary_identity",
+          "status": "passed"
+        },
+        {
+          "name": "types::local_value_identity_tests::logical_literals_keep_identity_under_unification_and_substitution",
+          "status": "passed"
+        },
+        {
+          "name": "types::scalar_tests::scalar_bounds_and_widths",
+          "status": "passed"
+        },
+        {
+          "name": "types::scalar_tests::scalar_value_preservation",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::lacks_constraints_catch_forbidden_labels",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::occurs_check",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::rigid_params_only_unify_with_themselves",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::rigid_row_unification_preserves_labels_without_inventing_effects",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::row_unification_extends_through_tails",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::thunk_and_lazy_unify",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::tuples_unify_componentwise",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::unify_basics",
+          "status": "passed"
+        },
+        {
+          "name": "types::tests::unify_functions_and_adts",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "60c793bc23fd8d32ea7c3b45dc833f73db49997b702c0593cf6667125fda1c9e",
+      "name": "native-lib",
+      "status": "passed",
+      "tests": 205
+    },
+    {
+      "cases": [
+        {
+          "name": "abi::tests::alloc_zero_fills_and_writes_a_fresh_header",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::boxing_round_trips_through_the_word_api",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::decimal_entry_points_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::error_exit_codes_match_the_fault_paths",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::exit_codes_match_the_documented_fault_table",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::free_releases_mortal_blocks_and_ignores_immortal_words",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::int_words_are_canonical_across_both_immediate_edges",
+          "status": "passed"
+        },
+        {
+          "name": "abi::tests::nat_words_are_canonical_across_the_immediate_edge",
+          "status": "passed"
+        },
+        {
+          "name": "arrays::tests::columns_share_buffers_and_reject_mismatched_lengths",
+          "status": "passed"
+        },
+        {
+          "name": "arrays::tests::element_pointer_maps_retain_objects_and_tagged_bignums",
+          "status": "passed"
+        },
+        {
+          "name": "arrays::tests::mark_on_spawn_visits_counted_array_elements",
+          "status": "passed"
+        },
+        {
+          "name": "arrays::tests::packed_storage_has_scalar_stride_and_generic_updates_are_persistent",
+          "status": "passed"
+        },
+        {
+          "name": "arrays::tests::shapes_cover_rank_zero_zero_axes_overflow_and_row_major_indexing",
+          "status": "passed"
+        },
+        {
+          "name": "block::tests::constructor_blocks_size_from_the_layout_table",
+          "status": "passed"
+        },
+        {
+          "name": "block::tests::header_fields_round_trip_at_their_extremes",
+          "status": "passed"
+        },
+        {
+          "name": "block::tests::layout_ids_carry_the_tag_at_every_group",
+          "status": "passed"
+        },
+        {
+          "name": "block::tests::small_and_big_blocks_record_their_size",
+          "status": "passed"
+        },
+        {
+          "name": "bytes::tests::bytes_bounds_and_value_checks",
+          "status": "passed"
+        },
+        {
+          "name": "bytes::tests::bytes_get_and_set_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "bytes::tests::bytes_new_zeroes_and_lengths",
+          "status": "passed"
+        },
+        {
+          "name": "bytes::tests::bytes_rejects_negative_length",
+          "status": "passed"
+        },
+        {
+          "name": "bytes::tests::copy_range_moves_overlapping_and_checks_bounds",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::byte_buffer_bounds_and_read_only_are_compiler_bug_traps",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::display_names_each_variant",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::div_by_zero_is_a_compiler_bug_trap_on_the_panic_path",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::negative_nat_difference_is_a_compiler_bug_trap_on_the_panic_path",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::nesting_too_deep_exits_exhausted",
+          "status": "passed"
+        },
+        {
+          "name": "error::tests::the_remaining_errors_exit_through_the_panic_path",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::activation_requires_a_complete_update_set",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::deopt_refuses_an_unbalanced_linear_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::live_frames_keep_old_code_resident",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::old_code_never_resumes_over_new_state_without_a_reverse_transition",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::target_compatibility_blocks_reachability",
+          "status": "passed"
+        },
+        {
+          "name": "evolution::tests::variants_install_and_retire_safely_with_live_frames",
+          "status": "passed"
+        },
+        {
+          "name": "heap::tests::allocations_are_counted",
+          "status": "passed"
+        },
+        {
+          "name": "heap::tests::limit_suffixes",
+          "status": "passed"
+        },
+        {
+          "name": "heap::tests::missing_and_invalid_limits_use_the_documented_default",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::add_sub_cross_sign",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::cmp_orders_across_signs",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::decimal_len_includes_the_sign",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::decimal_parse_format_round_trip_with_signs",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::div_by_zero_is_the_division_fault",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::div_truncates_toward_zero_and_rem_matches_dividend_sign",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::from_i64_covers_the_full_range",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::malformed_decimal_inputs_fault",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::mul_signs_and_zero",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::neg_is_an_involution_and_zero_is_fixed",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::to_decimal_faults_on_small_buffer",
+          "status": "passed"
+        },
+        {
+          "name": "int::tests::to_i64_range_boundaries",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::add_carries_across_the_limb_boundary",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::cmp_orders_by_length_then_most_significant_limb",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_by_word_in_place_normalizes",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_by_word_matches_u64_reference",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_limbs_crafted_add_back_vector",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_limbs_crafted_estimate_cap_vector",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_limbs_matches_an_independent_binary_division",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_limbs_multi_limb_identity",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::div_rem_limbs_small_grid_matches_u64_reference",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::mul_add_small_matches_reference",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::mul_handles_limb_boundaries_and_zero",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::normalize_strips_only_leading_zeros",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::sub_borrows_across_the_limb_boundary",
+          "status": "passed"
+        },
+        {
+          "name": "limbs::tests::zero_is_the_empty_magnitude",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::add_sub_round_trip_and_underflow",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::cmp_orders_naturals",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::decimal_len_matches_written_length",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::decimal_parse_format_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::decimal_round_trip_on_large_values",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::div_by_zero_is_reported_and_traps_as_a_compiler_bug",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::from_i64_rejects_negatives",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::malformed_decimal_inputs_fault",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::mul_and_div_rem_against_u64_reference",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::to_decimal_faults_on_small_buffer_but_not_on_exact_cap",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::to_i64_boundaries",
+          "status": "passed"
+        },
+        {
+          "name": "nat::tests::zero_has_empty_magnitude_and_is_non_negative",
+          "status": "passed"
+        },
+        {
+          "name": "net::tests::net_exports_are_global_text_symbols",
+          "status": "passed"
+        },
+        {
+          "name": "net::tests::socket_round_trip_eof_and_named_errors",
+          "status": "passed"
+        },
+        {
+          "name": "platform::pipe_tests::piped_child_signal_death_and_bad_selector",
+          "status": "passed"
+        },
+        {
+          "name": "platform::pipe_tests::piped_child_streams_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::argv_capture_round_trips",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::clock_readings_are_ordered_and_finite",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::fs_mutations_entropy_and_signal_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::fs_round_trip_rename_and_named_errors",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::platform_exports_are_global_text_symbols",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::process_capture_round_trips",
+          "status": "passed"
+        },
+        {
+          "name": "platform::tests::word_buffers_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "pty::tests::pty_exports_are_global_text_symbols",
+          "status": "passed"
+        },
+        {
+          "name": "pty::tests::pty_round_trip_exit_status_and_named_errors",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::a_marked_subgraph_mixes_with_unmarked_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::a_million_cell_list_marks_in_constant_stack_and_keeps_its_words",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::a_million_cell_list_releases_in_constant_stack",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::children_are_released_in_reverse_slot_order_before_their_parent",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::closures_scan_their_filled_slots_by_shape",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::concurrent_counts_on_one_marked_block_end_exact_and_free_once",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::counts_above_one_only_decrement",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::debug_mode_poisons_and_quarantines_freed_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::dictionaries_scan_closure_methods_but_not_value_methods",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::marking_stops_at_immortal_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::marking_visits_a_shared_child_once_and_reads_closures_by_shape",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::memo_cells_release_their_thunk_only",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::raw_slots_are_never_touched",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::regular_ids_scan_nothing_in_the_unmapped_test_entries",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::shared_substructure_is_freed_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::tobj_immediates_are_skipped_and_boxed_numbers_freed",
+          "status": "passed"
+        },
+        {
+          "name": "rc::tests::wide_constructors_read_their_map_extension",
+          "status": "passed"
+        },
+        {
+          "name": "string::tests::decode_encode_round_trip_at_boundaries",
+          "status": "passed"
+        },
+        {
+          "name": "string::tests::simd_and_naive_agree_on_the_mixed_corpus",
+          "status": "passed"
+        },
+        {
+          "name": "sym::tests::equal_names_are_one_cell_and_identity_holds",
+          "status": "passed"
+        },
+        {
+          "name": "sym::tests::names_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "sym::tests::non_utf8_names_are_refused",
+          "status": "passed"
+        },
+        {
+          "name": "sym::tests::order_is_by_name_not_by_cell",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::f64_decimal_text_is_the_shortest_scientific_form",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::f64_decimal_text_round_trips",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::hmac_sha256_matches_the_rfc_4231_vectors",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::md5_matches_the_rfc_1321_vectors",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::sha1_matches_the_fips_180_1_vectors",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::sha256_matches_the_fips_180_4_vectors",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::sha512_matches_the_fips_180_4_vectors",
+          "status": "passed"
+        },
+        {
+          "name": "text::tests::the_text_externs_are_nm_visible",
+          "status": "passed"
+        },
+        {
+          "name": "a_child_observes_cancellation_at_a_poll_point_only",
+          "status": "passed"
+        },
+        {
+          "name": "a_child_that_never_polls_keeps_its_own_outcome_under_cancellation",
+          "status": "passed"
+        },
+        {
+          "name": "dropped_handles_are_not_detached_and_close_leaves_nothing_queued",
+          "status": "passed"
+        },
+        {
+          "name": "first_failure_cancels_the_siblings_and_the_join_awaits_all",
+          "status": "passed"
+        },
+        {
+          "name": "fork_join_happens_before_at_spawn_and_join",
+          "status": "passed"
+        },
+        {
+          "name": "poll_cancel_and_io_sleep_return_the_documented_words",
+          "status": "passed"
+        },
+        {
+          "name": "the_spawn_sequence_fixes_the_interleaving",
+          "status": "passed"
+        },
+        {
+          "name": "app_applies_a_unit_closure_to_its_arguments_in_order",
+          "status": "passed"
+        },
+        {
+          "name": "app_applies_a_zero_arity_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "big_constants_parse_their_decimal_digits",
+          "status": "passed"
+        },
+        {
+          "name": "big_constants_reject_malformed_digits_and_padding",
+          "status": "passed"
+        },
+        {
+          "name": "case_selects_the_matching_arm_and_binds_its_fields",
+          "status": "passed"
+        },
+        {
+          "name": "case_variable_default_binds_the_scrutinee",
+          "status": "passed"
+        },
+        {
+          "name": "case_wildcard_default_when_no_tag_matches",
+          "status": "passed"
+        },
+        {
+          "name": "case_with_defaults_only_never_reads_an_immediate_scrutinee",
+          "status": "passed"
+        },
+        {
+          "name": "constants_evaluate_to_their_words",
+          "status": "passed"
+        },
+        {
+          "name": "count_operations_skip_immediates_and_name_bound_slots",
+          "status": "passed"
+        },
+        {
+          "name": "ctor_allocates_a_block_case_can_consume",
+          "status": "passed"
+        },
+        {
+          "name": "demand_moves_the_thunk_out_of_its_cell",
+          "status": "passed"
+        },
+        {
+          "name": "exit_codes_match_the_fault_table",
+          "status": "passed"
+        },
+        {
+          "name": "fault_opcode_takes_the_black_hole_fault",
+          "status": "passed"
+        },
+        {
+          "name": "hole_evaluates_the_captured_quote_block",
+          "status": "passed"
+        },
+        {
+          "name": "lam_builds_a_closure_record_over_its_saved_words",
+          "status": "passed"
+        },
+        {
+          "name": "lazy_cell_demands_its_thunk_once_across_repeated_demands",
+          "status": "passed"
+        },
+        {
+          "name": "lazy_init_evaluates_to_the_unit_word",
+          "status": "passed"
+        },
+        {
+          "name": "let_if_and_local_evaluate_to_the_known_word",
+          "status": "passed"
+        },
+        {
+          "name": "malformed_case_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "malformed_program_streams_are_errors",
+          "status": "passed"
+        },
+        {
+          "name": "malformed_quote_blocks_are_errors",
+          "status": "passed"
+        },
+        {
+          "name": "nesting_past_the_bound_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "nesting_within_the_bound_evaluates",
+          "status": "passed"
+        },
+        {
+          "name": "non_block_words_where_a_block_is_required_are_errors",
+          "status": "passed"
+        },
+        {
+          "name": "out_of_range_hole_index_is_an_error",
+          "status": "passed"
+        },
+        {
+          "name": "proj_mode_0_loads_a_field_word",
+          "status": "passed"
+        },
+        {
+          "name": "proj_mode_1_extends_signed_and_unsigned",
+          "status": "passed"
+        },
+        {
+          "name": "proj_mode_2_loads_a_boundary_word",
+          "status": "passed"
+        },
+        {
+          "name": "self_demanding_cell_faults_as_the_black_hole",
+          "status": "passed"
+        },
+        {
+          "name": "set_replaces_the_binder_word",
+          "status": "passed"
+        },
+        {
+          "name": "extern_alloc_zero_fills_blocks",
+          "status": "passed"
+        },
+        {
+          "name": "extern_word_api_arithmetic_and_conversion",
+          "status": "passed"
+        },
+        {
+          "name": "extern_word_api_fault_codes_are_the_documented_ones",
+          "status": "passed"
+        },
+        {
+          "name": "extern_word_api_nat_boundaries_and_decimal",
+          "status": "passed"
+        },
+        {
+          "name": "int_ops_match_the_i128_reference_model",
+          "status": "passed"
+        },
+        {
+          "name": "large_decimal_round_trips_and_arithmetic_identities",
+          "status": "passed"
+        },
+        {
+          "name": "nat_ops_match_the_u128_reference_model",
+          "status": "passed"
+        },
+        {
+          "name": "to_decimal_cap_boundary_on_random_values",
+          "status": "passed"
+        },
+        {
+          "name": "to_i64_boundaries_for_both_types",
+          "status": "passed"
+        },
+        {
+          "name": "a_spawned_task_result_joins_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "handle_and_scope_words_are_distinct_allocations",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_the_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "poll_cancel_is_false_on_the_main_thread",
+          "status": "passed"
+        },
+        {
+          "name": "scope_close_cancels_and_joins_unfinished_children",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "5e09b6a148d5b7572b19b45e2ab6391eb74b798d4a6b95ffbdd5117ae559a0ed",
+      "name": "runtime",
+      "status": "passed",
+      "tests": 171
+    },
+    {
+      "cases": [
+        {
+          "name": "test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_instance_metadata_uses_the_writer_encoding (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+          "status": "passed"
+        },
+        {
+          "name": "test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
+          "status": "passed"
+        },
+        {
+          "name": "test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        },
+        {
+          "name": "test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "8c7a402da9d442d5b20bfe38e8193d9746cfef5caa8dc26783d99afb54212dfd",
+      "name": "tooling",
+      "status": "passed",
+      "tests": 45
+    }
+  ],
+  "runtime_archives": {
+    "debug": "d5c08af76e647cf71fbc2cb3b3606ff3a1cf0f99a54196c488641bf70b8529e8",
+    "release": "7636d6391c01da589067066ad15f3fba6fa25fc45dd17541820429c1517d1be3"
+  },
+  "runtime_source_snapshot_sha256": "b4ce36e34df2f40295e0316c57ef43bdb38f79845f2e48681628cb3d19f442b2",
+  "schema": 1,
+  "status": "audited-published-native-unit-runtime-tooling",
+  "tooling_inputs": {
+    "tooling/README.md": "bbb6579c66fd7335b458965c2c7b660c428f7e9f579ae238e76f5f272cc359a1",
+    "tooling/bootstrap.py": "eca3389320d825040e8e082837aeae642671f753e37b918be91c6b599f6201ed",
+    "tooling/bootstrap.sh": "6f4b7011cb7759c6825c2b4c056f30f5957804cc1819f3e09201dedbef1d42dc",
+    "tooling/bootstrap_checklist.py": "af9fb74851c64d490321f295cbc4a652e971e5f100dbe850e493d284e0db771d",
+    "tooling/bootstrap_interfaces.py": "20ab0eb9aff01ad89ed830c416b54f3aae6d266827b48cfa862ee49788bc8de2",
+    "tooling/bootstrap_objects.py": "cde8729bbf0cbdb8523e56610d043b80eed494c158edd9f7575e9f84b2bc0a08",
+    "tooling/check-grammar-drift.sh": "f6f9b923de09fc23d8c73e1cf75c47d95d963d59d35d4b44f45a8e330c40efaf",
+    "tooling/check-real-files-parse.sh": "a907946db37621b32fbcc6efaed781a547a15ae8ae9ca29beb547019f2fa4e0a",
+    "tooling/editors/emacs/cinch-mode.el": "9ab47fe2cf13fafab8f267a6726d96b16e9edfe6df2e88e3072c2e0c8daa6383",
+    "tooling/editors/sublime/Cinch.sublime-syntax": "9b9db4aefb4537d506e550b5d61a9fd3d66ca29c3bade7ad1dade82f8e98e8ca",
+    "tooling/editors/vim/ftdetect/cinch.vim": "ff46a5a1fe1cc3940c8e18b5ec0708e9c3f9101b0b5fb711189731812ef2783d",
+    "tooling/editors/vim/syntax/cinch.vim": "526cbf0c8f19d70721b639716a050d5dbdd44bf268f60180d79a337ecab3fae2",
+    "tooling/editors/vscode/bin/cinch-lsp": "6840b62112b71e68e82b353cfccd4b4dfdd8fc949f8e8c2d6ae23ffd4ec238c8",
+    "tooling/editors/vscode/extension.js": "d73713e9c6ead7c26532edfcb274195142a8072837c74741d7ead1b2b0406d68",
+    "tooling/editors/vscode/language-configuration.json": "86352a204355fd284d457799f082459dd0ad474e6dbfd0ea427a52aa47528a85",
+    "tooling/editors/vscode/package.json": "6c3802afcf96672e762a45e181e3bef37a4c33798e2db9b8dbb02bca8bd82f16",
+    "tooling/editors/vscode/syntaxes/cinch.tmLanguage.json": "981599a9488a3e84eb1c3ce1f123d1e63e4ec66a6c021c862859bbf7651ca2e9",
+    "tooling/editors/zed/extension.toml": "c1f772a5f77a8903bccfd9dd1903b15fa22a3225169731f53a88621369ea43b4",
+    "tooling/editors/zed/languages/cinch/config.toml": "ff4e33274e128dac88d33da620558bf91924ef3fd5a32cfdd9eeae6e94b3e07d",
+    "tooling/editors/zed/languages/cinch/highlights.scm": "bcfa21d51767ae0d05ef0d5e00ec37a1ffb00bddc7e2906d3797ae404930a5c8",
+    "tooling/lsp-driver/Cargo.lock": "3e279d50e828b035cfae64960b9ad26d1eb1fe9d53372067c8a6cab481626c31",
+    "tooling/lsp-driver/Cargo.toml": "ce6b30919f61b8bed5ece36ae22f8d37a897e4375b90bffcf77bb6b6a6c9c288",
+    "tooling/lsp-driver/src/main.rs": "9df9207a44339ee39aef8d9b8fc88c36bb4dc1795f9a527bac2bde38504ad4f8",
+    "tooling/run-bootstrap-ladder.sh": "9e7f53565a2a9c636d001c11afc5394f0a2cc87c24a82d2d13932904443b0e93",
+    "tooling/tests/fixtures/checked-interface.json": "788f83f6acc0c739dee9fcb5b066e8079ed9b668b6d8897576c60f2e09b7a1ff",
+    "tooling/tests/test_bootstrap.py": "5d6f263384350acc4dd5cc52b712d82383347fbe4017daba9bef7b0d748ef96e",
+    "tooling/tests/test_bootstrap_interfaces.py": "3591fc4705ad922241698471df0b5d173521126cc150f79e51b97e78e3e67093",
+    "tooling/tests/test_bootstrap_objects.py": "bf41da9b972ac221906d78060b94e0a1cf7401a70733fb2cb41417b5b4486054",
+    "tooling/tests/test_verify_bootstrap.py": "518e4b9d7b8742a451fc89ffca9e3fe8e0fba86dcab45845c5dd3b7d215f0961",
+    "tooling/tests/test_verify_malleable.py": "1fd6c91a87e43ca302a0a43f53902fc758d0efb18039615f97914e36d048aaed",
+    "tooling/tree-sitter-cinch/.gitignore": "8ce08d40d1b347edf46eb176c1ec5c51370dfc914cadcb0159b74cb00212d6d9",
+    "tooling/tree-sitter-cinch/corpus/declarations.txt": "297beed73343504a04b8a9dbfc5ed793e66841e990901c78ec41b507440e49b2",
+    "tooling/tree-sitter-cinch/corpus/expressions.txt": "fe08e45d5a36abccbb4987e1d537483d3f50c95fcd3a3451008546e30f9d506a",
+    "tooling/tree-sitter-cinch/corpus/layout.txt": "a58f7467992b2a6687514fe050c73e22120aa92bcf96e71a40c5fa4f941e3c63",
+    "tooling/tree-sitter-cinch/corpus/lexical-minus.txt": "38436ea61086e04032f1e9b1ab507e2f7478dfaac4c461d25dee772721dc514d",
+    "tooling/tree-sitter-cinch/corpus/lexical-ticks.txt": "179d610f5b7503aacd8b398752f3c349210b80a516e33e530a2c0997eea2eed6",
+    "tooling/tree-sitter-cinch/corpus/operators.txt": "61f606b13bee325f5065a4c2408dc28e9617cf43255db6af8fa5b9f3e2a46271",
+    "tooling/tree-sitter-cinch/grammar.js": "9c19a705ac3afddf91f3d57c6f9d8397e62c80ddbc9f106e224068d5896248b1",
+    "tooling/tree-sitter-cinch/src/scanner.c": "38428e00073669cd7d2a5afb54090b131b79acab75ac266c45e00911eb264ad8",
+    "tooling/tree-sitter-cinch/tree-sitter.json": "715bd4eb56e73f9b99b6b211cdf9a511ec238e739955d63b3e918f7a13a519ad",
+    "tooling/verify_bootstrap.py": "11448e8b99da8c73414147f1765cd1ad90ca21e37fc9f7b4a9a503c7109346fe",
+    "tooling/verify_malleable.py": "3bbcc36c7a7f7680a8fd70a74181b20393652df38fe5060200acba0ce2f26cf6"
+  }
+}

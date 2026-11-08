@@ -32,6 +32,12 @@ body authority. The nominal projection and original `Text.Regex` replay are
 separate checks.
 See [the byte-observation audit](../bootstrap/current-schema10-total-byte-observation-results.json).
 
+The current published Rust snapshot passed 205 compiler unit tests and
+171 runtime tests with ignored cases included. The current tooling suite
+passed 45 tests. The original integration targets and the final Stage3
+suite remain separate.
+See [the Rust, runtime and tooling audit](../bootstrap/current-schema10-published-native-core-results.json).
+
 The previous published compiler source (`45bbfe94`) also passed those four
 gates with its own pinned library. Its suite receipts apply to that snapshot.
 See [the previous fixed-point audit](../bootstrap/current-schema10-45bbfe94-bootstrap-results.json).

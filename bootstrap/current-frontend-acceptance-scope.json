@@ -14,6 +14,14 @@
     "interface_refinements",
     "interface_region_effects"
   ],
+  "native_api_assertions": {
+    "arrays": {
+      "source_sha256": "8d1ccd32224302805c2b206f8f484d6aebd8d2658aa2a5e95d40aaf6576b5139",
+      "cases": {
+        "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
+      }
+    }
+  },
   "native_source_sha256": "6b567529032465cde863607185da47aa7d5f9e5ecd99a596158174fd7efa6aa7",
   "new_targets_beyond_original": [
     "bootstrap_array_float_bits",

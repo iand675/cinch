@@ -1,10 +1,12 @@
 from pathlib import Path
+import json
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import verify_bootstrap as verify
+import bootstrap_checklist as checklist
 
 
 class FrozenVerification(unittest.TestCase):
@@ -13,6 +15,31 @@ class FrozenVerification(unittest.TestCase):
             (root / part).mkdir(parents=True)
         (root / "compiler/src").mkdir()
         (root / "compiler/src/main.rs").write_text("frozen source")
+
+    def test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            manifest = root / "base-interfaces.json"
+            manifest.write_text("checked interfaces")
+            source = root / "mixed.rs"
+            source.write_text("reviewed mixed test source")
+            log = root / "mixed.log"
+            log.write_text("test portable_case ... ok\ntest native_case ... ok\n"
+                           "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n")
+            receipt = root / "invocations/mixed/case.json"
+            receipt.parent.mkdir(parents=True)
+            receipt.write_text(json.dumps({"test": "portable_case", "invocation": {
+                "compiler": str(root / "frontend.py"), "interfaces": str(manifest)}}))
+            row = dict(name="mixed", status="passed", source=str(source), exit_code=0,
+                       log=str(log), log_sha256=checklist.digest(log),
+                       invocation_receipts={receipt.name: checklist.digest(receipt)})
+            interfaces_hash = checklist.digest(manifest)
+            review = {"mixed": {"source_sha256": checklist.digest(source),
+                                "cases": {"native_case": "direct Rust API assertion"}}}
+            self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash)[0], "recheck")
+            self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash, review)[0], "verified")
+            source.write_text("changed test source")
+            self.assertEqual(checklist.published_stage3_status(row, root, interfaces_hash, review)[0], "recheck")
 
     def test_copied_inputs_do_not_follow_live_file_links(self):
         with tempfile.TemporaryDirectory() as temp:

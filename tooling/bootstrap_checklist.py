@@ -30,6 +30,12 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def tooling_inputs(root):
+    return {path.relative_to(root).as_posix(): digest(path)
+            for path in (root / 'tooling').rglob('*')
+            if path.is_file() and '__pycache__' not in path.parts}
+
+
 def link(path):
     return GITHUB + path
 
@@ -118,7 +124,7 @@ def published_stage3_shard(path, audit, compiler, native):
             for row in shard.get('rows', []) if row['status'] != 'pending'}
 
 
-def published_stage3_status(row, directory, interfaces_hash):
+def published_stage3_status(row, directory, interfaces_hash, native_assertions=None):
     if row['status'] in ('running', 'failed'):
         return ('running', 'Running the original target on the matching Stage3.') if row['status'] == 'running' else (
             'blocked', 'The original target reported a failure on the matching Stage3.')
@@ -142,8 +148,14 @@ def published_stage3_status(row, directory, interfaces_hash):
                 or not matches_digest(invocation.get('interfaces'), interfaces_hash)):
             return 'recheck', 'A receipt does not match the audited compiler wrapper and interface set.'
         selected.add(record.get('test'))
-    if selected != names:
+    native = (native_assertions or {}).get(row['name'], {})
+    direct = (names - selected) & set(native.get('cases', {})) if matches_digest(row.get('source'), native.get('source_sha256')) else set()
+    if not selected or selected | direct != names:
         return 'recheck', f'{len(selected & names)} of {len(names)} cases recorded a matching Cinch invocation. Remaining cases need a coverage review.'
+    if direct:
+        suffix = '' if len(direct) == 1 else 's'
+        return 'verified', (f'{len(selected)} cases passed with matching Stage3 invocations. '
+                            f'The same run passed {len(direct)} reviewed direct Rust API assertion{suffix}.')
     return 'verified', f'All {len(names)} original cases passed with matching Stage3 invocation receipts.'
 
 
@@ -258,7 +270,7 @@ def build_checklist(root, cfg, previous=None):
             row, directory, interface_hash = current
             test_file = root / 'compiler' / 'tests' / (name + '.rs')
             if test_file.is_file() and matches_digest(row.get('source'), digest(test_file)):
-                state, detail = published_stage3_status(row, directory, interface_hash)
+                state, detail = published_stage3_status(row, directory, interface_hash, scope.get('native_api_assertions'))
                 evidence = observed(row, compiler, directory)
         front_rows.append(item('stage3:'+name, name, state, detail,
             'Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.',
@@ -292,12 +304,30 @@ def build_checklist(root, cfg, previous=None):
                           and latest_aux.get('compiler_source_sha256') == compiler
                           and latest_aux.get('native_source_sha256') == native
                           and latest_aux.get('tooling_tests') == 43 and latest_aux.get('editor_tests') == 39)
+    core_receipt = 'bootstrap/current-schema10-published-native-core-results.json'
+    native_core = read(root / core_receipt)
+    matching_core = (native_core.get('status') == 'audited-published-native-unit-runtime-tooling'
+                     and native_core.get('compiler_source_sha256') == compiler
+                     and native_core.get('native_source_sha256') == native)
+    core_runs = {run['name']: run for run in native_core['runs']} if matching_core else {}
     for id, title, log_name, total_key, required in [
         ('runtime','Runtime suite','runtime.log','runtime_tests',171),
         ('tooling','Bootstrap and tooling suite','tooling.log','tooling_tests',43),
         ('editor','Syntax and editor suite','syntax-editor.log','editor_tests',39)]:
         found = cases(aux_root/log_name)
         assert len(found) == auxiliary.get(total_key) == required, (id, len(found), auxiliary.get(total_key))
+        core_run = core_runs.get(id)
+        if id == 'tooling' and core_run and native_core.get('tooling_inputs') != tooling_inputs(root):
+            core_run = None
+        if core_run:
+            checked = core_run['cases']
+            assert len(checked) == core_run['tests'] and {case['name'] for case in found} <= {case['name'] for case in checked}
+            assert core_run['status'] == 'passed' and all(case['status'] == 'passed' for case in checked)
+            rows = [item(id+':'+case['name'], case['name'], 'verified',
+                'Passed on the audited current inputs.', 'Run the complete suite on matching inputs.',
+                link(core_receipt), observed=dict(status='passed', source=compiler, cases=[])) for case in checked]
+            suites.append(suite(id, title, 'tests', rows, 'The complete current suite passed on the audited inputs.'))
+            continue
         same = runtime_current if id == 'runtime' else auxiliary.get('compiler_source_sha256') == compiler and auxiliary.get('native_source_sha256') == native
         current_run = next((r for r in latest_aux.get('runs', []) if r['name'] == log_name.removesuffix('.log')), None) if latest_aux_matches and id != 'runtime' else None
         if current_run:
@@ -1030,11 +1060,12 @@ def build_checklist(root, cfg, previous=None):
         audited = (copy_audit.get('status') == 'audited-executable-source-spans-with-two-fixture-failures'
                    and copy_audit['compiler_sha256'] == overlay_validation.get('compiler_sha256'))
         rows = copy_audit['rows'] if audited else overlay_validation['rows']
-        active.append(dict(title='Earlier experiment with test fixtures that supplied library source',
+        active.append(dict(title='Historical test of explicitly supplied library source',
             status=overlay_validation['status'],
             phase=('This experiment checked when explicit source could reuse the compiled library object. '
                    'Core, Algebra and both edit refusals passed. Two old Category and Foldable fixtures failed. '
-                   'Their current fixtures supply only client source and link the library object.'
+                   'Their current fixtures supply only client source. The staged compiler reads .cinchif '
+                   'metadata and links library.o with libcinchruntime.a.'
                    if audited else overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=copy_audit['total'] if audited else 4, source=overlay_validation['compiler_source_sha256'],
