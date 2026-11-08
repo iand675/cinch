@@ -529,7 +529,7 @@ module Bootstrap.Infer where
     TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
-    TUsageArrow s usage arrow -> bad s "usage-annotated arrow requires ownership checking" st
+    TUsageArrow s usage arrow -> check-usage-arrow s usage (convert external kinds locals arrow st)
     TRow s labels tail -> convert-row kinds locals ty st
     TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
     TIndex s literal -> bad s "kind mismatch: a numeric index cannot be used as a proper type" st
@@ -875,7 +875,7 @@ module Bootstrap.Infer where
     other -> (MkLocalBinding name sc id level, st)
 
   bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
-  bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
+  bind-arrow-pattern classes kinds families env locals pat expected st = case arrow-shape (normalize st expected) of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
       (bound, pattern, checked) -> (bound, pattern, effects, result, checked)
     UPi id name domain effects result -> case bind-pattern classes kinds families env locals pat domain st of
@@ -905,6 +905,13 @@ module Bootstrap.Infer where
       (effects, sr) -> case convert external kinds locals result sr of
         (out, done) -> let ty = UProofFun predicate effects out in
           (ty, if valid-type ty then done else add-error sp "ill-formed source erased arrow" done)
+  check-usage-arrow :: Span -> String -> (UType, Store) -> (UType, Store)
+  check-usage-arrow sp marker converted = case converted of
+    (arrow, checked) -> case parse-arrow-usage marker of
+      None -> bad sp "unknown arrow multiplicity" checked
+      Some UsageZero -> bad sp "multiplicity %0 requires runtime argument erasure" checked
+      Some usage -> let ty = UUsageArrow usage arrow in
+        if valid-type ty then (ty, checked) else bad sp "a multiplicity needs a computational arrow" checked
   convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-arrow external kinds locals sp argument row result st = case argument of
     TBound s name carrier (TBoundsEnd end) -> case convert-domain external kinds locals carrier st of
@@ -1672,9 +1679,9 @@ module Bootstrap.Infer where
   builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor"]
 
   result-type :: UType -> UType
-  result-type ty = case ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
+  result-type ty = case arrow-shape ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
   domains :: UType -> List UType
-  domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
+  domains ty = case arrow-shape ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
   root-name :: UType -> Option String
   root-name ty = case ty of UCon name k -> Some name; URefineFormer name ids body -> Some name; UApp f x -> root-name f; other -> None
   occurs-owner :: String -> UType -> Bool
@@ -1684,6 +1691,7 @@ module Bootstrap.Infer where
     UPi id binder a row b -> occurs-owner name a || occurs-owner name row || occurs-owner name b
     UFun a b -> occurs-owner name a || occurs-owner name b
     UFunEff a row b -> occurs-owner name a || occurs-owner name b
+    UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
     UArg x rest -> occurs-owner name x || occurs-owner name rest
@@ -1693,6 +1701,7 @@ module Bootstrap.Infer where
     UPi id name a row b -> not (occurs-owner owner a) && positive owner b
     UFun a b -> not (occurs-owner owner a) && positive owner b
     UFunEff a row b -> not (occurs-owner owner a) && positive owner b
+    UUsageArrow usage arrow -> positive owner arrow
     UProofFun predicate row result -> not (occurs-owner owner predicate || occurs-owner owner row) && positive owner result
     UApp f x -> if occurs-owner owner ty then (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False) else True
     UTuple xs -> positive owner xs
@@ -1838,7 +1847,7 @@ module Bootstrap.Infer where
   -- contract with explicit source-binder aliases. This keeps direct self
   -- method dependencies visible to strict dictionary initialization.
   source-default-call :: String -> UType -> Nat -> Expr -> (List Pat, Expr)
-  source-default-call symbol ty next call = case ty of
+  source-default-call symbol ty next call = case arrow-shape ty of
     URequire predicates body -> source-default-call symbol body next call
     UFun domain result -> source-default-call-argument symbol result next call
     UFunEff domain row result -> source-default-call-argument symbol result next call
@@ -1851,7 +1860,7 @@ module Bootstrap.Infer where
     case source-default-call symbol result (next + 1) (EApp zero call (EVar zero name)) of
       (more, body) -> (Cons (PVar zero name) more, body)
   default-arrow-result :: Nat -> UType -> UType
-  default-arrow-result count ty = if count == 0 then ty else case ty of
+  default-arrow-result count ty = if count == 0 then ty else case arrow-shape ty of
     URequire predicate body -> default-arrow-result count body
     UFun domain result -> default-arrow-result (count - 1) result
     UFunEff domain row result -> default-arrow-result (count - 1) result
@@ -2766,7 +2775,7 @@ module Bootstrap.Infer where
           URefine id name carrier predicate -> let base = unify sp carrier expected st in
             if list-length (store-errors base) == list-length (store-errors st) then base else st
           other -> st))
-    Cons argument rest -> case normalize st ty of
+    Cons argument rest -> case arrow-shape (normalize st ty) of
       UPi id name domain row result -> hint-independent-result (Cons id binders) sp result rest expected st
       UProofFun predicate row result -> hint-independent-result binders sp result rest expected st
       URequire predicates result -> st
@@ -2938,6 +2947,7 @@ module Bootstrap.Infer where
     UApp f x -> UApp (relocate-local-index binding new-level f) (relocate-local-index binding new-level x)
     UFun a b -> UFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
     UFunEff a row b -> UFunEff (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
+    UUsageArrow usage arrow -> UUsageArrow usage (relocate-local-index binding new-level arrow)
     UProofFun a row b -> UProofFun (relocate-local-index binding new-level a) (relocate-local-index binding new-level row) (relocate-local-index binding new-level b)
     URow labels -> URow (relocate-local-index binding new-level labels)
     URowJoin a b -> URowJoin (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
@@ -3024,7 +3034,7 @@ module Bootstrap.Infer where
   function-type :: UType -> UType -> UType -> UType
   function-type a row b = case row of URow UEnd -> UFun a b; other -> UFunEff a row b
   arrow-parts :: Span -> UType -> Store -> (UType, UType, UType, Store)
-  arrow-parts sp ty st = case normalize st ty of
+  arrow-parts sp ty st = case arrow-shape (normalize st ty) of
     UPi id name a row b -> if pi-dependent (normalize st ty) then (UError, UError, UError, add-error sp "dependent arrow needs an actual argument witness" st) else (a, row, b, st)
     UFun a b -> (a, URow UEnd, b, st)
     UFunEff a row b -> (a, row, b, st)
@@ -3048,7 +3058,7 @@ module Bootstrap.Infer where
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-open-argument classes kinds families original locals sp fun arg st =
-    let env = proof-env-after-term original fun st in case normalize st (core-type fun) of
+    let env = proof-env-after-term original fun st in case arrow-shape (normalize st (core-type fun)) of
     UProofFun predicate effects result -> case (fun, arg) of
       -- Transparent constructors are synthesized with a scoped proof
       -- lambda. A direct decide must check the same predicate, and the
@@ -3084,7 +3094,7 @@ module Bootstrap.Infer where
           let binding = MkLocalBinding name scheme id (store-level fresh) in
           let bound = proof-let-env env binding id scheme rhs fresh in
           case lookup-value sp name bound fresh of
-            (local, opened) -> case (case normalize opened (core-type local) of
+            (local, opened) -> case (case arrow-shape (normalize opened (core-type local)) of
               UPi index display domain effects result -> (domain, opened)
               other -> case arrow-parts sp (core-type local) opened of (domain, effects, result, shaped) -> (domain, shaped)) of
               (domain, shaped) -> case check classes kinds families bound locals arg domain shaped of
@@ -3175,6 +3185,7 @@ module Bootstrap.Infer where
   source-handler-lambda-type expected pats row = case pats of
     Nil -> expected
     Cons p rest -> case expected of
+      UUsageArrow usage arrow -> UUsageArrow usage (source-handler-lambda-type arrow pats row)
       UFun a b -> source-handler-arrow a (URow UEnd) b rest row
       UFunEff a effects b -> source-handler-arrow a effects b rest row
       UPi id name a effects b -> UPi id name a (case rest of Nil -> row; other -> URow UEnd) (source-handler-lambda-type b rest row)
@@ -5002,6 +5013,7 @@ module Bootstrap.Infer where
   convert-contracted external kinds locals bounds syntax st = case syntax of
     TFun s domain result -> convert-contracted-arrow external kinds locals bounds s domain None result st
     TFunEff s domain row result -> convert-contracted-arrow external kinds locals bounds s domain (Some row) result st
+    TUsageArrow s usage arrow -> check-usage-arrow s usage (convert-contracted external kinds locals bounds arrow st)
     other -> case convert external kinds locals syntax st of
       (body, sb) -> case convert-proof-bounds external kinds locals bounds sb of
         (UEnd, done) -> (body, done)
@@ -5174,6 +5186,7 @@ module Bootstrap.Infer where
     URequire predicates result -> conditional-erasure result
     UFun domain result -> UFun domain (conditional-erasure result)
     UFunEff domain row result -> UFunEff domain row (conditional-erasure result)
+    UUsageArrow usage arrow -> UUsageArrow usage (conditional-erasure arrow)
     UPi id name domain row result -> let output = conditional-erasure result in
       if contains-meta id (type-free-bound output) then UPi id name domain row output else function-type domain row output
     other -> ty
@@ -5182,6 +5195,7 @@ module Bootstrap.Infer where
     URequire (UArg first rest) result -> True
     UFun domain result -> conditional-precondition result
     UFunEff domain row result -> conditional-precondition result
+    UUsageArrow usage arrow -> conditional-precondition arrow
     UPi id name domain row result -> conditional-precondition result
     other -> False
   closed-conditional-scheme :: Scheme -> Bool
@@ -5294,7 +5308,7 @@ module Bootstrap.Infer where
         (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
     other -> apply-checked-runtime classes sp env fun value st
   apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-checked-runtime classes sp env fun value st = case normalize st (core-type fun) of
+  apply-checked-runtime classes sp env fun value st = case arrow-shape (normalize st (core-type fun)) of
     UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
       if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
       else discharge-call classes sp env (applied-core sp result effects fun value) checked

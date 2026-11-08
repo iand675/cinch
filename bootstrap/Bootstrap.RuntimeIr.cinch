@@ -253,6 +253,7 @@ module Bootstrap.RuntimeIr where
       URigid id name level KType -> representation id rigids
       UFun domain result -> Some 1
       UFunEff domain row result -> Some 1
+      UUsageArrow usage arrow -> Some 1
       UProofFun predicate row result -> Some 1
       UPi id name domain row result -> Some 1
       UTuple fields -> if field-types context fields 0 then Some 1 else None
@@ -605,14 +606,14 @@ module Bootstrap.RuntimeIr where
   arguments :: CoreTerm -> List CoreTerm -> List CoreTerm
   arguments term more = case term of CApply sp ty f x -> arguments f (Cons x more); CApplyEff sp ty row f x -> arguments f (Cons x more); other -> more
   function-type :: RuntimeContext -> UType -> Bool
-  function-type datas ty = case base ty of
+  function-type datas ty = case arrow-shape (base ty) of
     UFun domain result -> word-type datas domain && function-type datas result
     UFunEff domain row result -> word-type datas domain && function-type datas result
     UProofFun predicate row result -> kind-equal (type-kind predicate) KProp && valid-type predicate && function-type datas result
     UPi id name domain row result -> word-type datas domain && function-type datas result
     other -> word-type datas ty
   arity :: UType -> Nat
-  arity ty = case ty of UFun domain result -> 1 + arity result; other -> 0
+  arity ty = case arrow-shape ty of UFun domain result -> 1 + arity result; other -> 0
   -- Word-level workers share code by representation class. Concrete numeric
   -- semantics stay on checked Core; a TObj parameter is never assumed Int.
   scheme-supported :: RuntimeContext -> Scheme -> Bool
@@ -738,7 +739,7 @@ module Bootstrap.RuntimeIr where
   handler-apply :: Span -> CoreTerm -> List CoreTerm -> Option CoreTerm
   handler-apply sp fun values = case values of
     Nil -> Some fun
-    Cons first rest -> case core-type fun of
+    Cons first rest -> case arrow-shape (core-type fun) of
       UFun input result -> handler-apply sp (CApply sp result fun first) rest
       UFunEff input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
       UPi id name input row result -> handler-apply sp (CApplyEff sp result row fun first) rest
@@ -1346,7 +1347,7 @@ module Bootstrap.RuntimeIr where
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
   external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
-  external-shape count ty params = if count == 0 then Some (params, ty) else case base ty of
+  external-shape count ty params = if count == 0 then Some (params, ty) else case arrow-shape (base ty) of
     UFun domain result -> external-shape (count - 1) result (params <> [domain])
     UFunEff domain row result -> external-shape (count - 1) result (params <> [domain])
     UPi id name domain row result -> external-shape (count - 1) result (params <> [domain])
@@ -2419,7 +2420,7 @@ module Bootstrap.RuntimeIr where
   entry-mode :: CoreDefinition -> Option Nat
   entry-mode d = if not (entry-parameters (scheme-params (core-scheme d))) || list-length (core-givens d) > 0 then None else
     if named (scheme-body (core-scheme d)) "Int" && list-length (definition-parameters d) == 0 then Some 0 else
-      let ty = base (scheme-body (core-scheme d)) in
+      let ty = arrow-shape (base (scheme-body (core-scheme d))) in
       let valid = (case ty of
         UFun domain result -> named domain "Unit" && named result "Int"
         UFunEff domain row result -> named domain "Unit" && named result "Int"

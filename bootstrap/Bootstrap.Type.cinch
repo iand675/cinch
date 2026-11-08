@@ -16,7 +16,7 @@ module Bootstrap.Type where
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
-  export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow
+  export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export core-list-type, core-list-element
   export borrow-constructor-kind, borrow-type-parts
@@ -133,6 +133,9 @@ module Bootstrap.Type where
     (UsageMany, UsageMany) -> True
     other -> False
 
+  -- Inspect one arrow's shape while retaining its usage in the owning type.
+  arrow-shape :: UType -> UType
+  arrow-shape ty = case ty of UUsageArrow usage arrow -> arrow; other -> ty
   computational-arrow :: UType -> Bool
   computational-arrow ty = case ty of
     UFun a b -> True
@@ -1806,7 +1809,7 @@ module Bootstrap.Type where
       (UError, UError, add-error sp "dependent application escapes its scope" checked)
     else open-pi-normalized sp (normalize checked function) (normalize checked argument) checked
   open-pi-normalized :: Span -> UType -> UType -> Store -> (UType, UType, Store)
-  open-pi-normalized sp function argument st = case function of
+  open-pi-normalized sp function argument st = case arrow-shape function of
     UPi id name domain row result ->
       let checked = validate-type-indices sp argument st in
       let sorted = if valid-type argument then unify-kind sp (type-kind (normalize checked argument)) (value-kind domain) checked

@@ -163,7 +163,7 @@ module Bootstrap.Typing where
   application-result :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, UType)
   application-result context scope gamma facts function argument = case arrow-result gamma facts function argument of
     Some result -> Some result
-    None -> (case (function, argument) of
+    None -> (case (arrow-shape function, argument) of
       (UPi id name domain row result, CLocal sp ty key display actuals) -> if not (equal-type domain ty) then None else
         (case lookup-local key (scope-locals scope) of
           Some sc -> (case scheme-params sc of
@@ -175,7 +175,8 @@ module Bootstrap.Typing where
   checked-application :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   checked-application context scope gamma facts ty row f x = let before-argument = core-mutable-writes f in
     let before-call = before-argument <> core-mutable-writes x in
-    checked-term context scope gamma facts f
+    (case core-type f of UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (core-type x); other -> True)
+      && checked-term context scope gamma facts f
       && checked-term context scope (proof-after-writes gamma before-argument) (facts-after-writes gamma facts before-argument) x
       && (case application-result context scope (proof-after-writes gamma before-call) (facts-after-writes gamma facts before-call) (core-type f) x of
         Some (result, effects) -> equal-type result ty && equal-type effects row
@@ -544,15 +545,108 @@ module Bootstrap.Typing where
     CPString sp ty text -> Some (1, 1)
     CPChar sp ty text -> Some (1, 1)
     other -> None
+  use-count-fits :: ArrowUsage -> Option (Nat, Nat) -> Bool
+  use-count-fits usage count = case (usage, count) of
+    (UsageZero, Some (0, 0)) -> True
+    (UsageOne, Some (1, 1)) -> True
+    (UsageAffine, Some (low, high)) -> high <= 1
+    other -> False
+  -- A strict alias moves the value. The source must satisfy its own
+  -- obligation and the new binding inherits the same obligation.
+  aliases-use-allowed :: ArrowUsage -> Nat -> CoreTerm -> Bool
+  aliases-use-allowed usage id term = case term of
+    CLet sp ty key name sc (CLocal at carrier original display Nil) body ->
+      (if id == original then use-count-fits usage (use-count True key body) && aliases-use-allowed usage key body else True)
+        && aliases-use-allowed usage id body
+    other -> alias-children-allowed usage id (term-children term)
+  alias-children-allowed :: ArrowUsage -> Nat -> List CoreTerm -> Bool
+  alias-children-allowed usage id children = case children of
+    Nil -> True
+    Cons first rest -> aliases-use-allowed usage id first && alias-children-allowed usage id rest
+  pattern-aliases-allowed :: ArrowUsage -> CorePattern -> CoreTerm -> Bool
+  pattern-aliases-allowed usage pattern body = case pattern of
+    CPVar sp ty id name -> aliases-use-allowed usage id body
+    CPAs sp ty id name (CPWild at carrier) -> aliases-use-allowed usage id body
+    other -> True
   pattern-usage-allowed :: TypingContext -> UType -> CorePattern -> CoreTerm -> Bool
   pattern-usage-allowed context function pattern body = case function of
     UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (pattern-type pattern)
-    UUsageArrow usage arrow -> case (usage, pattern-use-count pattern body) of
-      (UsageZero, Some (0, 0)) -> True
-      (UsageOne, Some (1, 1)) -> True
-      (UsageAffine, Some (low, high)) -> high <= 1
-      other -> False
+    UUsageArrow usage arrow -> use-count-fits usage (pattern-use-count pattern body) && pattern-aliases-allowed usage pattern body
     other -> True
+  annotated-arrow :: UType -> Bool
+  annotated-arrow ty = case ty of UUsageArrow usage arrow -> True; other -> False
+  usage-message :: ArrowUsage -> String
+  usage-message usage = case usage of
+    UsageZero -> "multiplicity %0: an erased argument must never be used at runtime"
+    UsageOne -> "multiplicity %1: the argument must be used exactly once on every path"
+    UsageAffine -> "multiplicity %aff: the argument must be used at most once on every path"
+    UsageMany -> "multiplicity %many: the argument needs structural Share evidence"
+  pattern-usage-error :: TypingContext -> Span -> UType -> CorePattern -> CoreTerm -> Option (Span, String)
+  pattern-usage-error context sp function pattern body = case function of
+    UUsageArrow usage arrow -> if pattern-usage-allowed context function pattern body then None else
+      let site = case pattern of CPVar at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
+      Some (site, usage-message usage)
+    other -> None
+  -- Before a guard commits to this equation, a later equation can still
+  -- receive the same argument. An owned argument cannot move on that path.
+  guard-falls-through :: CoreTerm -> Bool
+  guard-falls-through body = case body of
+    CGuard sp ty guard value -> not (core-alternative-covers body)
+    CLet sp ty id name sc rhs value -> guard-falls-through value
+    CRequire sp ty value -> guard-falls-through value
+    CDischarge sp ty evidence value -> guard-falls-through value
+    CProved sp ty evidence value -> guard-falls-through value
+    CRefine sp ty evidence value -> guard-falls-through value
+    CRefineProof sp ty witness value -> guard-falls-through value
+    CForget sp ty value -> guard-falls-through value
+    other -> False
+  guard-uses :: Nat -> CoreTerm -> Option (Nat, Nat)
+  guard-uses id body = case body of
+    CGuard sp ty guard value -> use-count True id guard
+    CLet sp ty key name sc rhs value -> use-count-after True rhs (use-count True id rhs) (guard-uses id value)
+    CRequire sp ty value -> guard-uses id value
+    CDischarge sp ty evidence value -> guard-uses id value
+    CProved sp ty evidence value -> guard-uses id value
+    CRefine sp ty evidence value -> guard-uses id value
+    CRefineProof sp ty witness value -> guard-uses id value
+    CForget sp ty value -> guard-uses id value
+    other -> Some (0, 0)
+  guard-uses-none :: List Nat -> CoreTerm -> Bool
+  guard-uses-none binders body = case binders of
+    Nil -> True
+    Cons id rest -> case guard-uses id body of Some (0, 0) -> guard-uses-none rest body; other -> False
+  guarded-argument-error :: Span -> UType -> CorePattern -> CoreTerm -> Option (Span, String)
+  guarded-argument-error sp function pattern body = case function of
+    UUsageArrow UsageMany arrow -> None
+    UUsageArrow usage arrow -> require-task (not (guard-falls-through body) || guard-uses-none (task-pattern-ids pattern) body) sp
+      (string-concat-all ["multiplicity ", arrow-usage-text usage, ": the argument can be consumed before a guard falls through"])
+    other -> None
+  usage-parameter-error :: TypingContext -> Span -> Bool -> UType -> List CorePattern -> CoreTerm -> Option (Span, String)
+  usage-parameter-error context sp fallthrough function patterns body = case patterns of
+    Nil -> None
+    Cons pattern rest -> case pattern-usage-error context sp function pattern body of
+      Some error -> Some error
+      None -> case (if fallthrough then guarded-argument-error sp function pattern body else None) of
+        Some error -> Some error
+        None -> (case pattern-result function pattern of
+          Some result -> usage-parameter-error context sp fallthrough result rest body
+          None -> None)
+  has-annotated-parameter :: UType -> Bool
+  has-annotated-parameter ty = case ty of
+    UUsageArrow usage arrow -> True
+    UFun domain result -> has-annotated-parameter result
+    UFunEff domain row result -> has-annotated-parameter result
+    UPi id name domain row result -> has-annotated-parameter result
+    UProofFun predicate row result -> has-annotated-parameter result
+    other -> False
+  usage-equations-error :: TypingContext -> UType -> List CoreClause -> Option (Span, String)
+  usage-equations-error context function clauses = case clauses of
+    Nil -> None
+    Cons (MkCoreClause sp patterns body) rest ->
+      let fallthrough = case rest of Nil -> False; other -> True in
+      case usage-parameter-error context sp fallthrough function patterns body of
+        Some error -> Some error
+        None -> usage-equations-error context function rest
   affine-thunk :: UType -> Bool
   affine-thunk ty = case thunk-parts (task-base ty) of Some parts -> True; None -> False
   thunk-use-error :: Span -> Option (Span, String)
@@ -643,7 +737,8 @@ module Bootstrap.Typing where
       let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
       let valid-capture = not spawning || (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body)) in
       let capture-error = require-task valid-capture sp "a task capture crosses the task boundary without shareable evidence" in
-      let failure = first-task-error (task-pattern-use-error p body) (first-task-error (task-trace-error inside) capture-error) in
+      let failure = first-task-error (pattern-usage-error context sp ty p body)
+        (first-task-error (task-pattern-use-error p body) (first-task-error (task-trace-error inside) capture-error)) in
       TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)
     other -> let checked = task-trace context env scopes False callback in
       let capture-error = require-task (not spawning || task-trace-shared checked) site "a task callback crosses the task boundary without shareable evidence" in
@@ -671,7 +766,8 @@ module Bootstrap.Typing where
       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
         let inside = task-trace context (task-pattern-env p Nil False env) scopes True body in
         let escape = require-task (task-free-scopes env free) sp "region escape: a closure captures a value from a structured scope" in
-        let failure = first-task-error (task-pattern-use-error p body) (first-task-error escape (task-trace-error inside)) in
+        let failure = first-task-error (pattern-usage-error context sp ty p body)
+          (first-task-error (task-pattern-use-error p body) (first-task-error escape (task-trace-error inside))) in
         TaskTrace failure (task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence Nil body))) (task-free-sharing context free && task-types-property context True Nil 64 (task-free-evidence Nil body))
       CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
         let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value)) env) scopes consuming body in
@@ -719,7 +815,7 @@ module Bootstrap.Typing where
       task-traces-merge (TaskTrace failure (task-trace-regions inside) (task-trace-shared inside)) (task-alternatives-trace context env scopes consuming input rest)
     other -> TaskTrace (Some (Span 0 0 1 1, "malformed task case alternatives")) Nil False
   task-code-present :: TypingContext -> CoreTerm -> Bool
-  task-code-present context term = task-scoped-type (core-type term) || affine-thunk (core-type term) || (case term of
+  task-code-present context term = annotated-arrow (core-type term) || task-scoped-type (core-type term) || affine-thunk (core-type term) || (case term of
     CScope sp ty region evidence callback -> True
     CSpawn sp ty token callback -> True
     CJoin sp ty token handles -> True
@@ -736,8 +832,13 @@ module Bootstrap.Typing where
   task-definition-safe :: TypingContext -> CoreDefinition -> Bool
   task-definition-safe context d = case task-definition-error context d of None -> True; Some error -> False
   task-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
-  task-definition-error context d = if context-task-forwarder context (core-name d) && task-source-forwarder d then None
-    else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) (core-clauses d)
+  task-definition-error context d =
+    let declared = scheme-body (core-scheme d) in
+    let clauses = core-clauses d in
+    case (if has-annotated-parameter declared then usage-equations-error context (substitute-bound (core-openings d) declared) clauses else None) of
+      Some error -> Some error
+      None -> if context-task-forwarder context (core-name d) && task-source-forwarder d then None
+        else task-clauses-error context (opening-value-patterns (Span 0 0 1 1) (core-openings d)) clauses
   task-clauses-error :: TypingContext -> List CorePattern -> List CoreClause -> Option (Span, String)
   task-clauses-error context prefix clauses = case clauses of
     Nil -> None
