@@ -70,10 +70,10 @@
 mod arrays_codegen;
 
 use crate::core::{
-    AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, Class, CmpOp,
-    ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimPlan, PrimOp,
-    ProcOp, Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
+    AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
+    CmpOp, ConcOp, ConvMode, Core, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
+    FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
+    Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -111,7 +111,18 @@ pub fn emit(program: &Program) -> Result<String> {
 /// (primitive types specification section 2), and the cooperative task
 /// ABI (section 7).
 pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<String> {
-    Ok(emit_module(profile, program, false)?.ir)
+    Ok(emit_module(profile, program, false, &[])?.ir)
+}
+
+/// Emit executable IR for only `modules`; every other module is an external
+/// declaration resolved by a separately produced object at link time. The
+/// layout table still covers the checked program.
+pub fn emit_for_modules(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+    modules: &[String],
+) -> Result<String> {
+    Ok(emit_module(profile, program, false, modules)?.ir)
 }
 
 /// A relocatable library module and its actual physical ABI. Its consumer
@@ -122,14 +133,40 @@ pub struct EmittedObject {
     pub abi: String,
 }
 
-pub fn emit_object_for(profile: &crate::core::TargetProfile, program: &Program) -> Result<EmittedObject> {
+pub fn emit_object_for(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+) -> Result<EmittedObject> {
+    emit_object_for_modules(profile, program, &[])
+}
+
+/// Emit an object that defines only the units of `modules`. Every other
+/// module is an external dependency: its units are declared, not defined, so
+/// separately produced objects can link without duplicating the closure.
+pub fn emit_object_for_modules(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+    modules: &[String],
+) -> Result<EmittedObject> {
     if program.main.is_some() {
         return err("object emission requires a library program without a process entry");
     }
-    emit_module(profile, program, true)
+    emit_module(profile, program, true, modules)
 }
 
-fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: bool) -> Result<EmittedObject> {
+fn emitted_symbol(symbol: &str, modules: &[String]) -> bool {
+    modules.is_empty()
+        || modules
+            .iter()
+            .any(|module| symbol == module || symbol.starts_with(&format!("{module}.")))
+}
+
+fn emit_module(
+    profile: &crate::core::TargetProfile,
+    program: &Program,
+    object: bool,
+    emit_modules: &[String],
+) -> Result<EmittedObject> {
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
@@ -368,9 +405,7 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
             }
         }
         for f in ["fshl", "fshr"] {
-            out.push_str(&format!(
-                "declare {w} @llvm.{f}.{w}({w}, {w}, {w})\n"
-            ));
+            out.push_str(&format!("declare {w} @llvm.{f}.{w}({w}, {w}, {w})\n"));
         }
     }
     for w in ["i16", "i32", "i64"] {
@@ -422,23 +457,78 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
         out.push('\n');
     }
 
+    if !emit_modules.is_empty() {
+        let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for f in &program.fns {
+            if emitted_symbol(&f.id.0, emit_modules) {
+                continue;
+            }
+            if !declared.insert(f.id.0.clone()) {
+                continue;
+            }
+            let params = (0..f.arity()).map(|_| "i64").collect::<Vec<_>>().join(", ");
+            out.push_str(&format!("declare i64 @{}({params})\n", quote(&f.id.0)));
+            out.push_str(&format!(
+                "declare i64 @{}()\n",
+                quote(&format!("{}.object-closure", f.id.0))
+            ));
+        }
+        for inst in &program.instances {
+            let name = format!("{}.mk", inst.id.0);
+            if emitted_symbol(&name, emit_modules) || !declared.insert(name.clone()) {
+                continue;
+            }
+            let params = (0..inst.subdict_count)
+                .map(|_| "i64")
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("declare i64 @{}({params})\n", quote(&name)));
+        }
+        for (name, plan) in &reg.foreigns {
+            if plan.export || emitted_symbol(name, emit_modules) || !declared.insert(name.clone()) {
+                continue;
+            }
+            let params = (0..plan.arity())
+                .map(|_| "i64")
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("declare i64 @{}({params})\n", quote(name)));
+        }
+        out.push('\n');
+    }
+
     // The units are built and scanned first, attributed under the
     // call-graph classification second, and assembled last: the
     // effect/usage-derived attributes are transitive through calls
     // (design/llvm-contract-attributes.md).
     let mut units: Vec<EmittedUnit> = Vec::new();
     for op in &reg.prims {
-        units.push(build_unit(&cx, &reg, &op.symbol(), op.arity(), UnitBody::Prim(*op))?);
+        units.push(build_unit(
+            &cx,
+            &reg,
+            &op.symbol(),
+            op.arity(),
+            UnitBody::Prim(*op),
+        )?);
     }
     for (name, plan) in &reg.foreigns {
         if !plan.export {
-            units.push(build_unit(&cx, &reg, name, plan.arity(), UnitBody::Foreign(plan))?);
+            units.push(build_unit(
+                &cx,
+                &reg,
+                name,
+                plan.arity(),
+                UnitBody::Foreign(plan),
+            )?);
         }
     }
     for f in &program.fns {
         match (f.prim, f.ctor) {
             (Some(_), Some(_)) => {
-                return err(format!("unit {} is both a primitive and a constructor", f.id))
+                return err(format!(
+                    "unit {} is both a primitive and a constructor",
+                    f.id
+                ))
             }
             (Some(op), None) => {
                 if f.arity() != op.arity() {
@@ -449,7 +539,13 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
                         op.arity()
                     ));
                 }
-                units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Prim(op))?);
+                units.push(build_unit(
+                    &cx,
+                    &reg,
+                    &f.id.0,
+                    f.arity(),
+                    UnitBody::Prim(op),
+                )?);
             }
             (None, Some((_, fields))) => {
                 if f.arity() != fields {
@@ -499,19 +595,36 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
             .get(&inst.id.0)
             .expect("instance registered in Registry::build");
         let name = format!("{}.mk", inst.id.0);
-        units.push(build_unit(&cx, &reg, &name, inst.subdict_count, UnitBody::Mk(info))?);
+        units.push(build_unit(
+            &cx,
+            &reg,
+            &name,
+            inst.subdict_count,
+            UnitBody::Mk(info),
+        )?);
     }
     let classes = classify_units(&units);
     for u in &units {
+        let primitive = reg.prims.iter().any(|op| op.symbol() == u.name);
+        if !emitted_symbol(&u.name, emit_modules) && !primitive {
+            continue;
+        }
         let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name], cx.native);
-        assemble_unit(&mut out, u, group);
+        assemble_unit(
+            &mut out,
+            u,
+            group,
+            (object && primitive).then_some("linkonce_odr"),
+        );
         if object && reg.arity.contains_key(&u.name) {
             // Static closure aliases are module-local. Export an accessor
             // instead of relying on a platform linker to expose an alias
             // into private storage.
             out.push_str(&format!(
-                "define i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr @{} to i64)\n}}\n",
-                quote(&format!("{}.object-closure", u.name)), quote(&format!("{}.clo", u.name))
+                "define {}i64 @{}() {{\nentry:\n  ret i64 ptrtoint (ptr @{} to i64)\n}}\n",
+                if primitive { "linkonce_odr " } else { "" },
+                quote(&format!("{}.object-closure", u.name)),
+                quote(&format!("{}.clo", u.name))
             ));
         }
     }
@@ -559,7 +672,11 @@ fn emit_module(profile: &crate::core::TargetProfile, program: &Program, object: 
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
-    let abi = if object { reg.object_abi(program, profile, &out)? } else { String::new() };
+    let abi = if object {
+        reg.object_abi(program, profile, &out, emit_modules)?
+    } else {
+        String::new()
+    };
     Ok(EmittedObject { ir: out, abi })
 }
 
@@ -672,50 +789,97 @@ impl Registry {
     /// Physical facts about the units just emitted. This is deliberately
     /// separate from source exports: a private layout does not make its
     /// constructor available to an importing source module.
-    fn object_abi(&self, p: &Program, profile: &crate::core::TargetProfile, ir: &str) -> Result<String> {
+    fn object_abi(
+        &self,
+        p: &Program,
+        profile: &crate::core::TargetProfile,
+        ir: &str,
+        emit_modules: &[String],
+    ) -> Result<String> {
         use crate::interface::JsonValue as J;
         fn class(c: Class) -> Result<J> {
             Ok(J::from(match c {
-                Class::Raw => "R", Class::Obj => "O", Class::TObj => "T",
-                Class::Param(_) => return err("object ABI contains an unresolved representation parameter"),
+                Class::Raw => "R",
+                Class::Obj => "O",
+                Class::TObj => "T",
+                Class::Param(_) => {
+                    return err("object ABI contains an unresolved representation parameter")
+                }
             }))
         }
         fn classes(cs: &[Class]) -> Result<J> {
-            Ok(J::Arr(cs.iter().copied().map(class).collect::<Result<Vec<_>>>()?))
+            Ok(J::Arr(
+                cs.iter().copied().map(class).collect::<Result<Vec<_>>>()?,
+            ))
         }
         // The legacy emitter accepts hand-written Core without annotations,
         // defaulting missing classes to Raw. Such a module cannot supply
         // checked ownership authority to a separately compiled consumer.
         for f in &p.fns {
-            let params = if f.ctor.is_some() { &f.repr.fields } else { &f.repr.params };
+            let params = if f.ctor.is_some() {
+                &f.repr.fields
+            } else {
+                &f.repr.params
+            };
             // A parameter-independent constructor (for example List.Nil)
             // legitimately shares one unit across all type arguments.
-            if (f.repr.tparams != 0 && f.ctor.is_none()) || params.len() != f.arity() || params.iter().any(|c| c.is_param()) {
-                return err(format!("object ABI needs concrete checked parameter classes for {}", f.id));
+            if (f.repr.tparams != 0 && f.ctor.is_none())
+                || params.len() != f.arity()
+                || params.iter().any(|c| c.is_param())
+            {
+                return err(format!(
+                    "object ABI needs concrete checked parameter classes for {}",
+                    f.id
+                ));
             }
         }
-        let mut names: Vec<_> = self.arity.keys().collect();
+        let mut names: Vec<_> = self
+            .arity
+            .keys()
+            .filter(|name| {
+                emitted_symbol(name, emit_modules)
+                    || self.prims.iter().any(|op| op.symbol() == **name)
+            })
+            .collect();
         names.sort();
-        let globals: HashSet<String> = names.iter().flat_map(|name|
-            ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"].map(|suffix| format!("{name}{suffix}"))).collect();
+        let globals: HashSet<String> = names
+            .iter()
+            .flat_map(|name| {
+                ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"]
+                    .map(|suffix| format!("{name}{suffix}"))
+            })
+            .collect();
         for name in &names {
             let accessor = format!("{name}.object-closure");
             if globals.contains(&accessor) {
-                return err(format!("object closure accessor collides with a unit global: {accessor}"));
+                return err(format!(
+                    "object closure accessor collides with a unit global: {accessor}"
+                ));
             }
         }
         let mut units = Vec::new();
         for name in names {
-            let params = self.unit_params.get(name).ok_or_else(|| crate::Error::plain(format!("missing object parameter classes for {name}")))?;
+            let params = self.unit_params.get(name).ok_or_else(|| {
+                crate::Error::plain(format!("missing object parameter classes for {name}"))
+            })?;
             if params.len() != self.arity[name] {
                 return err(format!("object ABI parameter arity mismatch for {name}"));
             }
-            let result = if self.insts.keys().any(|i| format!("{i}.mk") == *name) || self.ctors.contains_key(name) {
+            let result = if self.insts.keys().any(|i| format!("{i}.mk") == *name)
+                || self.ctors.contains_key(name)
+            {
                 Some(Class::Obj)
             } else {
-                p.fns.iter().find(|f| f.id.0 == *name).and_then(|f| f.repr.result)
-                    .or_else(|| self.prims.iter().find(|op| op.symbol() == *name)
-                        .and_then(|op| prim_sig(*op).map(|(_, ty)| sig_class(&ty))))
+                p.fns
+                    .iter()
+                    .find(|f| f.id.0 == *name)
+                    .and_then(|f| f.repr.result)
+                    .or_else(|| {
+                        self.prims
+                            .iter()
+                            .find(|op| op.symbol() == *name)
+                            .and_then(|op| prim_sig(*op).map(|(_, ty)| sig_class(&ty)))
+                    })
             };
             units.push(J::obj([
                 ("symbol", name.as_str().into()),
@@ -728,28 +892,53 @@ impl Registry {
         let layouts = self.layouts.borrow();
         let mut types = BTreeMap::new();
         for (name, ids) in &layouts.types {
-            types.insert(name.clone(), match ids {
-                TypeIds::Group(group) => J::obj([("group", (*group).into())]),
-                TypeIds::Escaped { base, shared } => J::obj([("base", (*base).into()), ("shared", (*shared).into())]),
-            });
+            types.insert(
+                name.clone(),
+                match ids {
+                    TypeIds::Group(group) => J::obj([("group", (*group).into())]),
+                    TypeIds::Escaped { base, shared } => {
+                        J::obj([("base", (*base).into()), ("shared", (*shared).into())])
+                    }
+                },
+            );
         }
         let mut ctors = BTreeMap::new();
         for (name, (tag, fields)) in &self.ctors {
-            ctors.insert(name.clone(), J::obj([
-                ("tag", (*tag as u64).into()),
-                ("arity", (*fields as u64).into()),
-                ("descriptor", self.ctor_descs[name].into()),
-            ]));
+            if !emitted_symbol(name, emit_modules) {
+                continue;
+            }
+            ctors.insert(
+                name.clone(),
+                J::obj([
+                    ("tag", (*tag as u64).into()),
+                    ("arity", (*fields as u64).into()),
+                    ("descriptor", self.ctor_descs[name].into()),
+                ]),
+            );
         }
         let mut dictionaries = BTreeMap::new();
         for inst in &p.instances {
+            if !emitted_symbol(&inst.id.0, emit_modules) {
+                continue;
+            }
             let info = &self.insts[&inst.id.0];
-            dictionaries.insert(inst.id.0.clone(), J::obj([
-                ("class", inst.class.as_str().into()),
-                ("context_arity", (info.subdict_count as u64).into()),
-                ("methods", J::Arr(info.methods.iter().map(|(name, _)| J::from(name.as_str())).collect())),
-                ("fields", classes(&info.fields)?),
-            ]));
+            dictionaries.insert(
+                inst.id.0.clone(),
+                J::obj([
+                    ("class", inst.class.as_str().into()),
+                    ("context_arity", (info.subdict_count as u64).into()),
+                    (
+                        "methods",
+                        J::Arr(
+                            info.methods
+                                .iter()
+                                .map(|(name, _)| J::from(name.as_str()))
+                                .collect(),
+                        ),
+                    ),
+                    ("fields", classes(&info.fields)?),
+                ]),
+            );
         }
         Ok(J::obj([
             ("schema", 1u64.into()),
@@ -762,14 +951,22 @@ impl Registry {
             // not a cryptographic artifact digest. Artifact admission must
             // additionally hash the object and matching interface closure.
             ("ir_content_hash", crate::interface::content_hash(ir).into()),
+            (
+                "modules",
+                J::Arr(emit_modules.iter().map(|m| J::from(m.as_str())).collect()),
+            ),
             ("units", J::Arr(units)),
             ("types", J::Obj(types)),
             ("constructors", J::Obj(ctors)),
             ("dictionaries", J::Obj(dictionaries)),
             ("escaped_descriptors", layouts.escaped.into()),
             ("layout_entries", (layouts.table.len() as u64).into()),
-            ("layout_words", J::Arr(layouts.words()?.into_iter().map(J::from).collect())),
-        ]).to_canonical_string())
+            (
+                "layout_words",
+                J::Arr(layouts.words()?.into_iter().map(J::from).collect()),
+            ),
+        ])
+        .to_canonical_string())
     }
 
     /// Register one module-level metadata node; returns its `!N`
@@ -915,15 +1112,28 @@ impl Registry {
                 InstInfo {
                     subdict_count: inst.subdict_count,
                     method_count: inst.method_count,
-                    fields: methods.iter().map(|(name, arity)| {
-                        let function = p.fns.iter().find(|f| f.id.0 == *name);
-                        let hidden = function.map_or(0, |f| f.repr.dictionary_values.len());
-                        if *arity == inst.subdict_count + hidden {
-                            function.and_then(|f| f.repr.result).unwrap_or(Class::Raw)
-                        } else { Class::Obj }
-                    }).collect(),
-                    values: methods.iter().map(|(name, _)| p.fns.iter().find(|f| f.id.0 == *name)
-                        .map(|f| f.repr.dictionary_values.clone()).unwrap_or_default()).collect(),
+                    fields: methods
+                        .iter()
+                        .map(|(name, arity)| {
+                            let function = p.fns.iter().find(|f| f.id.0 == *name);
+                            let hidden = function.map_or(0, |f| f.repr.dictionary_values.len());
+                            if *arity == inst.subdict_count + hidden {
+                                function.and_then(|f| f.repr.result).unwrap_or(Class::Raw)
+                            } else {
+                                Class::Obj
+                            }
+                        })
+                        .collect(),
+                    values: methods
+                        .iter()
+                        .map(|(name, _)| {
+                            p.fns
+                                .iter()
+                                .find(|f| f.id.0 == *name)
+                                .map(|f| f.repr.dictionary_values.clone())
+                                .unwrap_or_default()
+                        })
+                        .collect(),
                     methods,
                 },
             );
@@ -946,9 +1156,11 @@ impl Registry {
         // Boundary layout plans for constructor units, and one wrapper
         // unit per real foreign import (foreign function interface
         // specification section 2).
-        reg.plans.extend(p.plans.iter().map(|(k, v)| (k.clone(), v.clone())));
+        reg.plans
+            .extend(p.plans.iter().map(|(k, v)| (k.clone(), v.clone())));
         reg.lay_out_constructors(p)?;
-        reg.foreigns.extend(p.foreigns.iter().map(|(k, v)| (k.clone(), v.clone())));
+        reg.foreigns
+            .extend(p.foreigns.iter().map(|(k, v)| (k.clone(), v.clone())));
         for (name, plan) in &p.foreigns {
             if !plan.export {
                 reg.add_unit(name, plan.arity())?;
@@ -1000,7 +1212,9 @@ impl Registry {
                     }
                 }
                 if !globals.insert(full.clone()) {
-                    return err(format!("emitted global name {full:?} is used more than once"));
+                    return err(format!(
+                        "emitted global name {full:?} is used more than once"
+                    ));
                 }
             }
         }
@@ -1043,7 +1257,9 @@ impl Registry {
         // The built prelude types' payload words per tag, across copies.
         let mut built: BTreeMap<&str, BTreeMap<usize, u64>> = BTreeMap::new();
         for f in &p.fns {
-            let Some((tag, fields)) = f.ctor else { continue };
+            let Some((tag, fields)) = f.ctor else {
+                continue;
+            };
             // A constructor copied for a class vector (`Cons@T`) lays out
             // with its type at that vector.
             let base = crate::repr::base_unit(&f.id.0);
@@ -1064,8 +1280,15 @@ impl Registry {
                     built.entry(name).or_default().insert(tag, map.len() as u64);
                 }
             }
-            if types.entry(key.clone()).or_default().insert(tag, (f.id.0.clone(), map)).is_some() {
-                return err(format!("data type {key} has two constructor units of tag {tag}"));
+            if types
+                .entry(key.clone())
+                .or_default()
+                .insert(tag, (f.id.0.clone(), map))
+                .is_some()
+            {
+                return err(format!(
+                    "data type {key} has two constructor units of tag {tag}"
+                ));
             }
         }
         for (key, words) in BUILT_TYPES {
@@ -1106,7 +1329,9 @@ impl Registry {
     /// The boundary layout plan of constructor unit `unit`, or of the
     /// generic constructor a class-vector copy was made from.
     fn plan_of(&self, unit: &str) -> Option<&CtorLayout> {
-        self.plans.get(unit).or_else(|| self.plans.get(crate::repr::base_unit(unit).as_ref()))
+        self.plans
+            .get(unit)
+            .or_else(|| self.plans.get(crate::repr::base_unit(unit).as_ref()))
     }
 
     /// The descriptor of constructor unit `unit`.
@@ -1138,7 +1363,10 @@ impl Registry {
         let mut map = vec![Class::Raw; block::CLOSURE_PREFIX_WORDS as usize];
         match self.unit_params.get(unit) {
             Some(params) => map.extend(params.iter().copied()),
-            None => map.extend(std::iter::repeat_n(Class::Raw, self.arity.get(unit).copied().unwrap_or(0))),
+            None => map.extend(std::iter::repeat_n(
+                Class::Raw,
+                self.arity.get(unit).copied().unwrap_or(0),
+            )),
         }
         self.layouts.borrow_mut().shape(map)
     }
@@ -1198,9 +1426,17 @@ fn sig_class(t: &crate::types::Ty) -> Class {
 fn prim_param_classes(op: PrimOp) -> Vec<Class> {
     use ConcOp::*;
     match op {
-        PrimOp::Array { op, classes, packed } => {
+        PrimOp::Array {
+            op,
+            classes,
+            packed,
+        } => {
             let params = op.params(packed);
-            op.sig(packed).0.iter().map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes)).collect()
+            op.sig(packed)
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
         }
         PrimOp::Delay | PrimOp::Force | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
@@ -1236,13 +1472,19 @@ fn prim_consumes(op: PrimOp, i: usize) -> bool {
 /// payload), empty otherwise. Runtime input (`IoRead`) is `Option Bytes`.
 fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
     if let PrimOp::Array { op, classes, .. } = op {
-        return if op.returns_option() { vec![op.result_class(classes)] } else { vec![] };
+        return if op.returns_option() {
+            vec![op.result_class(classes)]
+        } else {
+            vec![]
+        };
     }
     if op == PrimOp::Conc(ConcOp::IoRead) {
         return vec![Class::Obj];
     }
     match prim_sig(op).map(|(_, t)| t) {
-        Some(crate::types::Ty::Adt(name, args)) if name == "Option" || name == "Result" => args.iter().map(sig_class).collect(),
+        Some(crate::types::Ty::Adt(name, args)) if name == "Option" || name == "Result" => {
+            args.iter().map(sig_class).collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -1266,7 +1508,13 @@ fn foreign_param_classes(plan: &ForeignPlan) -> Vec<Class> {
         None => plan
             .params
             .iter()
-            .map(|a| if matches!(a.class, AbiClass::Aggregate) { Class::Obj } else { Class::Raw })
+            .map(|a| {
+                if matches!(a.class, AbiClass::Aggregate) {
+                    Class::Obj
+                } else {
+                    Class::Raw
+                }
+            })
             .collect(),
     }
 }
@@ -1276,7 +1524,9 @@ fn foreign_param_classes(plan: &ForeignPlan) -> Vec<Class> {
 /// dictionary construction unit's are its subdictionaries.
 fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>> {
     let fit = |cs: &[Class], n: usize| -> Vec<Class> {
-        (0..n).map(|i| cs.get(i).copied().map_or(Class::Raw, concrete)).collect()
+        (0..n)
+            .map(|i| cs.get(i).copied().map_or(Class::Raw, concrete))
+            .collect()
     };
     let mut out: HashMap<String, Vec<Class>> = HashMap::new();
     for op in &reg.prims {
@@ -1284,7 +1534,11 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
     }
     for f in &p.fns {
         let arity = f.arity();
-        let cs = if f.ctor.is_some() { &f.repr.fields } else { &f.repr.params };
+        let cs = if f.ctor.is_some() {
+            &f.repr.fields
+        } else {
+            &f.repr.params
+        };
         let classes = match f.prim {
             Some(op) if cs.len() != arity => prim_param_classes(op),
             _ => fit(cs, arity),
@@ -1293,11 +1547,17 @@ fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>
     }
     for (name, plan) in &p.foreigns {
         if !plan.export {
-            out.insert(name.clone(), fit(&foreign_param_classes(plan), plan.arity()));
+            out.insert(
+                name.clone(),
+                fit(&foreign_param_classes(plan), plan.arity()),
+            );
         }
     }
     for inst in &p.instances {
-        out.insert(format!("{}.mk", inst.id.0), vec![Class::Obj; inst.subdict_count]);
+        out.insert(
+            format!("{}.mk", inst.id.0),
+            vec![Class::Obj; inst.subdict_count],
+        );
     }
     out
 }
@@ -1412,16 +1672,23 @@ impl Layouts {
         let base = self.next;
         self.next += n.max(1);
         if self.next >> (64 - block::CTOR_ESC_INDEX_SHIFT) != 0 {
-            return err("the program has more constructor layouts than an escaped descriptor can index");
+            return err(
+                "the program has more constructor layouts than an escaped descriptor can index",
+            );
         }
-        Ok(TypeIds::Escaped { base, shared: false })
+        Ok(TypeIds::Escaped {
+            base,
+            shared: false,
+        })
     }
 
     /// Lay out a data type (at one class vector) whose tag `t` has the
     /// pointer map `maps[t]`, one class per payload word.
     fn add_type(&mut self, key: &str, maps: &[Vec<Class>]) -> Result<()> {
         if (maps.len() as u64) >> block::CTOR_ESC_TAG_BITS != 0 {
-            return err(format!("data type {key} has more constructors than a descriptor can tag"));
+            return err(format!(
+                "data type {key} has more constructors than a descriptor can tag"
+            ));
         }
         let ids = self.place(maps.len() as u64)?;
         if matches!(ids, TypeIds::Escaped { .. }) {
@@ -1442,7 +1709,9 @@ impl Layouts {
     fn desc(&self, key: &str, tag: u64) -> Option<u64> {
         Some(match *self.types.get(key)? {
             TypeIds::Group(g) => block::ctor_id(g, tag),
-            TypeIds::Escaped { base, shared } => block::ctor_escaped(if shared { base } else { base + tag }, tag),
+            TypeIds::Escaped { base, shared } => {
+                block::ctor_escaped(if shared { base } else { base + tag }, tag)
+            }
         })
     }
 
@@ -1456,7 +1725,11 @@ impl Layouts {
         let map: Vec<Class> = map.iter().map(|c| concrete(*c)).collect();
         let regular = tag <= block::CTOR_TAG_MASK;
         let letters = crate::repr::letters(&map);
-        let key = if regular { format!("<shape {letters}>") } else { format!("<shape {letters} escaped>") };
+        let key = if regular {
+            format!("<shape {letters}>")
+        } else {
+            format!("<shape {letters} escaped>")
+        };
         if !self.types.contains_key(&key) {
             let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
             let ids = if regular && group < block::CTOR_GROUPS {
@@ -1497,8 +1770,16 @@ impl Layouts {
             self.hole
         } else {
             let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
-            let base = if group < block::CTOR_GROUPS { block::ctor_id(group, 0) } else { self.next };
-            self.next = if group < block::CTOR_GROUPS { block::ctor_id(group + 1, 0) } else { base + 1 };
+            let base = if group < block::CTOR_GROUPS {
+                block::ctor_id(group, 0)
+            } else {
+                self.next
+            };
+            self.next = if group < block::CTOR_GROUPS {
+                block::ctor_id(group + 1, 0)
+            } else {
+                base + 1
+            };
             base
         };
         self.hole = index + 1;
@@ -1525,7 +1806,10 @@ impl Layouts {
             let words = map.len() as u64;
             let n = block::scan_ext_len(words);
             if n == 0 {
-                let bits = map.iter().enumerate().fold(0, |m, (i, c)| m | block::scan_slot(scan_code(*c), i as u64));
+                let bits = map
+                    .iter()
+                    .enumerate()
+                    .fold(0, |m, (i, c)| m | block::scan_slot(scan_code(*c), i as u64));
                 entries.push(block::layout_entry(words, bits));
             } else {
                 let at = (self.table.len() + ext.len()) as u64;
@@ -1537,7 +1821,8 @@ impl Layouts {
                 ext.resize(start + n as usize, 0);
                 for (i, c) in map.iter().enumerate() {
                     let i = i as u64;
-                    ext[start + (i / block::SCAN_EXT_WORDS) as usize] |= block::scan_slot(scan_code(*c), i % block::SCAN_EXT_WORDS);
+                    ext[start + (i / block::SCAN_EXT_WORDS) as usize] |=
+                        block::scan_slot(scan_code(*c), i % block::SCAN_EXT_WORDS);
                 }
             }
         }
@@ -1548,8 +1833,15 @@ impl Layouts {
     fn finish(&self, reclaim: bool) -> Result<String> {
         let entries = self.words()?;
         let n = entries.len();
-        let words: Vec<String> = entries.iter().map(|e| format!("i64 {}", *e as i64)).collect();
-        let enable = if reclaim { "  call void @cinch_reclaim_enable()\n" } else { "" };
+        let words: Vec<String> = entries
+            .iter()
+            .map(|e| format!("i64 {}", *e as i64))
+            .collect();
+        let enable = if reclaim {
+            "  call void @cinch_reclaim_enable()\n"
+        } else {
+            ""
+        };
         Ok(format!(
             "@__cinch_layouts = internal constant [{n} x i64] [{}]\n\
              define internal void @__cinch_layouts_init() {{\n\
@@ -1563,7 +1855,10 @@ impl Layouts {
 /// The `cinch_alloc_ctor` call that allocates a constructor block of
 /// `bytes` payload bytes with descriptor `desc` into `dst`.
 fn ctor_alloc_call(dst: &str, bytes: impl std::fmt::Display, desc: u64) -> String {
-    format!("{dst} = call ptr @cinch_alloc_ctor(i64 {bytes}, i64 {})", desc as i64)
+    format!(
+        "{dst} = call ptr @cinch_alloc_ctor(i64 {bytes}, i64 {})",
+        desc as i64
+    )
 }
 
 /// Allocate a constructor block with descriptor `desc` holding the words
@@ -1598,15 +1893,26 @@ fn dynamic_shape_desc(b: &mut Builder, reg: &Registry, map: &[Class], tag: &str)
     let esc = reg.shape_desc(map, block::CTOR_TAG_MASK + 1);
     let index = block::ctor_index(block::LAYOUT_BIG, esc);
     let fits = b.reg();
-    b.line(&format!("{fits} = icmp ule i64 {tag}, {}", block::CTOR_TAG_MASK));
+    b.line(&format!(
+        "{fits} = icmp ule i64 {tag}, {}",
+        block::CTOR_TAG_MASK
+    ));
     let regular = b.reg();
     b.line(&format!("{regular} = or i64 {tag}, {group_base}"));
     let shifted = b.reg();
-    b.line(&format!("{shifted} = shl i64 {tag}, {}", block::CTOR_ESC_TAG_SHIFT));
+    b.line(&format!(
+        "{shifted} = shl i64 {tag}, {}",
+        block::CTOR_ESC_TAG_SHIFT
+    ));
     let escaped = b.reg();
-    b.line(&format!("{escaped} = or i64 {shifted}, {}", block::ctor_escaped(index, 0) as i64));
+    b.line(&format!(
+        "{escaped} = or i64 {shifted}, {}",
+        block::ctor_escaped(index, 0) as i64
+    ));
     let d = b.reg();
-    b.line(&format!("{d} = select i1 {fits}, i64 {regular}, i64 {escaped}"));
+    b.line(&format!(
+        "{d} = select i1 {fits}, i64 {regular}, i64 {escaped}"
+    ));
     d
 }
 
@@ -1633,9 +1939,15 @@ fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
     let x = b.reg();
     b.line(&format!("{x} = load i64, ptr {xp}"));
     let xs = b.reg();
-    b.line(&format!("{xs} = lshr i64 {x}, {}", block::CTOR_ESC_TAG_SHIFT));
+    b.line(&format!(
+        "{xs} = lshr i64 {x}, {}",
+        block::CTOR_ESC_TAG_SHIFT
+    ));
     let te = b.reg();
-    b.line(&format!("{te} = and i64 {xs}, {}", (1u64 << block::CTOR_ESC_TAG_BITS) - 1));
+    b.line(&format!(
+        "{te} = and i64 {xs}, {}",
+        (1u64 << block::CTOR_ESC_TAG_BITS) - 1
+    ));
     b.line(&format!("br label %{ljoin}"));
     b.start(&lreg);
     let tr = b.reg();
@@ -1643,7 +1955,9 @@ fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
     b.line(&format!("br label %{ljoin}"));
     b.start(&ljoin);
     let t = b.reg();
-    b.line(&format!("{t} = phi i64 [ {te}, %{lesc} ], [ {tr}, %{lreg} ]"));
+    b.line(&format!(
+        "{t} = phi i64 [ {te}, %{lesc} ], [ {tr}, %{lreg} ]"
+    ));
     t
 }
 
@@ -1844,7 +2158,9 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
         "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" => Callee::Free,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
-        "cinch_scope_close" | "cinch_coop_scope_close" | "cinch_task_join_all_or_cancel"
+        "cinch_scope_close"
+        | "cinch_coop_scope_close"
+        | "cinch_task_join_all_or_cancel"
         | "cinch_coop_task_join_all_or_cancel" => Callee::Free,
         s if s.starts_with("llvm.mem") => Callee::Copy,
         s if s.starts_with("llvm.") => Callee::Pure,
@@ -1969,12 +2285,7 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
             continue;
         }
         let poison_op = [
-            "= sdiv ",
-            "= udiv ",
-            "= srem ",
-            "= urem ",
-            "= fptosi",
-            "= fptoui",
+            "= sdiv ", "= udiv ", "= srem ", "= urem ", "= fptosi", "= fptoui",
         ]
         .iter()
         .any(|p| line.contains(p));
@@ -1985,7 +2296,8 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
             && line
                 .rsplit_once(", ")
                 .map(|(_, amt)| {
-                    !(amt.starts_with('-') || amt.chars().next().is_some_and(|c| c.is_ascii_digit()))
+                    !(amt.starts_with('-')
+                        || amt.chars().next().is_some_and(|c| c.is_ascii_digit()))
                 })
                 .unwrap_or(true);
         if poison_op || variable_shift {
@@ -2019,10 +2331,7 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
                 // The scan cannot see through an opaque call, and a
                 // fault path's `noreturn` never frees observably: only
                 // a body free of both can claim `nofree`.
-                nofree: !u.scan.frees
-                    && !u.scan.faults
-                    && !u.scan.externs
-                    && !u.scan.indirect,
+                nofree: !u.scan.frees && !u.scan.faults && !u.scan.externs && !u.scan.indirect,
             },
         );
     }
@@ -2056,13 +2365,19 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
 
 /// Assemble one unit's text from its built pieces under the given
 /// attribute group.
-fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>) {
+fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>, linkage: Option<&str>) {
     out.push_str(&u.globals);
     // The function attribute group precedes metadata attachments on the
     // `define` line (`define ... #4 !immarg !0 {`).
-    let (head, meta) = match (group.is_some(), u.header.split_once(" !")) {
+    let header = match linkage {
+        Some(linkage) => u
+            .header
+            .replacen("define ", &format!("define {linkage} "), 1),
+        None => u.header.clone(),
+    };
+    let (head, meta) = match (group.is_some(), header.split_once(" !")) {
         (true, Some((h, m))) => (h.to_string(), format!(" !{m}")),
-        _ => (u.header.clone(), String::new()),
+        _ => (header, String::new()),
     };
     out.push_str(&head);
     if let Some(group) = group {
@@ -2074,7 +2389,11 @@ fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>) {
     out.push_str(&u.allocas);
     out.push_str(&u.code);
     out.push_str("}\n\n");
-    out.push_str(&u.stub);
+    let stub = match linkage {
+        Some(linkage) => u.stub.replacen("define ", &format!("define {linkage} "), 1),
+        None => u.stub.clone(),
+    };
+    out.push_str(&stub);
     out.push_str(&u.clo);
 }
 
@@ -2116,11 +2435,19 @@ fn build_unit(
             // static blocks whose headers carry their layout ids (`None`;
             // `LT`/`EQ`/`GT`), `Some` is a fresh `{ value }` block.
             if op.returns_option() {
-                globals.push_str(&static_ctor_block(&format!("{name}.blk"), reg.shape_desc(&[], TAG_NONE), &[]));
+                globals.push_str(&static_ctor_block(
+                    &format!("{name}.blk"),
+                    reg.shape_desc(&[], TAG_NONE),
+                    &[],
+                ));
             }
             if op.returns_ordering() {
                 for (suf, tag) in [(".lt", 0), (".eq", 1), (".gt", 2)] {
-                    globals.push_str(&static_ctor_block(&format!("{name}{suf}"), reg.shape_desc(&[], tag), &[]));
+                    globals.push_str(&static_ctor_block(
+                        &format!("{name}{suf}"),
+                        reg.shape_desc(&[], tag),
+                        &[],
+                    ));
                 }
             }
             ret_range = reg.ranges.get(name).copied();
@@ -2186,8 +2513,16 @@ fn build_unit(
         header,
         allocas: b.allocas,
         code: b.code,
-        stub: if worker { String::new() } else { stub_def(reg, name, arity) },
-        clo: if worker { String::new() } else { clo_def(reg, name, arity) },
+        stub: if worker {
+            String::new()
+        } else {
+            stub_def(reg, name, arity)
+        },
+        clo: if worker {
+            String::new()
+        } else {
+            clo_def(reg, name, arity)
+        },
         scan,
         lang_facts: lang,
     })
@@ -2226,7 +2561,11 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
         &format!("{name}.clo"),
         block::KIND_CLOSURE,
         reg.closure_desc(name),
-        &[format!("ptrtoint (ptr @{app} to i64)"), arity.to_string(), "0".to_string()],
+        &[
+            format!("ptrtoint (ptr @{app} to i64)"),
+            arity.to_string(),
+            "0".to_string(),
+        ],
     )
 }
 
@@ -2265,7 +2604,12 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let szb = b.reg();
     b.line(&format!("{szb} = mul i64 {sz}, 8"));
     let new = b.reg();
-    b.line(&shaped_alloc_call(&new, &szb, block::KIND_CLOSURE, reg.closure_desc(name)));
+    b.line(&shaped_alloc_call(
+        &new,
+        &szb,
+        block::KIND_CLOSURE,
+        reg.closure_desc(name),
+    ));
     let cw = b.load_at("%self", 0);
     b.store_at(&new, 0, &cw);
     b.store_at(&new, 8, &arity.to_string());
@@ -2277,7 +2621,9 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let nd2 = b.gep_dyn(&nd, &nfb);
     let acb = b.reg();
     b.line(&format!("{acb} = mul i64 %argc, 8"));
-    b.line(&format!("call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {acb})"));
+    b.line(&format!(
+        "call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {acb})"
+    ));
     stub_take_saved(&mut b, reg, name, arity, &nd, &nf);
     let wr = b.reg();
     b.line(&format!("{wr} = ptrtoint ptr {new} to i64"));
@@ -2295,7 +2641,9 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let m2 = b.gep_dyn(&m, &nfb2);
     let acb2 = b.reg();
     b.line(&format!("{acb2} = mul i64 %argc, 8"));
-    b.line(&format!("call ptr @memcpy(ptr {m2}, ptr %argv, i64 {acb2})"));
+    b.line(&format!(
+        "call ptr @memcpy(ptr {m2}, ptr %argv, i64 {acb2})"
+    ));
     stub_take_saved(&mut b, reg, name, arity, &m, &nf);
     let mut args = Vec::with_capacity(arity);
     for i in 0..arity {
@@ -2306,7 +2654,11 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     if arity == 0 {
         b.line(&format!("{r} = call i64 @{}()", quote(name)));
     } else {
-        b.line(&format!("{r} = call i64 @{}({})", quote(name), args.join(", ")));
+        b.line(&format!(
+            "{r} = call i64 @{}({})",
+            quote(name),
+            args.join(", ")
+        ));
     }
     let ex = b.reg();
     b.line(&format!("{ex} = sub i64 {tot}, {arity}"));
@@ -2335,12 +2687,25 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
 
 /// The release half of an apply stub: `copy` holds the `nf` saved words
 /// just copied out of `%self`, which now owns nothing the copy needs.
-fn stub_take_saved(b: &mut Builder, reg: &Registry, name: &str, arity: usize, copy: &str, nf: &str) {
+fn stub_take_saved(
+    b: &mut Builder,
+    reg: &Registry,
+    name: &str,
+    arity: usize,
+    copy: &str,
+    nf: &str,
+) {
     if !b.reclaim {
         return;
     }
     let classes: Vec<Class> = (0..arity.saturating_sub(1))
-        .map(|i| reg.unit_params.get(name).and_then(|cs| cs.get(i)).copied().unwrap_or(Class::Raw))
+        .map(|i| {
+            reg.unit_params
+                .get(name)
+                .and_then(|cs| cs.get(i))
+                .copied()
+                .unwrap_or(Class::Raw)
+        })
         .collect();
     let selfw = b.reg();
     b.line(&format!("{selfw} = ptrtoint ptr %self to i64"));
@@ -2368,12 +2733,17 @@ fn stub_take_saved(b: &mut Builder, reg: &Registry, name: &str, arity: usize, co
     }
     let hp = b.gep("%self", 0);
     let hp8 = b.reg();
-    b.line(&format!("{hp8} = getelementptr inbounds i8, ptr {hp}, i64 -8"));
+    b.line(&format!(
+        "{hp8} = getelementptr inbounds i8, ptr {hp}, i64 -8"
+    ));
     let h = header_load(b, &hp8);
     let top = b.reg();
     b.line(&format!("{top} = shl i64 {h}, {RC_TOP_SHIFT}"));
     let unique = b.reg();
-    b.line(&format!("{unique} = icmp eq i64 {top}, {}", 1i64 << RC_TOP_SHIFT));
+    b.line(&format!(
+        "{unique} = icmp eq i64 {top}, {}",
+        1i64 << RC_TOP_SHIFT
+    ));
     let lmove = b.label();
     let lshare = b.label();
     let ldone = b.label();
@@ -2826,7 +3196,10 @@ fn ret_option(
     b.line(&format!("ret i64 {w}"));
     b.start(&lsome);
     let v = val(b);
-    let field = prim_payload_classes(op).first().copied().unwrap_or(Class::Raw);
+    let field = prim_payload_classes(op)
+        .first()
+        .copied()
+        .unwrap_or(Class::Raw);
     let w = ctor_block_word(b, reg.shape_desc(&[field], TAG_SOME), &[v]);
     b.line(&format!("ret i64 {w}"));
 }
@@ -2845,7 +3218,13 @@ fn ret(b: &mut Builder, v: &str) {
 /// their units present that word as this `Result`: a socket read's
 /// success value is a fresh `Bytes` buffer, which a single raw word at
 /// the language level could not tell apart from a failure code.
-fn ret_result(b: &mut Builder, reg: &Registry, op: PrimOp, raw: &str, ok: impl FnOnce(&mut Builder) -> String) {
+fn ret_result(
+    b: &mut Builder,
+    reg: &Registry,
+    op: PrimOp,
+    raw: &str,
+    ok: impl FnOnce(&mut Builder) -> String,
+) {
     let classes = prim_payload_classes(op);
     let class = |i: usize| classes.get(i).copied().unwrap_or(Class::Raw);
     let neg = b.reg();
@@ -2919,7 +3298,11 @@ fn arith_overflow(
                     } else {
                         // Unsigned add and mul overflow upward; sub
                         // underflows to zero.
-                        if op == ArithOp::Sub { "false".to_string() } else { "true".to_string() }
+                        if op == ArithOp::Sub {
+                            "false".to_string()
+                        } else {
+                            "true".to_string()
+                        }
                     }
                 }
                 ArithOp::Mul => {
@@ -2971,7 +3354,9 @@ const RC_TOP_SHIFT: u32 = 64 - (block::RC_SHIFT + block::RC_BITS);
 /// can reach that block.
 fn header_load(b: &mut Builder, hp: &str) -> String {
     let h = b.reg();
-    b.line(&format!("{h} = load atomic i64, ptr {hp} monotonic, align 8"));
+    b.line(&format!(
+        "{h} = load atomic i64, ptr {hp} monotonic, align 8"
+    ));
     h
 }
 
@@ -3023,7 +3408,9 @@ fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
     let p = b.reg();
     b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
     let hp = b.reg();
-    b.line(&format!("{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"));
+    b.line(&format!(
+        "{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"
+    ));
     let h = header_load(b, &hp);
     let top = b.reg();
     b.line(&format!("{top} = shl i64 {h}, {RC_TOP_SHIFT}"));
@@ -3039,7 +3426,10 @@ fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
     b.line(&format!("br i1 {plain}, label %{lplain}, label %{lother}"));
     b.start(&lplain);
     let h1 = b.reg();
-    b.line(&format!("{h1} = {} i64 {h}, {one}", if drop { "sub" } else { "add" }));
+    b.line(&format!(
+        "{h1} = {} i64 {h}, {one}",
+        if drop { "sub" } else { "add" }
+    ));
     b.line(&format!("store i64 {h1}, ptr {hp}"));
     b.line(&format!("br label %{ldone}"));
     b.start(&lother);
@@ -3057,7 +3447,14 @@ fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
         b.line(&format!("br i1 {shared}, label %{lmt}, label %{ldone}"));
     }
     b.start(&lmt);
-    b.line(&format!("call void @{}(i64 {w})", if drop { "cinch_drop_mt" } else { "cinch_dup_mt" }));
+    b.line(&format!(
+        "call void @{}(i64 {w})",
+        if drop {
+            "cinch_drop_mt"
+        } else {
+            "cinch_dup_mt"
+        }
+    ));
     b.line(&format!("br label %{ldone}"));
     b.start(&ldone);
 }
@@ -3071,7 +3468,10 @@ fn alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8) -> String {
 /// The `cinch_alloc_shaped` call that allocates a `size`-byte closure or
 /// dictionary block of shape descriptor `desc` into `dst`.
 fn shaped_alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8, desc: u64) -> String {
-    format!("{dst} = call ptr @cinch_alloc_shaped(i64 {size}, i64 {kind}, i64 {})", desc as i64)
+    format!(
+        "{dst} = call ptr @cinch_alloc_shaped(i64 {size}, i64 {kind}, i64 {})",
+        desc as i64
+    )
 }
 
 /// The task ABI symbol of the target's backend (WebAssembly and WASI
@@ -3097,7 +3497,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
     let op = op.resolve_widths(cx.usize_bits);
     use PrimOp::*;
     match op {
-        Array { op: array_op, classes, packed } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
+        Array {
+            op: array_op,
+            classes,
+            packed,
+        } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
         Nat(n) => {
             // Boxed bignum words in and out (runtime ABI): `natCmp`
             // returns the raw -1/0/1 immediate.
@@ -3161,7 +3565,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let n = rt_call(
                         b,
                         k.extern_name(),
-                        &[format!("i64 {ptr}"), format!("i64 {len}"), format!("i64 {i}")],
+                        &[
+                            format!("i64 {ptr}"),
+                            format!("i64 {len}"),
+                            format!("i64 {i}"),
+                        ],
                     );
                     let bad = b.reg();
                     b.line(&format!("{bad} = icmp slt i64 {n}, 0"));
@@ -3184,7 +3592,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let n = rt_call(
                         b,
                         k.extern_name(),
-                        &["i64 %p0".to_string(), format!("i64 {out}"), "i64 4".to_string()],
+                        &[
+                            "i64 %p0".to_string(),
+                            format!("i64 {out}"),
+                            "i64 4".to_string(),
+                        ],
                     );
                     let bad = b.reg();
                     b.line(&format!("{bad} = icmp slt i64 {n}, 0"));
@@ -3293,8 +3705,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 Eq | Cmp => {
                     // `symEq` is the identity pointer test (0 or 1);
                     // `symCmp` is the raw -1/0/1 of the name order.
-                    let args: Vec<String> =
-                        (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
+                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, k.extern_name(), &args);
                     ret(b, &r);
                 }
@@ -3417,9 +3828,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             // The command line is raw rather than a `Result`: a captured
             // word has no failure mode.
             use ProcOp::*;
-            let raw_args = |n: usize| -> Vec<String> {
-                (0..n).map(|i| format!("i64 %p{i}")).collect()
-            };
+            let raw_args =
+                |n: usize| -> Vec<String> { (0..n).map(|i| format!("i64 %p{i}")).collect() };
             match k {
                 ArgCount => {
                     // The `Unit` argument is the prelude's arity spelling
@@ -3487,9 +3897,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             // boundary word becomes the prelude `Result` through
             // `ret_result`.
             use PtyOp::*;
-            let raw_args = |n: usize| -> Vec<String> {
-                (0..n).map(|i| format!("i64 %p{i}")).collect()
-            };
+            let raw_args =
+                |n: usize| -> Vec<String> { (0..n).map(|i| format!("i64 %p{i}")).collect() };
             match k {
                 Open => {
                     // The `Unit` argument is the prelude's arity spelling
@@ -3574,7 +3983,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &val);
                 }
                 Spawn => {
-                    let h = rt_call(b, &task_rt(cx, "task_spawn"), &["i64 %p0".to_string(), "i64 %p1".to_string()]);
+                    let h = rt_call(
+                        b,
+                        &task_rt(cx, "task_spawn"),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
                     ret(b, &h);
                 }
                 JoinN(n) => {
@@ -3629,13 +4042,24 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let desc = if n <= JOIN_SHAPED_MAX {
                         let descs: Vec<String> = (0..1u64 << n)
                             .map(|mask| {
-                                let map: Vec<Class> =
-                                    (0..n).map(|i| if mask >> i & 1 == 1 { Class::TObj } else { Class::Raw }).collect();
+                                let map: Vec<Class> = (0..n)
+                                    .map(|i| {
+                                        if mask >> i & 1 == 1 {
+                                            Class::TObj
+                                        } else {
+                                            Class::Raw
+                                        }
+                                    })
+                                    .collect();
                                 format!("i64 {}", reg.shape_desc(&map, 0) as i64)
                             })
                             .collect();
                         let table = quote(&format!("{name}.shapes"));
-                        b.global(format!("@{table} = internal constant [{} x i64] [{}]", descs.len(), descs.join(", ")));
+                        b.global(format!(
+                            "@{table} = internal constant [{} x i64] [{}]",
+                            descs.len(),
+                            descs.join(", ")
+                        ));
                         let at = b.reg();
                         b.line(&format!("{at} = getelementptr inbounds [{} x i64], ptr @{table}, i64 0, i64 {st}", descs.len()));
                         let d = b.reg();
@@ -3645,7 +4069,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         (reg.raw_shape_desc(n as u64, 0) as i64).to_string()
                     };
                     let tp = b.reg();
-                    b.line(&format!("{tp} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})", 8 * n));
+                    b.line(&format!(
+                        "{tp} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})",
+                        8 * n
+                    ));
                     for (i, part) in parts.iter().enumerate() {
                         b.store_at(&tp, 8 * i, part);
                     }
@@ -3710,7 +4137,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!("{argv} = alloca i64, i64 1"));
             b.store_at(&argv, 0, "0");
             let r = b.reg();
-            b.line(&format!("{r} = call i64 @__apply(i64 %p0, i64 1, ptr {argv})"));
+            b.line(&format!(
+                "{r} = call i64 @__apply(i64 %p0, i64 1, ptr {argv})"
+            ));
             ret(b, &r);
         }
         Demand => {
@@ -3744,44 +4173,36 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
             }
         }
-        Neg { ty, mode } => {
-            match mode {
-                ArithMode::Wrapping => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = sub i64 0, %p0"));
-                    let c = canon(b, ty, &r);
-                    ret(b, &c);
-                }
-                ArithMode::Checked => {
-                    let bad = b.reg();
-                    b.line(&format!(
-                        "{bad} = icmp eq i64 %p0, {}",
-                        min_word(ty)
-                    ));
-                    ret_option(b, reg, op, name, &bad, |b| {
-                        let r = b.reg();
-                        b.line(&format!("{r} = sub i64 0, %p0"));
-                        canon(b, ty, &r)
-                    });
-                }
-                ArithMode::Saturating => {
-                    let is_min = b.reg();
-                    b.line(&format!(
-                        "{is_min} = icmp eq i64 %p0, {}",
-                        min_word(ty)
-                    ));
-                    let r = b.reg();
-                    b.line(&format!("{r} = sub i64 0, %p0"));
-                    let c = canon(b, ty, &r);
-                    let out = b.reg();
-                    b.line(&format!(
-                        "{out} = select i1 {is_min}, i64 {}, i64 {c}",
-                        max_word(ty)
-                    ));
-                    ret(b, &out);
-                }
+        Neg { ty, mode } => match mode {
+            ArithMode::Wrapping => {
+                let r = b.reg();
+                b.line(&format!("{r} = sub i64 0, %p0"));
+                let c = canon(b, ty, &r);
+                ret(b, &c);
             }
-        }
+            ArithMode::Checked => {
+                let bad = b.reg();
+                b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+                ret_option(b, reg, op, name, &bad, |b| {
+                    let r = b.reg();
+                    b.line(&format!("{r} = sub i64 0, %p0"));
+                    canon(b, ty, &r)
+                });
+            }
+            ArithMode::Saturating => {
+                let is_min = b.reg();
+                b.line(&format!("{is_min} = icmp eq i64 %p0, {}", min_word(ty)));
+                let r = b.reg();
+                b.line(&format!("{r} = sub i64 0, %p0"));
+                let c = canon(b, ty, &r);
+                let out = b.reg();
+                b.line(&format!(
+                    "{out} = select i1 {is_min}, i64 {}, i64 {c}",
+                    max_word(ty)
+                ));
+                ret(b, &out);
+            }
+        },
         CheckedDiv { ty } | CheckedRem { ty } => {
             // `None` on a zero divisor and on `minBound / -1` for signed
             // types (primitive types specification, section 4).
@@ -3813,7 +4234,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 canon(b, ty, &r)
             });
         }
-        Shift { ty, op: sop, checked } => {
+        Shift {
+            ty,
+            op: sop,
+            checked,
+        } => {
             let w = ty.width() as i64;
             let count = if checked {
                 // `checked*` return `None` for counts at or above the
@@ -3894,8 +4319,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 BitScanOp::LeadingZeros | BitScanOp::TrailingZeros => {
                     // Counts are `U32`; the zero word is well defined
                     // (`i1 false` selects the width as the answer).
-                    let inst =
-                        if sop == BitScanOp::LeadingZeros { "ctlz" } else { "cttz" };
+                    let inst = if sop == BitScanOp::LeadingZeros {
+                        "ctlz"
+                    } else {
+                        "cttz"
+                    };
                     let r = b.reg();
                     b.line(&format!(
                         "{r} = call {it} @llvm.{inst}.{it}({it} {a}, i1 false)"
@@ -3905,9 +4333,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 BitScanOp::ReverseBits => {
                     let r = b.reg();
-                    b.line(&format!(
-                        "{r} = call {it} @llvm.bitreverse.{it}({it} {a})"
-                    ));
+                    b.line(&format!("{r} = call {it} @llvm.bitreverse.{it}({it} {a})"));
                     let w = ext_n(b, ty, &r);
                     ret(b, &w);
                 }
@@ -3964,7 +4390,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 FloatBinOp::Minimum | FloatBinOp::Maximum => {
                     // IEEE 754-2019 minimum/maximum: propagate NaN (as a
                     // quiet NaN), and distinguish -0 from +0.
-                    let qmask: i64 = if ty == Scalar::F32 { 0x00400000 } else { 0x0008000000000000 };
+                    let qmask: i64 = if ty == Scalar::F32 {
+                        0x00400000
+                    } else {
+                        0x0008000000000000
+                    };
                     let nan = b.reg();
                     b.line(&format!("{nan} = fcmp uno {ft} {x}, {y}"));
                     let xnan = b.reg();
@@ -3978,16 +4408,26 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // On equality the words are identical except for -0
                     // and +0, where minimum picks -0 (the `or` of the sign
                     // bits) and maximum picks +0 (the `and`).
-                    let bit = if fop == FloatBinOp::Minimum { "or" } else { "and" };
+                    let bit = if fop == FloatBinOp::Minimum {
+                        "or"
+                    } else {
+                        "and"
+                    };
                     let both = b.reg();
                     b.line(&format!("{both} = {bit} i64 %p0, %p1"));
                     let cmp = b.reg();
-                    let pred = if fop == FloatBinOp::Minimum { "olt" } else { "ogt" };
+                    let pred = if fop == FloatBinOp::Minimum {
+                        "olt"
+                    } else {
+                        "ogt"
+                    };
                     b.line(&format!("{cmp} = fcmp {pred} {ft} {x}, {y}"));
                     let pick = b.reg();
                     b.line(&format!("{pick} = select i1 {cmp}, i64 %p0, i64 %p1"));
                     let nonnan = b.reg();
-                    b.line(&format!("{nonnan} = select i1 {eq}, i64 {both}, i64 {pick}"));
+                    b.line(&format!(
+                        "{nonnan} = select i1 {eq}, i64 {both}, i64 {pick}"
+                    ));
                     let r = b.reg();
                     b.line(&format!("{r} = select i1 {nan}, i64 {q}, i64 {nonnan}"));
                     r
@@ -4001,12 +4441,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             let r = b.reg();
             match fop {
                 FloatUnOp::Neg => b.line(&format!("{r} = fneg {ft} {x}")),
-                FloatUnOp::Abs => {
-                    b.line(&format!("{r} = call {ft} @llvm.fabs.{ft}({ft} {x})"))
-                }
-                FloatUnOp::Sqrt => {
-                    b.line(&format!("{r} = call {ft} @llvm.sqrt.{ft}({ft} {x})"))
-                }
+                FloatUnOp::Abs => b.line(&format!("{r} = call {ft} @llvm.fabs.{ft}({ft} {x})")),
+                FloatUnOp::Sqrt => b.line(&format!("{r} = call {ft} @llvm.sqrt.{ft}({ft} {x})")),
             }
             let w = float_to_word(b, ty, &r);
             ret(b, &w);
@@ -4064,8 +4500,11 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // Normal: the exponent bits are neither all zero nor
                     // all ones (subnormals and infinities excluded).
                     let it = int_ty(ty);
-                    let emask: i64 =
-                        if ty == Scalar::F32 { 0x7F800000 } else { 0x7FF0000000000000 };
+                    let emask: i64 = if ty == Scalar::F32 {
+                        0x7F800000
+                    } else {
+                        0x7FF0000000000000
+                    };
                     let v = trunc_n(b, ty, "%p0");
                     let e = b.reg();
                     b.line(&format!("{e} = and {it} {v}, {emask}"));
@@ -4113,7 +4552,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     b.line(&format!("{n} = icmp slt i64 {v}, 0"));
                 }
                 let inv = b.reg();
-                b.line(&format!("{inv} = xor i64 {v}, {}", if f32words { 4294967295i64 } else { -1i64 }));
+                b.line(&format!(
+                    "{inv} = xor i64 {v}, {}",
+                    if f32words { 4294967295i64 } else { -1i64 }
+                ));
                 let pos = b.reg();
                 b.line(&format!("{pos} = or i64 {v}, {signmask}"));
                 let k = b.reg();
@@ -4167,7 +4609,15 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
 
 /// Conversions (primitive types specification, section 7): every result is
 /// canonicalized to the target's word form.
-fn conv_body(b: &mut Builder, reg: &Registry, op: PrimOp, name: &str, from: Scalar, to: Scalar, mode: ConvMode) {
+fn conv_body(
+    b: &mut Builder,
+    reg: &Registry,
+    op: PrimOp,
+    name: &str,
+    from: Scalar,
+    to: Scalar,
+    mode: ConvMode,
+) {
     if from.is_int_like() && to.is_int_like() {
         match mode {
             ConvMode::Total => {
@@ -4272,7 +4722,11 @@ fn conv_body(b: &mut Builder, reg: &Registry, op: PrimOp, name: &str, from: Scal
     } else {
         (fcst(from, -1.0), fcst(from, 2f64.powi(w as i32)))
     };
-    let lo_pred = if to.is_signed() && !exact_lo { "oge" } else { "ogt" };
+    let lo_pred = if to.is_signed() && !exact_lo {
+        "oge"
+    } else {
+        "ogt"
+    };
     let lo = b.reg();
     b.line(&format!("{lo} = fcmp {lo_pred} {ft} {x}, {clo}"));
     let hi = b.reg();
@@ -4304,7 +4758,9 @@ fn conv_body(b: &mut Builder, reg: &Registry, op: PrimOp, name: &str, from: Scal
                 max_word(to)
             ));
             let clamped = b.reg();
-            b.line(&format!("{clamped} = select i1 {ok}, i64 {word}, i64 {bound}"));
+            b.line(&format!(
+                "{clamped} = select i1 {ok}, i64 {word}, i64 {bound}"
+            ));
             let out = b.reg();
             b.line(&format!("{out} = select i1 {nan}, i64 0, i64 {clamped}"));
             ret(b, &out);
@@ -4513,7 +4969,11 @@ fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAcc
             // takes the anonymous shape of its size, uncounted because its
             // word fields' classes are not recorded.
             let blk = b.reg();
-            b.line(&ctor_alloc_call(&blk, size, reg.raw_shape_desc(size.div_ceil(8), *tag as u64)));
+            b.line(&ctor_alloc_call(
+                &blk,
+                size,
+                reg.raw_shape_desc(size.div_ceil(8), *tag as u64),
+            ));
             let dst = blk.clone();
             let src = b.gep(payload, fa.offset as usize);
             for f in fields {
@@ -4528,13 +4988,7 @@ fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAcc
 
 /// Store one value word into a block payload field at its recorded
 /// offset.
-fn store_field_word(
-    b: &mut Builder,
-    reg: &Registry,
-    payload: &str,
-    fa: &FieldAccess,
-    val: &str,
-) {
+fn store_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAccess, val: &str) {
     match &fa.shape {
         FieldShape::Scalar { size: 0, .. } => {}
         FieldShape::Scalar { size, .. } => {
@@ -4718,7 +5172,11 @@ fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
     if matches!(plan.result.class, AbiClass::Aggregate) {
         params.push(format!("ptr {}", byvalue_attr(&plan.result, reg, true)));
     }
-    for p in plan.params.iter().filter(|p| !matches!(p.class, AbiClass::Unit)) {
+    for p in plan
+        .params
+        .iter()
+        .filter(|p| !matches!(p.class, AbiClass::Unit))
+    {
         let byval = byvalue_attr(p, reg, false);
         let kind = if byval.is_empty() {
             "ptr".to_string()
@@ -4805,11 +5263,7 @@ fn foreign_import_body(
         match &p.class {
             AbiClass::Unit => {}
             AbiClass::Scalar(s) => {
-                tys.push(format!(
-                    "{}{}",
-                    abi_llvm_ty(p),
-                    param_attrs(p, false)
-                ));
+                tys.push(format!("{}{}", abi_llvm_ty(p), param_attrs(p, false)));
                 args.push(word_to_c(b, *s, &format!("%p{i}")));
             }
             AbiClass::Ptr => {
@@ -4995,7 +5449,11 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                     format!("ptr {byval} {n}{}", param_attrs(p, true))
                 });
                 let blk = b.reg();
-                b.line(&ctor_alloc_call(&blk, p.width, reg.raw_shape_desc(p.width.div_ceil(8), p.tag as u64)));
+                b.line(&ctor_alloc_call(
+                    &blk,
+                    p.width,
+                    reg.raw_shape_desc(p.width.div_ceil(8), p.tag as u64),
+                ));
                 let payload = blk.clone();
                 for fa in &p.fields {
                     copy_field_exact(&mut b, reg, &payload, 0, &n, 0, fa, true);
@@ -5068,25 +5526,63 @@ fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
     let uses = info.methods.len();
     for j in 0..info.subdict_count {
         let word = format!("%p{j}");
-        let class = info.methods.first().and_then(|(method, _)| reg.unit_params.get(method))
-            .and_then(|params| params.get(info.values.first().map_or(0, Vec::len) + j)).copied().unwrap_or(Class::Obj);
-        if uses == 0 { rc_op(b, reg.rc_debug, true, &word, class); }
-        for _ in 1..uses { rc_op(b, reg.rc_debug, false, &word, class); }
+        let class = info
+            .methods
+            .first()
+            .and_then(|(method, _)| reg.unit_params.get(method))
+            .and_then(|params| params.get(info.values.first().map_or(0, Vec::len) + j))
+            .copied()
+            .unwrap_or(Class::Obj);
+        if uses == 0 {
+            rc_op(b, reg.rc_debug, true, &word, class);
+        }
+        for _ in 1..uses {
+            rc_op(b, reg.rc_debug, false, &word, class);
+        }
     }
     let pointer = b.reg();
-    b.line(&shaped_alloc_call(&pointer, (1 + info.method_count) * 8, block::KIND_DICT, reg.dict_desc(info)));
+    b.line(&shaped_alloc_call(
+        &pointer,
+        (1 + info.method_count) * 8,
+        block::KIND_DICT,
+        reg.dict_desc(info),
+    ));
     b.store_at(&pointer, 0, &info.method_count.to_string());
-    for i in 0..info.method_count { b.store_at(&pointer, (1 + i) * 8, "0"); }
-    let strict: Vec<bool> = info.methods.iter().enumerate().map(|(i, (_, arity))| *arity == info.subdict_count + info.values[i].len()).collect();
-    let mut pending: Vec<usize> = strict.iter().enumerate().filter_map(|(i, strict)| strict.then_some(i)).collect();
+    for i in 0..info.method_count {
+        b.store_at(&pointer, (1 + i) * 8, "0");
+    }
+    let strict: Vec<bool> = info
+        .methods
+        .iter()
+        .enumerate()
+        .map(|(i, (_, arity))| *arity == info.subdict_count + info.values[i].len())
+        .collect();
+    let mut pending: Vec<usize> = strict
+        .iter()
+        .enumerate()
+        .filter_map(|(i, strict)| strict.then_some(i))
+        .collect();
     let mut initialized = std::collections::HashSet::new();
     let mut order = Vec::new();
     while !pending.is_empty() {
-        let index = pending.iter().position(|i| info.values[*i].iter().all(|slot| initialized.contains(slot)))
+        let index = pending
+            .iter()
+            .position(|i| {
+                info.values[*i]
+                    .iter()
+                    .all(|slot| initialized.contains(slot))
+            })
             .expect("dictionary initialization cycles were rejected before code generation");
-        let slot = pending.remove(index); order.push(slot); initialized.insert(slot);
+        let slot = pending.remove(index);
+        order.push(slot);
+        initialized.insert(slot);
     }
-    order.extend(strict.iter().enumerate().filter_map(|(i, strict)| (!strict).then_some(i)));
+    order.extend(
+        strict
+            .iter()
+            .enumerate()
+            .filter_map(|(i, strict)| (!strict).then_some(i)),
+    );
     for i in order {
         let (method, arity) = &info.methods[i];
         let mut saved = Vec::new();
@@ -5098,27 +5594,51 @@ fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
         saved.extend((0..info.subdict_count).map(|j| format!("%p{j}")));
         let word = if strict[i] {
             let value = b.reg();
-            b.line(&format!("{value} = call i64 @{}({})", quote(method), saved.iter().map(|w| format!("i64 {w}")).collect::<Vec<_>>().join(", ")));
+            b.line(&format!(
+                "{value} = call i64 @{}({})",
+                quote(method),
+                saved
+                    .iter()
+                    .map(|w| format!("i64 {w}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
             value
         } else if saved.is_empty() {
             let value = b.reg();
-            b.line(&format!("{value} = ptrtoint ptr @{} to i64", quote(&format!("{method}.clo"))));
+            b.line(&format!(
+                "{value} = ptrtoint ptr @{} to i64",
+                quote(&format!("{method}.clo"))
+            ));
             value
         } else {
             let closure = b.reg();
-            b.line(&shaped_alloc_call(&closure, (3 + saved.len()) * 8, block::KIND_CLOSURE, reg.closure_desc(method)));
+            b.line(&shaped_alloc_call(
+                &closure,
+                (3 + saved.len()) * 8,
+                block::KIND_CLOSURE,
+                reg.closure_desc(method),
+            ));
             let code = b.reg();
-            b.line(&format!("{code} = ptrtoint ptr @{} to i64", quote(&format!("{method}.app"))));
+            b.line(&format!(
+                "{code} = ptrtoint ptr @{} to i64",
+                quote(&format!("{method}.app"))
+            ));
             b.store_at(&closure, 0, &code);
             b.store_at(&closure, 8, &arity.to_string());
             b.store_at(&closure, 16, &saved.len().to_string());
-            for (j, value) in saved.iter().enumerate() { b.store_at(&closure, 24 + 8 * j, value); }
+            for (j, value) in saved.iter().enumerate() {
+                b.store_at(&closure, 24 + 8 * j, value);
+            }
             let value = b.reg();
-            b.line(&format!("{value} = ptrtoint ptr {closure} to i64")); value
+            b.line(&format!("{value} = ptrtoint ptr {closure} to i64"));
+            value
         };
         b.store_at(&pointer, (1 + i) * 8, &word);
     }
-    let word = b.reg(); b.line(&format!("{word} = ptrtoint ptr {pointer} to i64")); b.line(&format!("ret i64 {word}"));
+    let word = b.reg();
+    b.line(&format!("{word} = ptrtoint ptr {pointer} to i64"));
+    b.line(&format!("ret i64 {word}"));
 }
 
 /// widened worker (the trailing parameters unused).
@@ -5188,9 +5708,20 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
 /// The primitive operations mentioned in a body.
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+        Core::Int(_)
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
+        | Core::Bool(_)
+        | Core::Unit
+        | Core::Var(_)
         | Core::Global(..)
-        | Core::Ctor(..) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
+        | Core::Ctor(..)
+        | Core::Foreign(_)
+        | Core::SpliceVal(_)
+        | Core::Fault
+        | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(..)
@@ -5245,7 +5776,10 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
 fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
     match e {
         Core::Int(_)
-        | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_)
+        | Core::ConstBig { .. }
+        | Core::ConstBytes(_)
+        | Core::ConstString { .. }
+        | Core::ConstSym(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
@@ -5359,9 +5893,7 @@ impl CoreEmitter<'_, '_> {
                 self.reg.arity.get(&id.0).map(|a| (id.0.clone(), *a))
             }
             Core::Prim(op) => Some((op.symbol(), op.arity())),
-            Core::Foreign(n) => {
-                self.reg.foreigns.get(n).map(|p| (n.clone(), p.arity()))
-            }
+            Core::Foreign(n) => self.reg.foreigns.get(n).map(|p| (n.clone(), p.arity())),
             _ => None,
         }
     }
@@ -5813,7 +6345,13 @@ impl CoreEmitter<'_, '_> {
         let slot = self.slot(x);
         let w = self.b.reg();
         self.b.line(&format!("{w} = load i64, ptr {slot}"));
-        rc_op(self.b, self.reg.rc_debug, matches!(e, Core::Drop(..)), &w, class);
+        rc_op(
+            self.b,
+            self.reg.rc_debug,
+            matches!(e, Core::Drop(..)),
+            &w,
+            class,
+        );
         Ok(())
     }
 
@@ -5921,9 +6459,7 @@ impl CoreEmitter<'_, '_> {
             }
             Core::Case { scrut, alts } => self.emit_case(scrut, alts, true).map(|_| ()),
             Core::App(f, args) => {
-                let direct = self
-                    .known_unit(f)
-                    .filter(|(_, arity)| *arity == args.len());
+                let direct = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
                 match direct {
                     Some((unit, _)) if unit == self.unit => {
                         // The self tail call: arguments first (a
@@ -6043,7 +6579,10 @@ impl CoreEmitter<'_, '_> {
         // path of a covered match carries weight 0.
         let fully = !cons.is_empty()
             && cons.iter().all(|(_, _, _, w)| w.is_some())
-            && default.as_ref().map(|(_, _, w)| w.is_some()).unwrap_or(true);
+            && default
+                .as_ref()
+                .map(|(_, _, w)| w.is_some())
+                .unwrap_or(true);
         if fully {
             let mut ws = vec![default.as_ref().and_then(|(_, _, w)| *w).unwrap_or(0)];
             for (_, _, _, w) in &cons {
@@ -6069,7 +6608,8 @@ impl CoreEmitter<'_, '_> {
                 self.emit_tail(rhs)?;
             } else {
                 let v = self.emit_expr(rhs)?;
-                self.b.line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
+                self.b
+                    .line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
                 let lj = ljoin.as_ref().unwrap();
                 self.b.line(&format!("br label %{lj}"));
             }
@@ -6089,7 +6629,8 @@ impl CoreEmitter<'_, '_> {
                     self.emit_tail(rhs)?;
                 } else {
                     let v = self.emit_expr(rhs)?;
-                    self.b.line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
+                    self.b
+                        .line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
                     let lj = ljoin.as_ref().unwrap();
                     self.b.line(&format!("br label %{lj}"));
                 }
@@ -6107,7 +6648,8 @@ impl CoreEmitter<'_, '_> {
         let lj = ljoin.as_ref().unwrap();
         self.b.start(lj);
         let r = self.b.reg();
-        self.b.line(&format!("{r} = load i64, ptr {}", slot.as_ref().unwrap()));
+        self.b
+            .line(&format!("{r} = load i64, ptr {}", slot.as_ref().unwrap()));
         Ok(Some(r))
     }
 }
@@ -6143,7 +6685,10 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
             let lib = runtime.join("target/debug/libcinchruntime.a");
-            assert!(lib.exists(), "libcinchruntime.a not found after building the runtime");
+            assert!(
+                lib.exists(),
+                "libcinchruntime.a not found after building the runtime"
+            );
             lib
         });
         LIB.clone()
@@ -6271,25 +6816,41 @@ mod tests {
     /// A wrapping machine `I64` arithmetic op (the tests below compare raw
     /// words, so they stay on the machine family).
     fn arith(op: ArithOp) -> PrimOp {
-        PrimOp::Arith { ty: Scalar::I64, op, mode: ArithMode::Wrapping }
+        PrimOp::Arith {
+            ty: Scalar::I64,
+            op,
+            mode: ArithMode::Wrapping,
+        }
     }
 
     fn negi() -> PrimOp {
-        PrimOp::Neg { ty: Scalar::I64, mode: ArithMode::Wrapping }
+        PrimOp::Neg {
+            ty: Scalar::I64,
+            mode: ArithMode::Wrapping,
+        }
     }
 
     fn cmp(op: CmpOp) -> PrimOp {
-        PrimOp::Cmp { ty: Scalar::I64, op }
+        PrimOp::Cmp {
+            ty: Scalar::I64,
+            op,
+        }
     }
 
     /// A mathematical `Int` constant (decimal digit string).
     fn cbig(s: &str) -> Core {
-        Core::ConstBig { nat: false, digits: s.to_string() }
+        Core::ConstBig {
+            nat: false,
+            digits: s.to_string(),
+        }
     }
 
     /// A mathematical `Nat` constant (decimal digit string).
     fn cnat(s: &str) -> Core {
-        Core::ConstBig { nat: true, digits: s.to_string() }
+        Core::ConstBig {
+            nat: true,
+            digits: s.to_string(),
+        }
     }
 
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
@@ -6311,14 +6872,33 @@ mod tests {
     fn object_rejects_process_entries_and_unchecked_representations() {
         let profile = crate::core::TargetProfile::native();
         let mut p = main_prog(vec![], n(0));
-        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("process entry"));
+        assert!(emit_object_for(&profile, &p)
+            .err()
+            .unwrap()
+            .message
+            .contains("process entry"));
         p.main = None;
         p.fns = vec![fndef("Library.unchecked", &["x"], v(0))];
-        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("checked parameter classes"));
+        assert!(emit_object_for(&profile, &p)
+            .err()
+            .unwrap()
+            .message
+            .contains("checked parameter classes"));
         p.fns[0].repr.params = vec![Class::Param(0)];
-        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("checked parameter classes"));
-        p.fns = vec![thunk("Library.value", n(1)), thunk("Library.value.object-closure", n(2))];
-        assert!(emit_object_for(&profile, &p).err().unwrap().message.contains("accessor collides"));
+        assert!(emit_object_for(&profile, &p)
+            .err()
+            .unwrap()
+            .message
+            .contains("checked parameter classes"));
+        p.fns = vec![
+            thunk("Library.value", n(1)),
+            thunk("Library.value.object-closure", n(2)),
+        ];
+        assert!(emit_object_for(&profile, &p)
+            .err()
+            .unwrap()
+            .message
+            .contains("accessor collides"));
     }
 
     #[test]
@@ -6429,7 +7009,9 @@ int main(void) {{
     #[test]
     fn object_layout_prefix_preserves_extended_pointer_maps() {
         let mut layouts = Layouts::default();
-        let map: Vec<Class> = (0..40).map(|i| [Class::Raw, Class::Obj, Class::TObj][i % 3]).collect();
+        let map: Vec<Class> = (0..40)
+            .map(|i| [Class::Raw, Class::Obj, Class::TObj][i % 3])
+            .collect();
         layouts.add_type("Wide", &[map.clone()]).unwrap();
         let desc = layouts.desc("Wide", 0).unwrap();
         let words = layouts.words().unwrap();
@@ -6437,7 +7019,10 @@ int main(void) {{
         let ext = words[desc as usize] >> block::LAYOUT_ENTRY_WORDS_BITS;
         for (i, class) in map.iter().enumerate() {
             let w = words[ext as usize + i / block::SCAN_EXT_WORDS as usize];
-            assert_eq!((w >> (2 * (i % block::SCAN_EXT_WORDS as usize))) & 3, scan_code(*class));
+            assert_eq!(
+                (w >> (2 * (i % block::SCAN_EXT_WORDS as usize))) & 3,
+                scan_code(*class)
+            );
         }
     }
 
@@ -6604,7 +7189,11 @@ int main(void) {{
     fn prim_fn_direct_call() {
         // A `foreign import` style primitive unit applied to two literals.
         let prog = main_prog(
-            vec![prim_fn("Prelude.wrappingAddI64", &["a", "b"], arith(ArithOp::Add))],
+            vec![prim_fn(
+                "Prelude.wrappingAddI64",
+                &["a", "b"],
+                arith(ArithOp::Add),
+            )],
             app(g("Prelude.wrappingAddI64"), vec![n(3), n(4)]),
         );
         assert_eq!(run("prim_fn_direct_call", &prog), 7);
@@ -6623,7 +7212,10 @@ int main(void) {{
                 n(5),
             ],
         );
-        assert_eq!(run("core_prim_arithmetic_chain", &main_prog(vec![], body)), 9);
+        assert_eq!(
+            run("core_prim_arithmetic_chain", &main_prog(vec![], body)),
+            9
+        );
     }
 
     /// The net, piped-child and pseudo-terminal units
@@ -6649,7 +7241,12 @@ int main(void) {{
                 // `InvalidArgument`.
                 6,
             ),
-            ("net-read", PrimOp::Net(NetOp::Read), vec![n(4242), cnat("16")], 6),
+            (
+                "net-read",
+                PrimOp::Net(NetOp::Read),
+                vec![n(4242), cnat("16")],
+                6,
+            ),
             (
                 "net-write",
                 PrimOp::Net(NetOp::Write),
@@ -6694,7 +7291,12 @@ int main(void) {{
                 6,
             ),
             ("process-wait", PrimOp::Proc(ProcOp::Wait), vec![n(4242)], 6),
-            ("process-close", PrimOp::Proc(ProcOp::Close), vec![n(4242)], 6),
+            (
+                "process-close",
+                PrimOp::Proc(ProcOp::Close),
+                vec![n(4242)],
+                6,
+            ),
             // The pseudo-terminal units (`PrimOp::Pty`): an invented
             // handle is the named argument error on every operation, and
             // the same `ret_result` lowering presents it.
@@ -6710,7 +7312,12 @@ int main(void) {{
                 ],
                 6,
             ),
-            ("pty-read", PrimOp::Pty(PtyOp::Read), vec![n(4242), cnat("16")], 6),
+            (
+                "pty-read",
+                PrimOp::Pty(PtyOp::Read),
+                vec![n(4242), cnat("16")],
+                6,
+            ),
             (
                 "pty-write",
                 PrimOp::Pty(PtyOp::Write),
@@ -6732,7 +7339,10 @@ int main(void) {{
                 crate::core::ProjField::slot(0, Class::Raw),
             );
             let code = run(&format!("net_proc_err_{name}"), &main_prog(vec![], body));
-            assert_eq!(code, expected, "{name}: the Err payload became the exit code");
+            assert_eq!(
+                code, expected,
+                "{name}: the Err payload became the exit code"
+            );
         }
     }
 
@@ -6747,7 +7357,10 @@ int main(void) {{
             CBranch::new(n(2)),
             CBranch::new(n(3)),
         );
-        assert_eq!(run("neg_int_comparison_and_if", &main_prog(vec![], body)), 2);
+        assert_eq!(
+            run("neg_int_comparison_and_if", &main_prog(vec![], body)),
+            2
+        );
     }
 
     #[test]
@@ -6758,16 +7371,19 @@ int main(void) {{
                 p(PrimOp::EqBool),
                 vec![Core::Bool(true), Core::Bool(true)],
             )),
-            CBranch::new(app(p(PrimOp::NotBool), vec![app(
-                p(PrimOp::OrBool),
-                vec![
-                    Core::Bool(false),
-                    app(
-                        p(PrimOp::AndBool),
-                        vec![Core::Bool(true), Core::Bool(false)],
-                    ),
-                ],
-            )])),
+            CBranch::new(app(
+                p(PrimOp::NotBool),
+                vec![app(
+                    p(PrimOp::OrBool),
+                    vec![
+                        Core::Bool(false),
+                        app(
+                            p(PrimOp::AndBool),
+                            vec![Core::Bool(true), Core::Bool(false)],
+                        ),
+                    ],
+                )],
+            )),
             CBranch::new(n(9)),
         );
         assert_eq!(run("bool_prims", &main_prog(vec![], body)), 1);
@@ -6807,7 +7423,10 @@ int main(void) {{
                 ),
             ],
         );
-        assert_eq!(run("bool_ne_and_int_comparisons", &main_prog(vec![], body)), 6);
+        assert_eq!(
+            run("bool_ne_and_int_comparisons", &main_prog(vec![], body)),
+            6
+        );
     }
 
     #[test]
@@ -6822,7 +7441,10 @@ int main(void) {{
                 app(p(PrimOp::Int(IntOp::Rem)), vec![cbig("7"), cbig("0")]),
             ],
         );
-        assert_eq!(run("int_div_and_rem_by_zero_trap", &main_prog(vec![], body)), 71);
+        assert_eq!(
+            run("int_div_and_rem_by_zero_trap", &main_prog(vec![], body)),
+            71
+        );
     }
 
     #[test]
@@ -6836,7 +7458,10 @@ int main(void) {{
                 vec![
                     app(
                         p(PrimOp::Int(IntOp::Mul)),
-                        vec![app(p(PrimOp::Int(IntOp::Div)), vec![cbig("7"), cbig("2")]), cbig("10")],
+                        vec![
+                            app(p(PrimOp::Int(IntOp::Div)), vec![cbig("7"), cbig("2")]),
+                            cbig("10"),
+                        ],
                     ),
                     app(p(PrimOp::Int(IntOp::Rem)), vec![cbig("7"), cbig("2")]),
                 ],
@@ -6848,14 +7473,22 @@ int main(void) {{
     #[test]
     fn partial_application_then_rest() {
         // add2 is applied to one argument; the filled closure takes the rest.
-        let add2 = fndef("add2", &["a", "b"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
+        let add2 = fndef(
+            "add2",
+            &["a", "b"],
+            app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+        );
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10),
+            Class::Raw,
             Box::new(app(g("add2"), vec![n(20)])),
             Box::new(app(v(10), vec![n(22)])),
         );
         assert_eq!(
-            run("partial_application_then_rest", &main_prog(vec![add2], body)),
+            run(
+                "partial_application_then_rest",
+                &main_prog(vec![add2], body)
+            ),
             42
         );
     }
@@ -6863,7 +7496,11 @@ int main(void) {{
     #[test]
     fn lambda_captures_env() {
         // mk x = \y -> x + y, built as a closure capturing x.
-        let inc = fndef("inc", &["cap", "y"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
+        let inc = fndef(
+            "inc",
+            &["cap", "y"],
+            app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+        );
         let mk = fndef(
             "mk",
             &["x"],
@@ -6874,17 +7511,25 @@ int main(void) {{
             },
         );
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10),
+            Class::Raw,
             Box::new(app(g("mk"), vec![n(10)])),
             Box::new(app(v(10), vec![n(32)])),
         );
-        assert_eq!(run("lambda_captures_env", &main_prog(vec![inc, mk], body)), 42);
+        assert_eq!(
+            run("lambda_captures_env", &main_prog(vec![inc, mk], body)),
+            42
+        );
     }
 
     #[test]
     fn over_application() {
         // outer 10 32: outer returns a lambda, the second argument lands on it.
-        let inner = fndef("inner", &["cap", "y"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
+        let inner = fndef(
+            "inner",
+            &["cap", "y"],
+            app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+        );
         let outer = fndef(
             "outer",
             &["x"],
@@ -6895,32 +7540,43 @@ int main(void) {{
             },
         );
         let body = app(g("outer"), vec![n(10), n(32)]);
-        assert_eq!(run("over_application", &main_prog(vec![inner, outer], body)), 42);
+        assert_eq!(
+            run("over_application", &main_prog(vec![inner, outer], body)),
+            42
+        );
     }
 
     #[test]
     fn instance_dictionary_and_method_call() {
         // class Add a { add : a -> a -> a }; Add_Maybe delegates to its
         // subdict. Methods run through DictProj + __apply.
-        let add_int = fndef("add_Int", &["a", "b"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
+        let add_int = fndef(
+            "add_Int",
+            &["a", "b"],
+            app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+        );
         let mut add_maybe = fndef(
             "add_Maybe",
             &["d", "x", "y"],
             Core::Let(
-                LocalId(10), Class::Obj,
+                LocalId(10),
+                Class::Obj,
                 Box::new(Core::DictProj(Box::new(v(0)), 0, None, Class::Obj)),
                 Box::new(app(v(10), vec![v(1), v(2)])),
             ),
         );
         add_maybe.repr.params = vec![Class::Obj, Class::Raw, Class::Raw];
         let body = Core::Let(
-            LocalId(10), Class::Obj,
+            LocalId(10),
+            Class::Obj,
             Box::new(Core::InstDict(gid("Main.Add_Int"), vec![], vec![])),
             Box::new(Core::Let(
-                LocalId(11), Class::Obj,
+                LocalId(11),
+                Class::Obj,
                 Box::new(Core::InstDict(gid("Main.Add_Maybe"), vec![v(10)], vec![])),
                 Box::new(Core::Let(
-                    LocalId(12), Class::Obj,
+                    LocalId(12),
+                    Class::Obj,
                     Box::new(Core::DictProj(Box::new(v(11)), 0, None, Class::Obj)),
                     Box::new(app(v(12), vec![n(20), n(22)])),
                 )),
@@ -6947,10 +7603,7 @@ int main(void) {{
                 own: vec![0],
             },
         ];
-        assert_eq!(
-            run("instance_dictionary_and_method_call", &prog),
-            42
-        );
+        assert_eq!(run("instance_dictionary_and_method_call", &prog), 42);
     }
 
     #[test]
@@ -6971,16 +7624,20 @@ int main(void) {{
             ],
         };
         let body = Core::Let(
-            LocalId(10), Class::Obj,
+            LocalId(10),
+            Class::Obj,
             Box::new(app(ct("T.Some"), vec![n(5)])),
             Box::new(Core::Let(
-                LocalId(11), Class::Raw,
+                LocalId(11),
+                Class::Raw,
                 Box::new(case_on(v(10), 20, 0)),
                 Box::new(Core::Let(
-                    LocalId(12), Class::Obj,
+                    LocalId(12),
+                    Class::Obj,
                     Box::new(ct("T.None")),
                     Box::new(Core::Let(
-                        LocalId(13), Class::Raw,
+                        LocalId(13),
+                        Class::Raw,
                         Box::new(case_on(v(12), 21, 0)),
                         Box::new(app(p(arith(ArithOp::Add)), vec![v(11), v(13)])),
                     )),
@@ -6988,7 +7645,10 @@ int main(void) {{
             )),
         );
         assert_eq!(
-            run("adt_case_bound_field_and_wildcard", &main_prog(vec![some, none], body)),
+            run(
+                "adt_case_bound_field_and_wildcard",
+                &main_prog(vec![some, none], body)
+            ),
             49
         );
     }
@@ -6998,10 +7658,12 @@ int main(void) {{
         // The constructor closure goes through __apply to build Some 5.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10), Class::Obj,
+            LocalId(10),
+            Class::Obj,
             Box::new(ct("T.Some")),
             Box::new(Core::Let(
-                LocalId(11), Class::Obj,
+                LocalId(11),
+                Class::Obj,
                 Box::new(app(v(10), vec![n(5)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(11)),
@@ -7027,7 +7689,8 @@ int main(void) {{
         // Inspect its real payload; an object is not an I64 comparison operand.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10), Class::Obj,
+            LocalId(10),
+            Class::Obj,
             Box::new(app(ct("T.Some"), vec![n(9)])),
             Box::new(Core::Case {
                 scrut: Box::new(v(10)),
@@ -7036,11 +7699,14 @@ int main(void) {{
                     Core::Case {
                         scrut: Box::new(v(20)),
                         alts: vec![
-                            CAlt::new(CPat::con(0, vec![LocalId(21)]), Core::If(
-                                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(21), n(9)])),
-                                CBranch::new(n(4)),
-                                CBranch::new(n(5)),
-                            )),
+                            CAlt::new(
+                                CPat::con(0, vec![LocalId(21)]),
+                                Core::If(
+                                    Box::new(app(p(cmp(CmpOp::Eq)), vec![v(21), n(9)])),
+                                    CBranch::new(n(4)),
+                                    CBranch::new(n(5)),
+                                ),
+                            ),
                             CAlt::new(CPat::Wild, n(5)),
                         ],
                     },
@@ -7048,7 +7714,10 @@ int main(void) {{
             }),
         );
         assert_eq!(
-            run("case_var_pattern_binds_scrutinee", &main_prog(vec![some], body)),
+            run(
+                "case_var_pattern_binds_scrutinee",
+                &main_prog(vec![some], body)
+            ),
             4
         );
     }
@@ -7058,16 +7727,21 @@ int main(void) {{
         // Repeated construction of a zero-field constructor shares one block.
         let none = ctor_fn("T.None", &[], 1, 0);
         let body = Core::Let(
-            LocalId(10), Class::Raw,
+            LocalId(10),
+            Class::Raw,
             Box::new(ct("T.None")),
             Box::new(Core::Let(
-                LocalId(11), Class::Raw,
+                LocalId(11),
+                Class::Raw,
                 Box::new(ct("T.None")),
                 Box::new(app(p(cmp(CmpOp::Eq)), vec![v(10), v(11)])),
             )),
         );
         assert_eq!(
-            run("zero_field_ctor_pointer_identity", &main_prog(vec![none], body)),
+            run(
+                "zero_field_ctor_pointer_identity",
+                &main_prog(vec![none], body)
+            ),
             1
         );
     }
@@ -7086,7 +7760,10 @@ int main(void) {{
             Box::new(app(ct("T.pair"), vec![n(41), n(2)])),
             crate::core::ProjField::slot(1, Class::Raw),
         );
-        assert_eq!(run("tuple_block_projection", &main_prog(vec![pair], body)), 2);
+        assert_eq!(
+            run("tuple_block_projection", &main_prog(vec![pair], body)),
+            2
+        );
     }
 
     #[test]
@@ -7200,10 +7877,12 @@ int main(void) {{
         // from `boxsum 0 3` the recursion sums 3 + 2 + 1 = 6.
         let boxx = ctor_fn("T.box", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(2), Class::Raw,
+            LocalId(2),
+            Class::Raw,
             Box::new(app(p(arith(ArithOp::Sub)), vec![v(1), n(1)])),
             Box::new(Core::Let(
-                LocalId(4), Class::Obj,
+                LocalId(4),
+                Class::Obj,
                 Box::new(app(ct("T.box"), vec![v(1)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(4)),
@@ -7313,7 +7992,10 @@ int main(void) {{
                 CBranch::new(app(g("T.ping"), vec![v(0)])),
             ),
         );
-        let prog = main_prog(vec![sum_fn(), ping, pong], app(g("T.sum"), vec![n(0), n(3)]));
+        let prog = main_prog(
+            vec![sum_fn(), ping, pong],
+            app(g("T.sum"), vec![n(0), n(3)]),
+        );
         let groups = crate::core::tail_report(&prog);
         assert_eq!(groups.len(), 2, "{groups:?}");
         assert_eq!(groups[0].members, vec!["T.ping", "T.pong"]);
@@ -7339,7 +8021,10 @@ int main(void) {{
                 ],
             )],
         );
-        assert_eq!(run("const_big_bignum_arithmetic", &main_prog(vec![], body)), 7);
+        assert_eq!(
+            run("const_big_bignum_arithmetic", &main_prog(vec![], body)),
+            7
+        );
     }
 
     #[test]
@@ -7352,7 +8037,10 @@ int main(void) {{
                 vec![cbig("18446744073709551617"), cbig("18446744073709551616")],
             )],
         );
-        assert_eq!(run("const_big_beyond_i64_range", &main_prog(vec![], body)), 1);
+        assert_eq!(
+            run("const_big_beyond_i64_range", &main_prog(vec![], body)),
+            1
+        );
     }
 
     #[test]
@@ -7389,7 +8077,10 @@ int main(void) {{
         // Source code cannot build this (`3 - 5` at `Nat` is refused); the
         // raw primitive still traps through the panic path (exit 71).
         let body = app(p(PrimOp::Nat(NatOp::Sub)), vec![cnat("3"), cnat("5")]);
-        assert_eq!(run("nat_sub_faults_on_negative", &main_prog(vec![], body)), 71);
+        assert_eq!(
+            run("nat_sub_faults_on_negative", &main_prog(vec![], body)),
+            71
+        );
     }
 
     #[test]
@@ -7405,24 +8096,26 @@ int main(void) {{
     fn bytes_round_trip() {
         // bytesGet (bytesSet (bytesNew 3) 0 65) 0 = 65, and the length is 3.
         let body = Core::Let(
-            LocalId(0), Class::Obj,
+            LocalId(0),
+            Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(Core::Let(
-                LocalId(1), Class::Raw,
+                LocalId(1),
+                Class::Raw,
                 Box::new(app(
                     p(PrimOp::Bytes(BytesOp::Set)),
                     vec![v(0), cnat("0"), cnat("65")],
                 )),
-                Box::new(app(p(PrimOp::Nat(NatOp::ToI64)), vec![app(
-                    p(PrimOp::Nat(NatOp::Add)),
-                    vec![
-                        app(
-                            p(PrimOp::Bytes(BytesOp::Get)),
-                            vec![v(0), cnat("0")],
-                        ),
-                        app(p(PrimOp::Bytes(BytesOp::Len)), vec![v(0)]),
-                    ],
-                )])),
+                Box::new(app(
+                    p(PrimOp::Nat(NatOp::ToI64)),
+                    vec![app(
+                        p(PrimOp::Nat(NatOp::Add)),
+                        vec![
+                            app(p(PrimOp::Bytes(BytesOp::Get)), vec![v(0), cnat("0")]),
+                            app(p(PrimOp::Bytes(BytesOp::Len)), vec![v(0)]),
+                        ],
+                    )],
+                )),
             )),
         );
         assert_eq!(run("bytes_round_trip", &main_prog(vec![], body)), 68);
@@ -7433,16 +8126,15 @@ int main(void) {{
         // Out-of-bounds indices and byte values outside 0..=255 fault
         // through the panic path (exit 71).
         let get_oob = Core::Let(
-            LocalId(0), Class::Obj,
+            LocalId(0),
+            Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
-            Box::new(app(
-                p(PrimOp::Bytes(BytesOp::Get)),
-                vec![v(0), cnat("3")],
-            )),
+            Box::new(app(p(PrimOp::Bytes(BytesOp::Get)), vec![v(0), cnat("3")])),
         );
         assert_eq!(run("bytes_get_oob", &main_prog(vec![], get_oob)), 71);
         let set_bad = Core::Let(
-            LocalId(0), Class::Obj,
+            LocalId(0),
+            Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Set)),
@@ -7457,28 +8149,41 @@ int main(void) {{
         // b = [1, 2, 0, 0]; bytesCopy b b 1 0 3 moves [1, 2, 0] one to the
         // right: [1, 1, 2, 0] (a byte-at-a-time forward copy would smear
         // to [1, 1, 1, 1]). The answer is b[2] * 10 + b[3] = 20.
-        let set = |i: &str, x: &str| {
-            app(p(PrimOp::Bytes(BytesOp::Set)), vec![v(0), cnat(i), cnat(x)])
-        };
+        let set =
+            |i: &str, x: &str| app(p(PrimOp::Bytes(BytesOp::Set)), vec![v(0), cnat(i), cnat(x)]);
         let get = |i: &str| app(p(PrimOp::Bytes(BytesOp::Get)), vec![v(0), cnat(i)]);
-        let answer = app(p(PrimOp::Nat(NatOp::ToI64)), vec![app(
-            p(PrimOp::Nat(NatOp::Add)),
-            vec![app(p(PrimOp::Nat(NatOp::Mul)), vec![get("2"), cnat("10")]), get("3")],
-        )]);
+        let answer = app(
+            p(PrimOp::Nat(NatOp::ToI64)),
+            vec![app(
+                p(PrimOp::Nat(NatOp::Add)),
+                vec![
+                    app(p(PrimOp::Nat(NatOp::Mul)), vec![get("2"), cnat("10")]),
+                    get("3"),
+                ],
+            )],
+        );
         let copy = app(
             p(PrimOp::Bytes(BytesOp::Copy)),
             vec![v(0), v(0), cnat("1"), cnat("0"), cnat("3")],
         );
         let body = Core::Let(
-            LocalId(0), Class::Obj,
+            LocalId(0),
+            Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(Core::Let(
-                LocalId(1), Class::Raw,
+                LocalId(1),
+                Class::Raw,
                 Box::new(set("0", "1")),
                 Box::new(Core::Let(
-                    LocalId(2), Class::Raw,
+                    LocalId(2),
+                    Class::Raw,
                     Box::new(set("1", "2")),
-                    Box::new(Core::Let(LocalId(3), Class::Raw, Box::new(copy), Box::new(answer))),
+                    Box::new(Core::Let(
+                        LocalId(3),
+                        Class::Raw,
+                        Box::new(copy),
+                        Box::new(answer),
+                    )),
                 )),
             )),
         );
@@ -7497,7 +8202,8 @@ int main(void) {{
 
         // A range past either end faults through the panic path.
         let oob = Core::Let(
-            LocalId(0), Class::Obj,
+            LocalId(0),
+            Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Copy)),
@@ -7595,7 +8301,10 @@ fn q_imm(out: &mut Vec<QWord>, v: u64) {
 /// The `counted` operand of a loaded word of class `c` (an open
 /// parameter class is never counted, as in the ownership pass).
 fn q_counted(c: crate::repr::Class) -> u64 {
-    u64::from(matches!(c, crate::repr::Class::Obj | crate::repr::Class::TObj))
+    u64::from(matches!(
+        c,
+        crate::repr::Class::Obj | crate::repr::Class::TObj
+    ))
 }
 
 /// The closure constant of a unit (`@"<name>.clo"`).
@@ -7626,7 +8335,11 @@ fn reify_unit_value(out: &mut Vec<QWord>, name: &str, arity: usize) {
 /// one.
 fn immediate_word(nat: bool, digits: &str) -> Option<i64> {
     let v: i128 = digits.parse().ok()?;
-    let (lo, hi) = if nat { (0, (1i128 << 63) - 1) } else { (-(1i128 << 62), (1i128 << 62) - 1) };
+    let (lo, hi) = if nat {
+        (0, (1i128 << 63) - 1)
+    } else {
+        (-(1i128 << 62), (1i128 << 62) - 1)
+    };
     if !(lo..=hi).contains(&v) {
         return None;
     }
@@ -7852,7 +8565,14 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, q_counted(*class));
         }
         Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
-            q_imm(out, if matches!(e, Core::Dup(..)) { quote_op::DUP } else { quote_op::DROP });
+            q_imm(
+                out,
+                if matches!(e, Core::Dup(..)) {
+                    quote_op::DUP
+                } else {
+                    quote_op::DROP
+                },
+            );
             q_imm(out, x.0 as u64);
             reify(out, body, reg)?;
         }
@@ -7873,10 +8593,8 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             reify_unit_value(out, n, p.arity());
         }
         Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SyntaxLit(..) | Core::StrLit(_) => {
-            return err(
-                "a quotation body cannot contain staging values \
-                 (a nested quotation is not reified yet)",
-            )
+            return err("a quotation body cannot contain staging values \
+                 (a nested quotation is not reified yet)")
         }
         Core::ConstString { ctor, bytes } => {
             // The constant's stream form: the representation
@@ -7970,7 +8688,11 @@ fn emit_quote_block(e: &mut CoreEmitter, body: &Core, holes: &[Core]) -> Result<
     e.b.line(&alloc_call(&p, bytes, block::KIND_CODE));
     // The code block's kind word (runtime ABI `KIND_CODE`).
     e.b.store_at(&p, 0, "3");
-    e.b.store_at(&p, 8, &format!("ptrtoint (ptr @{g} to i64)", g = quote(&gname)));
+    e.b.store_at(
+        &p,
+        8,
+        &format!("ptrtoint (ptr @{g} to i64)", g = quote(&gname)),
+    );
     e.b.store_at(&p, 16, &items.len().to_string());
     e.b.store_at(&p, 24, &n.to_string());
     for (i, h) in hv.iter().enumerate() {
@@ -7989,8 +8711,11 @@ fn emit_quote_block(e: &mut CoreEmitter, body: &Core, holes: &[Core]) -> Result<
 /// memory) and the single core result otherwise.
 fn canon_sig(call: &crate::core::CanonCall) -> (String, Vec<String>) {
     use crate::core::CanonType;
-    let params: Vec<String> =
-        call.core_params.iter().map(|t| t.spelling().to_string()).collect();
+    let params: Vec<String> = call
+        .core_params
+        .iter()
+        .map(|t| t.spelling().to_string())
+        .collect();
     let ret = match call.core_results.first() {
         Some(CanonType::I32) => "i32".to_string(),
         Some(CanonType::I64) => "i64".to_string(),
@@ -8046,7 +8771,9 @@ fn canon_word_to_flat(
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let cp = b.reg();
-            b.line(&format!("{cp} = call ptr @memcpy(ptr {dst}, ptr {sp}, i64 {len})"));
+            b.line(&format!(
+                "{cp} = call ptr @memcpy(ptr {dst}, ptr {sp}, i64 {len})"
+            ));
             let dp = b.reg();
             b.line(&format!("{dp} = ptrtoint ptr {dst} to i32"));
             let lp = b.reg();
@@ -8083,7 +8810,11 @@ fn canon_lift_shape(
     use crate::core::CanonShape;
     Ok(match shape {
         CanonShape::Unit => "0".to_string(),
-        CanonShape::Scalar { offset, size, signed } => {
+        CanonShape::Scalar {
+            offset,
+            size,
+            signed,
+        } => {
             if *size == 0 {
                 "0".to_string()
             } else {
@@ -8111,7 +8842,11 @@ fn canon_lift_shape(
             b.line(&format!("{p64} = zext i32 {p32} to i64"));
             let l64 = b.reg();
             b.line(&format!("{l64} = zext i32 {l32} to i64"));
-            let w = rt_call(b, "cinch_bytes_from_data", &[format!("i64 {p64}"), format!("i64 {l64}")]);
+            let w = rt_call(
+                b,
+                "cinch_bytes_from_data",
+                &[format!("i64 {p64}"), format!("i64 {l64}")],
+            );
             if *wrapped {
                 string_block_word(b, reg, &w)
             } else {
@@ -8126,7 +8861,11 @@ fn canon_lift_shape(
             b.line(&format!("{w} = zext i32 {v} to i64"));
             w
         }
-        CanonShape::Ctor { tag, tag_at, fields } => {
+        CanonShape::Ctor {
+            tag,
+            tag_at,
+            fields,
+        } => {
             let mut vals = Vec::with_capacity(fields.len());
             for f in fields {
                 vals.push(canon_lift_shape(b, reg, f, base)?);
@@ -8142,7 +8881,10 @@ fn canon_lift_shape(
                     b.line(&format!("{tw} = zext i{} {t} to i64", size * 8));
                     let desc = dynamic_shape_desc(b, reg, &map, &tw);
                     let blk = b.reg();
-                    b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})", 8 * words));
+                    b.line(&format!(
+                        "{blk} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})",
+                        8 * words
+                    ));
                     for (i, v) in vals.iter().enumerate() {
                         b.store_at(&blk, 8 * i, v);
                     }
@@ -8178,7 +8920,11 @@ fn canon_lower_shape(
     use crate::core::CanonShape;
     match shape {
         CanonShape::Unit => {}
-        CanonShape::Scalar { offset, size, signed } => {
+        CanonShape::Scalar {
+            offset,
+            size,
+            signed,
+        } => {
             if *size > 0 {
                 let v = if *size == 8 {
                     w.to_string()
@@ -8188,10 +8934,7 @@ fn canon_lower_shape(
                     r
                 };
                 let p = b.gep(base, *offset as usize);
-                b.line(&format!(
-                    "store i{} {v}, ptr {p}, align 1",
-                    size * 8
-                ));
+                b.line(&format!("store i{} {v}, ptr {p}, align 1", size * 8));
                 let _ = signed;
             }
         }
@@ -8210,7 +8953,9 @@ fn canon_lower_shape(
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let r = b.reg();
-            b.line(&format!("{r} = call ptr @memcpy(ptr {dst}, ptr {sp}, i64 {len})"));
+            b.line(&format!(
+                "{r} = call ptr @memcpy(ptr {dst}, ptr {sp}, i64 {len})"
+            ));
             let dp = b.reg();
             b.line(&format!("{dp} = ptrtoint ptr {dst} to i32"));
             let pp = b.gep(base, *offset as usize);
@@ -8220,13 +8965,21 @@ fn canon_lower_shape(
             let lp = b.gep(base, (*offset + 4) as usize);
             b.line(&format!("store i32 {l32}, ptr {lp}, align 1"));
         }
-        CanonShape::Handle { offset } | CanonShape::Ctor { tag_at: Some((offset, _)), .. } => {
+        CanonShape::Handle { offset }
+        | CanonShape::Ctor {
+            tag_at: Some((offset, _)),
+            ..
+        } => {
             let v = b.reg();
             b.line(&format!("{v} = trunc i64 {w} to i32"));
             let p = b.gep(base, *offset as usize);
             b.line(&format!("store i32 {v}, ptr {p}, align 1"));
         }
-        CanonShape::Ctor { tag_at: None, fields, .. } => {
+        CanonShape::Ctor {
+            tag_at: None,
+            fields,
+            ..
+        } => {
             // A block word: its tag and fields store into the payload.
             let blk = b.reg();
             b.line(&format!("{blk} = inttoptr i64 {w} to ptr"));
@@ -8312,7 +9065,10 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
         for (i, case) in ret.cases.iter().enumerate() {
             let test = b.reg();
             b.line(&format!("{test} = icmp eq i64 {disc}, {}", case.disc));
-            b.line(&format!("br i1 {test}, label %{}, label %{prev_fall}", labels[i]));
+            b.line(&format!(
+                "br i1 {test}, label %{}, label %{prev_fall}",
+                labels[i]
+            ));
             b.start(&labels[i]);
             let payload = canon_lift_shape(b, reg, &case.payload, base)?;
             // A zero-field constructor is its header alone.
@@ -8360,23 +9116,35 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
         };
         match shape {
             crate::core::CanonShape::Unit => "0".to_string(),
-            crate::core::CanonShape::Ctor { tag_at: Some(_), .. } => {
+            crate::core::CanonShape::Ctor {
+                tag_at: Some(_), ..
+            } => {
                 // An enum value: its block's header carries the
                 // discriminant as its tag.
                 let desc = dynamic_shape_desc(b, reg, &[], &v);
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"));
+                b.line(&format!(
+                    "{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"
+                ));
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
                 w
             }
-            crate::core::CanonShape::Ctor { tag, tag_at: None, fields } => {
+            crate::core::CanonShape::Ctor {
+                tag,
+                tag_at: None,
+                fields,
+            } => {
                 // One flat core value crosses: a scalar in the first
                 // field, and nothing else is stored, so nothing is
                 // counted.
                 let blk = b.reg();
                 let words = fields.len() as u64;
-                b.line(&ctor_alloc_call(&blk, 8 * words, reg.raw_shape_desc(words, *tag)));
+                b.line(&ctor_alloc_call(
+                    &blk,
+                    8 * words,
+                    reg.raw_shape_desc(words, *tag),
+                ));
                 if !fields.is_empty() {
                     b.store_at(&blk, 0, &v);
                 }
@@ -8411,8 +9179,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
         // The program supplies the implementation later (or not at all,
         // which artifact admission rejects): keep the IR well formed.
         let arity = plan.params.len();
-        let params: Vec<String> =
-            (0..arity).map(|i| format!("i64 %p{i}")).collect();
+        let params: Vec<String> = (0..arity).map(|i| format!("i64 %p{i}")).collect();
         out.push_str(&format!(
             "declare i64 @{}({})\n",
             quote(&plan.unit),
@@ -8513,7 +9280,9 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                         if matches!(step, CanonStep::Tag) {
                             let desc = dynamic_shape_desc(&mut b, reg, &[], &t);
                             let blk = b.reg();
-                            b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"));
+                            b.line(&format!(
+                                "{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"
+                            ));
                             let r = b.reg();
                             b.line(&format!("{r} = ptrtoint ptr {blk} to i64"));
                             r
@@ -8526,7 +9295,10 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
         };
         words.push(w);
     }
-    let ret_area = call.ret.as_ref().map(|r| (b.alloca_bytes(r.size, r.align.max(1)), r));
+    let ret_area = call
+        .ret
+        .as_ref()
+        .map(|r| (b.alloca_bytes(r.size, r.align.max(1)), r));
     if let Some((buf, r)) = &ret_area {
         b.line(&format!(
             "call void @llvm.memset.p0.i64(ptr {buf}, i8 0, i64 {}, i1 false)",
@@ -8572,7 +9344,9 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
     } else if let Some(shape) = &call.ret_flat {
         use crate::core::{CanonShape, CanonType};
         let word = match shape {
-            CanonShape::Ctor { tag_at: Some(_), .. } => {
+            CanonShape::Ctor {
+                tag_at: Some(_), ..
+            } => {
                 let blk = b.reg();
                 b.line(&format!("{blk} = inttoptr i64 {res} to ptr"));
                 ctor_tag(&mut b, &blk, reg.escapes())
@@ -8706,12 +9480,7 @@ fn prim_decl_units(
 /// metadata naming the immediate parameters: LLVM admits the `immarg`
 /// parameter attribute only on intrinsics, and the checker enforces the
 /// constant arguments (`design/llvm-contract-attributes.md`).
-fn prim_impl_unit(
-    reg: &Registry,
-    plan: &PrimPlan,
-    idx: usize,
-    asm: bool,
-) -> Result<EmittedUnit> {
+fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Result<EmittedUnit> {
     let body = &plan.bodies[idx];
     let name = format!("{}.{}", plan.unit, body.family);
     let params: Vec<String> = plan

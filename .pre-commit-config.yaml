@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: website-npm-registry
+        name: Check the website npm registry
+        entry: node tooling/check-npm-registry.mjs
+        language: system
+        always_run: true
+        pass_filenames: false

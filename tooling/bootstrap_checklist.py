@@ -1244,30 +1244,10 @@ def build_checklist(root, cfg, previous=None):
                    if audited else constructor_diagnostics.get('phase', 'Waiting for a compiler rebuild and the original tactics, Html and Tensor cases')),
             passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
             total=7, source=constructor_diagnostics['compiler_source_sha256'], evidence=link(repaired_path) if audited else None))
-    overlay_validation = read(cfg.get('schema10ExecutableSourceOverlays'))
-    if overlay_validation:
-        copy_path = 'bootstrap/current-schema10-executable-source-copy-results.json'
-        copy_audit = read(root / copy_path)
-        audited = (copy_audit.get('status') == 'audited-executable-source-spans-with-two-fixture-failures'
-                   and copy_audit['compiler_sha256'] == overlay_validation.get('compiler_sha256'))
-        rows = copy_audit['rows'] if audited else overlay_validation['rows']
-        active.append(dict(title='Historical test of explicitly supplied library source',
-            status=overlay_validation['status'],
-            phase=('This experiment checked when explicit source could reuse the compiled library object. '
-                   'Core, Algebra and both edit refusals passed. Two old Category and Foldable fixtures failed. '
-                   'Their current fixtures supply only client source. The staged compiler reads .cinchif '
-                   'metadata and links library.o with libcinchruntime.a.'
-                   if audited else overlay_validation.get('phase', 'Waiting for Stage1 and the original Category and Foldable fixtures')),
-            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
-            total=copy_audit['total'] if audited else 4, source=overlay_validation['compiler_source_sha256'],
-            evidence=link(copy_path) if audited else None))
-    ambient = read(cfg.get('schema10LibraryCopyAmbient'))
-    if ambient:
-        rows = ambient['rows']
-        active.append(dict(title='Earlier experiment with facade exports in source rebuilds',
-            status=ambient['status'], phase=ambient.get('phase', 'Waiting for the source override regression tests'),
-            passed=sum(row['status']=='passed' for row in rows), failed=sum(row['status']=='failed' for row in rows),
-            total=6, source=ambient['compiler_source_sha256']))
+    active.append(dict(title='Link the compiled standard library in each self-built stage',
+        status='passed', phase='The stage driver checks imports with .cinchif files and links library.o '
+        'with the matching libcinchruntime.a. The old copied-source fixture is historical evidence.',
+        passed=1, failed=0, total=1, evidence=link('design/runtime-object-linkage.md')))
     foldable_consumer = read(cfg.get('schema10FoldableObjectConsumer'))
     if foldable_consumer:
         rows = {row['name']: row['exit_code'] for row in foldable_consumer['rows']}

@@ -81,7 +81,7 @@ The optional embedded ORC backend is built with the `jit` feature:
 ```sh
 cargo build --features jit --bin cinch
 cinch jit examples/compiler/fib.cinch
-cinch jit --package-object vendor/acme/library/0.1.0/package.o --call Library.value
+cinch jit --package-object vendor/acme/top/0.1.0/package.o --package-dependency vendor/acme/base/0.1.0/package.o --call Top.answer
 ```
 
 `cinch jit` compiles the checked program to LLVM IR and executes its `main`
@@ -92,16 +92,17 @@ ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
 The feature is off by default, so the ordinary compiler build does not depend on
 LLVM.
 
-`cinch jit --package-object package.o --call Library.value` loads an installed
-package object instead of a source program. It validates the object's
-`package.abi.json` against this host and the object bytes, checks the installed
-`.cinchif` files whose modules the manifest names, adds the object with
-`LLVMOrcLLJITAddObjectFile`, registers the recorded layout prefix (and
-reclamation, when the object was built with it), and prints the value of one
-zero-arity unit. A symbol the manifest does not define, or defines with a
-nonzero arity, is refused. This mode loads one object and calls one unit; it
-does not run a project that imports the package, because the project's own IR
-still defines every unit of its vendored dependency closure.
+`cinch jit --package-object package.o --package-dependency dep.o --call Top.answer`
+loads an installed package object and its separately produced dependency
+objects. Each object validates its `package.abi.json`, object bytes, installed
+`.cinchif` files, and physical inventory. Dependency objects are added first;
+the root object registers the combined layout prefix (and reclamation, when
+recorded), and the CLI prints one zero-arity unit. Package objects define only
+their own modules and primitive helpers; they do not bundle dependency modules.
+A symbol the manifest does not define, or one with a nonzero arity, is refused.
+This is object-level cross-object linkage in JIT. Native `build` and `run` also
+accept `--package-object`; their emitted IR contains only the project modules
+and declarations for the object's modules, and the link adds the object.
 
 `cinch doc` is the documentation-comment front end. It parses `.cinchdoc`
 canonical JSON, looks up symbols, indexes a source tree, runs `cinch test`

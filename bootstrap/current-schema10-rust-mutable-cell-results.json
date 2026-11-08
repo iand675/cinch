@@ -1,0 +1,79 @@
+{
+  "compiler_source_sha256": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+  "compiler_targets": 5,
+  "compiler_tests": 97,
+  "full_goal_complete": false,
+  "mutation_through_call_zero_leaks": true,
+  "native_source_sha256": "7d92e9dfc90f8e49e36744fd02d56cada8e52f8df6044debc779a64117374bfd",
+  "revision": "9379b347f7acc0bff197b04d10833fdcc55003a9",
+  "rows": [
+    {
+      "archive_sha256": "c7c0e4138340cb18aa77a6991cde519245b02eb9f7e7fec76737e97c230111b6",
+      "exact_runtime_evidence": true,
+      "exit_code": 0,
+      "log_sha256": "78640f452f15aa1170be1622a4f282800d1b780488f7eca08dd2d50171f5758a",
+      "name": "runtime-debug",
+      "status": "passed"
+    },
+    {
+      "archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+      "exact_runtime_evidence": true,
+      "exit_code": 0,
+      "log_sha256": "0a63ac30c80149b0da58c25e50b005178a52fd947e47f1559fa15277804613cd",
+      "name": "runtime-release",
+      "status": "passed"
+    },
+    {
+      "exact_runtime_evidence": true,
+      "exit_code": 0,
+      "log_sha256": "a75c304dc362a814720f3f65d185c1c7e14043be449ad8e5d2585516bcb42a51",
+      "name": "runtime-suite",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "7bd10a40d671bcb26f628988492141e428b24ce8736cf6d48eab6ca40dc317c7",
+      "name": "mutation-through-call",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0997387055541632c8d2ba2b35bfe305afdd94dd1b27783f35e9d1a84d2569e2",
+      "name": "evidence_invalidation",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "0672b3d1e43786ad806754bfde36df81abafea3bee5f2d095699a9c406b9869c",
+      "name": "ownership",
+      "status": "passed",
+      "tests": 23
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "cc8b9ca83ed93fff7d9550cb9b91be1beeaee4d3a52a2e0443e9598f5f0e0669",
+      "name": "case_evidence",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "9db582568f3de05542635019864757926e7129f1f99bd55f0363df05d6a09584",
+      "name": "temporal",
+      "status": "passed",
+      "tests": 20
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "edd0ec798a4c42d68df9fccff8a323e02f996b8807a4931f3abd750ab33690f7",
+      "name": "safety",
+      "status": "passed",
+      "tests": 24
+    }
+  ],
+  "runtime_tests": 171,
+  "schema": 1,
+  "scope": "Rust code generation, shared mutable identity and quotation VM on this snapshot. Cinch runtime and the staged compiler suites have separate gates.",
+  "status": "audited-rust-mutable-cell-controls"
+}

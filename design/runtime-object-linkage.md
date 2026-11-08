@@ -6,11 +6,13 @@ two independently registered runtime layout tables cannot safely share values.
 
 ## Implemented producer boundary
 
-The Rust compiler's `emit-object` command emits one closed library dependency
-object, LLVM text and a canonical JSON physical manifest. It uses the ordinary
-source loader, checker, interface coherence checks, specialization and ownership
-pass. A library with a process entry is rejected. This is currently a dependency
-bundle; it is not independent per-module incremental object production.
+The Rust compiler's `emit-object` command emits one LLVM object and a canonical
+JSON physical manifest. It uses the ordinary source loader, checker, interface
+coherence checks, specialization and ownership pass. A library with a process
+entry is rejected. The package installer passes the package's own module set, so
+its object defines only those modules and generated primitive helpers; every
+other module is emitted as an external declaration. Dependency objects are
+loaded before the root in JIT. Native `build` and `run` accept package objects and emit only the project modules plus external declarations. The default `emit-object` without a module filter still emits the historical whole-closure dependency bundle, which is not independent per-module incremental object production.
 
 The object defines its actual uniform-word units and exports a closure accessor
 for each callable unit. Static closure storage remains private. It leaves
