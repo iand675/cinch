@@ -21119,8 +21119,8 @@
       {
         "title": "Rebuild with the expanded pinned object through Stage 3",
         "status": "running",
-        "phase": "replay both tagged List variants through the audited Stage 1",
-        "passed": 1,
+        "phase": "build Stage 2 with the audited Stage 1",
+        "passed": 2,
         "total": 5,
         "unit": "gates",
         "failed": 0,
@@ -21237,5 +21237,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:14:35.673213+00:00"
+  "updatedAt": "2026-11-08T16:15:38.363332+00:00"
 }
