@@ -20983,8 +20983,8 @@
       {
         "title": "Verify the ABI 7 library and mutable object boundary",
         "status": "running",
-        "phase": "Emit mutable client. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
-        "passed": 8,
+        "phase": "Build stage2. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
+        "passed": 10,
         "failed": 0,
         "total": 13,
         "unit": "gates",
@@ -21025,5 +21025,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:48:27.652862+00:00"
+  "updatedAt": "2026-11-08T09:49:30.586337+00:00"
 }
