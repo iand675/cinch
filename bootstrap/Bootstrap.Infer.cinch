@@ -23,7 +23,7 @@ module Bootstrap.Infer where
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, intrinsic-contract, array-plan, array-type-name)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -2152,15 +2152,10 @@ module Bootstrap.Infer where
       && scheme-arity sc == 1 && scheme-runtime-arity sc == 0 then add-binding sp name sc "constructor" env st
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
-  kernel-syntax-metadata :: String -> List Decl -> Option Json
-  kernel-syntax-metadata name declarations = case declarations of
-    Nil -> None
-    Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
-    Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
-    case kernel-syntax-metadata name builtin-declarations of
+    case builtin-syntax-metadata name of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
         (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel predicate syntax" st))
         else (env, add-error sp "decide syntax disagrees with the kernel predicate contract" st)
@@ -2168,7 +2163,7 @@ module Bootstrap.Infer where
   -- Projection consumes an actual checked refinement. The source spelling
   -- never grants authority to an ordinary local or imported function.
   register-ownership-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-ownership-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+  register-ownership-syntax sp name metadata env st = case builtin-syntax-metadata name of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
       (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel ownership syntax" st))
       else (env, add-error sp "ownership syntax disagrees with its owned kernel contract" st)
@@ -2231,7 +2226,7 @@ module Bootstrap.Infer where
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-task-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+  register-task-syntax sp name metadata env st = case builtin-syntax-metadata name of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
       (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel task syntax" st))
       else (env, add-error sp "task syntax disagrees with its owned kernel contract" st)
@@ -2248,7 +2243,7 @@ module Bootstrap.Infer where
     (case decision-constructor-scheme name of
       Some expected -> checked-kernel-cache sp syntax expected classes kinds st
       None -> add-error sp "unknown cached kernel constructor type" st)
-    else case kernel-syntax-metadata name builtin-declarations of
+    else case builtin-syntax-metadata name of
       Some metadata -> (case field "scheme" metadata of
         JStr text -> (case parse-scheme name (string-to-bytes text) of
           Parsed ty Nil -> (case make-scheme False classes kinds Nil ty st of

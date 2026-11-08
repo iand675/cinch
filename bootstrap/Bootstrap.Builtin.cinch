@@ -8,7 +8,7 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
@@ -195,3 +195,13 @@ module Bootstrap.Builtin where
     else if operation == 18 then "cinch_columnar_child"
     else if operation == 19 then "cinch_columnar_array"
     else ""
+
+  builtin-syntax-metadata :: String -> Option Json
+  builtin-syntax-metadata name = find-builtin-syntax name builtin-declarations
+  find-builtin-syntax :: String -> List Decl -> Option Json
+  find-builtin-syntax name declarations = case declarations of
+    Nil -> None
+    Cons (DExternal sp symbol category syntax metadata) rest ->
+      if string-compare name symbol == 0 && string-compare category "builtin-syntax" == 0 then Some metadata
+      else find-builtin-syntax name rest
+    Cons other rest -> find-builtin-syntax name rest
