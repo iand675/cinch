@@ -19118,8 +19118,8 @@
       {
         "title": "Integrated Stage0 through Stage3 rebuild",
         "status": "running",
-        "phase": "building stage3",
-        "passed": 3,
+        "phase": "checking fixed point and source change",
+        "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20986,5 +20986,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:54:20.702186+00:00"
+  "updatedAt": "2026-11-08T05:56:23.159114+00:00"
 }
