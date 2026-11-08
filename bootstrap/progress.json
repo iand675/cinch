@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 84,
+          "verified": 85,
           "blocked": 6,
           "running": 1,
-          "pending": 10,
+          "pending": 9,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13083,17 +13083,17 @@
           {
             "id": "stage3:bootstrap_lexer",
             "title": "bootstrap_lexer",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_lexer.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:28:40.033697+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:30:04.332039+00:00",
+              "exitCode": 0,
+              "logSha256": "0e411082edd6070699218241bdd09804f823c16a5078fdc9ed32b960ed432566",
               "cases": [
                 {
                   "name": "lexer_reads_the_corpus_and_agrees_with_the_compiler",
@@ -13105,7 +13105,7 @@
                 },
                 {
                   "name": "the_whole_prelude_lexes_and_agrees_with_the_compiler",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13214,18 +13214,23 @@
           {
             "id": "stage3:bootstrap_measure_contracts",
             "title": "bootstrap_measure_contracts",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_measure_contracts.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:30:06.048239+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "compiled_cinch_checks_actual_imported_measures_and_changed_bodies",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20911,10 +20916,10 @@
       }
     ],
     "counts": {
-      "verified": 371,
+      "verified": 372,
       "blocked": 12,
       "running": 12,
-      "pending": 226,
+      "pending": 225,
       "recheck": 59
     },
     "total": 680,
@@ -20923,5 +20928,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:29:38.927534+00:00"
+  "updatedAt": "2026-11-08T05:30:41.358983+00:00"
 }
