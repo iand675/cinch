@@ -20914,7 +20914,7 @@
         "title": "Compile and execute lexical effect handlers",
         "status": "running",
         "phase": "Compile. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
-        "passed": 3,
+        "passed": 5,
         "failed": 0,
         "total": 6,
         "unit": "gates",
@@ -20964,5 +20964,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:56:18.860787+00:00"
+  "updatedAt": "2026-11-08T07:57:20.973645+00:00"
 }
