@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "15/236 Rust targets and 5/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "15/236 Rust targets and 6/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -11999,11 +11999,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 5,
+          "verified": 6,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 98
+          "recheck": 97
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12062,31 +12062,18 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:01:57.978528+00:00",
-              "finishedAt": "2026-11-07T12:02:59.551754+00:00",
-              "exitCode": 0,
-              "logSha256": "b4bd059c8ac29462d614db2d17949c50b49b4b9b803da6331c315f8bc41f9acf",
-              "cases": [
-                {
-                  "name": "a_program_reads_its_own_command_line",
-                  "status": "passed"
-                },
-                {
-                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_cli_forwards_arguments_after_the_entry_file",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior",
             "currentTests": null
@@ -12541,18 +12528,23 @@
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "28e7799aa0779528db106538b7afdb84af90e2a2b54c28be38475855e3c4f67d",
+              "cases": [
+                {
+                  "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20261,8 +20253,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_body_bindings, bootstrap_decisions",
-        "passed": 5,
+        "phase": "argv, bootstrap_body_bindings",
+        "passed": 6,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20402,8 +20394,8 @@
         "title": "Check source-only task forwarders and interface exports",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. forwarded-bytes-capture",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. explicit-forwarder-and-rename",
+        "passed": 4,
         "total": 7,
         "failed": 0,
         "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d"
@@ -20440,11 +20432,11 @@
       }
     ],
     "counts": {
-      "verified": 358,
+      "verified": 359,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 340
+      "recheck": 339
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20452,5 +20444,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:09:21.307114+00:00"
+  "updatedAt": "2026-11-08T18:10:24.466312+00:00"
 }
