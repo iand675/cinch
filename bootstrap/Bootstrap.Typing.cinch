@@ -115,6 +115,7 @@ module Bootstrap.Typing where
     CPWild sp ty -> ty
     CPVar sp ty id name -> ty
     CPProof sp ty id name -> ty
+    CPErasedValue sp ty id name -> ty
     CPAs sp ty id name inner -> ty
     CPConstructor sp ty name actuals constructor fields -> ty
     CPInt sp ty text -> ty
@@ -137,6 +138,11 @@ module Bootstrap.Typing where
     CPString sp ty text -> if string-type ty then Some scope else None
     CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
     other -> None
+  arrow-pattern-scope :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
+  arrow-pattern-scope context scope function domain pattern = case pattern of
+    CPErasedValue sp carrier id name -> if erased-value-arrow function && wf context scope domain && proper-type domain && equal-type domain carrier then
+      add-local-scheme id (mono carrier) scope else None
+    other -> pattern-scope context scope domain pattern
   tuple-patterns :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
   tuple-patterns context scope types patterns = case (types, patterns) of
     (UEnd, CPDone sp) -> Some scope
@@ -175,7 +181,8 @@ module Bootstrap.Typing where
   checked-application :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   checked-application context scope gamma facts ty row f x = let before-argument = core-mutable-writes f in
     let before-call = before-argument <> core-mutable-writes x in
-    (case core-type f of UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (core-type x); other -> True)
+    not (erased-value-arrow (core-type f))
+      && (case core-type f of UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (core-type x); other -> True)
       && checked-term context scope gamma facts f
       && checked-term context scope (proof-after-writes gamma before-argument) (facts-after-writes gamma facts before-argument) x
       && (case application-result context scope (proof-after-writes gamma before-call) (facts-after-writes gamma facts before-call) (core-type f) x of
@@ -240,9 +247,16 @@ module Bootstrap.Typing where
         UProofFun predicate effects result -> let writes = core-mutable-writes f in
           equal-type result ty && equal-type effects row && wf context scope predicate
           && scoped-erased-witness (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) predicate witness
+        UUsageArrow UsageZero arrow -> let writes = core-mutable-writes f in
+          let next = proof-after-writes gamma writes in
+          let live = facts-after-writes gamma facts writes in
+          erasable-value-argument witness && checked-term context scope next live witness
+            && (case arrow-result next live arrow witness of
+              Some (result, effects) -> equal-type result ty && equal-type effects row
+              None -> False)
         other -> False)
     CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
-      (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
+      (Some (domain, row), Some result) -> (case arrow-pattern-scope context scope ty domain pattern of
         Some bound -> let writes = [(sp, (None :: Option UType))] in equal-type result (core-type body)
           && checked-term context bound (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body
           && effects-fit (core-effects body) row && pattern-usage-allowed context ty pattern body
@@ -402,13 +416,14 @@ module Bootstrap.Typing where
   task-local :: Nat -> List TaskLocal -> Option TaskLocal
   task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared) rest -> if id == key then Some (TaskLocal key ty regions shared) else task-local id rest
   task-pattern-ids :: CorePattern -> List Nat
-  task-pattern-ids p = case p of CPVar sp ty id name -> [id]; CPProof sp ty id name -> [id]; CPAs sp ty id name inner -> Cons id (task-pattern-ids inner); CPConstructor sp ty name actuals constructor fields -> task-pattern-ids fields; CPTuple sp ty fields -> task-pattern-ids fields; CPField sp first rest -> task-pattern-ids first <> task-pattern-ids rest; other -> Nil
+  task-pattern-ids p = case p of CPVar sp ty id name -> [id]; CPProof sp ty id name -> [id]; CPErasedValue sp ty id name -> [id]; CPAs sp ty id name inner -> Cons id (task-pattern-ids inner); CPConstructor sp ty name actuals constructor fields -> task-pattern-ids fields; CPTuple sp ty fields -> task-pattern-ids fields; CPField sp first rest -> task-pattern-ids first <> task-pattern-ids rest; other -> Nil
   task-id-present :: Nat -> List Nat -> Bool
   task-id-present id ids = case ids of Nil -> False; Cons key rest -> id == key || task-id-present id rest
   task-pattern-env :: CorePattern -> List UType -> Bool -> List TaskLocal -> List TaskLocal
   task-pattern-env p regions shared env = case p of
     CPVar sp ty id name -> Cons (TaskLocal id ty regions shared) env
     CPProof sp ty id name -> env
+    CPErasedValue sp ty id name -> env
     CPAs sp ty id name inner -> Cons (TaskLocal id ty regions shared) (task-pattern-env inner regions shared env)
     CPConstructor sp ty name actuals constructor fields -> task-pattern-env fields regions shared env
     CPTuple sp ty fields -> task-pattern-env fields regions shared env
@@ -536,6 +551,7 @@ module Bootstrap.Typing where
   pattern-use-count :: CorePattern -> CoreTerm -> Option (Nat, Nat)
   pattern-use-count pattern body = case pattern of
     CPVar sp ty id name -> use-count True id body
+    CPErasedValue sp ty id name -> use-count True id body
     CPWild sp ty -> Some (0, 0)
     CPAs sp ty id name (CPWild at inner) -> use-count True id body
     CPAs sp ty id name inner -> None
@@ -566,6 +582,7 @@ module Bootstrap.Typing where
   pattern-aliases-allowed :: ArrowUsage -> CorePattern -> CoreTerm -> Bool
   pattern-aliases-allowed usage pattern body = case pattern of
     CPVar sp ty id name -> aliases-use-allowed usage id body
+    CPErasedValue sp ty id name -> aliases-use-allowed usage id body
     CPAs sp ty id name (CPWild at carrier) -> aliases-use-allowed usage id body
     other -> True
   pattern-usage-allowed :: TypingContext -> UType -> CorePattern -> CoreTerm -> Bool
@@ -584,7 +601,7 @@ module Bootstrap.Typing where
   pattern-usage-error :: TypingContext -> Span -> UType -> CorePattern -> CoreTerm -> Option (Span, String)
   pattern-usage-error context sp function pattern body = case function of
     UUsageArrow usage arrow -> if pattern-usage-allowed context function pattern body then None else
-      let site = case pattern of CPVar at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
+      let site = case pattern of CPVar at ty id name -> at; CPErasedValue at ty id name -> at; CPWild at ty -> at; CPAs at ty id name inner -> at; other -> sp in
       Some (site, usage-message usage)
     other -> None
   -- Before a guard commits to this equation, a later equation can still
@@ -775,6 +792,7 @@ module Bootstrap.Typing where
         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
       CApply sp ty f x -> task-call-trace context env scopes sp ty f x
       CApplyEff sp ty row f x -> task-call-trace context env scopes sp ty f x
+      CErasedApply sp ty row f witness -> task-result-trace context ty (task-trace context env scopes False f)
       CIf sp ty condition yes no -> let test = task-trace context env scopes False condition in
         let result = task-traces-merge (task-trace context env scopes consuming yes) (task-trace context env scopes consuming no) in
         TaskTrace (first-task-error (task-trace-error test) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
@@ -945,7 +963,7 @@ module Bootstrap.Typing where
     Nil -> equal-type expected (core-type body) && checked-term context scope gamma Nil body && effects-fit (core-effects body) allowed
     Cons pattern rest -> effects-fit allowed empty-row && (case (arrow-domain expected, pattern-result expected pattern) of
       (Some (domain, row), Some result) -> pattern-usage-allowed context expected pattern body
-        && (case pattern-scope context scope domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
+        && (case arrow-pattern-scope context scope expected domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
       other -> False)
   value-parameters-scope :: TypeScope -> List (Nat, UType) -> Option TypeScope
   value-parameters-scope scope values = case values of

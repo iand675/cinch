@@ -878,7 +878,7 @@ module Bootstrap.Infer where
   bind-arrow-pattern classes kinds families env locals pat expected st = case arrow-shape (normalize st expected) of
     UProofFun predicate effects result -> case bind-proof-pattern kinds env locals pat predicate st of
       (bound, pattern, checked) -> (bound, pattern, effects, result, checked)
-    UPi id name domain effects result -> case bind-pattern classes kinds families env locals pat domain st of
+    UPi id name domain effects result -> case bind-arrow-value-pattern classes kinds families env locals pat expected domain st of
       (bound, pattern, checked) -> if pi-dependent (normalize checked expected) then
         (case pattern-value pattern of
           Some actual -> case reify-argument (pat-span pat) bound actual checked of
@@ -887,8 +887,23 @@ module Bootstrap.Infer where
           None -> (bound, pattern, UError, UError, add-error (pat-span pat) "dependent pattern needs a checked argument value" checked))
         else (bound, pattern, effects, result, checked)
     other -> case arrow-parts (pat-span pat) expected st of
-      (domain, row, result, checked) -> case bind-pattern classes kinds families env locals pat domain checked of
+      (domain, row, result, checked) -> case bind-arrow-value-pattern classes kinds families env locals pat expected domain checked of
         (bound, pattern, done) -> (bound, pattern, row, result, done)
+
+  bind-arrow-value-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-arrow-value-pattern classes kinds families env locals pat function domain st =
+    if erased-value-arrow (normalize st function) then bind-erased-value-pattern kinds env locals pat domain st
+    else bind-pattern classes kinds families env locals pat domain st
+  bind-erased-value-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-erased-value-pattern kinds env locals pat domain st = case pat of
+    PVar sp name -> erased-value-binding env sp name domain st
+    PWild sp -> erased-value-binding env sp "#erased-argument" domain st
+    PAnn sp inner annotation -> case convert False kinds (value-locals env locals) annotation st of
+      (ty, checked) -> bind-erased-value-pattern kinds env locals inner domain (unify sp domain ty (expect-type sp ty checked))
+    other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "multiplicity %0: an erased argument needs a variable or wildcard pattern" st)
+  erased-value-binding :: List CheckedBinding -> Span -> String -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  erased-value-binding env sp name domain st = case fresh-id st of
+    (id, fresh) -> (Cons (MkLocalBinding name (mono domain) id (store-level fresh)) env, CPErasedValue sp domain id name, fresh)
 
   local-types :: List (String, UType) -> List UType
   local-types locals = case locals of Nil -> Nil; Cons (name, ty) rest -> Cons ty (local-types rest)
@@ -909,7 +924,6 @@ module Bootstrap.Infer where
   check-usage-arrow sp marker converted = case converted of
     (arrow, checked) -> case parse-arrow-usage marker of
       None -> bad sp "unknown arrow multiplicity" checked
-      Some UsageZero -> bad sp "multiplicity %0 requires runtime argument erasure" checked
       Some usage -> let ty = UUsageArrow usage arrow in
         if valid-type ty then (ty, checked) else bad sp "a multiplicity needs a computational arrow" checked
   convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
@@ -3053,24 +3067,37 @@ module Bootstrap.Infer where
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-open-argument classes kinds families original locals sp fun arg st =
-    let env = proof-env-after-term original fun st in case arrow-shape (normalize st (core-type fun)) of
-    UProofFun predicate effects result -> case (fun, arg) of
-      -- Transparent constructors are synthesized with a scoped proof
-      -- lambda. A direct decide must check the same predicate, and the
-      -- payload must independently establish it before erasing the decision.
-      (CApply at ty (CLambda source outer (CPVar binder domain id name)
-        (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
-          (CRefineProof construct refined reference body))) value,
-       EApp decision head input) | decision-syntax-head env head ->
-        (case check classes kinds families env locals arg (decision-type predicate) st of
-          (checked-decision, checked) -> introduce-refinement env sp result value checked)
-      other -> case erased-argument sp env arg predicate st of
-        (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
-    UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
-      (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
-    other -> case arrow-parts sp (core-type fun) st of
-      (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
-        (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value sf checked
+    let env = proof-env-after-term original fun st in
+    let function = normalize st (core-type fun) in
+    if erased-value-arrow function then
+      (case erased-argument-domain (arrow-shape function) of
+        Some domain -> (case check classes kinds families env locals arg domain st of
+          (value, checked) -> apply-runtime-argument classes sp env fun value checked)
+        None -> term-error sp "malformed erased value arrow" st)
+    else case arrow-shape function of
+      UProofFun predicate effects result -> case (fun, arg) of
+        -- Transparent constructors are synthesized with a scoped proof
+        -- lambda. A direct decide must check the same predicate, and the
+        -- payload must independently establish it before erasing the decision.
+        (CApply at ty (CLambda source outer (CPVar binder domain id name)
+          (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
+            (CRefineProof construct refined reference body))) value,
+         EApp decision head input) | decision-syntax-head env head ->
+          (case check classes kinds families env locals arg (decision-type predicate) st of
+            (checked-decision, checked) -> introduce-refinement env sp result value checked)
+        other -> case erased-argument sp env arg predicate st of
+          (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
+      UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
+        (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
+      other -> case arrow-parts sp (core-type fun) st of
+        (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
+          (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value sf checked
+  erased-argument-domain :: UType -> Option UType
+  erased-argument-domain arrow = case arrow of
+    UFun domain result -> Some domain
+    UFunEff domain row result -> Some domain
+    UPi id name domain row result -> Some domain
+    other -> None
   -- Instantiating a generic consumer with an argument's private witness
   -- must not put that witness in the preceding function binding's type.
   -- Bind the function at its independent scheme first, then instantiate
@@ -5283,16 +5310,18 @@ module Bootstrap.Infer where
   -- around the call. The actual result is checked while its witnesses
   -- remain in scope; no symbolic equation for an opaque call is invented.
   apply-scoped-argument :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-scoped-argument classes sp env fun value st = case value of
-    CLet source ty id display sc rhs body -> case fresh-id st of
-      (function-id, next) ->
-        let name = "#argument-function" in
-        let scheme = mono (core-type fun) in
-        let binding = MkLocalBinding name scheme function-id (store-level next) in
-        let bound = proof-let-env env binding function-id scheme fun next in
-        case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
-          (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
-    other -> apply-checked-runtime classes sp env fun value st
+  apply-scoped-argument classes sp env fun value st =
+    if erased-value-arrow (normalize st (core-type fun)) then apply-checked-erased-value classes sp env fun value st
+    else case value of
+      CLet source ty id display sc rhs body -> case fresh-id st of
+        (function-id, next) ->
+          let name = "#argument-function" in
+          let scheme = mono (core-type fun) in
+          let binding = MkLocalBinding name scheme function-id (store-level next) in
+          let bound = proof-let-env env binding function-id scheme fun next in
+          case apply-argument-lets classes sp bound (CLocal sp (core-type fun) function-id name Nil) value next of
+            (call, done) -> (CLet sp (core-type call) function-id name scheme fun call, done)
+      other -> apply-checked-runtime classes sp env fun value st
   apply-argument-lets :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-argument-lets classes sp env fun value st = case value of
     CLet source ty id display sc rhs body ->
@@ -5303,13 +5332,31 @@ module Bootstrap.Infer where
         (call, done) -> (CLet source (core-type call) id display sc rhs call, done)
     other -> apply-checked-runtime classes sp env fun value st
   apply-checked-runtime :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
-  apply-checked-runtime classes sp env fun value st = case arrow-shape (normalize st (core-type fun)) of
-    UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
-      if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
-      else discharge-call classes sp env (applied-core sp result effects fun value) checked
-    other -> case arrow-parts sp (core-type fun) st of
-      (domain, row, result, shaped) -> discharge-call classes sp env (applied-core sp result (normalize shaped row) fun value) (unify sp domain (core-type value) shaped)
+  apply-checked-runtime classes sp env fun value st =
+    let function = normalize st (core-type fun) in
+    if erased-value-arrow function then apply-checked-erased-value classes sp env fun value st
+    else case arrow-shape function of
+      UPi id name domain effects result -> let checked = unify sp domain (core-type value) st in
+        if pi-dependent (normalize checked (core-type fun)) then apply-dependent classes sp env fun value checked
+        else discharge-call classes sp env (applied-core sp result effects fun value) checked
+      other -> case arrow-parts sp (core-type fun) st of
+        (domain, row, result, shaped) -> discharge-call classes sp env (applied-core sp result (normalize shaped row) fun value) (unify sp domain (core-type value) shaped)
 
+
+  apply-checked-erased-value :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-checked-erased-value classes sp env fun value st =
+    let witness = map-term-types (normalize st) value in
+    let function = normalize st (core-type fun) in
+    if not (erasable-value-argument witness) then term-error sp "multiplicity %0: an erased argument cannot perform effects or writes" st
+    else case arrow-shape function of
+      UPi id name domain row result ->
+        let matched = unify sp domain (core-type value) st in
+        if not (pi-dependent function) then discharge-call classes sp env (CErasedApply sp result row fun value) matched
+        else (case reify-argument sp env witness matched of
+          (index, checked) -> case open-pi sp function index checked of
+            (out, effects, done) -> discharge-call classes sp env (CErasedApply sp out effects fun value) done)
+      other -> case arrow-parts sp function st of
+        (domain, row, result, checked) -> discharge-call classes sp env (CErasedApply sp result row fun value) (unify sp domain (core-type value) checked)
 
   check-conditional-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
   check-conditional-refinements sp rows seen st = case rows of

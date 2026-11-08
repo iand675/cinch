@@ -274,6 +274,7 @@ module Bootstrap.Global where
   pattern-locals globals locals pattern = case pattern of
     CPVar sp ty id name -> bind-local id (mono ty) locals
     CPProof sp ty id name -> bind-local id (mono ty) locals
+    CPErasedValue sp ty id name -> bind-local id (mono ty) locals
     CPAs sp ty id name inner -> case bind-local id (mono ty) locals of Some bound -> pattern-locals globals bound inner; None -> None
     CPConstructor sp ty name actuals constructor fields -> if constructor-reference globals name actuals constructor then pattern-locals globals locals fields else None
     CPTuple sp ty fields -> pattern-locals globals locals fields

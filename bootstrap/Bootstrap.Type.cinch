@@ -16,7 +16,7 @@ module Bootstrap.Type where
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
   export arrow-constructor-kind, type-application, refinement-view, refinement-formals
-  export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape
+  export ArrowUsage, UsageZero, UsageOne, UsageAffine, UsageMany, parse-arrow-usage, arrow-usage-text, UUsageArrow, arrow-shape, erased-value-arrow
   export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, UPropNotNull, URequire, URefine, URefineFormer, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexBorrowRead, UIndexCall, UIndexList, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export core-list-type, core-list-element
   export borrow-constructor-kind, borrow-type-parts
@@ -136,6 +136,8 @@ module Bootstrap.Type where
   -- Inspect one arrow's shape while retaining its usage in the owning type.
   arrow-shape :: UType -> UType
   arrow-shape ty = case ty of UUsageArrow usage arrow -> arrow; other -> ty
+  erased-value-arrow :: UType -> Bool
+  erased-value-arrow ty = case ty of UUsageArrow UsageZero arrow -> True; other -> False
   computational-arrow :: UType -> Bool
   computational-arrow ty = case ty of
     UFun a b -> True
