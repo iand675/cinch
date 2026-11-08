@@ -20935,6 +20935,16 @@
         "source": "b06d070f2f136f4908d61194970306de0aaa883188e87217da63fe1aa596e4db"
       },
       {
+        "title": "Compile guarded function equations in Rust Cinch",
+        "status": "waiting-handler-worker",
+        "phase": "Waiting handler worker. The prior Rust run passed 16 of 17 case-evidence tests. The remaining case stopped at the equation guard separator. The repair reuses the checked guard and fallthrough path.",
+        "passed": 0,
+        "failed": 0,
+        "total": 6,
+        "unit": "targets",
+        "source": "0f2d68fca8ab9a11ba85828e98f01b7a0e1072c7ae6415351b7c93d8b9fd7d37"
+      },
+      {
         "title": "Rust mutable writes through calls",
         "status": "waiting-disk-space",
         "phase": "Waiting disk space. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
@@ -20958,5 +20968,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:51:11.028698+00:00"
+  "updatedAt": "2026-11-08T07:54:14.195961+00:00"
 }
