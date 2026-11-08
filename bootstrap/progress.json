@@ -12013,9 +12013,9 @@
         "counts": {
           "verified": 0,
           "blocked": 0,
-          "running": 0,
+          "running": 1,
           "pending": 0,
-          "recheck": 105
+          "recheck": 104
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -13176,13 +13176,13 @@
           {
             "id": "stage3:bootstrap_load",
             "title": "bootstrap_load",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -16567,559 +16567,364 @@
         "unit": "tests",
         "total": 39,
         "counts": {
-          "verified": 0,
+          "verified": 39,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 39
+          "recheck": 0
         },
         "detail": "The 39 original syntax and editor checks.",
         "items": [
           {
             "id": "editor:test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
             "title": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
             "title": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
             "title": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
             "title": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
             "title": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
             "title": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
             "title": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
             "title": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
             "title": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
             "title": "test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
             "title": "test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
             "title": "test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
             "title": "test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
             "title": "test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
             "title": "test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
             "title": "test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
             "title": "test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
             "title": "test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
             "title": "test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
             "title": "test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
             "title": "test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
             "title": "test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
             "title": "test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
             "title": "test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
             "title": "test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
             "title": "test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
             "title": "test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
             "title": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_01_clean_diagnostics (test_lsp.NativeLspTests)",
             "title": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
             "title": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
             "title": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
             "title": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
             "title": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
             "title": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
             "title": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
             "title": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
             "title": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
             "title": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           },
           {
             "id": "editor:test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
             "title": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
-            "state": "recheck",
-            "detail": "Awaiting the matching Rust compiler and editor check.",
+            "state": "verified",
+            "detail": "Passed on the exact integrated Rust compiler.",
             "doneWhen": "Run the original test on matching inputs with its required compiler role.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-editor-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            },
-            "currentTests": null
+            "observed": null
           }
         ]
       },
@@ -20358,8 +20163,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_runtime_emit, bootstrap_runtime_ir, bootstrap_runtime_objects",
-        "passed": 61,
+        "phase": "Bootstrap_runtime_emit, bootstrap_runtime_objects, bootstrap_source_constructors",
+        "passed": 62,
         "failed": 2,
         "total": 105,
         "unit": "groups",
@@ -20563,8 +20368,8 @@
       },
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
-        "status": "waiting-worker",
-        "phase": "Waiting for a shared compiler worker.",
+        "status": "running",
+        "phase": "bootstrap_load",
         "passed": 0,
         "total": 105,
         "unit": "gates",
@@ -20596,9 +20401,9 @@
       },
       {
         "title": "Run all 39 syntax and editor tests on the integrated Rust compiler",
-        "status": "running",
-        "phase": "complete syntax and editor suite",
-        "passed": 0,
+        "status": "passed",
+        "phase": "The complete syntax and editor suite passed, with zero skipped cases.",
+        "passed": 39,
         "total": 39,
         "unit": "gates",
         "failed": 0,
@@ -20703,11 +20508,11 @@
       }
     ],
     "counts": {
-      "verified": 251,
+      "verified": 290,
       "blocked": 0,
-      "running": 3,
+      "running": 4,
       "pending": 4,
-      "recheck": 448
+      "recheck": 408
     },
     "total": 706,
     "acceptanceVerified": 2,
@@ -20715,5 +20520,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:12:01.220967+00:00"
+  "updatedAt": "2026-11-08T17:13:04.445939+00:00"
 }
