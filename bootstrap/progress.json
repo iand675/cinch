@@ -20949,12 +20949,23 @@
       {
         "title": "Rust mutable writes through calls",
         "status": "passed-native-mutable-cell-controls",
-        "phase": "Safety. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "phase": "All 171 runtime tests and 97 compiler tests passed on this snapshot. The shared-cell client executed with zero leaks.",
         "passed": 9,
         "failed": 0,
         "total": 9,
         "unit": "gates",
-        "source": "7d92e9dfc90f8e49e36744fd02d56cada8e52f8df6044debc779a64117374bfd"
+        "source": "7d92e9dfc90f8e49e36744fd02d56cada8e52f8df6044debc779a64117374bfd",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-rust-mutable-cell-results.json"
+      },
+      {
+        "title": "Run shared mutable cells through the rebuilt Cinch compiler",
+        "status": "waiting-prior-validation",
+        "phase": "All 46 modules parsed. The rebuild follows the object-only validation and replays the original cross-call mutation, handler and named-proof cases.",
+        "passed": 1,
+        "failed": 0,
+        "total": 9,
+        "unit": "gates",
+        "source": "6847b00883a60fb87857d5f06d97ea2e40e34cb17a41a3d6cb2f30c5889ce8c4"
       }
     ],
     "counts": {
@@ -20970,5 +20981,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:31:31.779009+00:00"
+  "updatedAt": "2026-11-08T08:34:52.630005+00:00"
 }
