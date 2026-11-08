@@ -21052,6 +21052,16 @@
         "unit": "tests",
         "source": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-editor-results.json"
+      },
+      {
+        "title": "Consolidate installed package execution metadata",
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The candidate uses build/package.cinchif for package verification, Native linking and JIT.",
+        "passed": 0,
+        "failed": 0,
+        "total": 3,
+        "unit": "gates",
+        "source": "025657d61dead7aacb46050ad8dc0a09732c7e91aa1eac037599fc4e09425c37"
       }
     ],
     "counts": {
@@ -21067,5 +21077,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:13:17.271762+00:00"
+  "updatedAt": "2026-11-08T10:15:53.364477+00:00"
 }
