@@ -51,6 +51,15 @@ IR emission. Its checked runtime imports for Nat addition and multiplication
 need staged lowering before the C link and reference-count checks can run.
 See [the allocation probe](../bootstrap/current-schema10-stage3-allocation-drop-results.json).
 
+Development Stage1 now lowers both Nat operations on boxed operands. The
+linked test returns 149 with zero leaks, and the wrong carrier receives a
+type mismatch. The original allocation probe emits IR and its C source
+compiles. The linker then reports that the C probe calls the private
+`Main.build` symbol. The next replay puts the builder in a separately
+compiled object with a checked interface and retains all five ownership
+checks.
+See [the Stage1 Nat audit](../bootstrap/current-schema10-nat-intrinsic-results.json).
+
 The total byte-observation candidate passed six checks on development
 Stage1. Its linked program selected buffers of two different lengths and
 exited without leaks. The four refusal cases checked argument identity and

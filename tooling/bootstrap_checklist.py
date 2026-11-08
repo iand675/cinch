@@ -683,6 +683,18 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    nat_path = 'bootstrap/current-schema10-nat-intrinsic-results.json'
+    nat_audit = read(root / nat_path)
+    if (nat_audit.get('status') == 'audited-stage1-nat-intrinsics-original-link-failed'
+            and nat_audit.get('native_source_sha256') == native
+            and matches_digest(root / 'compiler/tests/alloc_accounting.rs', nat_audit.get('original_test_sha256'))):
+        rows = nat_audit['rows']
+        active.append(dict(title='Development Stage1: Nat operations and allocation probe',
+            status='completed-with-failures',
+            phase='Boxed Nat operations and the wrong-carrier refusal passed. The original probe emitted IR and compiled its C source. The linker could not resolve private Main.build.',
+            passed=sum(row['status'] == 'passed' for row in rows),
+            failed=sum(row['status'] == 'failed' for row in rows),
+            total=len(rows), source=nat_audit['compiler_source_sha256'], evidence=link(nat_path)))
     for key, title in [
         ('partialBooleanBootstrapChain', 'Fresh Stage0 through Stage3 rebuild'),
         ('partialBooleanBootstrapPrior', 'Earlier Stage2 attempt before the library specialization'),
