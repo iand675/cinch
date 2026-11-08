@@ -11904,11 +11904,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 3,
+          "verified": 5,
           "blocked": 0,
-          "running": 2,
+          "running": 3,
           "pending": 79,
-          "recheck": 21
+          "recheck": 18
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -11997,17 +11997,17 @@
           {
             "id": "stage3:arrays",
             "title": "arrays",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T10:55:20.633970+00:00",
-              "finishedAt": "2026-11-07T11:13:04.991548+00:00",
-              "exitCode": 101,
-              "logSha256": "9f1884a8ffd48b44bafae0952fd5cc5cde883bdf26868343f6db29d2e88ca260",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:44:48.348733+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -12015,59 +12015,7 @@
                 },
                 {
                   "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
-                  "status": "passed"
-                },
-                {
-                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
-                  "status": "passed"
-                },
-                {
-                  "name": "arrays_keep_record_and_string_elements_alive",
-                  "status": "passed"
-                },
-                {
-                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
-                  "status": "passed"
-                },
-                {
-                  "name": "column_projection_returns_the_original_typed_buffers",
-                  "status": "failed"
-                },
-                {
-                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
-                  "status": "failed"
-                },
-                {
-                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
-                  "status": "failed"
-                },
-                {
-                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
-                  "status": "failed"
-                },
-                {
-                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
-                  "status": "failed"
-                },
-                {
-                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
-                  "status": "failed"
-                },
-                {
-                  "name": "packed_scalars_roundtrip_through_generic_operations",
-                  "status": "failed"
-                },
-                {
-                  "name": "packed_word_storage_resolves_width_from_the_target",
-                  "status": "passed"
-                },
-                {
-                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
-                  "status": "failed"
+                  "status": "running"
                 }
               ]
             },
@@ -12122,21 +12070,21 @@
           {
             "id": "stage3:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:32:09.961539+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:44:12.732844+00:00",
+              "exitCode": 0,
+              "logSha256": "d8e9659b7e4c20e2c9a153568c367fd91bb4c59fd1253e758ce6d012d62dbdcf",
               "cases": [
                 {
                   "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13863,17 +13811,17 @@
           {
             "id": "stage3:interface_class_contracts",
             "title": "interface_class_contracts",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:55:41.834506+00:00",
-              "finishedAt": "2026-11-07T11:56:00.020871+00:00",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:44:14.122470+00:00",
+              "finishedAt": "2026-11-08T01:44:26.426436+00:00",
               "exitCode": 0,
-              "logSha256": "3b787e65936d043dc5f703b59d9f8c2fdf01092c37535aa2a7952a03baf69506",
+              "logSha256": "c726f77a548d00bd8fc94dcf52e6df35133d60e30375909e59ef356e026810dd",
               "cases": [
                 {
                   "name": "class_contexts_methods_and_private_contracts_keep_their_definitions",
@@ -14009,17 +13957,17 @@
           {
             "id": "stage3:interface_refinements",
             "title": "interface_refinements",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:57:15.786423+00:00",
-              "finishedAt": "2026-11-07T11:58:53.063555+00:00",
-              "exitCode": 0,
-              "logSha256": "44769a1250046179cb20745685a911d26e2a17221145b66b39f1894b435fc116",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:44:28.170961+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "interfaces_publish_preconditions_and_named_refinement_definitions",
@@ -14027,15 +13975,7 @@
                 },
                 {
                   "name": "literal_preconditions_keep_checked_truth_and_facade_contract_identity",
-                  "status": "passed"
-                },
-                {
-                  "name": "logical_literal_proof_contracts_round_trip_without_becoming_boolean_values",
-                  "status": "passed"
-                },
-                {
-                  "name": "portable_proof_arrows_keep_kinds_effects_erasure_and_type_owners",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19883,7 +19823,7 @@
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
         "status": "running",
-        "phase": "Waiting for enough disk space for the build.",
+        "phase": "Waiting for one of the five build workers.",
         "passed": 0,
         "failed": 0,
         "total": 4,
@@ -19914,7 +19854,7 @@
       },
       {
         "title": "Check explicit library sources against their compiled object",
-        "status": "waiting-disk-space",
+        "status": "waiting-worker",
         "phase": "Waiting for a worker",
         "passed": 0,
         "failed": 0,
@@ -20090,11 +20030,11 @@
       }
     ],
     "counts": {
-      "verified": 8,
+      "verified": 10,
       "blocked": 5,
-      "running": 12,
+      "running": 13,
       "pending": 86,
-      "recheck": 564
+      "recheck": 561
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20102,5 +20042,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:44:07.752368+00:00"
+  "updatedAt": "2026-11-08T01:45:09.749583+00:00"
 }
