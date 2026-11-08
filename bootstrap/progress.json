@@ -21067,8 +21067,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Alloc_accounting, bootstrap_body_bindings, case_evidence",
-        "passed": 0,
+        "phase": "Bootstrap_body_bindings, bootstrap_decisions, case_evidence",
+        "passed": 1,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21088,10 +21088,10 @@
       },
       {
         "title": "Run the 34 language examples with the repaired Stage 3",
-        "status": "running",
-        "phase": "Running",
-        "passed": 0,
-        "failed": 0,
+        "status": "completed-with-failures",
+        "phase": "Completed with failures",
+        "passed": 20,
+        "failed": 14,
         "total": 34,
         "unit": "groups",
         "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
@@ -21197,5 +21197,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:42:28.853996+00:00"
+  "updatedAt": "2026-11-08T13:43:31.730524+00:00"
 }
