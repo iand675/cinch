@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "91 passed, 2 running, 9 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 91,
+        "phase": "92 passed, 2 running, 8 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 92,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -21067,5 +21067,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:11:12.293780+00:00"
+  "updatedAt": "2026-11-08T10:12:14.966589+00:00"
 }
