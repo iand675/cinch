@@ -84,6 +84,7 @@ module Bootstrap.ExportNominal where
     UApp f x -> combine (type-references f) (type-references x)
     UFun a b -> combine (type-references a) (type-references b)
     UFunEff a row b -> combine (type-references a) (combine (type-references row) (type-references b))
+    UUsageArrow usage arrow -> if valid-type ty then type-references arrow else Err "nominal export contains a malformed usage arrow"
     UProofFun predicate row result -> if valid-type ty then combine (type-references predicate) (combine (type-references row) (type-references result)) else Err "nominal export contains a malformed erased proof arrow"
     UPi id name a row b -> combine (type-references a) (combine (type-references row) (type-references b))
     URequire predicates body -> combine (type-references predicates) (type-references body)
