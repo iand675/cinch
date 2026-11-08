@@ -4,7 +4,7 @@ module Bootstrap.ExportType where
   import Algebra.Semigroup
   import Bootstrap.Type
   import Bootstrap.Index
-  import Bootstrap.Total (total-identity)
+  import Bootstrap.Total (total-identity, total-source-projection)
   import Data.Char (char-from-code)
   import Data.String
   import Text.Show (nat-to-string, int-to-string)
@@ -255,6 +255,14 @@ module Bootstrap.ExportType where
         other -> Err "exported effect row has independent unresolved tails"
   -- Resolved contracts keep Native canonical binary applications. Public
   -- source schemes flatten application spines without changing binder scope.
+  nonportable-machine-arithmetic :: String
+  nonportable-machine-arithmetic = "fixed-width operands in type arithmetic have no resolved interface encoding"
+  portable-arithmetic-operand :: UType -> Bool
+  portable-arithmetic-operand ty = case ty of
+    UIndexPromote value -> case value-carrier (type-kind value) of
+      Some (UCon name KType) -> same name "Int" || same name "Nat"
+      other -> False
+    other -> True
   type-in :: List (Nat, String) -> UType -> Result String String
   type-in scope ty = type-in-style False scope ty
   type-in-style :: Bool -> List (Nat, String) -> UType -> Result String String
@@ -267,8 +275,12 @@ module Bootstrap.ExportType where
     UIndexForget value -> type-in-style display scope value
     UIndexPromote value -> type-in-style display scope value
     UIndexByteLength value -> join [Ok "(b.bytesLen ", type-in-style display scope value, Ok ")"]
-    UIndexCall function args -> join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
-    UIndexMath op a b -> join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
+    UIndexBorrowRead value -> Err "local borrow observation cannot appear in a published contract"
+    UIndexCall function args -> if total-source-projection function && not display then Err "source nominal projection requires a local proof context"
+      else join [Ok "(", export-global (total-identity function), Ok " ", separated-style display scope " " args, Ok ")"]
+    UIndexMath op a b -> if display || (portable-arithmetic-operand a && portable-arithmetic-operand b) then
+      join [Ok "(", type-in-style display scope a, Ok (string-concat-all [" ", op, " "]), type-in-style display scope b, Ok ")"]
+      else Err nonportable-machine-arithmetic
     UPropLit value -> Ok (if value then "True" else "False")
     UCompare relation a b -> if same relation "Eq" then
       join [Ok "(Eq ", type-in-style display scope a, Ok " ", type-in-style display scope b, Ok ")"]
@@ -277,6 +289,8 @@ module Bootstrap.ExportType where
     UPropOr a b -> join [Ok "(", type-in-style display scope a, Ok " || ", type-in-style display scope b, Ok ")"]
     UPropNot value -> join [Ok "(Not ", type-in-style display scope value, Ok ")"]
     UPropNonZero value -> join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+    UPropNonZeroPending value -> if valid-type ty then join [Ok "(NonZero ", type-in-style display scope value, Ok ")"]
+      else Err "cannot export an invalid NonZero proposition"
     UPropNotNull value -> join [Ok "(NotNull ", type-in-style display scope value, Ok ")"]
     URequire predicates body -> Err "nested function preconditions have no portable interface syntax"
     URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
@@ -389,8 +403,10 @@ module Bootstrap.ExportType where
   export-value-scheme scheme = value-scheme-in False scheme
   -- Keep checked source binder names in a resolved value contract, while
   -- preserving canonical binary applications throughout its type tree.
-  export-resolved-value-scheme :: Scheme -> Result String String
-  export-resolved-value-scheme scheme = value-scheme-style False False scheme
+  export-resolved-value-scheme :: Scheme -> Result String (Option String)
+  export-resolved-value-scheme scheme = case value-scheme-style False False scheme of
+    Ok spelling -> Ok (Some spelling)
+    Err error -> if same error nonportable-machine-arithmetic then Ok None else Err error
   has-preconditions :: UType -> Bool
   has-preconditions ty = case ty of
     UPi id name domain row result -> has-preconditions result

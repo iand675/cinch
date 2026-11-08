@@ -33,6 +33,7 @@ class LibraryProviderContract(unittest.TestCase):
         (root / "bootstrap").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 5, "revision": "a" * 40, "source_sha256": "b" * 64}
         bootstrap.write_json(root / "bootstrap/library-provider.lock.json", lock)
+        (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(5))
         bootstrap.write_json(root / "bootstrap/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / "compiler/prelude").mkdir(parents=True)
@@ -77,7 +78,7 @@ class LibraryProviderContract(unittest.TestCase):
                 return 0
 
             with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "BUILD", directory / "build"), \
-                    patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": 5}, b"")), \
+                    patch.object(bootstrap, "seed_inputs", side_effect=AssertionError("library builds must not read the seed lock")), \
                     patch.object(bootstrap_objects, "source_snapshot", return_value=snapshot), \
                     patch.object(bootstrap, "run", side_effect=run):
                 provider = bootstrap_objects.provider(bootstrap)
@@ -94,14 +95,27 @@ class LibraryProviderContract(unittest.TestCase):
                 bootstrap_objects.provider(bootstrap)
                 self.assertEqual(len(calls), 9)
 
-    def test_abi_mismatch_is_rejected_before_a_native_command(self):
+    def test_unsupported_library_abi_is_rejected_before_a_native_command(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
             root, _ = self.fixture(directory)
+            lock_path = root / "bootstrap/library-provider.lock.json"
+            lock = bootstrap.read_json(lock_path)
+            bootstrap.write_json(lock_path, {**lock, "runtime_abi": 8})
             with patch.object(bootstrap, "ROOT", root), \
-                    patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": 6}, b"")), \
                     patch.object(bootstrap, "run") as run:
-                with self.assertRaisesRegex(bootstrap.BootstrapError, "ABIs differ"):
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "unsupported or missing library producer lock"):
+                    bootstrap_objects.provider(bootstrap)
+                run.assert_not_called()
+
+    def test_old_provider_cannot_change_the_compiler_target_abi(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root, _ = self.fixture(Path(temp))
+            (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
+            with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "run") as run:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
+                    bootstrap.collect_compiler_sources()
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
                     bootstrap_objects.provider(bootstrap)
                 run.assert_not_called()
 

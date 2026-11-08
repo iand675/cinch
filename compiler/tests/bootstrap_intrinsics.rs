@@ -26,6 +26,11 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         let external = op.extern_name();
         cases.push((symbol.to_owned(), external.to_owned(), format!("foreign import ccall \"{symbol}\" native :: {scheme}\n  probe :: {scheme}\n  {body}"), None));
     }
+    for identity in ["cinch.runtime.natAdd", "cinch.runtime.natMul"] {
+        let cinch::core::PrimOp::Nat(op) = cinch::core::PrimOp::from_symbol(identity).unwrap() else { panic!("not a Nat intrinsic") };
+        let scheme = "Nat -> Nat -> Nat";
+        cases.push((identity.into(), op.extern_name().into(), format!("foreign import ccall \"{identity}\" native :: {scheme}\n  probe :: {scheme}\n  probe = native"), None));
+    }
     let symbol = "cinch.runtime.textSha256";
     for (identity, scheme) in [
         ("cinch.prim.eqI64", "I64 -> I64 -> Bool"),
@@ -41,6 +46,7 @@ fn runtime_intrinsics_check_their_contract_and_retain_canonical_symbols() {
         ("machine wrong arity", "cinch.prim.wrappingSubI64", "I64 -> I64", "type mismatch"),
         ("machine polymorphic", "cinch.prim.eqI64", "forall a. a -> a -> Bool", "cannot be polymorphic"),
         ("machine unknown operation", "cinch.prim.imaginaryI64", "I64 -> I64 -> I64", "checked runtime intrinsic contract"),
+        ("Nat intrinsic wrong carrier", "cinch.runtime.natMul", "Int -> Int -> Int", "type mismatch"),
     ] {
         cases.push((identity.into(), identity.into(), format!("foreign import ccall \"{identity}\" native :: {scheme}"), Some((name, message))));
     }

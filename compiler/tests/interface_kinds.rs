@@ -16,7 +16,8 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "arrow-instance.cinch").unwrap();
+    let dir = common::project("arrow_instance", &[("Main.cinch", source)]);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("emit the arrow instance contract");
     cinch::interface::verify_chain(&interfaces).unwrap();
     let owner = interfaces.iter().find(|iface| iface.module == "ArrowMapping").unwrap();
     let artifact = Iface::from_json(&owner.to_json()).unwrap();
@@ -27,12 +28,14 @@ module Main where
     assert_eq!(resolved.scheme, "forall (r :: Type). ArrowMapping.Mapper ((->) r)");
     assert_eq!(resolved.nominals.iter().map(|nominal| nominal.identity.as_str()).collect::<Vec<_>>(),
         ["ArrowMapping.Mapper"]);
+    common::cleanup(&dir);
 }
 
 #[test]
 fn ordering_instances_publish_definition_owned_headers() {
     let source = "module Main where\n  import Data.Ordering\n  main :: Int\n  main = 0\n";
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "ordering-instance-headers.cinch").unwrap();
+    let dir = common::project("ordering_instance_headers", &[("Main.cinch", source)]);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("load the checked Ordering headers");
     cinch::interface::verify_chain(&interfaces).unwrap();
     let owner = interfaces.iter().find(|iface| iface.module == "Data.Ordering").unwrap();
     for name in ["Monoid", "Semigroup"] {
@@ -44,6 +47,7 @@ fn ordering_instances_publish_definition_owned_headers() {
         assert_eq!(instance.target, head);
         assert_eq!(instance.resolved.as_ref().unwrap().scheme, head);
     }
+    common::cleanup(&dir);
 }
 
 #[test]
@@ -146,7 +150,8 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "opaque-kinds.cinch").unwrap();
+    let dir = common::project("opaque_kinds", &[("Main.cinch", source)]);
+    let interfaces = common::check_interfaces(&dir, "Main.cinch").expect("emit the opaque and facade contracts");
     let a = interfaces.iter().find(|i| i.module == "A").unwrap();
     let facade = interfaces.iter().find(|i| i.module == "Facade").unwrap();
     for (name, alias, kind) in [("Mark", "M", "Nat"), ("Wrap", "W", "Type -> Type")] {
@@ -165,11 +170,14 @@ module Main where
         assert_eq!(renamed, original);
         assert!(original.nominals.iter().any(|n| n.kind == "opaque" && n.constructors.is_none()), "opaque kind lost its definition-owned abstract contract");
     }
+    common::cleanup(&dir);
     for body in [
         "bad :: Mark Nat -> Nat\n  bad x = 0",
         "bad :: Wrap Nat -> Nat\n  bad x = 0",
     ] {
         let wrong = format!("module Main where\n  opaque type Mark (n :: Nat) :: Type\n  opaque type Wrap (f :: Type -> Type) :: Type\n  {body}\n");
-        assert!(cinch::driver::check_sources(&wrong, "bad-opaque-kind.cinch").is_err(), "opaque parameter kind was erased: {body}");
+        let dir = common::project("bad_opaque_kind", &[("Main.cinch", &wrong)]);
+        assert!(common::check(&dir, "Main.cinch").is_err(), "opaque parameter kind was erased: {body}");
+        common::cleanup(&dir);
     }
 }

@@ -1908,6 +1908,7 @@ pub fn render_value(ty: &Ty, v: &Value) -> String {
         Value::Bool(b) => if *b { "True" } else { "False" }.to_string(),
         Value::Unit => "()".to_string(),
         Value::Bytes(b) => format!("<bytes {}>", b.borrow().len()),
+        Value::MutCell(_) => "<mutable borrow>".to_string(),
         Value::Sym(s) => format!("'{s}"),
         Value::Name(s) => format!("'{s}"),
         Value::Str(s) => format!("{:?}", s),

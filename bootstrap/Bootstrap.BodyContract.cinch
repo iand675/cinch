@@ -20,7 +20,7 @@ module Bootstrap.BodyContract where
   export binding-scheme, binding-function, binding-equal, binding-matches
   export BodyBindings, empty-body-bindings, body-bindings-members, check-body-bindings, extend-body-bindings
   export body-bindings-closed, body-binding, body-function, body-type-authorized, body-kind-authorized, body-scheme-authorized
-  export check-source-body-binding, check-imported-method-binding, selected-method-body, method-selection-matches
+  export check-source-body-binding, check-imported-method-binding, selected-method-body, method-selection-matches, ordering-method-matches
 
   data BodyBinding where
     VerifiedBody :: String -> String -> String -> Scheme -> TotalFunction -> BodyBinding
@@ -41,7 +41,9 @@ module Bootstrap.BodyContract where
   binding-function binding = case binding of VerifiedBody name native role sc function -> function; VerifiedMethodBody dictionary slot owner selector text factory actual -> binding-function actual
   binding-matches :: String -> String -> Scheme -> BodyBinding -> Bool
   binding-matches name role sc binding = same name (binding-name binding) && same role (binding-role binding)
-    && (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (binding-scheme binding)); other -> False)
+    && (case keyed-ordering-slots (binding-function binding) of
+      Some slots -> keyed-ordering-scheme sc
+      None -> (case (scheme-params sc, scheme-requirements sc) of (Nil, Nil) -> equal-type (scheme-body sc) (scheme-body (binding-scheme binding)); other -> False))
   binding-equal :: BodyBinding -> BodyBinding -> Bool
   binding-equal first second = method-association-equal first second && binding-matches (binding-name first) (binding-role first) (binding-scheme first) second
     && same (binding-native first) (binding-native second) && total-function-equal (binding-function first) (binding-function second)
@@ -123,6 +125,12 @@ module Bootstrap.BodyContract where
       && same owner declared && same name selector && resolved-factory-match factory subject
       && (case factory-spine subject Nil of (UCon head kind, arguments) -> same head owner && same-types arguments actuals; other -> False)
     other -> False
+  ordering-method-matches :: String -> Nat -> UType -> UType -> BodyBinding -> Bool
+  ordering-method-matches dictionary slot key subject binding = case binding of
+    VerifiedMethodBody actual number owner selector source factory body ->
+      method-selection-matches dictionary slot selector (interface-global "Relation.Ord.Ord") [key] subject binding
+      && binding-matches (binding-name binding) "external" (mono (UFun key (UFun key (UCon "Bool" KType)))) binding
+    other -> False
   check-imported-method-binding :: InterfaceSet -> String -> Nat -> Scheme -> Option BodyBinding
   check-imported-method-binding interfaces dictionary slot sc = case declared-instance dictionary (interface-set-members interfaces) of
     Some row -> (case (method-at slot (method-field "methods" row), resolved-text row, method-field "ctx" row) of
@@ -188,10 +196,24 @@ module Bootstrap.BodyContract where
   check-body-binding :: String -> String -> String -> Scheme -> TotalFunction -> Option BodyBinding
   check-body-binding name native role sc function =
     if string-length name == 0 || not (same native (total-identity function))
-      || not (same role "external") then None
-    else case (scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil) -> if class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
-      other -> None
+      || not (same role "external") || total-source-projection function then None
+    else case keyed-ordering-slots function of
+      Some slots -> if keyed-ordering-scheme sc then Some (VerifiedBody name native role sc function) else None
+      None -> (case (scheme-params sc, scheme-requirements sc) of
+        (Nil, Nil) -> if class-row-valid function (total-parameters function) (scheme-body sc) then Some (VerifiedBody name native role sc function) else None
+        other -> None)
+  keyed-ordering-scheme :: Scheme -> Bool
+  keyed-ordering-scheme sc = case (scheme-params sc, scheme-requirements sc) of
+    ([input, key], [dictionary]) ->
+      let a = UBound (quant-id input) (quant-name input) KType in
+      let b = UBound (quant-id key) (quant-name key) KType in
+      let order = UCon (interface-global "Relation.Ord.Ord") (KFun KType KType) in
+      let result = UCon (interface-global "Data.Ordering.Ordering") KType in
+      kind-equal (quant-kind input) KType && kind-equal (quant-kind key) KType && quant-id input /= quant-id key
+      && not (quant-implicit input || quant-implicit key)
+      && equal-type (requirement-type dictionary) (UApp order b)
+      && equal-type (scheme-body sc) (UFun (UFun a b) (UFun a (UFun a result)))
+    other -> False
   -- Source associations require an actual matching Core definition when the
   -- global context is closed. The imported admission above stays external-only.
   check-source-body-binding :: String -> String -> Scheme -> TotalFunction -> Option BodyBinding
@@ -245,6 +267,7 @@ module Bootstrap.BodyContract where
     other -> True
   body-type-authorized :: List BodyBinding -> UType -> Bool
   body-type-authorized bindings ty = case ty of
+    UIndexList element fields -> body-type-authorized bindings element && body-type-authorized bindings fields
     UIndexCall function args -> (case body-function function bindings of Some binding -> True; None -> False) && body-type-authorized bindings args
     UCon name kind -> body-kind-authorized bindings kind
     UBound id name kind -> body-kind-authorized bindings kind
@@ -254,6 +277,7 @@ module Bootstrap.BodyContract where
     UIndexForget input -> body-type-authorized bindings input
     UIndexPromote input -> body-type-authorized bindings input
     UIndexByteLength input -> body-type-authorized bindings input
+    UIndexBorrowRead input -> body-type-authorized bindings input
     UIndexMath operation a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UCompare relation a b -> body-type-authorized bindings a && body-type-authorized bindings b
     UPropAnd a b -> body-type-authorized bindings a && body-type-authorized bindings b

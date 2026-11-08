@@ -7,6 +7,7 @@
     "interface_anonymous_contracts",
     "interface_class_contracts",
     "interface_kinds",
+    "interface_machine_contracts",
     "interface_nominals",
     "interface_preconditions",
     "interface_prelude_overrides",
@@ -16,7 +17,7 @@
   ],
   "native_api_assertions": {
     "arrays": {
-      "source_sha256": "8d1ccd32224302805c2b206f8f484d6aebd8d2658aa2a5e95d40aaf6576b5139",
+      "source_sha256": "ab015bfe0b53e2097a23b11b96dd51947bf9f9e54854b3ea83ca12203162a72c",
       "cases": {
         "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
       }
@@ -233,7 +234,6 @@
     "exhaustion",
     "folded_literal_ownership",
     "interface_byte_observations",
-    "interface_machine_contracts",
     "lib_hashmap_real",
     "primitive_length_identity"
   ],

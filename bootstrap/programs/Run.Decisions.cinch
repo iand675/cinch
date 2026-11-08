@@ -74,7 +74,7 @@ module Main where
     let formal = nonce + 50 in let x = nonce + 1 in let y = nonce + 2 in
     let arrow = UFun int int in let name = "body-helper" in
     let definition term = MkCoreDefinition sp name (mono arrow) Nil Nil Nil [MkCoreClause sp [CPVar sp int formal "formal"] term] in
-    case (core-source-body Nil [definition (CLocal sp int formal "formal" Nil)] name, core-source-body Nil [definition (CInt sp int "7")] name) of
+    case (core-source-body Nil [definition (CLocal sp int formal "formal" Nil)] Nil name, core-source-body Nil [definition (CInt sp int "7")] Nil name) of
       (Some body, Some changed) ->
         let value = CLocal sp int x "x" Nil in
         let actual = UIndex int (IRigid x "x" 0) in

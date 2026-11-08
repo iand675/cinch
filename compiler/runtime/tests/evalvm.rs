@@ -32,9 +32,9 @@ const LAZY_ALLOC: i64 = 15;
 const LAZY_INIT: i64 = 16;
 const DEMAND: i64 = 17;
 const UNITREF: i64 = 18;
-const SET: i64 = 20;
 const DUP: i64 = 21;
 const DROP: i64 = 22;
+const SET: i64 = 23;
 
 type Stub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
 
@@ -357,10 +357,18 @@ fn demand_moves_the_thunk_out_of_its_cell() {
 }
 
 #[test]
-fn set_replaces_the_binder_word() {
-    let prog = [LET, 1, INT, 3, LET, 2, SET, 1, INT, 4, LOCAL, 1];
+fn set_replaces_the_payload_seen_through_an_alias() {
+    let cell = ctor_block(ctor_id(0, 0), &[3]);
+    let prog = [
+        LET, 1, UNITREF, cell,
+        LET, 2, LOCAL, 1,
+        LET, 3, SET, 2, 0, INT, 4,
+        PROJ, LOCAL, 1, 0, 0, 0,
+    ];
     assert_eq!(run(quote_block(&prog, &[])), Ok(4));
-    assert_eq!(run(quote_block(&[SET, 9, INT, 4], &[])), Err(Error::CorruptValue));
+    assert_eq!(run(quote_block(&[SET, 9, 0, INT, 4], &[])), Err(Error::CorruptValue));
+    let bad_flag = [LET, 1, UNITREF, cell, SET, 1, 2, INT, 4];
+    assert_eq!(run(quote_block(&bad_flag, &[])), Err(Error::CorruptValue));
 }
 
 #[test]

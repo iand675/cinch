@@ -131,6 +131,13 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
     Token n -> if recover False (C64 True) && recover 0 (C69 9223372036854775808) == 9223372036854775808 && n == 18446744073709551616 then 143 else 1
 "#, (0..70).map(|i| format!("    C{i} :: a -> Wide a\n")).collect::<String>());
     let cases = [
+        ("Nat intrinsics use owned boxed words", r#"  foreign import ccall "cinch.runtime.natAdd" nat-add :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natMul" nat-mul :: Nat -> Nat -> Nat
+  main :: Int
+  main = let add-large = nat-add 18446744073709551616 in
+    let product = nat-mul 18446744073709551616 3 in
+    if add-large 36893488147419103232 == product && product == 55340232221128654848 then 149 else 1
+"#, 149),
         ("higher-kinded specialization", "  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n", 1),
         ("fixed-index-signal-constructors", r#"  data Signal (n :: Nat) where
     Mono :: Nat -> Signal 1

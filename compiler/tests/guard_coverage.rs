@@ -115,6 +115,36 @@ fn unguarded_final_row_compiles_and_runs_every_row() {
 }
 
 #[test]
+fn guarded_equations_use_the_same_fallthrough_and_coverage_as_case() {
+    let defs = r#"
+  score :: Shape -> Int
+  score (Circle n) | positive = points
+    where
+      points = n + 10
+      positive = n > 0
+  score (Circle _) = 3
+  score (Square n) | True = n
+
+  bonus :: Int
+  bonus | False = 99
+  bonus = 4
+"#;
+    expect_ok(
+        "guarded-equations",
+        &program(defs, "if score (Circle 2) == 12 && score (Circle 0) == 3 && score (Square 5) == 5 && bonus == 4 then 0 else 1"),
+        0,
+    );
+    expect_err(
+        "uncovered-equation",
+        &program(
+            "  choose :: Bool -> Int\n  choose p | p = 1\n",
+            "choose False",
+        ),
+        "an argument combination is not covered by an unguarded row",
+    );
+}
+
+#[test]
 fn mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor() {
     // Circle has an unguarded row; Square only a guarded one.
     expect_err(

@@ -2040,6 +2040,7 @@ pub(crate) fn read_package_execution(path: &Path) -> Result<serde_json::Value> {
 fn package_object_modules(path: &Path) -> Result<Vec<String>> {
     let abi_path = package_execution_path(path);
     let abi = read_package_execution(path)?;
+    let expected_runtime_abi = crate::interface::RUNTIME_ABI_VERSION;
     let object_bytes =
         std::fs::read(path).map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
     let expected = abi
@@ -2081,6 +2082,13 @@ fn package_object_modules(path: &Path) -> Result<Vec<String>> {
             };
             let iface = crate::interface::Iface::from_json(&text)
                 .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+            if iface.runtime_abi != expected_runtime_abi {
+                return Err(Error::plain(format!(
+                    "{}: package interface runtime ABI {} does not match this compiler's {expected_runtime_abi}",
+                    path.display(),
+                    iface.runtime_abi
+                )));
+            }
             if iface.iface_hash() != expected_hash {
                 return Err(Error::plain(format!(
                     "{}: interface hash does not match the package execution interface",

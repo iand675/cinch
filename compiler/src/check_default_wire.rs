@@ -21,7 +21,7 @@ impl Checker {
         let clauses = equations
             .iter()
             .map(|equation| {
-                if !equation.attrs.is_empty() || !equation.locals.is_empty() {
+                if !equation.attrs.is_empty() || !equation.locals.is_empty() || equation.guard.is_some() {
                     return None;
                 }
                 let mut locals = Vec::new();

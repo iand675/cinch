@@ -27,7 +27,7 @@ module Main where
   associated body = GlobalBody (GlobalValue (binding-name body) "value" (binding-scheme body)) body
   identity-checks :: Nat -> List Bool
   identity-checks id = let actual = definition "width" id (local id) in
-    case core-source-body Nil [actual] "width" of
+    case core-source-body Nil [actual] Nil "width" of
       None -> [False]
       Some body -> let globals = [associated body] in
         [ (case close-globals-with-definitions globals [actual] of Some context -> global-definition-closed context actual; None -> False)
@@ -37,20 +37,20 @@ module Main where
         , refused [GlobalBody (GlobalValue "width" "external" (mono arrow)) body] [actual]
         , refused [GlobalBody (GlobalValue "other" "value" (mono arrow)) body] [actual]
         , (case close-globals-with-definitions globals [actual] of Some context -> not (global-definition-closed context (definition "width" id constant)); None -> False)
-        , (case core-source-body Nil [definition "width" id (CApply sp nat (CUse sp arrow "missing" "value" Nil) (local id))] "width" of None -> True; Some forged -> False)
+        , (case core-source-body Nil [definition "width" id (CApply sp nat (CUse sp arrow "missing" "value" Nil) (local id))] Nil "width" of None -> True; Some forged -> False)
         ]
   dependency-checks :: Nat -> List Bool
   dependency-checks id = let helper = definition "helper" (id + 1) (local (id + 1)) in
     let root = definition "width" id (CApply sp nat (CUse sp arrow "helper" "value" Nil) (local id)) in
     let definitions = [root, helper] in
-    case core-source-body Nil definitions "width" of
+    case core-source-body Nil definitions Nil "width" of
       None -> [False]
       Some body -> let globals = [associated body, GlobalValue "helper" "value" (mono arrow)] in
         [ (case close-globals-with-definitions globals definitions of Some context -> global-definition-closed context root && global-definition-closed context helper; None -> False)
         , refused globals [root, definition "helper" (id + 1) constant]
         , refused globals [root]
         , (case close-globals-with-definitions globals definitions of Some context -> not (global-definition-closed context (definition "helper" (id + 1) constant)); None -> False)
-        , (case core-source-body Nil [root, definition "helper" (id + 1) (CApply sp nat (CUse sp arrow "width" "value" Nil) (local (id + 1)))] "width" of None -> True; Some forged -> False)
+        , (case core-source-body Nil [root, definition "helper" (id + 1) (CApply sp nat (CUse sp arrow "width" "value" Nil) (local (id + 1)))] Nil "width" of None -> True; Some forged -> False)
         ]
   field :: String -> Json -> Json
   field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
@@ -61,7 +61,7 @@ module Main where
   wildcard-check :: Nat -> Bool
   wildcard-check id = let sc = mono (UFun nat (UFun nat nat)) in
     let actual = MkCoreDefinition sp "second" sc Nil Nil Nil [MkCoreClause sp [CPWild sp nat, CPVar sp nat id "second"] (local id)] in
-    case core-source-body Nil [actual] "second" of
+    case core-source-body Nil [actual] Nil "second" of
       Some body -> second-slot body && (case close-globals-with-definitions [associated body] [actual] of Some context -> global-definition-closed context actual; None -> False)
       None -> False
   verdict :: List Bool -> Int -> Int

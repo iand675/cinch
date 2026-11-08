@@ -93,8 +93,8 @@ class CompilerInterfaceGate(unittest.TestCase):
                     contracts.read_contract(path)
 
     def test_final_consumer_uses_self_built_compiler_and_emitted_contracts(self):
-        for runtime_abi in (5, 6):
-            with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "seed_inputs", return_value=({"runtime_abi": runtime_abi}, b"")):
+        for runtime_abi in (5, 6, 7):
+            with self.subTest(runtime_abi=runtime_abi), patch.object(bootstrap, "library_provider_lock", return_value={"runtime_abi": runtime_abi}):
                 self.assert_final_consumer(runtime_abi)
 
     def assert_final_consumer(self, runtime_abi):

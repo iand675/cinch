@@ -61,9 +61,9 @@
 //! | 17 | `DEMAND` | `[cell, counted]` | run the memo cell's state machine; `counted` 1 dups the value |
 //! | 18 | `UNITREF` | `[clo]` | a unit's closure word as a value |
 //! | 19 | `CONST_BYTES` | `[len, words...]` | a constant byte buffer: `len` data bytes packed eight per word little endian; each evaluation boxes a fresh heap buffer (a compiled string literal's shared data-section constant is the compiled form, never this stream) |
-//! | 20 | `SET` | `[slot, value]` | replace the binder's word (a `RefSet`); the value is the unit word |
 //! | 21 | `DUP` | `[slot, body]` | add a reference to the binder's counted word, then `body` |
 //! | 22 | `DROP` | `[slot, body]` | release the binder's counted reference, then `body` |
+//! | 23 | `SET` | `[cell-local, counted, value]` | replace the mutable cell's payload and release the old payload if counted; the result is the unit word |
 //!
 //! # Value conventions
 //!
@@ -244,9 +244,9 @@ mod op {
     /// `[len, words...]`: a constant byte buffer, its data bytes packed
     /// eight per word little endian.
     pub const CONST_BYTES: u64 = 19;
-    /// `[slot, value]`: replace the binder's word; the value is the unit
-    /// word.
-    pub const SET: u64 = 20;
+    /// `[cell-local, counted, value]`: replace the payload in the bound
+    /// mutable cell. Release the prior contents if counted.
+    pub const SET: u64 = 23;
     /// `[slot, body]`: add a reference to the counted binder's word.
     pub const DUP: u64 = 21;
     /// `[slot, body]`: release the counted binder's reference.
@@ -282,7 +282,7 @@ enum Node {
     /// A `CONST_BYTES` constant's data; each evaluation boxes a fresh
     /// heap buffer from it.
     Bytes(Vec<u8>),
-    Set(u32, Box<Node>),
+    Set(u32, bool, Box<Node>),
     Dup(u32, Box<Node>),
     Drop(u32, Box<Node>),
 }
@@ -662,8 +662,9 @@ impl<'a> Dec<'a> {
     fn expr_set(&mut self) -> Result<Node> {
         let slot = self.word()?;
         let idx = self.lookup(slot)?;
+        let counted = self.flag()?;
         let value = self.expr()?;
-        Ok(Node::Set(idx, Box::new(value)))
+        Ok(Node::Set(idx, counted, Box::new(value)))
     }
 
     /// `DUP`/`DROP` `[slot, body]` (the opcode word is already read).
@@ -840,8 +841,15 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         Node::Bytes(data) => Ok(crate::abi::box_bytes(crate::bytes::Bytes::from(
             data.clone(),
         ))),
-        Node::Set(i, value) => {
-            env[*i as usize] = eval(value, env, holes)?;
+        Node::Set(i, counted, value) => {
+            let replacement = eval(value, env, holes)?;
+            let cell = block_ptr(env[*i as usize])?;
+            // SAFETY: checked lowering supplies a live one-word cell.
+            let old = unsafe { word_at(cell, 0) };
+            unsafe { word_set(cell, 0, replacement) };
+            if *counted {
+                unsafe { crate::rc::cinch_drop(old) };
+            }
             Ok(0)
         }
         Node::Dup(..) | Node::Drop(..) => eval_rc(node, env, holes),

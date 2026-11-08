@@ -896,8 +896,16 @@ impl Term {
 }
 
 impl Equation {
+    pub(crate) fn terms(&self) -> impl Iterator<Item = &Term> {
+        self.guard.iter().chain(std::iter::once(&self.body))
+    }
+
+    pub(crate) fn terms_mut(&mut self) -> impl Iterator<Item = &mut Term> {
+        self.guard.iter_mut().chain(std::iter::once(&mut self.body))
+    }
+
     fn visit_types_mut(&mut self, visit: &mut impl FnMut(&mut Type)) {
-        self.body.visit_types_mut(visit);
+        for term in self.terms_mut() { term.visit_types_mut(visit); }
         for declaration in &mut self.locals { declaration.visit_types_mut(visit); }
     }
 }
@@ -1126,6 +1134,7 @@ pub struct Equation {
     pub attrs: Vec<Attribute>,
     pub name: Name,
     pub pats: Vec<Pat>,
+    pub guard: Option<Term>,
     pub body: Term,
     pub locals: Vec<LocalDecl>,
     pub span: Span,
@@ -1791,7 +1800,7 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 collect_type_refs(ty, out);
             }
             for eq in &s.defaults {
-                collect_term_refs(&eq.body, out);
+                for term in eq.terms() { collect_term_refs(term, out); }
                 for l in &eq.locals {
                     collect_local_refs(l, out);
                 }
@@ -1831,7 +1840,7 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 collect_type_refs(t, out);
             }
             for m in &i.methods {
-                collect_term_refs(&m.body, out);
+                for term in m.terms() { collect_term_refs(term, out); }
                 for l in &m.locals {
                     collect_local_refs(l, out);
                 }
@@ -1863,7 +1872,7 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         }
         Decl::ValueSig { ty, .. } => collect_type_refs(ty, out),
         Decl::Equation { eq, .. } => {
-            collect_term_refs(&eq.body, out);
+            for term in eq.terms() { collect_term_refs(term, out); }
             for l in &eq.locals {
                 collect_local_refs(l, out);
             }
@@ -2913,11 +2922,13 @@ fn hyg_equation_scoped(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Resu
         pats.push(hyg_pat(p, cx, sc)?);
     }
     let locals = hyg_locals(&eq.locals, false, cx, sc)?;
+    let guard = eq.guard.as_ref().map(|term| hyg_term(term, cx, sc)).transpose()?;
     let body = hyg_term(&eq.body, cx, sc)?;
     Ok(Equation {
         attrs: eq.attrs.clone(),
         name: eq.name.clone(),
         pats,
+        guard,
         body,
         locals,
         span: eq.span,
@@ -3410,7 +3421,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         Decl::Signature(s) => {
             let mut s = s.clone();
             for eq in &mut s.defaults {
-                eq.body = subst_holes(&eq.body, vals);
+                for term in eq.terms_mut() { *term = subst_holes(term, vals); }
                 eq.locals = eq.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
             }
             Decl::Signature(s)
@@ -3467,7 +3478,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
                 .iter()
                 .map(|m| {
                     let mut m = m.clone();
-                    m.body = subst_holes(&m.body, vals);
+                    for term in m.terms_mut() { *term = subst_holes(term, vals); }
                     m.locals = m.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
                     m
                 })
@@ -3476,7 +3487,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         }
         Decl::Equation { modifier, eq } => {
             let mut eq = eq.clone();
-            eq.body = subst_holes(&eq.body, vals);
+            for term in eq.terms_mut() { *term = subst_holes(term, vals); }
             eq.locals = eq.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
             Decl::Equation { modifier: modifier.clone(), eq }
         }
@@ -3710,7 +3721,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         Decl::Generate { .. } => {}
         Decl::Signature(s) => {
             for eq in &mut s.defaults {
-                collect_template_holes_with_macros(&mut eq.body, holes, false);
+                for term in eq.terms_mut() { collect_template_holes_with_macros(term, holes, false); }
                 for l in &mut eq.locals {
                     if let LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
@@ -3723,7 +3734,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         }
         Decl::Instance(i) => {
             for m in &mut i.methods {
-                collect_template_holes_with_macros(&mut m.body, holes, false);
+                for term in m.terms_mut() { collect_template_holes_with_macros(term, holes, false); }
                 for l in &mut m.locals {
                     if let LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
@@ -3746,7 +3757,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             }
         }
         Decl::Equation { eq, .. } => {
-            collect_template_holes_with_macros(&mut eq.body, holes, false);
+            for term in eq.terms_mut() { collect_template_holes_with_macros(term, holes, false); }
             for l in &mut eq.locals {
                 if let LocalDecl::Eq { body, .. }
                 | LocalDecl::Bind { body, .. }

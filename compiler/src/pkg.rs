@@ -3139,6 +3139,22 @@ mod tests {
         let status = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
             .expect("native build with package objects");
         assert_eq!(status, 8);
+        let execution_bytes = std::fs::read(&top.abi).expect("package execution interface");
+        let mut execution: Value =
+            serde_json::from_slice(&execution_bytes).expect("package execution JSON");
+        execution["runtime_abi"] = json!(crate::interface::RUNTIME_ABI_VERSION - 1);
+        std::fs::write(
+            &top.abi,
+            canonical(&execution).expect("encode old runtime ABI"),
+        )
+        .expect("replace package execution interface");
+        let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)
+            .expect_err("native linker must reject an old package runtime ABI");
+        assert!(
+            error.to_string().contains("package object runtime ABI"),
+            "{error}"
+        );
+        std::fs::write(&top.abi, execution_bytes).expect("restore package execution interface");
         let old_sidecar = top.object.with_extension("abi.json");
         std::fs::rename(&top.abi, &old_sidecar).expect("move execution interface aside");
         let error = driver_opts(Mode::Run, &dir.join("Main.cinch"), None, &options)

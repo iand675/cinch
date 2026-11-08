@@ -116,7 +116,16 @@ int main(void) {
         let output = invoke(&["--check", "input.source", "guard-coverage"]);
         assert_eq!(output.status.code(), Some(expected), "{guard}: {} {}", common::read_output(&dir, "guard-coverage.diagnostics"), String::from_utf8_lossy(&output.stderr));
     }
-    std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case 18446744073709551616 of value | True -> if value > 0 then 149 else 1\n").unwrap();
+    let guarded_precondition = r#"
+module Main where
+  guarded :: using (n > 0) => (n :: Int) -> Int
+  guarded n | n > 2 = 1
+  guarded n = 2
+  main :: Int
+  main = case 18446744073709551616 of
+    value | True -> if value > 0 && guarded 3 == 1 && guarded 1 == 2 then 149 else 1
+"#;
+    std::fs::write(dir.join("input.source"), guarded_precondition).unwrap();
     assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(0), "{}", common::read_output(&dir, "output.ll.diagnostics"));
     let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
         .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("guard-artifact")).output().unwrap();
@@ -124,6 +133,11 @@ int main(void) {
     let output = Command::new(dir.join("guard-artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
     assert_eq!(output.status.code(), Some(149), "{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    std::fs::write(dir.join("input.source"), guarded_precondition.replace("guarded 1 == 2", "guarded 0 == 2")).unwrap();
+    let output = invoke(&["--emit-ir", "input.source", "output.ll"]);
+    assert_eq!(output.status.code(), Some(4), "{}", common::read_output(&dir, "output.ll.diagnostics"));
+    assert!(common::read_output(&dir, "output.ll.diagnostics").contains("precondition is not established"));
+    assert!(common::read_output(&dir, "output.ll").is_empty());
     // Constructor field carriers are resolved by their enclosing type;
     // literals must not default before that relationship is known.
     for (carrier, literal, expected) in [("Nat", "0", 0), ("I8", "127", 0), ("Bool", "0", 4), ("I8", "128", 4)] {

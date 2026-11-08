@@ -61,7 +61,7 @@ fn array_library_objects_stamp_matching_abi_and_owned_types() {
         .expect("emit the array library object");
     assert!(out.is_file());
     let text = std::fs::read_to_string(out.with_extension("abi.json")).unwrap();
-    assert!(text.contains("\"runtime_abi\":6"), "{text}");
+    assert!(text.contains(&format!("\"runtime_abi\":{}", cinch::interface::RUNTIME_ABI_VERSION)), "{text}");
     // Inspect the separately emitted interface through the public reader.
     let iface = cinch::interface::Iface::from_json(&std::fs::read_to_string(dir.join("build/Library.cinchif")).unwrap()).unwrap();
     assert_eq!(iface.runtime_abi, cinch::interface::RUNTIME_ABI_VERSION);
@@ -311,7 +311,7 @@ fn cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership() {
     array_test_interfaces(&dir, include_str!("../prelude/Data/Core.cinch"));
     let compiler = common::build(&dir, "Main.cinch", "array-emitter").expect("build actual Cinch array emitter");
     let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime/target/debug/libcinchruntime.a");
-    assert!(runtime.is_file(), "ABI6 runtime archive must be built by the Native driver");
+    assert!(runtime.is_file(), "matching runtime archive must be built by the Native driver");
     let mut declarations = String::from("module Main where\n  import Data.Core\n  missing :: forall a. Option a -> Bool\n  missing option = case option of None -> True; Some _ -> False\n  int-result :: Option Int -> Int\n  int-result option = case option of None -> -1; Some n -> n\n");
     for module in [include_str!("../prelude/Data/Array.cinch"), include_str!("../prelude/Data/Tensor.cinch"), include_str!("../prelude/Data/Columnar.cinch"), include_str!("../prelude/Data/Array/Packed.cinch")] {
         for line in module.lines().filter(|line| line.trim_start().starts_with("foreign import ccall")) {

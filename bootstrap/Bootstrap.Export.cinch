@@ -10,7 +10,7 @@ module Bootstrap.Export where
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
   import Bootstrap.Type
-  import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result)
+  import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
@@ -64,6 +64,7 @@ module Bootstrap.Export where
   -- authority. Match the graph against the retained defining body association.
   type-measures :: UType -> List TotalFunction
   type-measures ty = case ty of
+    UIndexList element fields -> type-measures element <> type-measures fields
     UIndexCall function args -> Cons function (type-measures args)
     UCon name kind -> kind-measures kind
     UBound id name kind -> kind-measures kind
@@ -73,6 +74,7 @@ module Bootstrap.Export where
     UIndexForget input -> type-measures input
     UIndexPromote input -> type-measures input
     UIndexByteLength input -> type-measures input
+    UIndexBorrowRead input -> type-measures input
     UIndexMath operation a b -> type-measures a <> type-measures b
     UCompare relation a b -> type-measures a <> type-measures b
     UPropAnd a b -> type-measures a <> type-measures b
@@ -132,7 +134,9 @@ module Bootstrap.Export where
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   value-total-body :: CheckedBinding -> Json
-  value-total-body binding = case checked-body-binding binding of Some body -> total-function-document (binding-function body); None -> JNull
+  value-total-body binding = case checked-body-binding binding of
+    Some body -> if total-source-projection (binding-function body) then JNull else total-function-document (binding-function body)
+    None -> JNull
   resolved-source-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
   resolved-source-scheme typed interfaces symbol scheme = case (resolved-scheme typed interfaces scheme, binding-refinements (elaboration-declarations typed) symbol) of
     (Ok resolved, Ok refinements) -> (case merge-nominals refinements (field "nominals" resolved) of
@@ -141,10 +145,12 @@ module Bootstrap.Export where
     (Err error, other) -> Err error
     (other, Err error) -> Err error
   resolved-value-scheme :: Elaboration -> List LoadedInterface -> String -> Scheme -> Result String Json
-  resolved-value-scheme typed interfaces symbol scheme = case (resolved-source-scheme typed interfaces symbol scheme, export-resolved-value-scheme scheme) of
-    (Ok resolved, Ok spelling) -> Ok (set-field "scheme" (JStr spelling) resolved)
-    (Err error, other) -> Err error
-    (other, Err error) -> Err error
+  resolved-value-scheme typed interfaces symbol scheme = case export-resolved-value-scheme scheme of
+    Ok None -> Ok JNull
+    Ok (Some spelling) -> case resolved-source-scheme typed interfaces symbol scheme of
+      Ok resolved -> Ok (set-field "scheme" (JStr spelling) resolved)
+      Err error -> Err error
+    Err error -> Err error
   imported-refinement-type :: List LoadedInterface -> String -> Option Json
   imported-refinement-type interfaces symbol = case export-global symbol of
     Err error -> None
@@ -181,6 +187,7 @@ module Bootstrap.Export where
         Err (string-concat "a task forwarding helper requires a portable checked transfer contract to be exported: " name)
       else if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces symbol scheme, export-display-scheme scheme) of
+        (Ok identity, Ok JNull, Ok spelling) -> opaque-value-row name symbol binding
         (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
           (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
             (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))

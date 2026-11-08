@@ -95,6 +95,7 @@ module Bootstrap.ExportNominal where
     UIndexForget value -> type-references value
     UIndexPromote value -> type-references value
     UIndexByteLength value -> type-references value
+    UIndexBorrowRead value -> type-references value
     -- Executable identities are emitted as checked measure contracts by
     -- Export. Only their argument types can add nominal type dependencies.
     UIndexCall function args -> type-references args
@@ -104,6 +105,7 @@ module Bootstrap.ExportNominal where
     UPropOr a b -> combine (type-references a) (type-references b)
     UPropNot value -> type-references value
     UPropNonZero value -> type-references value
+    UPropNonZeroPending value -> if valid-type ty then type-references value else Err "nominal export contains an invalid NonZero proposition"
     UPropNotNull value -> type-references value
     URow labels -> type-references labels
     URowJoin a b -> combine (type-references a) (type-references b)
@@ -142,7 +144,7 @@ module Bootstrap.ExportNominal where
       Err error -> Err error
   source-nominal :: String -> List Decl -> List CoreData -> List CoreClass -> Result String Json
   source-nominal name declarations datas classes = case datas of
-    Nil -> case source-opaque declarations name of Some found -> found; None -> source-class-nominal name classes
+    Nil -> case source-abstract-type declarations name of Some found -> found; None -> source-class-nominal name classes
     Cons declaration rest -> case export-global (core-data-name declaration) of
       Ok identity -> if same identity name then data-nominal declaration else source-nominal name declarations rest classes
       Err error -> Err error
@@ -163,8 +165,12 @@ module Bootstrap.ExportNominal where
   defining-refinement :: String -> List Decl -> Option Decl
   defining-refinement name declarations = case declarations of
     Nil -> None
-    Cons (DRefine sp actual params binder predicate) rest -> if same name actual then Some (DRefine sp actual params binder predicate) else defining-refinement name rest
-    Cons other rest -> defining-refinement name rest
+    Cons declaration rest -> case declaration of
+      DRefine sp actual params binder predicate -> if same name actual then Some declaration else
+        (case export-global actual of
+          Ok identity -> if same name identity then Some declaration else defining-refinement name rest
+          Err error -> defining-refinement name rest)
+      other -> defining-refinement name rest
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons first rest -> same name first || has-name name rest
   source-parameter-names :: List TypeParam -> List String
@@ -207,11 +213,18 @@ module Bootstrap.ExportNominal where
       (Err error, other) -> Err error
       (other, Err error) -> Err error
     other -> template-text declarations locals syntax
+  template-kind :: List Decl -> List String -> Bool -> TypeExpr -> Result String String
+  template-kind declarations locals grouped syntax = case syntax of
+    TFun sp first second -> case (template-kind declarations locals True first, template-kind declarations locals False second) of
+      (Ok a, Ok b) -> Ok (if grouped then string-concat-all ["(", a, " -> ", b, ")"] else string-concat-all [a, " -> ", b])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+    other -> template-text declarations locals syntax
   template-parameters :: List Decl -> List String -> List TypeParam -> Result String (List (String, String, Bool))
   template-parameters declarations locals params = case params of
     Nil -> Ok Nil
     Cons p rest -> let name = param-name p in
-      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-text declarations locals syntax),
+      case ((case param-kind p of None -> Ok "Type"; Some syntax -> template-kind declarations locals False syntax),
         template-parameters declarations (Cons name locals) rest) of
         (Ok kind, Ok more) -> Ok (Cons (name, kind, param-implicit p) more)
         (Err error, other) -> Err error

@@ -5146,7 +5146,7 @@ impl Checker {
                     && use_.name.scoped_reference().is_none()
                     && use_.name.declaration_binding().is_none()
             };
-            if !eq.locals.is_empty() || callee.name.text == token.text || callee.name.text == callback.text
+            if eq.guard.is_some() || !eq.locals.is_empty() || callee.name.text == token.text || callee.name.text == callback.text
                 || !bound(scope, token) || !bound(body, callback)
                 || self.top_eqs.iter().filter(|(m, n, _)| m == module && n == name).count() != 1
             {
@@ -6319,7 +6319,7 @@ impl Checker {
             let mut calls: Vec<String> = Vec::new();
             for (m, n2, e) in &self.top_eqs {
                 if *m == module && n2 == n {
-                    collect_calls(&e.body, &mut calls);
+                    for term in e.terms() { collect_calls(term, &mut calls); }
                 }
             }
             calls.retain(|c| names.contains(c));
@@ -6440,13 +6440,9 @@ impl Checker {
                 for p in &e.pats {
                     pat_names(p, &mut bound);
                 }
-                self.walk_guard(
-                    &e.body,
-                    GuardPos::default(),
-                    &group,
-                    &GuardMode::Corec,
-                    &mut bound,
-                )?;
+                for term in e.terms() {
+                    self.walk_guard(term, GuardPos::default(), &group, &GuardMode::Corec, &mut bound)?;
+                }
             }
             for e in eqs {
                 self.construction_layer(&e.body)?;
@@ -6475,13 +6471,9 @@ impl Checker {
             for p in &e.pats {
                 pat_names(p, &mut bound);
             }
-            self.walk_guard(
-                &e.body,
-                GuardPos::default(),
-                &group,
-                &GuardMode::Ordinary { diverge },
-                &mut bound,
-            )?;
+            for term in e.terms() {
+                self.walk_guard(term, GuardPos::default(), &group, &GuardMode::Ordinary { diverge }, &mut bound)?;
+            }
         }
         Ok(())
     }
@@ -7089,14 +7081,21 @@ impl Checker {
             .iter()
             .enumerate()
             .map(|(i, e)| {
+                let guard = e.guard.as_ref().filter(|term| !guard_always_true(term)).cloned();
+                let (guard_locals, body) = if guard.is_some() {
+                    (e.locals.clone(), e.body.clone())
+                } else {
+                    (Vec::new(), wrap_eq_body(e))
+                };
                 Ok(Row {
                     pats: e
                         .pats
                         .iter()
                         .map(|p| self.expand_pat(p))
                         .collect::<Result<Vec<_>>>()?,
-                    guard: None,
-                    body: wrap_eq_body(e),
+                    guard,
+                    guard_locals,
+                    body,
                     env: env.clone(),
                     idx: i,
                     consumed: Vec::new(),
@@ -7146,7 +7145,7 @@ impl Checker {
             .collect();
         let outer_facts = std::mem::replace(&mut self.param_facts, own_facts);
         let outer_result_params = std::mem::replace(&mut self.result_params, value_params.clone());
-        let body = if n_pats == 0 {
+        let body = if n_pats == 0 && rows.iter().all(|row| row.guard.is_none()) {
             self.check(&mut env.clone(), &rows[0].body, &rest)
         } else {
             self.compile_rows(
@@ -12754,7 +12753,7 @@ impl<'a> FactWalk<'a> {
             ast::Decl::Equation { eq, .. } => {
                 let depth = self.frames.len();
                 self.walk_decls(&eq.locals, true);
-                self.walk_child(&eq.body);
+                for term in eq.terms() { self.walk_child(term); }
                 self.frames.truncate(depth);
             }
             _ => {}
@@ -12826,7 +12825,7 @@ fn collect_body_facts(
         }
         let depth = w.frames.len();
         w.walk_decls(&e.locals, true);
-        w.walk_term(&e.body);
+        for term in e.terms() { w.walk_term(term); }
         w.frames.truncate(depth);
     }
     if facts.max_line >= facts.min_line && facts.min_line > 0 {
@@ -14299,7 +14298,9 @@ impl Checker {
         }
         let calls: Vec<ast::Span> = facts.self_calls.iter().map(|c| c.span).collect();
         for e in &pending.eqs {
-            self.recur_walk(&e.body, false, &calls, &establishes, contract_name, formula, display)?;
+            for term in e.terms() {
+                self.recur_walk(term, false, &calls, &establishes, contract_name, formula, display)?;
+            }
         }
         self.record_temporal_fact(
             pending,
@@ -16418,6 +16419,7 @@ impl Checker {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),
+                            keyed_ordering: resolved.as_ref().and_then(|resolved| self.interface_keyed_ordering(v, resolved)),
                             scheme,
                             resolved,
                             symbol: format!("{}.{}", d.module, d.name),
@@ -17742,7 +17744,7 @@ impl Checker {
     fn has_staging_work(&self) -> bool {
         !self.staging.is_empty()
             || !self.generate_blocks.is_empty()
-            || self.top_eqs.iter().any(|(_, _, e)| term_has_macro_call(&e.body))
+            || self.top_eqs.iter().any(|(_, _, e)| e.terms().any(term_has_macro_call))
     }
 
     /// The staging phase (modules specification sections 7-10): compile
@@ -18859,6 +18861,7 @@ impl Checker {
             attrs: Vec::new(),
             name: ast::Name::new(&name, span),
             pats: Vec::new(),
+            guard: None,
             body: ast::Term::Do(stmts, span),
             locals: Vec::new(),
             span,
@@ -18997,7 +19000,7 @@ impl Checker {
             .filter(|(m, n, e)| {
                 !self.checked_early.contains(&(m.clone(), n.clone()))
                     && !self.staging.contains(&(m.clone(), n.clone()))
-                    && (term_has_macro_call(&e.body) || e.locals.iter().any(|local| match local {
+                    && (e.terms().any(term_has_macro_call) || e.locals.iter().any(|local| match local {
                         ast::LocalDecl::Eq { body, .. } | ast::LocalDecl::Bind { body, .. } | ast::LocalDecl::Lazy { body, .. } => term_has_macro_call(body),
                         _ => false,
                     }))
@@ -19025,7 +19028,7 @@ impl Checker {
                 .collect();
             for eq in &mut eqs {
                 *eq = ast::scope_equation(eq, &values, globals.clone())?;
-                self.expand_macros_in_term(cx, &module, &mut eq.body)?;
+                for term in eq.terms_mut() { self.expand_macros_in_term(cx, &module, term)?; }
                 for l in &mut eq.locals {
                     if let ast::LocalDecl::Eq { body, .. }
                     | ast::LocalDecl::Bind { body, .. }
@@ -19230,7 +19233,7 @@ impl Checker {
         match d {
             ast::Decl::Equation { eq, .. } => {
                 *eq = ast::scope_equation(eq, &[], self.syntax_global_scope(module))?;
-                self.expand_macros_in_term(cx, module, &mut eq.body)?;
+                for term in eq.terms_mut() { self.expand_macros_in_term(cx, module, term)?; }
                 for l in &mut eq.locals {
                     self.expand_macros_in_local(cx, module, l)?;
                 }
@@ -19238,7 +19241,7 @@ impl Checker {
             }
             ast::Decl::Signature(s) => {
                 for eq in &mut s.defaults {
-                    self.expand_macros_in_term(cx, module, &mut eq.body)?;
+                    for term in eq.terms_mut() { self.expand_macros_in_term(cx, module, term)?; }
                     for l in &mut eq.locals {
                         self.expand_macros_in_local(cx, module, l)?;
                     }
@@ -19247,7 +19250,7 @@ impl Checker {
             }
             ast::Decl::Instance(i) => {
                 for m in &mut i.methods {
-                    self.expand_macros_in_term(cx, module, &mut m.body)?;
+                    for term in m.terms_mut() { self.expand_macros_in_term(cx, module, term)?; }
                     for l in &mut m.locals {
                         self.expand_macros_in_local(cx, module, l)?;
                     }
@@ -19484,6 +19487,7 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Big { nat: true, .. } => "a `Nat`",
         Big { nat: false, .. } => "an `Int`",
         Bytes(_) => "a `Bytes` buffer",
+        MutCell(_) => "a mutable cell",
         Sym(_) => "an interned symbol",
         Bool(_) => "a `Bool`",
         Unit => "Unit",
@@ -19898,7 +19902,7 @@ fn stamp_decl_spans(d: &mut ast::Decl, site: &crate::lexer::ExpSite) {
     match d {
         ast::Decl::Attributed { inner, .. } => stamp_decl_spans(inner, site),
         ast::Decl::Equation { eq, .. } => {
-            stamp_term_spans(&mut eq.body, site);
+            for term in eq.terms_mut() { stamp_term_spans(term, site); }
             for l in &mut eq.locals {
                 match l {
                     ast::LocalDecl::Eq { body, .. }
@@ -19910,12 +19914,12 @@ fn stamp_decl_spans(d: &mut ast::Decl, site: &crate::lexer::ExpSite) {
         }
         ast::Decl::Signature(s) => {
             for eq in &mut s.defaults {
-                stamp_term_spans(&mut eq.body, site);
+                for term in eq.terms_mut() { stamp_term_spans(term, site); }
             }
         }
         ast::Decl::Instance(i) => {
             for m in &mut i.methods {
-                stamp_term_spans(&mut m.body, site);
+                for term in m.terms_mut() { stamp_term_spans(term, site); }
             }
         }
         ast::Decl::Generate { stmts, .. } => {
@@ -20187,7 +20191,7 @@ impl Checker {
             return Err(Error::plain(format!("no definition for {name}")));
         }
         for eq in &mut eqs {
-            self.expand_macros_in_term(cx, module, &mut eq.body)?;
+            for term in eq.terms_mut() { self.expand_macros_in_term(cx, module, term)?; }
             for l in &mut eq.locals {
                 self.expand_macros_in_local(cx, module, l)?;
             }
@@ -20349,6 +20353,7 @@ impl Checker {
             }
             Core::DictProj(d, i, ..) => self.eval_dictionary_projection(cx, d, *i, frame)?,
             Core::Proj(d, i) => match self.eval_core(cx, d, frame)? {
+                Value::MutCell(cell) if i.mutable => cell.borrow().clone(),
                 Value::Adt { fields, .. } => fields.get(i.slot).cloned().ok_or_else(|| {
                     Error::plain("internal error: record projection out of range")
                 })?,
@@ -20434,9 +20439,12 @@ impl Checker {
                 restore_local(frame, l.0, saved);
                 r?
             }
-            Core::RefSet(l, v) => {
+            Core::RefSet(l, v, _) => {
                 let val = self.eval_core(cx, v, frame)?;
-                set_local(frame, l.0, val);
+                let Some(Value::MutCell(cell)) = frame.get(l.0) else {
+                    return Err(Error::plain("internal error: refSet requires a mutable cell"));
+                };
+                cell.replace(val);
                 Value::Unit
             }
             Core::If(c, t, f) => {
@@ -20642,7 +20650,11 @@ impl Checker {
                     return Ok(Value::CtorFn { unit, tag, arity, args: acc });
                 }
                 let (now, rest) = acc.split_at(arity);
-                let r = Value::Adt { ctor: unit, tag, fields: now.to_vec() };
+                let r = if unit == crate::core::MUTABLE_CELL {
+                    Value::MutCell(std::rc::Rc::new(std::cell::RefCell::new(now[0].clone())))
+                } else {
+                    Value::Adt { ctor: unit, tag, fields: now.to_vec() }
+                };
                 if rest.is_empty() {
                     Ok(r)
                 } else {
@@ -22112,6 +22124,7 @@ impl Checker {
                     attrs: Vec::new(),
                     name: ast::Name::new(&enc, sp),
                     pats: vec![ast::Pat::Var(row, sp)],
+                    guard: None,
                     body: ast::Term::Let(binds, Box::new(var("buf")), sp),
                     locals: Vec::new(),
                     span: sp,
@@ -22180,6 +22193,7 @@ impl Checker {
                     attrs: Vec::new(),
                     name: ast::Name::new(&dec, sp),
                     pats: vec![ast::Pat::Var(b, sp)],
+                    guard: None,
                     body,
                     locals: Vec::new(),
                     span: sp,

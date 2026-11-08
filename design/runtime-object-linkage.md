@@ -137,10 +137,11 @@ The stage driver separately pins the library-only producer in
 It builds a generated trivial library root and only its base-package closure,
 plus compiler-generated primitive and tuple helpers. It records the producer,
 object, metadata, checked interfaces and matching runtime archive identities.
-Later stages invoke only the preceding Cinch compiler on the compiler bundle,
-then link its IR with this library object and runtime. Source preparation keeps
-one explicit ABI: current live builds use ABI6, while the unchanged pinned stage
-path prepares ABI5 and selects the matching ABI5 provider.
+The pinned seed links Stage1 with its own runtime. The compiler source bundle
+targets the separately pinned library ABI. Stage1 and Stage2 compile that same
+bundle and link the result with the target library object and its runtime.
+ABI 7 passes an owned cell through a `Mut` call so the caller sees the write.
+Objects and checked interfaces at the boundary must use the target ABI.
 
 `bootstrap/library-object-roots.json` supplies concrete dependency demands.
 Failed stage emission additionally writes `requested-roots.json`, containing

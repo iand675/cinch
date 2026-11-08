@@ -151,6 +151,21 @@ fn an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word() {
     common::cleanup(&empty);
 }
 
+fn run_cli(dir: &Path, args: &[&str]) -> i32 {
+    let entry = dir.join("Main.cinch");
+    if let Some(frontend) = common::external_frontend::configured().expect("frontend selection") {
+        return common::external_frontend::run_cli(&frontend, &entry, args).expect("run the selected Cinch CLI");
+    }
+    Command::new(env!("CARGO_BIN_EXE_cinch"))
+        .arg("run")
+        .arg(entry)
+        .args(args)
+        .status()
+        .expect("run the cinch CLI")
+        .code()
+        .unwrap_or(KILLED)
+}
+
 /// The CLI forwards the words after the entry file to the program's own
 /// command line, and `--` ends the flags so a program argument that
 /// looks like one can still be passed.
@@ -158,35 +173,19 @@ fn an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word() {
 fn the_cli_forwards_arguments_after_the_entry_file() {
     let src = program(&["a", "b c"]);
     let dir = common::project("argv-cli", &[("Main.cinch", src.as_str())]);
-    let entry = dir.join("Main.cinch");
-    let cinch_run = |args: &[&str]| -> i32 {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_cinch"));
-        cmd.arg("run").arg(&entry);
-        cmd.args(args);
-        cmd.status()
-            .expect("run the cinch CLI")
-            .code()
-            .unwrap_or(KILLED)
-    };
     // The forwarded words are the program's own arguments, verbatim
     // (the space included).
-    assert_eq!(cinch_run(&["a", "b c"]), 0);
+    assert_eq!(run_cli(&dir, &["a", "b c"]), 0);
     // A differing word arrives as itself: the program saw `b d`, so the
     // forwarding is what it read, not something the CLI canned.
-    assert_eq!(cinch_run(&["a", "b d"]), 2);
+    assert_eq!(run_cli(&dir, &["a", "b d"]), 2);
     // One word short, the program says so.
-    assert_eq!(cinch_run(&["a"]), 10);
+    assert_eq!(run_cli(&dir, &["a"]), 10);
     common::cleanup(&dir);
 
     // `--` forwards a word that looks like the compiler's own flag.
     let dash_src = program(&["--rebuild", "-x"]);
     let dir = common::project("argv-cli-dash", &[("Main.cinch", dash_src.as_str())]);
-    let status = Command::new(env!("CARGO_BIN_EXE_cinch"))
-        .arg("run")
-        .arg(dir.join("Main.cinch"))
-        .args(["--", "--rebuild", "-x"])
-        .status()
-        .expect("run the cinch CLI");
-    assert_eq!(status.code().unwrap_or(KILLED), 0);
+    assert_eq!(run_cli(&dir, &["--", "--rebuild", "-x"]), 0);
     common::cleanup(&dir);
 }
