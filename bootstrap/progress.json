@@ -20639,8 +20639,8 @@
       {
         "title": "Rebuild the Cinch memo compiler through Stage 3",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Seed and Stage 1 artifacts verified. Stage 2 is queued for a shared worker.",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 2 with the previous Cinch compiler",
         "passed": 3,
         "total": 6,
         "failed": 0,
@@ -20650,11 +20650,11 @@
       {
         "title": "Replay the three original guarded Later tests",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with guarded Later",
-        "passed": 0,
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. later_must_not_be_an_unrestricted_thunk",
+        "passed": 1,
         "total": 4,
-        "failed": 0,
+        "failed": 3,
         "source": "120a0c96b6e10f9bd772c0f02f643bd0d17a181f727d08dc83a1e9fa4ab04ac3",
         "evidence": null
       },
@@ -20705,5 +20705,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:40:59.384514+00:00"
+  "updatedAt": "2026-11-08T20:45:04.154895+00:00"
 }
