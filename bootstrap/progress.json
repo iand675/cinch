@@ -20640,7 +20640,7 @@
         "title": "Rebuild the Cinch memo compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 3 with the previous Cinch compiler",
+        "phase": "Cinch memo compiler ladder. build Stage 3 with the previous Cinch compiler.",
         "passed": 4,
         "total": 6,
         "failed": 0,
@@ -20692,6 +20692,17 @@
         "evidence": null
       },
       {
+        "title": "Check erased record evidence and executable field layout",
+        "unit": "controls",
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker to build Stage 1 with erased record evidence.",
+        "passed": 0,
+        "total": 5,
+        "failed": 0,
+        "source": "89dbd27c2b6ad6628cd4e0fd1cc3702e8f46dd2bafbb7088fbcc3b75e9efdf72",
+        "evidence": null
+      },
+      {
         "title": "Check Rust task sharing and transfer through reference fields",
         "unit": "targets",
         "status": "passed",
@@ -20727,5 +20738,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:17:03.273165+00:00"
+  "updatedAt": "2026-11-08T21:24:32.093020+00:00"
 }
