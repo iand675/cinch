@@ -1,0 +1,58 @@
+{
+  "added_roots": [
+    {
+      "classes": "T",
+      "symbol": "Data.List.is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.reverse"
+    }
+  ],
+  "client_execution_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "client_exit_code": 0,
+  "client_leaked_allocations": 0,
+  "client_llvm_sha256": "a2f00a7124c87243897124c10cedcacc9c0efb6bbad1b5e6360c2fc0417e28d8",
+  "client_source": "module Main where\n  import Data.List (reverse, is-empty)\n  check :: List Nat -> Nat\n  check xs = if is-empty xs then 0 else case reverse xs of\n    Cons n _ -> n\n    Nil -> 0\n  main :: Int\n  main = if check [1, 2, 42] == 42 && check [] == 0 then 0 else 1\n",
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "expanded_object_sha256": "348928ce40fb112754d51e4bb14c0e05a54b760663d1212aa2408c944474dcc7",
+  "expanded_roots_sha256": "c9973545191fb9a1fd3953ae5e2b0b011717c6746cbe7577af8a4bec59b28cd3",
+  "full_goal_complete": false,
+  "old_object_sha256": "0b865c627836e7e0325440552ff663f7e5821c4762a407f5d635676c4aa87e8b",
+  "original_stage2_diagnostics_sha256": "6a41e2dd19760ede0db5bb76860c45787f2f7c51251477fb320b27fb0c223d25",
+  "physical_units": [
+    {
+      "arity": 1,
+      "closure_entry": "Data.List.is-empty@T.object-closure",
+      "params": [
+        "O"
+      ],
+      "result": "R",
+      "symbol": "Data.List.is-empty@T"
+    },
+    {
+      "arity": 1,
+      "closure_entry": "Data.List.reverse@T.object-closure",
+      "params": [
+        "O"
+      ],
+      "result": "O",
+      "symbol": "Data.List.reverse@T"
+    }
+  ],
+  "pinned_producer": {
+    "description": "ABI 7 Native library producer with shared mutable cells, checked keyed ordering bodies and structural list contracts.",
+    "revision": "7f085f299e0c81848f977ef60082144757770385",
+    "runtime_abi": 7,
+    "schema": 1,
+    "source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e"
+  },
+  "pinned_producer_sha256": "c2c97277e0ebc9e63cc22d3f02e0627e314ada1927e6f506146df5599ff61730",
+  "previous_roots_sha256": "a826a94402acf40e6fc440db02c410f8f50714b290b5790b74e416a44c8e58e6",
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "stage1_compiler_sha256": "5dc2faa3467207f8f810ccbdb22b464027de67f8aabbea9ec08dd94cd6674c65",
+  "status": "audited-abi7-tagged-list-provider-expansion",
+  "unchanged_interfaces": 55
+}
