@@ -12675,11 +12675,16 @@
             "observed": {
               "status": "running",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": null,
+              "startedAt": "2026-11-08T02:08:58.457488+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "imported_conditions_use_actual_caller_arguments",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18851,7 +18856,7 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "clean-native-build",
+        "phase": "complete-runtime-suite",
         "passed": 0,
         "failed": 0,
         "total": 236,
@@ -20138,5 +20143,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:08:57.431224+00:00"
+  "updatedAt": "2026-11-08T02:09:59.284164+00:00"
 }
