@@ -20553,9 +20553,9 @@
         "unit": "controls",
         "status": "running",
         "phase": "Combined candidate, starting from the pinned seed. concurrency (19 original tests)",
-        "passed": 13,
+        "passed": 31,
         "total": 33,
-        "failed": 1,
+        "failed": 2,
         "source": "d212410648137b5155ed9a36a218ba65e259e4bd92c461e92a803afe814d7ead",
         "evidence": null
       },
@@ -20605,5 +20605,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:40:01.012600+00:00"
+  "updatedAt": "2026-11-08T19:42:04.479571+00:00"
 }
