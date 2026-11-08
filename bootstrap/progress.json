@@ -13338,6 +13338,10 @@
               "cases": [
                 {
                   "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_ladder_compiles_the_fib_example_with_itself",
                   "status": "running"
                 }
               ]
@@ -20292,8 +20296,8 @@
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules",
-        "passed": 0,
+        "phase": "projection facts retain the input value",
+        "passed": 1,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20501,5 +20505,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:13:33.765592+00:00"
+  "updatedAt": "2026-11-08T03:14:35.811817+00:00"
 }
