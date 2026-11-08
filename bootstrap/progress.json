@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 81,
+          "verified": 82,
           "blocked": 6,
           "running": 1,
-          "pending": 13,
+          "pending": 12,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12726,17 +12726,17 @@
           {
             "id": "stage3:bootstrap_globals",
             "title": "bootstrap_globals",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:12:21.848639+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:20:18.942497+00:00",
+              "exitCode": 0,
+              "logSha256": "f30f4d1b783d04cb934c0a065f8bcf2e2b991ff58c7fc6a04c85918f4ef68215",
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
@@ -12744,7 +12744,7 @@
                 },
                 {
                   "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12845,18 +12845,23 @@
           {
             "id": "stage3:bootstrap_handler_core",
             "title": "bootstrap_handler_core",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_handler_core.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:20:20.047143+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "handlers_recheck_actual_slots_rows_and_one_shot_resumptions",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18966,6 +18971,17 @@
         "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157"
       },
       {
+        "title": "Development Stage1: list and guard branch evidence",
+        "status": "passed",
+        "phase": "Both original programs ran without leaks. The checker refused evidence from an empty list, a different list, and a shadowed guard variable.",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "unit": "client cases",
+        "source": "1355f5a501cd7e76434d8ea9f316529f875fbf87c55230c3273680c453483a0f",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-list-and-guard-results.json"
+      },
+      {
         "title": "Development Stage1: machine contracts and source refinements",
         "status": "passed",
         "phase": "Both complete targets passed. The signed-limit controls distinguish mathematical type indices from wrapping runtime arithmetic.",
@@ -20877,10 +20893,10 @@
       }
     ],
     "counts": {
-      "verified": 366,
+      "verified": 367,
       "blocked": 12,
       "running": 12,
-      "pending": 231,
+      "pending": 230,
       "recheck": 59
     },
     "total": 680,
@@ -20889,5 +20905,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:17:14.801175+00:00"
+  "updatedAt": "2026-11-08T05:20:47.046255+00:00"
 }
