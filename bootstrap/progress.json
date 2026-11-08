@@ -12625,7 +12625,7 @@
               "cases": [
                 {
                   "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -20849,5 +20849,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:10:58.377900+00:00"
+  "updatedAt": "2026-11-08T05:12:20.615821+00:00"
 }
