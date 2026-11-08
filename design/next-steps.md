@@ -1,4 +1,21 @@
-# Next steps (as of 2026-11-07)
+# Next steps
+
+## Integrated ABI 7 acceptance
+
+Stage 0 through Stage 3 rebuilt on the published ABI 7 candidate. Stage 2
+and Stage 3 match on the executable, LLVM IR and 46 compiler interfaces.
+The 55 base interfaces, separate consumer and changed-source control passed.
+The full matching suites remain open.
+See [the integrated bootstrap audit](../bootstrap/current-schema10-abi7-integrated-erased-bootstrap-results.json).
+
+The exact Stage 3 extra suites passed 11 of 19 concurrency, 6 of 7 class
+default, 1 of 8 law, 2 of 2 fixity, 1 of 5 guard coverage, 0 of 10 codata and
+18 of 39 integration cases. The host primitive probe stopped in namespace
+resolution in its positive case and ten refusal cases. The retained
+integration diagnostics request one additional provider root,
+`Data.List.sum-list` with the tagged representation, from two independent
+fixtures. The current fixed point predates that wider integration demand.
+See [the original case results and checked object requests](../bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json).
 
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55

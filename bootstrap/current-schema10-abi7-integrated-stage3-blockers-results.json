@@ -1,0 +1,590 @@
+{
+  "compiler_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "demanding_cases": [
+    {
+      "diagnostics_sha256": "925d5b8f6c8cdd402fdc27277c6de873a96c7ee472cf1b5b1c5e62490f6a98b0",
+      "invocation_sha256": "b717efa0b28906f0948ec37f8e23138ef0ee70c3068d3b6a584b16729df99fe8",
+      "roots": {
+        "dictionaries": [],
+        "methods": [],
+        "schema": 1,
+        "units": [
+          {
+            "classes": "T",
+            "symbol": "Data.List.sum-list"
+          }
+        ]
+      },
+      "target": "integration",
+      "test": "list_literals_and_list_patterns"
+    },
+    {
+      "diagnostics_sha256": "c5364ddb29fb7ef8e29802e6c1ea4f642d80a351120990f1f06939fc0555fc14",
+      "invocation_sha256": "f535d342a0623cffd8806822fa67440a8bd6d062d4c1fef3f4b3f99f1315b297",
+      "roots": {
+        "dictionaries": [],
+        "methods": [],
+        "schema": 1,
+        "units": [
+          {
+            "classes": "T",
+            "symbol": "Data.List.sum-list"
+          }
+        ]
+      },
+      "target": "integration",
+      "test": "prelude_sum_list_generic"
+    }
+  ],
+  "fixed_point_sha256": "61d66611344f8939d04a05c9fc60b6e7fc63c76b65cbebf2f247527ebb0ef3e6",
+  "full_goal_complete": false,
+  "groups": {
+    "class_defaults": {
+      "cases": [
+        {
+          "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+          "status": "passed"
+        },
+        {
+          "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+          "status": "passed"
+        },
+        {
+          "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_without_a_default_is_still_refused",
+          "status": "passed"
+        },
+        {
+          "name": "annotations_keep_definition_and_default_parameter_identities",
+          "status": "failed"
+        },
+        {
+          "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
+          "status": "passed"
+        }
+      ],
+      "failed": 1,
+      "invocation_count": 17,
+      "log_sha256": "80d1a910c9f5afa68c93a89efb906fd50eed16512bbb18ba0588a16d081cd9cc",
+      "passed": 6,
+      "total": 7
+    },
+    "codata": {
+      "cases": [
+        {
+          "name": "acceptance_example_04_productive_stream_checks",
+          "status": "failed"
+        },
+        {
+          "name": "codata_is_observed_not_destructured",
+          "status": "failed"
+        },
+        {
+          "name": "codata_keeps_thunk_and_memo_discipline",
+          "status": "failed"
+        },
+        {
+          "name": "corec_needs_an_observation_layer_per_step",
+          "status": "failed"
+        },
+        {
+          "name": "corec_stream_observes_head_and_tail",
+          "status": "failed"
+        },
+        {
+          "name": "guarded_delay_and_force_accepted",
+          "status": "failed"
+        },
+        {
+          "name": "later_is_not_interchangeable_with_thunk",
+          "status": "failed"
+        },
+        {
+          "name": "later_must_not_be_an_unrestricted_thunk",
+          "status": "failed"
+        },
+        {
+          "name": "unproductive_corec_is_rejected_naming_the_call",
+          "status": "failed"
+        },
+        {
+          "name": "unrestricted_filter_loses_productivity",
+          "status": "failed"
+        }
+      ],
+      "failed": 10,
+      "invocation_count": 10,
+      "log_sha256": "fcdc699bb13d95ff90c93a60434d43bda4324669c0839df1f6a857e4f3f9a3fe",
+      "passed": 0,
+      "total": 10
+    },
+    "concurrency": {
+      "cases": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "failed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "failed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "failed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "failed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "failed"
+        }
+      ],
+      "failed": 8,
+      "invocation_count": 34,
+      "log_sha256": "f3ac1c7dde3853496cdb42d4e1fdfa49ec3295c009c247d17a9fa0bd7c5d220c",
+      "passed": 11,
+      "total": 19
+    },
+    "fixity_interfaces": {
+      "cases": [
+        {
+          "name": "imported_fixity_parses_in_a_single_source_program",
+          "status": "passed"
+        },
+        {
+          "name": "project_consumer_parses_imported_operator_and_iface_records_it",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocation_count": 2,
+      "log_sha256": "3bd75daf33500e2fd90707eb63ce78300c21a486f068c7131458f33a03f6bb90",
+      "passed": 2,
+      "total": 2
+    },
+    "guard_coverage": {
+      "cases": [
+        {
+          "name": "all_guarded_match_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+          "status": "failed"
+        },
+        {
+          "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+          "status": "failed"
+        },
+        {
+          "name": "true_guard_counts_as_unguarded",
+          "status": "failed"
+        },
+        {
+          "name": "unguarded_final_row_compiles_and_runs_every_row",
+          "status": "passed"
+        }
+      ],
+      "failed": 4,
+      "invocation_count": 13,
+      "log_sha256": "dad63c10a9131512ac984e0552b2a5496e2380505d3c3a4e8309944f4f477ad1",
+      "passed": 1,
+      "total": 5
+    },
+    "integration": {
+      "cases": [
+        {
+          "name": "arithmetic_through_class_methods",
+          "status": "passed"
+        },
+        {
+          "name": "case_guards_fall_through_to_later_rows",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_from_another_type_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "constructor_patterns_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "custom_class_custom_operator_custom_instance",
+          "status": "passed"
+        },
+        {
+          "name": "duplicate_binders_in_one_pattern_are_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "effect_rows_are_typed_and_honest",
+          "status": "failed"
+        },
+        {
+          "name": "generic_constraint_and_partial_application",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_on_boxed_result_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "guard_failure_with_covered_patterns_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "integer_match_without_catch_all_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "lambdas_capture_and_prelude_folds",
+          "status": "passed"
+        },
+        {
+          "name": "library_modules_check_without_an_entry_point",
+          "status": "passed"
+        },
+        {
+          "name": "list_literals_and_list_patterns",
+          "status": "failed"
+        },
+        {
+          "name": "literal_patterns_fall_through_in_source_order",
+          "status": "failed"
+        },
+        {
+          "name": "local_let_polymorphism",
+          "status": "passed"
+        },
+        {
+          "name": "memo_bindings_demand_on_use",
+          "status": "failed"
+        },
+        {
+          "name": "memo_cells_with_signatures_and_shared_use",
+          "status": "failed"
+        },
+        {
+          "name": "memo_group_black_hole_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "memo_group_mutual_demand_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "nested_constructor_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "nested_patterns_keep_source_order_fall_through",
+          "status": "passed"
+        },
+        {
+          "name": "prelude_sum_list_generic",
+          "status": "failed"
+        },
+        {
+          "name": "record_rejections",
+          "status": "failed"
+        },
+        {
+          "name": "records_construction_projection_and_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "recursion_negation_and_bool_operators",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_missing_instance",
+          "status": "failed"
+        },
+        {
+          "name": "rejects_non_exhaustive_match",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_type_mismatch",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_undeclared_operator",
+          "status": "failed"
+        },
+        {
+          "name": "rejects_unknown_name",
+          "status": "failed"
+        },
+        {
+          "name": "rejects_wrong_main_type",
+          "status": "failed"
+        },
+        {
+          "name": "surface_and_or_short_circuit",
+          "status": "passed"
+        },
+        {
+          "name": "thunks_delay_and_force",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_arity_mismatch_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "tuple_let_destructuring_and_types",
+          "status": "passed"
+        },
+        {
+          "name": "tuples_through_functions",
+          "status": "passed"
+        },
+        {
+          "name": "where_clauses_in_equations",
+          "status": "failed"
+        },
+        {
+          "name": "wrong_main_type_still_rejected",
+          "status": "failed"
+        }
+      ],
+      "failed": 21,
+      "invocation_count": 46,
+      "log_sha256": "1ebbe99acddce52a19d0aa03a3375adaeae733ce8e78b99a9da9d7167d6d2650",
+      "passed": 18,
+      "total": 39
+    },
+    "laws": {
+      "cases": [
+        {
+          "name": "checked_class_laws_travel_with_the_defining_interfaces",
+          "status": "passed"
+        },
+        {
+          "name": "class_laws_state_the_equations",
+          "status": "failed"
+        },
+        {
+          "name": "law_abiding_instance_passes_sample_wise",
+          "status": "failed"
+        },
+        {
+          "name": "law_breaking_instance_is_rejected_naming_the_law",
+          "status": "failed"
+        },
+        {
+          "name": "mathematical_law_indices_promote_integer_literals",
+          "status": "failed"
+        },
+        {
+          "name": "mathematical_law_samples_use_the_checked_numeric_representation",
+          "status": "failed"
+        },
+        {
+          "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
+          "status": "failed"
+        },
+        {
+          "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
+          "status": "failed"
+        }
+      ],
+      "failed": 7,
+      "invocation_count": 8,
+      "log_sha256": "a3fbd7d662eb164d69e96176564d97f9c26dae15ef34f9691add670a5cbe0812",
+      "passed": 1,
+      "total": 8
+    },
+    "primitive_containment": {
+      "cases": [
+        {
+          "diagnostic": "bootstrap.resolve:11:3: this declaration requires further namespace elaboration\nbootstrap.resolve:22:8: name is not in scope: add2\n",
+          "expected_diagnostic": null,
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "bodies",
+          "source_sha256": "6043941d4698036eda260563a7df1d990d8097f08fc9ba7e6c3d33b476dfcadb",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "no-escape",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "escape",
+          "source_sha256": "81bee01b87d02a995c616f07bd53304123ae8ddee8dfceb10fb870af7fa69af4",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "signature discipline",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "extra-params",
+          "source_sha256": "1cfa3faeb207574260962c5e6f256425b9ac64e6b2249948d2036e432fe359f6",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "no-unwind",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "unwind",
+          "source_sha256": "4f387519c9435237fe2576f8a0eb1ff2b4605fc0b77971c2c3b780d67362c432",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "determinism of effects",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "effects",
+          "source_sha256": "ede6df2907f869ddbbff6b43b115b55fd2c433e647e8412bbc30e4657ab3381e",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "reserved",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "clr",
+          "source_sha256": "3ab33725ad717d808ce08f469a6203826ed77aa828d28de5660f726332f4aa55",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "reserved",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "jvm",
+          "source_sha256": "2c72bf4443eb9a4a3497d1f7a1ddf2bfd7c5fe416e03e65fca50c8ad76d40e68",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\nbootstrap.resolve:12:17: name is not in scope: churn\n",
+          "expected_diagnostic": "stale evidence",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "io-prim",
+          "source_sha256": "b3bc2eae18c2820231709d73d8616d6d2313ba773b20cd7542d2eac9678e0cdc",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "determinism of effects",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "unsafe-stores",
+          "source_sha256": "e32e214e641efd09c0b621c1bbeed69395432a624e0c22597918537c0a0d6a87",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "mark it `unsafe`",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "asm-trust-required",
+          "source_sha256": "c71a31ab8da17cfd434fa595d99577875bb60397c6f5ed7e65d1de4e8476df94",
+          "status": "failed"
+        },
+        {
+          "diagnostic": "bootstrap.resolve:3:3: this declaration requires further namespace elaboration\n",
+          "expected_diagnostic": "arch x86_64",
+          "frontend_exit": 4,
+          "frontend_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+          "name": "pop-missing",
+          "source_sha256": "d5d3e0020b0441b6b3ca97439be2e5e5d8e479ef0dd719a098a16ab510f50274",
+          "status": "failed"
+        }
+      ],
+      "failed": 11,
+      "passed": 0,
+      "scope": "Host positive LLVM/ASM artifact and the ten original literal refusal cases. Other prim assertions and cross-target profile checks remain separate.",
+      "total": 11
+    }
+  },
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "object_sha256": "348928ce40fb112754d51e4bb14c0e05a54b760663d1212aa2408c944474dcc7",
+  "requested_roots": {
+    "dictionaries": [],
+    "methods": [],
+    "schema": 1,
+    "units": [
+      {
+        "classes": "T",
+        "symbol": "Data.List.sum-list"
+      }
+    ]
+  },
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "schema": 1,
+  "status": "audited-matching-stage3-extra-suites-with-failures"
+}
