@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 61,
+          "verified": 62,
           "blocked": 8,
           "running": 2,
-          "pending": 26,
+          "pending": 25,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -14027,21 +14027,21 @@
           {
             "id": "stage3:bootstrap_value_indices",
             "title": "bootstrap_value_indices",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_indices.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T04:06:37.819425+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T04:11:05.865564+00:00",
+              "exitCode": 0,
+              "logSha256": "7b95a56657cef4dd3e90724c599b74ba7446899e7704b1897d2f996c2a84ebac",
               "cases": [
                 {
                   "name": "typed_indices_preserve_carriers_scope_and_runtime_witnesses",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14196,18 +14196,23 @@
           {
             "id": "stage3:exhaustion",
             "title": "exhaustion",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/exhaustion.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:11:06.783137+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "deep_recursion_inside_a_task_exits_exhausted_stack",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20694,10 +20699,10 @@
       }
     ],
     "counts": {
-      "verified": 338,
+      "verified": 339,
       "blocked": 14,
       "running": 13,
-      "pending": 252,
+      "pending": 251,
       "recheck": 63
     },
     "total": 680,
@@ -20706,5 +20711,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:08:25.607969+00:00"
+  "updatedAt": "2026-11-08T04:11:08.094355+00:00"
 }
