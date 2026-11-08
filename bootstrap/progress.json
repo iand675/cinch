@@ -11862,9 +11862,9 @@
         "counts": {
           "verified": 10,
           "blocked": 0,
-          "running": 3,
+          "running": 4,
           "pending": 76,
-          "recheck": 16
+          "recheck": 15
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -11953,17 +11953,17 @@
           {
             "id": "stage3:arrays",
             "title": "arrays",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "14 of 15 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T01:44:48.348733+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T01:59:25.994256+00:00",
+              "exitCode": 0,
+              "logSha256": "b01b179c0ba48b2f8ece70d0da413993ff8ac7494e317b09dc45a1023c989e1a",
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -12015,7 +12015,15 @@
                 },
                 {
                   "name": "packed_scalars_roundtrip_through_generic_operations",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_word_storage_resolves_width_from_the_target",
+                  "status": "passed"
+                },
+                {
+                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+                  "status": "passed"
                 }
               ]
             },
@@ -13550,21 +13558,21 @@
           {
             "id": "stage3:bootstrap_type_syntax",
             "title": "bootstrap_type_syntax",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:38:43.871370+00:00",
-              "finishedAt": "2026-11-07T11:48:50.510456+00:00",
-              "exitCode": 0,
-              "logSha256": "344adefccb2fe5e6587e4b5bac47cd605d391d1a3b5806d04acc155dc1b5952e",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:58:42.533101+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "predicates_indices_and_refined_results_keep_their_structure",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -13807,21 +13815,21 @@
           {
             "id": "stage3:interface_anonymous_contracts",
             "title": "interface_anonymous_contracts",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_anonymous_contracts.rs",
             "observed": {
-              "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:55:23.260137+00:00",
-              "finishedAt": "2026-11-07T11:55:40.310541+00:00",
-              "exitCode": 0,
-              "logSha256": "5a3947a6c05285d78c5f7f5f149309ab2e8cfa1fe1ae5ddec231d6e787462207",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T01:59:27.419166+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "checked_anonymous_contracts_survive_facades",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19839,13 +19847,13 @@
       {
         "title": "Bootstrap the combined compiled-library and refinement fixes",
         "status": "running",
-        "phase": "Checking the fixed point and changed-source rebuild.",
+        "phase": "The ladder passed and the independent audit is pending.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "3d334fcd786076738c9332221812ee2e42e0dbb2655f054ad6409a99d9f999c6",
-        "auditPending": false
+        "auditPending": true
       },
       {
         "title": "Bootstrap the combined compiler with refinement erasure and the run CLI",
@@ -19892,8 +19900,8 @@
       },
       {
         "title": "Check byte lengths through checked total helper bodies",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -20081,9 +20089,9 @@
     "counts": {
       "verified": 15,
       "blocked": 5,
-      "running": 13,
+      "running": 14,
       "pending": 318,
-      "recheck": 324
+      "recheck": 323
     },
     "total": 675,
     "acceptanceVerified": 4,
@@ -20091,5 +20099,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T01:58:34.595195+00:00"
+  "updatedAt": "2026-11-08T01:59:36.483720+00:00"
 }
