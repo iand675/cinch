@@ -12005,11 +12005,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 65,
-          "blocked": 8,
+          "verified": 68,
+          "blocked": 7,
           "running": 0,
-          "pending": 24,
-          "recheck": 8
+          "pending": 23,
+          "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13300,17 +13300,17 @@
           {
             "id": "stage3:bootstrap_parse",
             "title": "bootstrap_parse",
-            "state": "blocked",
-            "detail": "The original target reported a failure on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_parse.rs",
             "observed": {
-              "status": "failed",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:22:42.452041+00:00",
-              "finishedAt": "2026-11-08T03:24:02.106804+00:00",
-              "exitCode": 101,
-              "logSha256": "1c5272afe03813f9a4d9d34e5d5bdac351c90e41499e439fba1342dce9fb5e36",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "14e40679143b9747ec71ac41afa5aa4f8e50e81ba938da49f47a071a4ab90eef",
               "cases": [
                 {
                   "name": "record_syntax_keeps_labels_order_patterns_and_nested_values",
@@ -13318,7 +13318,7 @@
                 },
                 {
                   "name": "the_parser_reads_the_examples_and_agrees_on_the_corpus",
-                  "status": "failed"
+                  "status": "passed"
                 }
               ]
             },
@@ -14178,18 +14178,31 @@
           {
             "id": "stage3:class_identity",
             "title": "class_identity",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/class_identity.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "36d703b2684c945cf1a25877ab4bf8026905fb8cea0c31ef43b280bdbbf7ac65",
+              "cases": [
+                {
+                  "name": "a_local_data_type_can_shadow_a_legacy_signature_spelling",
+                  "status": "passed"
+                },
+                {
+                  "name": "distinct_declaring_classes_with_the_same_name_select_their_own_instances",
+                  "status": "passed"
+                },
+                {
+                  "name": "evidence_for_another_declaring_class_is_rejected",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14580,17 +14593,17 @@
           {
             "id": "stage3:interface_region_effects",
             "title": "interface_region_effects",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:58:55.022330+00:00",
-              "finishedAt": "2026-11-07T11:59:14.257374+00:00",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": null,
+              "finishedAt": null,
               "exitCode": 0,
-              "logSha256": "8942d7d48b02d85787464027e33a58f5787cdfee4206585b6c39f9ecfa1fdcff",
+              "logSha256": "87ba0821ed10934fdb1e7335b8ee40f658de5ff906ea16f7ea100c9bac6c4e7c",
               "cases": [
                 {
                   "name": "resolved_contracts_keep_region_binders_and_closed_kernel_effects",
@@ -20748,11 +20761,11 @@
       }
     ],
     "counts": {
-      "verified": 344,
-      "blocked": 14,
+      "verified": 347,
+      "blocked": 13,
       "running": 11,
-      "pending": 248,
-      "recheck": 63
+      "pending": 247,
+      "recheck": 62
     },
     "total": 680,
     "acceptanceVerified": 4,
@@ -20760,5 +20773,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:20:48.052584+00:00"
+  "updatedAt": "2026-11-08T04:23:15.360804+00:00"
 }
