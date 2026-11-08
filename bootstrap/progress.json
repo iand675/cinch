@@ -16939,637 +16939,572 @@
         "id": "tooling",
         "title": "Bootstrap and tooling suite",
         "unit": "tests",
-        "total": 48,
+        "total": 43,
         "counts": {
-          "verified": 48,
+          "verified": 0,
           "blocked": 0,
           "running": 0,
           "pending": 0,
-          "recheck": 0
+          "recheck": 43
         },
-        "detail": "The complete current suite passed on the audited inputs.",
+        "detail": "Older passing results remain visible; matching compiler/editor frontend execution is still required.",
         "items": [
           {
             "id": "tooling:test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
             "title": "test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
             "title": "test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
             "title": "test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
             "title": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            }
-          },
-          {
-            "id": "tooling:test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
-            "title": "test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
             "title": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
             "title": "test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
             "title": "test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
             "title": "test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
             "title": "test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
             "title": "test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
             "title": "test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
             "title": "test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
             "title": "test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
             "title": "test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
             "title": "test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
             "title": "test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
             "title": "test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
             "title": "test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
             "title": "test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
             "title": "test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            }
-          },
-          {
-            "id": "tooling:test_instance_metadata_uses_the_writer_encoding (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "title": "test_instance_metadata_uses_the_writer_encoding (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
             "title": "test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_abi_mismatch_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
             "title": "test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
             "title": "test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
             "title": "test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
             "title": "test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
             "title": "test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
             "title": "test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
             "title": "test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
             "title": "test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
             "title": "test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            }
-          },
-          {
-            "id": "tooling:test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
-            "title": "test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            }
-          },
-          {
-            "id": "tooling:test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
-            "title": "test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "cases": []
-            }
-          },
-          {
-            "id": "tooling:test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
-            "title": "test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           },
           {
             "id": "tooling:test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
             "title": "test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
-            "state": "verified",
-            "detail": "Passed on the audited current inputs.",
-            "doneWhen": "Run the complete suite on matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-published-native-core-results.json",
+            "state": "recheck",
+            "detail": "Last run belongs to an earlier compiler snapshot.",
+            "doneWhen": "The complete original test passes against matching code and its required compiler role.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-record-indexed-auxiliary-results.json",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
               "cases": []
             }
           }
@@ -18915,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "33 passed, 3 running, 67 queued, 2 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 33,
+        "phase": "34 passed, 3 running, 66 queued, 2 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 34,
         "failed": 2,
         "total": 105,
         "unit": "targets",
@@ -20941,9 +20876,9 @@
       },
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
-        "status": "building-stage2",
-        "phase": "building stage2",
-        "passed": 2,
+        "status": "building-stage3",
+        "phase": "building stage3",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "stages",
@@ -20958,6 +20893,16 @@
         "total": 1,
         "unit": "target",
         "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
+      },
+      {
+        "title": "Release the seed LLVM file after a verified Stage1 build",
+        "status": "passed",
+        "phase": "All 49 tooling tests passed on the published change. The file is removed after a successful link or verified cache hit. Failed links keep their LLVM input for diagnosis.",
+        "passed": 49,
+        "failed": 0,
+        "total": 49,
+        "unit": "tooling tests",
+        "evidence": "https://github.com/iand675/cinch/commit/c9b7c4318fcf3e82030519815b24f354891b45b3"
       },
       {
         "title": "Replay the body and decision fixtures with their checked data context",
@@ -20991,17 +20936,17 @@
       }
     ],
     "counts": {
-      "verified": 404,
+      "verified": 356,
       "blocked": 13,
       "running": 11,
       "pending": 194,
-      "recheck": 58
+      "recheck": 101
     },
-    "total": 680,
+    "total": 675,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:24:38.938748+00:00"
+  "updatedAt": "2026-11-08T07:27:42.524369+00:00"
 }
