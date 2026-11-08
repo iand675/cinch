@@ -21164,12 +21164,22 @@
       {
         "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
         "status": "running",
-        "phase": "ChoreographyBranch",
-        "passed": 13,
+        "phase": "Tactics",
+        "passed": 17,
         "failed": 0,
         "total": 26,
         "unit": "cases",
         "source": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca"
+      },
+      {
+        "title": "Verify erased value arguments in source, checked interfaces, and generated code",
+        "status": "waiting-annotated-baseline",
+        "phase": "Queued after the current annotated-arrow replay. Eight erasure checks plus one static-alias check exercise the zero-word runtime path.",
+        "passed": 0,
+        "failed": 0,
+        "total": 35,
+        "unit": "cases",
+        "source": "dcedd58cfc4921bc1725f3ed1f186ee31a3f8c1c493d4b23cdd720bac16c7c23"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21260,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:59:05.413584+00:00"
+  "updatedAt": "2026-11-08T15:00:08.985576+00:00"
 }
