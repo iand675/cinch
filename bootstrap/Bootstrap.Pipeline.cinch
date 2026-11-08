@@ -323,13 +323,17 @@ module Bootstrap.Pipeline where
           else Err ("bootstrap.object: rebuild the library object for changed source module " <> name)
         other -> Err ("bootstrap.object: library object has no authenticated source for " <> name))
 
-  overlay-object-identities :: List (String, Json) -> List LoadedInterface -> Result String Unit
-  overlay-object-identities replacements interfaces = case replacements of
-    Nil -> Ok ()
-    Cons (name, doc) rest -> case overlay-interface name interfaces of
-      Some prior -> if loaded-hash prior == interface-hash doc then overlay-object-identities rest interfaces
-        else Err ("bootstrap.object: rechecked source contract differs from the library object for " <> name)
-      None -> Err ("bootstrap.object: missing library object contract for " <> name)
+  -- The provider already checked these exact bytes. Keep its contract
+  -- and remove the authenticated module from the client's source.
+  reuse-object-overlays :: Program -> List Module -> List LoadedInterface -> List (String, Json) -> Result String (Program, List (String, Json))
+  reuse-object-overlays program replacements interfaces written = case replacements of
+    Nil -> Ok (program, reverse written)
+    Cons home rest -> let name = module-name home in
+      (case (overlay-interface name interfaces, overlay-module name (program-modules program) Nil) of
+        (Some prior, Some (replacement, remaining)) -> (case overlay-module name remaining Nil of
+          Some duplicate -> Err ("bootstrap.object: duplicate source module " <> name)
+          None -> reuse-object-overlays (MkProgram (program-span program) remaining) rest interfaces (Cons (name, loaded-contract prior) written))
+        other -> Err ("bootstrap.object: missing authenticated source or contract for " <> name))
 
   check-object-source :: Bytes -> Program -> List LoadedInterface -> Json -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
   check-object-source source program interfaces metadata = case object-overlays (program-modules program) interfaces of
@@ -338,11 +342,9 @@ module Bootstrap.Pipeline where
       LexedFail at reason -> Err "bootstrap.object: cannot authenticate unlexed source"
       LexedTokens tokens -> (case authenticate-source-overlays source tokens (source-sections source) replacements (object-field "source_sha256" metadata) of
           Err message -> Err message
-          Ok done -> case recheck-source-overlays source program interfaces interfaces Nil of
+          Ok done -> case reuse-object-overlays program replacements interfaces Nil of
             Err message -> Err message
-            Ok (remaining, effective, written) -> case overlay-object-identities written interfaces of
-              Err message -> Err message
-              Ok done -> check-object-client source remaining effective written)
+            Ok (remaining, written) -> check-object-client source remaining interfaces written)
 
   check-object-client :: Bytes -> Program -> List LoadedInterface -> List (String, Json) -> Result String (CheckedProgram, List LoadedInterface, List (String, Json))
   check-object-client source program interfaces written = case checked-source program interfaces of
