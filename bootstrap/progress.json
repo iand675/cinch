@@ -21067,32 +21067,35 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "waiting-stage3",
-        "phase": "Waiting stage3",
+        "phase": "Queued across 3 workers after the changed-source check.",
         "passed": 0,
         "failed": 0,
         "total": 105,
         "unit": "groups",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": null
       },
       {
         "title": "Run the 14 external checks with the repaired Stage 3",
         "status": "passed-exact-abi7-stage3-external-acceptance",
-        "phase": "Class identity",
+        "phase": "All 14 checks passed, including both imported-fixity refusals and all three class-identity cases.",
         "passed": 14,
         "failed": 0,
         "total": 14,
         "unit": "groups",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-stage3-external-acceptance-results.json"
       },
       {
         "title": "Run the 34 language examples with the repaired Stage 3",
-        "status": "waiting-matching-stage3-audit",
-        "phase": "Waiting matching stage3 audit",
+        "status": "running",
+        "phase": "Running",
         "passed": 0,
         "failed": 0,
         "total": 34,
         "unit": "groups",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": null
       },
       {
         "title": "Run all 236 integrated Native groups",
@@ -21102,7 +21105,8 @@
         "failed": 0,
         "total": 236,
         "unit": "groups",
-        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235"
+        "source": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+        "evidence": null
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21193,5 +21197,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:29:57.743762+00:00"
+  "updatedAt": "2026-11-08T13:35:32.694777+00:00"
 }
