@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "7/105 Stage 3 targets verified on the published compiler. 28/236 Rust targets and 35/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "8/105 Stage 3 targets verified on the published compiler. 28/236 Rust targets and 35/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -17930,22 +17930,22 @@
         "title": "Run all 105 Stage 3 targets on the published compiler",
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
         "unit": "targets",
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "total": 105,
         "status": "running",
-        "phase": "argv",
+        "phase": "arrays",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-borrow-and-combined-stage2-results.json"
       },
       {
         "title": "Run all 236 targets on the published Rust compiler",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 8,
+        "passed": 11,
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "bootstrap_nominals",
+        "phase": "case_evidence",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20677,7 +20677,7 @@
         "passed": 0,
         "total": 14,
         "failed": 1,
-        "source": "63b8d49a150bba7f6d08ef47d05acf8a537ab4bdb20ffd30710d4fbde9a4644f",
+        "source": "0535f3406d82cf1aa702bb34641f9aaaf075e1994b517f66cc2854cc81f62853",
         "evidence": null
       },
       {
@@ -20716,5 +20716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:06:39.650166+00:00"
+  "updatedAt": "2026-11-08T21:07:42.769196+00:00"
 }
