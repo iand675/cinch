@@ -768,7 +768,7 @@ module Bootstrap.Infer where
         (case reify-argument sp env input st of
           (value, checked) -> checked-typed-source-index sp (UIndexByteLength value) checked)
       else bad sp "argument call needs checked pure total reification or a checked observation contract" st
-    CForget source carrier body -> case normalize st (core-type body) of
+    CForget source carrier body -> case refinement-view (normalize st (core-type body)) of
       URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body))) then bad sp "refinement projection needs checked mathematical semantics" st
         else case body of
           CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
@@ -4623,11 +4623,12 @@ module Bootstrap.Infer where
   same-type first second = case store-errors (unify (Span 0 0 1 1) first second (empty-store "predicate sort")) of Nil -> True; other -> False
   predicate-index-value :: Span -> UType -> UType -> Store -> (UType, Store)
   predicate-index-value sp carrier value st = case value-carrier (type-kind (normalize st value)) of
-    Some (URefine id name base predicate) -> predicate-index-value sp carrier (UIndexForget value) st
-    Some actual -> let checked = unify sp actual (normalize st carrier) st in
-      if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
-      else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
-      else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st
+    Some actual -> (case refinement-view actual of
+      URefine id name base predicate -> predicate-index-value sp carrier (UIndexForget value) st
+      other -> let checked = unify sp actual (normalize st carrier) st in
+        if list-length (store-errors checked) == list-length (store-errors st) then checked-typed-source-index sp value checked
+        else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
+        else bad sp (string-concat "proof predicate has incompatible carriers; expected " (type-text (normalize st carrier))) st)
     None -> bad sp "a type cannot be used as a predicate value" st
   convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-predicate-index external kinds locals carrier syntax st = case syntax of

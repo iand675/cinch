@@ -545,7 +545,7 @@ module Bootstrap.Type where
   -- carrier is known. This node is never a mathematical proposition in
   -- the proof reifier. Specialization must validate the concrete carrier.
   pending-nonzero-carrier :: UType -> Bool
-  pending-nonzero-carrier carrier = case carrier of
+  pending-nonzero-carrier carrier = case refinement-view carrier of
     UBound id name kind -> kind-equal kind KType
     URigid id name level kind -> kind-equal kind KType
     UMeta id kind -> kind-equal kind KType
@@ -555,7 +555,7 @@ module Bootstrap.Type where
   normalize-pending-nonzero value = case typed-index-carrier value of
     Some carrier -> if mathematical-carrier carrier then UPropNonZero value
       else if promotable-carrier carrier then UPropNonZero (normalize-promoted-index value)
-      else (case carrier of
+      else (case refinement-view carrier of
         URefine id name base predicate -> if valid-type value then normalize-pending-nonzero (UIndexForget value) else UPropNonZeroPending value
         other -> UPropNonZeroPending value)
     None -> UPropNonZeroPending value

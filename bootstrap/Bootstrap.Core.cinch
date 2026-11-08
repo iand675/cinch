@@ -1471,7 +1471,7 @@ module Bootstrap.Core where
         None -> machine-facts rest gamma
       None -> machine-facts rest gamma
   byte-buffer-type :: UType -> Bool
-  byte-buffer-type ty = case ty of
+  byte-buffer-type ty = case refinement-view ty of
     UCon name KType -> string-compare name "Bytes" == 0
     URefine id name carrier predicate -> valid-type ty && byte-buffer-type carrier
     other -> False
@@ -1750,13 +1750,13 @@ module Bootstrap.Core where
   refinement-facts :: ProofScope -> List (Nat, UType) -> List Proposition
   refinement-facts gamma remaining = case remaining of
     Nil -> Nil
-    Cons (local, URefine id name carrier predicate) rest ->
-      let more = refinement-facts gamma rest in
-      if valid-type (URefine id name carrier predicate) && (integer-index-carrier carrier || byte-buffer-type carrier) then
-        (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex (URefine id name carrier predicate) (IRigid local name 0)))] predicate) of
-          Some fact -> Cons fact more
-          None -> more) else more
-    Cons other rest -> refinement-facts gamma rest
+    Cons (local, ty) rest -> let more = refinement-facts gamma rest in case refinement-view ty of
+      URefine id name carrier predicate ->
+        if valid-type ty && (integer-index-carrier carrier || byte-buffer-type carrier) then
+          (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex ty (IRigid local name 0)))] predicate) of
+            Some fact -> Cons fact more
+            None -> more) else more
+      other -> more
   refinement-goal :: ProofScope -> List Proposition -> UType -> CoreTerm -> Option Proposition
   refinement-goal gamma facts ty body = case refinement-view ty of
     URefine id name carrier predicate -> if valid-type ty && contract-equal carrier (core-type body) && proof-term gamma facts body then
@@ -1949,7 +1949,7 @@ module Bootstrap.Core where
     UIndexByteLength input -> case byte-observation-id gamma input of Some id -> Some (byte-length-variable id); None -> None
     UIndex carrier index -> index-arithmetic gamma carrier index
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
-      Some declared -> if contract-equal carrier declared && (case carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
+      Some declared -> if contract-equal carrier declared && (case refinement-view carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
       None -> None
     UIndexPromote (UIndex carrier (IInteger n)) -> if integer-literal-valid carrier n then Some (AInteger n) else None
     UIndexPromote (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
@@ -2338,7 +2338,7 @@ module Bootstrap.Core where
   -- A checked result/local refinement keeps the same numeric runtime carrier.
   -- Domains remain plain sorts; this does not erase an input obligation.
   total-core-value-sort :: UType -> Option String
-  total-core-value-sort ty = case ty of
+  total-core-value-sort ty = case refinement-view ty of
     URefine id name carrier predicate -> case total-core-sort carrier of
       Some sort -> if total-core-has sort ["Nat", "Int", "I64"] then Some sort else None
       None -> None
