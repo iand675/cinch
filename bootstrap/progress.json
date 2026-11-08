@@ -20251,8 +20251,8 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "waiting-worker",
-        "phase": "Waiting for a worker",
+        "status": "running",
+        "phase": "build and smoke-test 46 compiler modules",
         "passed": 0,
         "failed": 0,
         "total": 9,
@@ -20461,5 +20461,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:04:20.181159+00:00"
+  "updatedAt": "2026-11-08T03:06:22.665677+00:00"
 }
