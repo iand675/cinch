@@ -508,7 +508,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "9/236 Rust targets and 1/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "9/236 Rust targets and 2/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -12029,11 +12029,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 1,
+          "verified": 2,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 103
+          "recheck": 102
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -13175,18 +13175,23 @@
           {
             "id": "stage3:bootstrap_library_object",
             "title": "bootstrap_library_object",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "c8873b38bf03c018668c505689670ec953a86769044e22498d3568524a13debd",
+              "cases": [
+                {
+                  "name": "cinch_cli_emits_a_closed_object_that_another_cinch_invocation_can_consume",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -14295,13 +14300,13 @@
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
               "exitCode": null,
@@ -17659,10 +17664,10 @@
         "unit": "targets",
         "total": 8,
         "counts": {
-          "verified": 0,
+          "verified": 1,
           "blocked": 1,
           "running": 2,
-          "pending": 5,
+          "pending": 4,
           "recheck": 0
         },
         "detail": "Source behavior exercised on Stage 3 outside the preserved 105-target matrix.",
@@ -17822,16 +17827,16 @@
           {
             "id": "additional:fixity_interfaces",
             "title": "fixity_interfaces",
-            "state": "running",
-            "detail": "Running all 2 original cases through the matching Stage 3.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage 3 receipts.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
           {
             "id": "additional:guard_coverage",
             "title": "guard_coverage",
-            "state": "pending",
-            "detail": "Queued for the matching Stage 3. 5 original cases.",
+            "state": "running",
+            "detail": "Running all 5 original cases through the matching Stage 3.",
             "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
           },
@@ -20222,8 +20227,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_library_object",
-        "passed": 1,
+        "phase": "case_evidence",
+        "passed": 2,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20361,11 +20366,11 @@
       }
     ],
     "counts": {
-      "verified": 347,
+      "verified": 349,
       "blocked": 2,
       "running": 4,
-      "pending": 7,
-      "recheck": 351
+      "pending": 6,
+      "recheck": 350
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20373,5 +20378,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:43:00.071697+00:00"
+  "updatedAt": "2026-11-08T17:44:03.137759+00:00"
 }
