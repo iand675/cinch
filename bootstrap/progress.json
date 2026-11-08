@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "62 of 236 complete groups passed; 1 running, 5 failed and 168 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "63 of 236 complete groups passed; 1 running, 5 failed and 167 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "62 of 236 complete groups passed; 1 running, 5 failed and 168 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "63 of 236 complete groups passed; 1 running, 5 failed and 167 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 62,
+          "verified": 63,
           "blocked": 5,
           "running": 1,
-          "pending": 168,
+          "pending": 167,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2522,21 +2522,21 @@
           {
             "id": "native:bootstrap_refinement_closure",
             "title": "bootstrap_refinement_closure",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_closure.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T09:06:13.352372+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T09:18:24.041658+00:00",
+              "exitCode": 0,
+              "logSha256": "23dbde19e9b925ab687ff02184dde1d0bb30104564ec015b19d0952da26fc982",
               "cases": [
                 {
                   "name": "private_refinements_keep_checked_bounds_without_exporting_names",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2545,21 +2545,21 @@
           {
             "id": "native:bootstrap_refinement_constructors",
             "title": "bootstrap_refinement_constructors",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_constructors.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:11:37.257505+00:00",
-              "finishedAt": "2026-11-06T21:24:50.755195+00:00",
-              "exitCode": 0,
-              "logSha256": "bf6e62048a4c7533b23a5b8859177d19d06f6763187712a359c58fbefee6d6e6",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T09:18:24.045025+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_checks_explicit_refinement_proofs_and_payload_identity",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "68 passed, 3 running, 31 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 68,
+        "phase": "73 passed, 3 running, 26 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 73,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_refinement_closure",
-        "passed": 62,
+        "phase": "bootstrap_refinement_constructors",
+        "passed": 63,
         "failed": 5,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20960,30 +20960,31 @@
       },
       {
         "title": "Run shared mutable cells through the rebuilt Cinch compiler",
-        "status": "running",
-        "phase": "Check.",
-        "passed": 3,
+        "status": "passed-stage1-shared-mutable-cell-and-handler-controls",
+        "phase": "Stage 1 executed both the original mutation-through-call and lexical handler programs with zero leaks. Four invalid write or named-proof cases were refused.",
+        "passed": 10,
         "failed": 0,
         "total": 10,
         "unit": "gates",
-        "source": "0fe775e5aab0ec924d0243aa0347ddf75df064e799191a2b03718966de7e00c0"
+        "source": "0fe775e5aab0ec924d0243aa0347ddf75df064e799191a2b03718966de7e00c0",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage1-shared-mutable-cells-results.json"
       },
       {
         "title": "Verify stale mutable proof rejection in the self-hosted checker",
         "status": "running",
-        "phase": "The local checker tracks writes through lets, branch outcomes and call operands. The pinned seed check runs before the seven original and complementary proof controls.",
-        "passed": 1,
+        "phase": "Building stage1.",
+        "passed": 2,
         "failed": 0,
         "total": 3,
         "unit": "gates",
-        "source": "60de82d28692030daf29204bc6354176951f871fead2756829c4647b95d7e18c"
+        "source": "fc9c1e1a0969a5ef57b25d74d9d7947f8d1ce7d77cd3f727126656f1f9a233a2"
       }
     ],
     "counts": {
-      "verified": 372,
+      "verified": 373,
       "blocked": 16,
       "running": 11,
-      "pending": 175,
+      "pending": 174,
       "recheck": 101
     },
     "total": 675,
@@ -20992,5 +20993,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:13:30.382514+00:00"
+  "updatedAt": "2026-11-08T09:22:19.407393+00:00"
 }
