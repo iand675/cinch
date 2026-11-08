@@ -21068,8 +21068,8 @@
       {
         "title": "Run the 105 frontend groups with the repaired Stage 3",
         "status": "running",
-        "phase": "Bootstrap_core, bootstrap_effects, bootstrap_export_interfaces",
-        "passed": 21,
+        "phase": "Bootstrap_effects, bootstrap_export_interfaces, bootstrap_export_types",
+        "passed": 22,
         "failed": 0,
         "total": 105,
         "unit": "groups",
@@ -21164,8 +21164,8 @@
       {
         "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
         "status": "running",
-        "phase": "TacticsShadow",
-        "passed": 20,
+        "phase": "emit and verify the annotated interface",
+        "passed": 24,
         "failed": 0,
         "total": 26,
         "unit": "cases",
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:01:11.396089+00:00"
+  "updatedAt": "2026-11-08T15:02:14.229611+00:00"
 }
