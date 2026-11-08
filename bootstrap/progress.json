@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "3/105 Stage 3 targets verified and 11/236 Rust targets verified on the preceding memo revision.",
+  "activity": "4/105 Stage 3 targets verified and 11/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17886,11 +17886,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 3,
+        "passed": 4,
         "total": 105,
         "failed": 1,
         "status": "running",
-        "phase": "bootstrap_library_object",
+        "phase": "case_evidence",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20661,9 +20661,9 @@
       {
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. source-free-client",
-        "passed": 3,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. direct-public",
+        "passed": 8,
         "total": 8,
         "failed": 0,
         "source": "0fd965020b3d290ae30e940540fbb06a6f0144d5ed4bb46fd7fc546de36b7452",
@@ -20717,8 +20717,8 @@
         "title": "Replay records, nominal types and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. source-free-wrong-evidence",
-        "passed": 15,
+        "phase": "Combined candidate, starting from the pinned seed. replay the original bootstrap_nominals target with the combined Stage 1",
+        "passed": 18,
         "total": 20,
         "failed": 0,
         "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:22:07.116286+00:00"
+  "updatedAt": "2026-11-08T23:23:10.550814+00:00"
 }
