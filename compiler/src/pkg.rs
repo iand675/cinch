@@ -194,8 +194,11 @@ fn install_with_token(
         return Err(Error::plain("package version is empty"));
     }
     let registry = registry.trim_end_matches('/');
+    let resolved = resolve_graph(registry, name, version, token)?;
     let mut seen: BTreeMap<String, String> = BTreeMap::new();
-    install_recursive(project, registry, name, version, token, &mut seen)
+    install_recursive(
+        project, registry, name, version, token, &resolved, &mut seen,
+    )
 }
 
 fn install_recursive(
@@ -204,6 +207,7 @@ fn install_recursive(
     name: &str,
     version: &str,
     token: Option<&str>,
+    resolved: &BTreeMap<String, String>,
     seen: &mut BTreeMap<String, String>,
 ) -> Result<Installed> {
     if let Some(previous) = seen.get(name) {
@@ -240,17 +244,29 @@ fn install_recursive(
                 )));
             }
             let requirement = Requirement::from_dependency(dependency)?;
-            if let Some(previous) = seen.get(dep_name) {
-                if requirement.matches(previous) {
-                    continue;
-                }
+            let dep_version = resolved.get(dep_name).cloned().ok_or_else(|| {
+                Error::plain(format!(
+                    "resolution did not select a version for {dep_name}"
+                ))
+            })?;
+            if !requirement.matches(&dep_version) {
                 return Err(Error::plain(format!(
-                    "dependency conflict for {dep_name}: selected {previous}, but {name} requires {}",
+                    "dependency conflict for {dep_name}: selected {dep_version}, but {name} requires {}",
                     requirement.describe()
                 )));
             }
-            let dep_version = requirement.resolve(registry, dep_name, token)?;
-            install_recursive(project, registry, dep_name, &dep_version, token, seen)?;
+            if seen.get(dep_name) == Some(&dep_version) {
+                continue;
+            }
+            install_recursive(
+                project,
+                registry,
+                dep_name,
+                &dep_version,
+                token,
+                resolved,
+                seen,
+            )?;
         }
     }
     let package_id = metadata
@@ -276,6 +292,7 @@ fn install_recursive(
     )
 }
 
+#[derive(Clone, PartialEq, Eq)]
 enum Requirement {
     Exact(String),
     Range(String),
@@ -305,13 +322,6 @@ impl Requirement {
         match self {
             Requirement::Exact(version) => format!("={version}"),
             Requirement::Range(range) => range.clone(),
-        }
-    }
-
-    fn resolve(&self, registry: &str, name: &str, token: Option<&str>) -> Result<String> {
-        match self {
-            Requirement::Exact(version) => Ok(version.clone()),
-            Requirement::Range(range) => resolve_range(registry, name, range, token),
         }
     }
 }
@@ -356,7 +366,7 @@ fn existing_install(
     })
 }
 
-fn resolve_range(registry: &str, name: &str, range: &str, token: Option<&str>) -> Result<String> {
+fn registry_versions(registry: &str, name: &str, token: Option<&str>) -> Result<Vec<String>> {
     let encoded = name.replace('/', "%2F");
     let url = format!("{registry}/api/v1/packages/{encoded}");
     let metadata: Value = serde_json::from_slice(&curl(&url, token)?)
@@ -365,7 +375,7 @@ fn resolve_range(registry: &str, name: &str, range: &str, token: Option<&str>) -
         .get("versions")
         .and_then(Value::as_array)
         .ok_or_else(|| Error::plain(format!("registry has no versions for {name}")))?;
-    let mut best: Option<(Vec<u64>, String)> = None;
+    let mut out = Vec::new();
     for row in versions {
         let Some(version) = row.get("version").and_then(Value::as_str) else {
             continue;
@@ -375,7 +385,50 @@ fn resolve_range(registry: &str, name: &str, range: &str, token: Option<&str>) -
         {
             continue;
         }
-        if !matches_range(version, range) {
+        out.push(version.to_string());
+    }
+    if out.is_empty() {
+        return Err(Error::plain(format!(
+            "registry has no installable versions for {name}"
+        )));
+    }
+    Ok(out)
+}
+
+fn select_version(name: &str, requirements: &[Requirement], versions: &[String]) -> Result<String> {
+    let exact: Vec<&str> = requirements
+        .iter()
+        .filter_map(|requirement| match requirement {
+            Requirement::Exact(version) => Some(version.as_str()),
+            Requirement::Range(_) => None,
+        })
+        .collect();
+    let describe = || {
+        requirements
+            .iter()
+            .map(Requirement::describe)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if let Some(first) = exact.first() {
+        if exact.iter().all(|version| version == first)
+            && requirements
+                .iter()
+                .all(|requirement| requirement.matches(first))
+        {
+            return Ok((*first).to_string());
+        }
+        return Err(Error::plain(format!(
+            "no version of {name} satisfies {}",
+            describe()
+        )));
+    }
+    let mut best: Option<(Vec<u64>, String)> = None;
+    for version in versions {
+        if !requirements
+            .iter()
+            .all(|requirement| requirement.matches(version))
+        {
             continue;
         }
         let key = semver_key(version)?;
@@ -384,11 +437,106 @@ fn resolve_range(registry: &str, name: &str, range: &str, token: Option<&str>) -
             .map(|(current, _)| key > *current)
             .unwrap_or(true)
         {
-            best = Some((key, version.to_string()));
+            best = Some((key, version.clone()));
         }
     }
-    best.map(|(_, version)| version)
-        .ok_or_else(|| Error::plain(format!("no version of {name} matches {range}")))
+    best.map(|(_, version)| version).ok_or_else(|| {
+        Error::plain(format!(
+            "no version of {name} satisfies {}; available {}",
+            describe(),
+            versions.join(", ")
+        ))
+    })
+}
+
+/// Resolve one version per package name by iterating requirements to a fixed
+/// point. Each round selects the highest version satisfying the constraints
+/// currently reachable from the root, then recomputes the constraints from the
+/// selected versions. A package that becomes unreachable is dropped.
+fn resolve_graph(
+    registry: &str,
+    root_name: &str,
+    root_version: &str,
+    token: Option<&str>,
+) -> Result<BTreeMap<String, String>> {
+    let root_requirement = Requirement::Exact(root_version.to_string());
+    let mut constraints: BTreeMap<String, Vec<Requirement>> = BTreeMap::new();
+    constraints.insert(root_name.to_string(), vec![root_requirement.clone()]);
+    let mut selected: BTreeMap<String, String> = BTreeMap::new();
+    let mut versions_cache: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut metadata_cache: BTreeMap<(String, String), Value> = BTreeMap::new();
+    for _ in 0..128 {
+        let mut changed = false;
+        for (package, requirements) in &constraints {
+            let versions = if let Some(versions) = versions_cache.get(package) {
+                versions.clone()
+            } else {
+                let versions = registry_versions(registry, package, token)?;
+                versions_cache.insert(package.clone(), versions.clone());
+                versions
+            };
+            let candidate = select_version(package, requirements, &versions)?;
+            if selected.get(package) != Some(&candidate) {
+                selected.insert(package.clone(), candidate);
+                changed = true;
+            }
+        }
+        let mut next: BTreeMap<String, Vec<Requirement>> = BTreeMap::new();
+        next.insert(root_name.to_string(), vec![root_requirement.clone()]);
+        let snapshot: Vec<(String, String)> = selected
+            .iter()
+            .map(|(package, version)| (package.clone(), version.clone()))
+            .collect();
+        for (package, version) in &snapshot {
+            let key = (package.clone(), version.clone());
+            let metadata = if let Some(metadata) = metadata_cache.get(&key) {
+                metadata.clone()
+            } else {
+                let metadata = fetch_metadata(registry, package, version, token)?;
+                metadata_cache.insert(key, metadata.clone());
+                metadata
+            };
+            if let Some(dependencies) = metadata
+                .get("manifest")
+                .and_then(|manifest| manifest.get("dependencies"))
+                .and_then(Value::as_array)
+            {
+                for dependency in dependencies {
+                    let dep_name = dependency
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| Error::plain("a dependency has no name"))?;
+                    if dep_name == "cinch/base" || dep_name == "cinch-base" {
+                        continue;
+                    }
+                    validate_name(dep_name)?;
+                    let source = dependency
+                        .get("source")
+                        .and_then(Value::as_str)
+                        .unwrap_or("registry");
+                    if source != "registry" {
+                        return Err(Error::plain(format!(
+                            "dependency {dep_name} uses unsupported source {source}; only registry dependencies install today"
+                        )));
+                    }
+                    next.entry(dep_name.to_string())
+                        .or_default()
+                        .push(Requirement::from_dependency(dependency)?);
+                }
+            }
+        }
+        selected.retain(|package, _| next.contains_key(package));
+        if next != constraints {
+            constraints = next;
+            changed = true;
+        }
+        if !changed {
+            return Ok(selected);
+        }
+    }
+    Err(Error::plain(format!(
+        "dependency resolution for {root_name}@{root_version} did not settle"
+    )))
 }
 
 fn semver_key(version: &str) -> Result<Vec<u64>> {
