@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 92,
+          "verified": 95,
           "blocked": 6,
-          "running": 1,
-          "pending": 3,
+          "running": 0,
+          "pending": 1,
           "recheck": 3
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13943,21 +13943,21 @@
           {
             "id": "stage3:bootstrap_source_refinements",
             "title": "bootstrap_source_refinements",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T06:09:24.708968+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T06:17:22.161594+00:00",
+              "exitCode": 0,
+              "logSha256": "b2b508d600f0fcee87db8818d7d204fce7e973daba868082c1a20fd69274d42d",
               "cases": [
                 {
                   "name": "source_refinements_check_actual_values_and_preserve_effects",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -14116,18 +14116,23 @@
           {
             "id": "stage3:bootstrap_typing",
             "title": "bootstrap_typing",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typing.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:17:24.017618+00:00",
+              "finishedAt": "2026-11-08T06:22:52.346018+00:00",
+              "exitCode": 0,
+              "logSha256": "1f71f2c3339f23ccedcf7df6e473ca767034237da2370ef83a97200b62d2ba90",
+              "cases": [
+                {
+                  "name": "core_typing_rechecks_annotations_with_actual_declarations_and_scopes",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14364,18 +14369,27 @@
           {
             "id": "stage3:lib_hashmap_real",
             "title": "lib_hashmap_real",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/lib_hashmap_real.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:23:45.394569+00:00",
+              "finishedAt": "2026-11-08T06:24:43.738410+00:00",
+              "exitCode": 0,
+              "logSha256": "200dd99b2b0e2b056ac2776100971d597d4bcf8c9055911fd8a9429a705b9de0",
+              "cases": [
+                {
+                  "name": "measured_spans_bound_growth_and_report_collision_costs",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_map_answers_over_more_keys_than_the_fixed_table_indexed",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -18901,9 +18915,9 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "0 passed, 3 running, 101 queued, 0 failed in tests, 1 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 0,
-        "failed": 1,
+        "phase": "10 passed, 3 running, 92 queued, 0 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 10,
+        "failed": 0,
         "total": 105,
         "unit": "targets",
         "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587",
@@ -20902,13 +20916,34 @@
         "unit": "tests",
         "source": "0a5c28600c2bee15e21f95641a5eca96f3a5a2d131a2e195ff8b1f8dd88d42d3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-native-comparing-authority-results.json"
+      },
+      {
+        "title": "Development Stage1 list predicates in branches",
+        "status": "passed",
+        "phase": "All four controls passed. NotNull proves the tested list nonempty in if, case and guards. A proof about a different list is refused. Explicit decide and the original NonZero program still pass.",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "unit": "client cases",
+        "source": "5f5222c7c0ae8ec3190f90e81c07f9ddf93d0f5c35d4fdfe94ef8a2163ae06ea",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-list-predicate-condition-results.json"
+      },
+      {
+        "title": "Cinch ordering branch facts from compiled interfaces",
+        "status": "running",
+        "phase": "interface_method_bodies. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
+        "passed": 0,
+        "failed": 0,
+        "total": 6,
+        "unit": "gates",
+        "source": "5176bebeaa48c3af4abf6ce9e08a9f571e449fae7b3ca35e319a2d544416e8b6"
       }
     ],
     "counts": {
-      "verified": 393,
+      "verified": 396,
       "blocked": 12,
-      "running": 12,
-      "pending": 205,
+      "running": 11,
+      "pending": 203,
       "recheck": 58
     },
     "total": 680,
@@ -20917,5 +20952,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:12:54.989128+00:00"
+  "updatedAt": "2026-11-08T06:30:43.559455+00:00"
 }
