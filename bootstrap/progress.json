@@ -21175,8 +21175,8 @@
       {
         "title": "Verify erased value arguments and the repaired interface dependency scan",
         "status": "running",
-        "phase": "force-once",
-        "passed": 9,
+        "phase": "drop-unforced",
+        "passed": 10,
         "failed": 0,
         "total": 35,
         "unit": "cases",
@@ -21184,13 +21184,13 @@
       },
       {
         "title": "Erase computational zero-usage arguments in Native",
-        "status": "failed",
-        "phase": "The checked I64 %0 signature still produces a Native LLVM worker with one i64 argument.",
+        "status": "waiting-worker",
+        "phase": "The Rust fix and regression cases are committed locally. Validation is queued for a shared worker.",
         "passed": 0,
-        "failed": 1,
+        "failed": 0,
         "total": 1,
-        "unit": "ABI probe",
-        "source": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8"
+        "unit": "target",
+        "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39"
       },
       {
         "title": "Verify the single package execution interface on ABI 7",
@@ -21281,5 +21281,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:19:48.677426+00:00"
+  "updatedAt": "2026-11-08T15:20:11.831749+00:00"
 }
