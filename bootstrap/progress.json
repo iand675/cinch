@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "67 of 236 complete groups passed; 1 running, 7 failed and 161 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "68 of 236 complete groups passed; 1 running, 7 failed and 160 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "67 of 236 complete groups passed; 1 running, 7 failed and 161 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "68 of 236 complete groups passed; 1 running, 7 failed and 160 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 67,
+          "verified": 68,
           "blocked": 7,
           "running": 1,
-          "pending": 161,
+          "pending": 160,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2683,21 +2683,21 @@
           {
             "id": "native:bootstrap_runtime_library",
             "title": "bootstrap_runtime_library",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T10:00:23.317325+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T10:08:59.118046+00:00",
+              "exitCode": 0,
+              "logSha256": "3cdf3ffd3515c27e06bad9e35cb17f96e9a6012ca7fde1d537bed747d91ba77b",
               "cases": [
                 {
                   "name": "checked_library_roots_emit_linkable_owned_and_specialized_workers",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2706,21 +2706,21 @@
           {
             "id": "native:bootstrap_runtime_library_abi",
             "title": "bootstrap_runtime_library_abi",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:54:35.424571+00:00",
-              "finishedAt": "2026-11-06T22:01:23.238322+00:00",
-              "exitCode": 0,
-              "logSha256": "cd0e72f32df4e0e134f7982a8858702d2216c5c13dbdcc09147fa56052be7bb3",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T10:08:59.122196+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "library_abi_entries_describe_actual_workers_and_owned_closure_accessors",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "89 passed, 2 running, 11 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 89,
+        "phase": "90 passed, 2 running, 10 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 90,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_runtime_library",
-        "passed": 67,
+        "phase": "bootstrap_runtime_library_abi",
+        "passed": 68,
         "failed": 7,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -21055,10 +21055,10 @@
       }
     ],
     "counts": {
-      "verified": 377,
+      "verified": 378,
       "blocked": 18,
       "running": 11,
-      "pending": 168,
+      "pending": 167,
       "recheck": 101
     },
     "total": 675,
@@ -21067,5 +21067,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T10:05:25.369280+00:00"
+  "updatedAt": "2026-11-08T10:09:09.027202+00:00"
 }
