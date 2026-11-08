@@ -683,6 +683,19 @@ def build_checklist(root, cfg, previous=None):
              'Every acceptance item, named artifact, invariant and complete matching suite has direct current evidence; all failures and unclassified coverage are closed.',link('design/self-hosting.md#acceptance'))]
 
     active=[]
+    refinement_path = 'bootstrap/current-schema10-refinement-formation-results.json'
+    refinement_audit = read(root / refinement_path)
+    if (refinement_audit.get('status') == 'audited-five-original-refinement-targets-stage1'
+            and refinement_audit.get('native_source_sha256') == native
+            and all(matches_digest(root / 'compiler/tests' / (row['name'] + '.rs'),
+                                   row['original_test_source_sha256']) for row in refinement_audit['rows'])):
+        rows = refinement_audit['rows']
+        active.append(dict(title='Development Stage1: refinement formation',
+            status='passed',
+            phase='Five complete refinement targets and the higher-kinded NonEmpty control passed. The structural NonZero fixture checks explicit projection and implicit refusal.',
+            passed=sum(row['status'] == 'passed' for row in rows),
+            failed=sum(row['status'] == 'failed' for row in rows),
+            total=len(rows), source=refinement_audit['compiler_source_sha256'], evidence=link(refinement_path)))
     nat_path = 'bootstrap/current-schema10-nat-intrinsic-results.json'
     nat_audit = read(root / nat_path)
     object_path = 'bootstrap/current-schema10-allocation-object-abi-results.json'

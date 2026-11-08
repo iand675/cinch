@@ -57,6 +57,13 @@ The export-closure repair passed the original anonymous-interface and
 refinement-closure targets in Rust and with the development Stage1.
 See [the refinement-interface audit](../bootstrap/current-schema10-refinement-export-closure-results.json).
 
+Development Stage1 passed all five original refinement targets. The
+abstract `NonZero` method test passed all 17 cases, including the float
+and Boolean refusals. The structural `NonZero` fixture checks explicit
+projection, the implicit-projection refusal, and imported aliases.
+The higher-kinded `NonEmpty` control passed on the same compiler.
+See [the refinement formation audit](../bootstrap/current-schema10-refinement-formation-results.json).
+
 The complete runtime-lowering target passed on the exact published Stage3.
 The higher-kinded identity example and both C ABI checks ran with zero
 leaks. The oversized tuple still produces its lowering refusal and clears
