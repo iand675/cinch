@@ -1,0 +1,76 @@
+{
+  "compiler_source_sha256": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
+  "evidence_scope": "Complete Native compiler unit tests, runtime and tooling on the frozen ABI 7 snapshot. Native integration targets and the self-built Stage3 suites have separate gates.",
+  "full_goal_complete": false,
+  "ignored_cases_included": true,
+  "native_compiler_unit_tests": 214,
+  "native_source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e",
+  "revision": "6af84d0e5c0568d3ce80bae046d0402d14b67596",
+  "rows": [
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:46:26.926740+00:00",
+      "log_sha256": "def02c6b5c99b040ad0bbad6e66a1409098e54049b39528112443971ae8ec5ae",
+      "name": "runtime-debug-archive",
+      "started": "2026-11-08T09:46:24.276336+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:46:29.935889+00:00",
+      "log_sha256": "3e10a24cc3e31da4acfa5fd094286f6c05b96a18f21fad995c48bb153599191b",
+      "name": "runtime-release-archive",
+      "started": "2026-11-08T09:46:26.929923+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:55:33.588179+00:00",
+      "log_sha256": "6047faa6cc2b5726e2af585963d8fa27267487dc8c9101bdb055b3642e55627f",
+      "name": "clean-native-build",
+      "started": "2026-11-08T09:53:34.629210+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:55:42.431052+00:00",
+      "log_sha256": "e27cb119f5dac5855134b394fdb7bbfcc677e2870dfbd3ff901351f33dbefc83",
+      "name": "complete-runtime-suite",
+      "started": "2026-11-08T09:55:33.590165+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:55:43.014178+00:00",
+      "log_sha256": "5835661dd9af9fc324d562e162b5e62460145d1207fbf805883ef8d3dd091716",
+      "name": "complete-tooling-suite",
+      "started": "2026-11-08T09:55:42.433198+00:00",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "finished": "2026-11-08T09:56:28.668889+00:00",
+      "log_sha256": "75070fcf574e462ebd447580d58e5d945a130b552807fae7ed135c27d0438ac8",
+      "name": "lib",
+      "started": "2026-11-08T09:55:43.016235+00:00",
+      "status": "passed"
+    }
+  ],
+  "runner_sha256": "8d6e30e9c136f82cd8857c1a37e80395ee8ada43b8712813181b0b74e0dc525d",
+  "runtime_archives": {
+    "debug": "3b43b53bdc420031b977d5043568f1a8a59eee1b82fcd215e6ea27ba9f94625e",
+    "release": "5f0e3dfb248f3ef1c7af3d6f8bd6417e6d8361755fb43f35678e2487f6d81fa6"
+  },
+  "runtime_groups": [
+    119,
+    7,
+    31,
+    9,
+    5,
+    0
+  ],
+  "runtime_tests": 171,
+  "source_sha256": "4f215095a70b6d427294568159b5303741698cd5e7291623eae6bd9a1a630381",
+  "status": "audited-abi7-native-core-runtime-tooling",
+  "tooling_tests": 50
+}
