@@ -18899,6 +18899,17 @@
     ],
     "active": [
       {
+        "title": "Integrated Stage3 full frontend suite",
+        "status": "running",
+        "phase": "0 passed, 3 running, 101 queued, 0 failed in tests, 1 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 0,
+        "failed": 1,
+        "total": 105,
+        "unit": "targets",
+        "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-integrated-suite-repair-bootstrap-results.json"
+      },
+      {
         "title": "Bootstrap the exact published compiler and corrected library",
         "status": "passed",
         "phase": "The fixed point, separate client and changed-source rebuild passed the independent audit",
@@ -19025,14 +19036,15 @@
       },
       {
         "title": "Integrated Stage0 through Stage3 rebuild",
-        "status": "passed-chain-awaiting-independent-audit",
-        "phase": "passed chain awaiting independent audit",
+        "status": "passed",
+        "phase": "The independent audit verified identical Stage2 and Stage3 executables, IR and 46 interfaces. The interface consumer and changed-source rebuild also passed.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
         "source": "3f518ef8f009fbf69a18aa7bff009ccdb95d56a6be94237b1232217fb083a587",
-        "auditPending": true
+        "auditPending": true,
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-integrated-suite-repair-bootstrap-results.json"
       },
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
@@ -20905,5 +20917,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:12:09.154814+00:00"
+  "updatedAt": "2026-11-08T06:12:54.989128+00:00"
 }
