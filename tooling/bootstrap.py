@@ -190,12 +190,17 @@ def seed_inputs() -> tuple[dict, bytes]:
 
 def library_provider_lock() -> dict:
     lock = read_json(ROOT / "bootstrap/library-provider.lock.json")
+    if not isinstance(lock, dict):
+        raise BootstrapError("unsupported or missing library producer lock")
     revision, source = lock.get("revision"), lock.get("source_sha256")
     if (type(lock.get("schema")) is not int or lock["schema"] != 1
             or type(lock.get("runtime_abi")) is not int or lock["runtime_abi"] not in RUNTIME_ABIS
             or not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
             or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{64}", source)):
         raise BootstrapError("unsupported or missing library producer lock")
+    source_abi = ROOT / "bootstrap/Bootstrap.RuntimeAbi.cinch"
+    if not source_abi.is_file() or source_abi.read_bytes() != runtime_abi_source(lock["runtime_abi"]):
+        raise BootstrapError("library producer runtime ABI differs from the compiler's target ABI")
     return lock
 
 
@@ -273,10 +278,11 @@ def runtime_abi_source(abi: int) -> bytes:
 
 
 def collect_compiler_sources() -> dict[str, bytes]:
-    files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
     # The seed links Stage1. The compiler inside Stage1 targets the pinned
     # library and runtime used to build and run Stage2 and later.
-    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(library_provider_lock()["runtime_abi"])
+    lock = library_provider_lock()
+    files = {p.name: p.read_bytes() for p in sorted((ROOT / "bootstrap").glob("*.cinch"))}
+    files["Bootstrap.RuntimeAbi.cinch"] = runtime_abi_source(lock["runtime_abi"])
     for module in TOOLKIT:
         files[f"Text.{module}.cinch"] = (ROOT / "compiler" / "prelude" / "Text" / f"{module}.cinch").read_bytes()
     files["Main.cinch"] = (ROOT / "bootstrap" / "programs" / "Run.Pipeline.cinch").read_bytes()

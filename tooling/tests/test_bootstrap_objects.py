@@ -33,6 +33,7 @@ class LibraryProviderContract(unittest.TestCase):
         (root / "bootstrap").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 5, "revision": "a" * 40, "source_sha256": "b" * 64}
         bootstrap.write_json(root / "bootstrap/library-provider.lock.json", lock)
+        (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(5))
         bootstrap.write_json(root / "bootstrap/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
         (snapshot / "compiler/prelude").mkdir(parents=True)
@@ -104,6 +105,17 @@ class LibraryProviderContract(unittest.TestCase):
             with patch.object(bootstrap, "ROOT", root), \
                     patch.object(bootstrap, "run") as run:
                 with self.assertRaisesRegex(bootstrap.BootstrapError, "unsupported or missing library producer lock"):
+                    bootstrap_objects.provider(bootstrap)
+                run.assert_not_called()
+
+    def test_old_provider_cannot_change_the_compiler_target_abi(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root, _ = self.fixture(Path(temp))
+            (root / "bootstrap/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(7))
+            with patch.object(bootstrap, "ROOT", root), patch.object(bootstrap, "run") as run:
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
+                    bootstrap.collect_compiler_sources()
+                with self.assertRaisesRegex(bootstrap.BootstrapError, "differs from the compiler's target ABI"):
                     bootstrap_objects.provider(bootstrap)
                 run.assert_not_called()
 
