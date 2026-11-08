@@ -2122,7 +2122,7 @@ module Bootstrap.Core where
     CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
     CHandle s ty label residual body handled-by -> proof-term gamma facts handled-by && proof-after-term gamma facts handled-by body
     CHandlerOperation s slot openings row closure rest -> proof-term gamma facts closure && proof-term gamma facts rest
-    CLambda s ty pattern body -> let writes = [(s, None)] in
+    CLambda s ty pattern body -> let writes = [(s, (None :: Option UType))] in
       let scope = proof-pattern pattern (proof-after-writes gamma writes) in
       let live = facts-after-writes gamma facts writes in
       if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected scope live result body; None -> False)
@@ -2350,7 +2350,7 @@ module Bootstrap.Core where
     CSpawn s ty token body -> CSpawn s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CJoin s ty token body -> CJoin s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-after-term gamma facts value body)
-    CLambda s ty pattern body -> let writes = [(s, None)] in
+    CLambda s ty pattern body -> let writes = [(s, (None :: Option UType))] in
       CLambda s ty pattern (refresh-certificates (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in
       let writes = core-mutable-writes value in
