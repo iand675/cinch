@@ -1,6 +1,6 @@
 # Packages, manifests, and the registry
 
-<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg` installs, publishes, and verifies releases from the registry prototype.** `cinch pkg add` fetches a bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. It walks registry dependencies with exact versions and semver ranges, accepts bearer tokens for private packages, and checks conflicts against an already selected version. `cinch pkg publish` uploads a project `.cinchpkg` and its module files with the same token; `cinch pkg verify` rechecks lock identity, object hash, and interface files locally. Full backtracking resolution, path/git dependencies, and SLSA verification are still not implemented.
+<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg` installs, publishes, and verifies releases from the registry prototype.** `cinch pkg add` fetches a bundle, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. It walks registry dependencies with exact versions and semver ranges, accepts bearer tokens for private packages, and resolves one version per package by iterating every reachable requirement to a fixed point. `cinch pkg publish` uploads a project `.cinchpkg` and its module files with the same token; `cinch pkg verify` rechecks lock identity, object hash, and interface files locally. Path/git dependencies and SLSA verification are still not implemented.
 
 This chapter separates three things that are easy to confuse:
 
@@ -12,7 +12,7 @@ The [package management design](../design/package-management.md) is the full des
 
 # Current compiler behavior
 
-Packages are currently a source distribution plus a deterministic single-version install path. The client resolves exact versions and semver ranges from registry metadata; it does not backtrack when a later constraint would require selecting a different version.
+Packages are currently a source distribution plus a deterministic one-version-per-name install path. The client resolves exact versions and semver ranges from registry metadata by recomputing reachable requirements to a fixed point; adding a later constraint can lower the selected version before any package is installed. If no version satisfies all reachable constraints, resolution fails without writing a partial lock.
 
 - A project imports module names. The compiler resolves imports against already loaded modules, source files below the entry (including installed packages), and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
 - `cinch pkg add NAME@VERSION --registry URL` fetches one release from the registry prototype. It recursively installs registry dependencies using exact versions or semver ranges, writes each release under `vendor/<namespace>/<name>/<version>/`, verifies its identity, checks its sources, writes interfaces under that package's `build/`, emits `package.o` and `package.abi.json`, and records every release in `.cinchlock`.
@@ -22,7 +22,7 @@ Packages are currently a source distribution plus a deterministic single-version
 - Installed packages are importable by ordinary project source once the vendor tree is present. The source loader indexes the vendor tree recursively.
 - `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
 - The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
-- There is still no backtracking resolver, path/git dependency source, provenance verification, or package-object consumption by project builds. An unsupported command prints usage and exits 2.
+- There is still no path/git dependency source, provenance verification, or package-object consumption by project builds. An unsupported command prints usage and exits 2.
 
 | Surface | Current status |
 | --- | --- |
@@ -33,10 +33,10 @@ Packages are currently a source distribution plus a deterministic single-version
 | Project `.cinchpkg` loading through the CLI | Not implemented |
 | Public and private registry install with `cinch pkg add` | Available for one resolved release |
 | Vendored source install and package object/interface generation | Available |
-| Registry dependency closure with exact and semver ranges | Available with selected-version conflict checks |
+| Registry dependency closure with exact and semver ranges | Available with fixed-point intersection |
 | Local lock and artifact verification with `cinch pkg verify` | Available |
 | Publishing with `cinch pkg publish` | Available for authorized namespaces |
-| Backtracking resolution and path/git dependencies | Not implemented |
+| Path/git dependency sources | Not implemented |
 | Provenance and SLSA verification | Not implemented |
 | Registry HTTP prototype | Runnable in `registry/` |
 

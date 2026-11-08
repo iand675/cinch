@@ -42,11 +42,12 @@ cinch pkg verify --project .
 
 `cinch pkg add` fetches a registry release, writes it under the project's
 `vendor/` tree, checks it into interfaces, emits `package.o` and its ABI
-manifest, and updates `.cinchlock`. It installs exact and semver registry
-dependencies recursively and accepts `--token` for private releases. `publish`
-uploads `.cinchpkg` with its module files; `verify` rechecks lock identity,
-source hashes, object hash, and interfaces locally. Backtracking resolution,
-path/git dependencies, and provenance verification remain absent.
+manifest, and updates `.cinchlock`. It resolves exact and semver registry
+dependencies to one version per name by fixed-point intersection and accepts
+`--token` for private releases. `publish` uploads `.cinchpkg` with its module
+files; `verify` rechecks lock identity, source hashes, object hash, and
+interfaces locally. Path/git dependencies and provenance verification remain
+absent.
 
 `CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
