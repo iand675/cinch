@@ -1,0 +1,26 @@
+{
+  "build_invocation_sha256": "2fd455dc9b4d9cdda5f7d078cc7c3746f9473ccb49178bf01942cde2185e4ae8",
+  "failed_target_log_sha256": "2a9b7f18756fc8b7a7daf25c30282454912f07f885159a68dc668cf8ece76a5b",
+  "full_goal_complete": false,
+  "negative": {
+    "check_exit": 0,
+    "diagnostics": "bootstrap.runtime-ir:1:1: reference operation needs a checked runtime representation\nbootstrap.runtime-ir:1:1: pattern needs typed runtime match lowering\nbootstrap.runtime-ir:3:15: tuple fields need an extended or polymorphic runtime layout\n",
+    "emit_exit": 5,
+    "ir_bytes": 0,
+    "source_sha256": "b0c25ad64e9f8046f210e73efe3200257ecbf927ce2d35c5edb5d2d4202552c6"
+  },
+  "nested_cli_sha256": "5ac2e25b590edad94d54fbe4b2b24a8a2bf4ed479d200bdd3ab7dc2b1574fe78",
+  "original_test_sha256": "f0615e23369c3299f0c504262bb05fce6b479e0c6f904ed977b1b53a98f0dce2",
+  "positive": {
+    "emit_exit": 0,
+    "ir_sha256": "4d85d463e391ec8d0ecd05ffd993f305d1f0bba6a50b35360fe8412ca0158ac5",
+    "leaked": 0,
+    "run_exit": 1,
+    "source_sha256": "00d5c6ac0c8af99bfc56379918180e022f1454f3ed4d079e72cd3b44cfeeee08"
+  },
+  "runtime_sha256": "d3dc5adb34df6a70ace446e7f233aa3ba3016b974a936b0c17788dd704424929",
+  "schema": 1,
+  "stage3_compiler_sha256": "00ec735733d062f93ce5a15ef668170d63edf43a2fdb266929f0482aaa94141b",
+  "status": "verified-original-stage3-built-cli-fixture-controls",
+  "updated_test_sha256": "56e8f9ef36ef444f6464a612a34ab680c7c3267bdece7d0ff0d81d9458f610b6"
+}

@@ -133,9 +133,18 @@ int main(void) {
     }
     std::fs::write(dir.join("input.source"), "module Main where\n  identity :: forall (f :: Type -> Type) a. f a -> f a\n  identity x = x\n  data Wrap a where\n    Wrap :: a -> Wrap a\n  main :: Int\n  main = case identity (Wrap 1) of Wrap n -> n\n").unwrap();
     assert_eq!(invoke(&["--check", "input.source", "checked"]).status.code(), Some(0));
+    assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(0), "{}", common::read_output(&dir, "output.ll.diagnostics"));
+    let output = Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
+        .arg(dir.join("output.ll")).arg(&runtime).args(["-lpthread", "-ldl", "-lm", "-o"]).arg(dir.join("higher-kind-artifact")).output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = Command::new(dir.join("higher-kind-artifact")).env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
+    assert_eq!(output.status.code(), Some(1), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).split_whitespace().any(|word| word == "leaked=0"));
+    std::fs::write(dir.join("input.source"), "module Main where\n  main :: Int\n  main = case (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) of\n    _ -> 0\n").unwrap();
+    assert_eq!(invoke(&["--check", "input.source", "checked"]).status.code(), Some(0));
     assert_eq!(invoke(&["--emit-ir", "input.source", "output.ll"]).status.code(), Some(5));
     assert!(common::read_output(&dir, "output.ll").is_empty(), "failed emission retained stale IR");
-    assert!(common::read_output(&dir, "output.ll.diagnostics").contains("representation"));
+    assert!(common::read_output(&dir, "output.ll.diagnostics").contains("tuple fields need an extended or polymorphic runtime layout"));
     assert_eq!(invoke(&["--check", "--emit-ir", "input.source", "output.ll"]).status.code(), Some(1));
     let provider = common::project("cli_object_library", &[("Library.cinch", "module Library where\n  marker :: Bool -> Bool\n  marker b = b\n")]);
     let object = provider.join("provider.o");

@@ -47,6 +47,13 @@ the previous IR.
 See [the complete runtime target audit](../bootstrap/current-schema10-runtime-lowering-target-results.json)
 and [the focused fixture replay](../bootstrap/current-schema10-higher-kind-runtime-fixture-results.json).
 
+The CLI emitter target carried the same higher-kinded example as an old
+refusal. The CLI built by the published Stage3 passed its check, emitted
+IR, and ran the linked program with zero leaks. The oversized tuple
+passes checking and still refuses lowering with empty IR. The updated
+fixture retains both assertions. The complete CLI target awaits replay.
+See [the CLI emitter controls](../bootstrap/current-schema10-cli-emitter-fixture-results.json).
+
 The original allocation probe reaches the published Stage3 and fails during
 IR emission. Its checked runtime imports for Nat addition and multiplication
 need staged lowering before the C link and reference-count checks can run.
