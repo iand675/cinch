@@ -941,14 +941,15 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: ProofScope -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
-  seal-clauses scope st earlier clauses = case clauses of
+  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards st earlier clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
+      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
       let gamma = proof-patterns patterns scope in
       let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
-      Cons (MkCoreClause s patterns checked) (seal-clauses scope st (extend-equation-prefix patterns checked earlier) rest)
+      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -962,9 +963,8 @@ module Bootstrap.Core where
   seal-definition-with-checked-contracts :: BodyBindings -> List GuardedBinding -> Store -> CoreDefinition -> CoreDefinition
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
     MkCoreDefinition s name sc openings givens private clauses ->
-      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
       MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
-        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses scope st Nil clauses)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st Nil clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
