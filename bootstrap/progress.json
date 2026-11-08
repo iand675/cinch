@@ -19816,6 +19816,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-source-free-library-fixtures-results.json"
       },
       {
+        "title": "Run all original Foldable cases on Cinch with compiled objects",
+        "status": "passed",
+        "phase": "All 15 original clients linked and ran with zero leaks. All 55 interface identities match.",
+        "passed": 15,
+        "failed": 0,
+        "total": 15,
+        "unit": "original test cases",
+        "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-original-foldable-object-results.json"
+      },
+      {
         "title": "Link original NonEmpty clients against compiled objects",
         "status": "passed",
         "phase": "Foldable, Semigroup and Traversable linked and ran with zero leaks.",
@@ -19901,8 +19912,8 @@
       {
         "title": "Check original Const and dictionary ABI clients",
         "status": "running",
-        "phase": "function-family-laws",
-        "passed": 2,
+        "phase": "foldable-nonempty",
+        "passed": 3,
         "failed": 0,
         "total": 4,
         "unit": "client cases",
@@ -20017,5 +20028,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:27:50.679741+00:00"
+  "updatedAt": "2026-11-08T00:29:18.062106+00:00"
 }
