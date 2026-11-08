@@ -53,6 +53,14 @@ facade and checks the fixities and value identities in the emitted
 interfaces. The tests use the selected frontend when configured.
 See [the fixity dispatch audit](../bootstrap/current-schema10-stage3-fixity-dispatch-results.json).
 
+Rust and the development Cinch Stage1 both passed all three original
+command-line argument tests. The Cinch executable linked each direct CLI
+client with the checked standard-library object and runtime archive. All
+four original argument vectors reached it, including the word containing
+a space and the flag-like words following `--`. Matching Stage3 coverage
+remains open.
+See [the argv audit](../bootstrap/current-schema10-compiled-argv-results.json).
+
 
 The pinned
 library object preserves all 55 checked interfaces and includes

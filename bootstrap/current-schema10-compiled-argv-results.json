@@ -1,0 +1,81 @@
+{
+  "argv_test_sha256": "67239e74de4ac2ffd15281f0d11e794dd9544cd621394cad62d555ddf3cfb12d",
+  "cases": [
+    "a_program_reads_its_own_command_line",
+    "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+    "the_cli_forwards_arguments_after_the_entry_file"
+  ],
+  "compiler_modules": 46,
+  "compiler_sha256": "ab988ab7c8c71aba4b1af0e1451f93bd0f5d9d6ad50314016a3a3d7509c7f76c",
+  "compiler_source_sha256": "ab2d7921f3580b190fe7ecf1b355c7da312f451f29e165cf1166133ad62df911",
+  "compiler_stage": 1,
+  "direct_cli_calls": [
+    {
+      "expected_exit": 0,
+      "receipt_sha256": "3fce2d047eef88e09ef1ab75d0ba55176dce4190a3cb4025956ab7156f47937f",
+      "words": [
+        "a",
+        "b c"
+      ]
+    },
+    {
+      "expected_exit": 2,
+      "receipt_sha256": "8699f111ef7bf83990bfa1017a9fa3681bbd002c3e148e259c2170b4923b172f",
+      "words": [
+        "a",
+        "b d"
+      ]
+    },
+    {
+      "expected_exit": 10,
+      "receipt_sha256": "4d4ddb6145b90fa05f95d0440e1fc7857b103324fb1836c330f7bc8c5f2ca377",
+      "words": [
+        "a"
+      ]
+    },
+    {
+      "expected_exit": 0,
+      "receipt_sha256": "85b794e2bd70be6113f4fa82f4b9a48ddcfdcf80ba1134cbd801b8acddf6d934",
+      "words": [
+        "--",
+        "--rebuild",
+        "-x"
+      ]
+    }
+  ],
+  "frontend_receipt_sha256": [
+    "1fce2b44041a3357cd3d56c38477eb524f39b4d1efefb4dce5a1b448174f1580",
+    "a2eef24b27e254ef9aa261de371fe24eae7693dacd3634825bae36711b4e5477",
+    "c40f2b408257f4ff062ced6f12e5507950826e601bef51c7220e95b5cbc833d9"
+  ],
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "c72850fc175350079cb9a77ac9aa9700205c6be1d2fc543f836a013b99a67222",
+  "native_source_sha256": "ca7a6231fa497ca0c6b016fed5aaefc0d9ecb32fa3c41b10617e944ed8af1009",
+  "original_argv_test_sha256": "4839391212e034d57ce943f178f5201277b0857f3269b52af2e84e7dd09bbb67",
+  "provider_interface_count": 55,
+  "provider_metadata_sha256": "6536b93de3c628ee4805b7e12ff97c2522fb75e86be90b93cc1d81017de5073a",
+  "provider_object_sha256": "18957c87674c0767585798ee31e1e4a7177e5e9d96dd6a15236edbec6ff57319",
+  "replays": {
+    "native-argv": {
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "dae3d04f2c7a68977228d85ed4cdb7daa7d29e95ac906005b5d383fe2511bfbd",
+      "passed": 3,
+      "zero_leak_reports": 14
+    },
+    "selected-argv": {
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "1492ddce7b7ac14531f8c631d5dfb2527a43253b27d609ba498d25b99ab6b157",
+      "passed": 3,
+      "zero_leak_reports": 18
+    }
+  },
+  "runtime_archive_sha256": "c4ab921147a8ea1055306428e0ba84859513888ac0188f4973b408c5c7b399f5",
+  "schema": 1,
+  "scope": "Original argv cases and all direct invocations on development Stage1. Matching final Stage3 remains open.",
+  "selected_cli_launcher_sha256": "c16f2ffc2054eb94a26a7718dfbfc7c03f01e6cf83a2c1d945042b5be6f4ef46",
+  "selected_frontend_wrapper_sha256": "18062bf24e8c35117d93b43b27338991b41b5221bb88d2f9431156b03bb319b9",
+  "stage1_receipt_sha256": "93605edff27e4ea65afbd645ce4046176ceedd895742fc8ab3e607235949600e",
+  "status": "audited-native-and-cinch-stage1-argv"
+}
