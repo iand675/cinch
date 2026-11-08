@@ -2048,6 +2048,10 @@
               "cases": [
                 {
                   "name": "a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_arguments",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_emitted_ir_assembles_and_runs_to_the_fragments_meaning",
                   "status": "running"
                 }
               ]
@@ -20999,5 +21003,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:23:36.593528+00:00"
+  "updatedAt": "2026-11-08T07:24:38.938748+00:00"
 }
