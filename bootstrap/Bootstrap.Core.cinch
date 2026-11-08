@@ -27,7 +27,7 @@ module Bootstrap.Core where
   export core-float-literal-word
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
-  export ownership-type-kinds, borrowed-carrier, copy-out-type
+  export ownership-type-kinds, borrowed-carrier, mutable-borrow, copy-out-type
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct, handler-performs
   export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
@@ -578,6 +578,12 @@ module Bootstrap.Core where
   borrow-kind = KFun KRegion (KFun KType KType)
   ownership-type-kinds :: List (String, Kind)
   ownership-type-kinds = [("Ref", borrow-kind), ("Mut", borrow-kind), ("Thunk", KFun KRow (KFun KType KType))]
+  mutable-borrow :: UType -> Option (UType, UType)
+  mutable-borrow ty = case ty of
+    UApp (UApp (UCon name kind) region) carrier ->
+      if string-compare name "Mut" == 0 && kind-equal kind borrow-kind
+        && kind-equal (type-kind region) KRegion && kind-equal (type-kind carrier) KType then Some (region, carrier) else None
+    other -> None
   borrowed-carrier :: UType -> Option UType
   borrowed-carrier ty = case ty of
     UApp (UApp (UCon name kind) region) carrier ->

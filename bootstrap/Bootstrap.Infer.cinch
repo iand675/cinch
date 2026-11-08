@@ -2136,7 +2136,7 @@ module Bootstrap.Infer where
     Cons (DExternal sp symbol category syntax metadata) rest -> if same name symbol && same category "builtin-syntax" then Some metadata else kernel-syntax-metadata name rest
     Cons other rest -> kernel-syntax-metadata name rest
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut"] then register-projection-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.refSet"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st
     else if not (same name "b.decide") then (env, add-error sp "unknown kernel predicate syntax" st) else
     case kernel-syntax-metadata name builtin-declarations of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -2145,12 +2145,12 @@ module Bootstrap.Infer where
       None -> (env, add-error sp "missing kernel predicate syntax contract" st)
   -- Projection consumes an actual checked refinement. The source spelling
   -- never grants authority to an ordinary local or imported function.
-  register-projection-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-projection-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
+  register-ownership-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-ownership-syntax sp name metadata env st = case kernel-syntax-metadata name builtin-declarations of
     Some trusted -> if same-kernel-fields ["name", "operation", "arity", "variadic", "runtime_abi", "first_class"] metadata trusted then
-      (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel projection syntax" st))
-      else (env, add-error sp "projection syntax disagrees with its owned kernel contract" st)
-    None -> (env, add-error sp "missing kernel projection syntax contract" st)
+      (case lookup-binding name env of None -> (Cons (MkSyntaxBinding name) env, st); Some prior -> (env, add-error sp "duplicate kernel ownership syntax" st))
+      else (env, add-error sp "ownership syntax disagrees with its owned kernel contract" st)
+    None -> (env, add-error sp "missing kernel ownership syntax contract" st)
   projection-syntax-head :: List CheckedBinding -> Expr -> Option String
   projection-syntax-head env expr = case expr of
     EVar sp name -> if has name ["b.unrefine", "b.copyOut"] then
@@ -2167,6 +2167,22 @@ module Bootstrap.Infer where
       else case refinement-view carrier of
         URefine id name base predicate -> (CForget sp base body, checked)
         other -> term-error sp "unrefine projects a refinement to its container" checked
+  ref-set-arguments :: List CheckedBinding -> Expr -> Option (List Expr)
+  ref-set-arguments env expr = case application-spine expr Nil of
+    (EVar sp name, args) -> if same name "b.refSet" then
+      (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if same symbol name then Some args else None; other -> None)
+      else None
+    other -> None
+  infer-ref-set :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
+  infer-ref-set classes kinds families env locals sp args st = case args of
+    [place, input] -> case infer classes kinds families env locals place st of
+      (target, checked) -> case mutable-borrow (normalize checked (core-type target)) of
+        None -> term-error (expr-span place) "refSet writes through an exclusive Mut borrow" checked
+        Some (region, carrier) -> (case target of
+          CLocal at ty id name actuals -> (case check classes kinds families env locals input carrier checked of
+            (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at target (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
+          other -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
+    other -> term-error sp "refSet takes a Mut borrow and a value" st
   task-syntax-name :: String -> Bool
   task-syntax-name name = has name ["b.withScope", "b.spawn", "b.joinAllOrCancel"]
   register-task-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
@@ -2541,11 +2557,13 @@ module Bootstrap.Infer where
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
-    EApp s f x -> case projection-syntax-head env f of
-      Some operation -> infer-projection classes kinds families env locals s operation x st
-      None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
-        (case infer classes kinds families env locals f st of
-          (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
+    EApp s f x -> case ref-set-arguments env expr of
+      Some args -> infer-ref-set classes kinds families env locals s args st
+      None -> case projection-syntax-head env f of
+        Some operation -> infer-projection classes kinds families env locals s operation x st
+        None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+          (case infer classes kinds families env locals f st of
+            (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
     ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
@@ -2672,7 +2690,7 @@ module Bootstrap.Infer where
     ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
       (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
-    EApp sp function argument -> if projection-syntax-spine env expr then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+    EApp sp function argument -> if projection-syntax-spine env expr || (case ref-set-arguments env expr of Some args -> True; None -> False) then infer classes kinds families env locals expr st else if task-syntax-head env expr then infer-task-application classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
       (case application-spine expr Nil of
         (head, args) -> case infer classes kinds families env locals head st of
           (fun, opened) -> apply-spine classes kinds families env locals fun args
@@ -2779,6 +2797,18 @@ module Bootstrap.Infer where
   missing-obligation :: String -> UType -> String
   missing-obligation message predicate = let shown = obligation-text predicate in
     string-concat-all [message, " because the obligation `", shown, "` needs evidence and the checker found no evidence for `", shown, "`"]
+  wrong-named-evidence :: List CheckedBinding -> List CheckedBinding -> UType -> Store -> Option String
+  wrong-named-evidence remaining env wanted st = case remaining of
+    Nil -> None
+    Cons (MkErasedBinding name predicate id) rest ->
+      (case lookup-binding name env of
+        Some (MkErasedBinding visible actual owner) ->
+          let stated = normalize st actual in
+          if owner == id && not (contract-equal stated wanted) then
+            Some (string-concat-all ["`", visible, "` is evidence of `", obligation-text stated, "`, not of `", obligation-text wanted, "`"])
+          else wrong-named-evidence rest env wanted st
+        other -> wrong-named-evidence rest env wanted st)
+    Cons other rest -> wrong-named-evidence rest env wanted st
   -- Hoisting an actual strict value binding out of a let-generalization
   -- level changes that binding's inference depth, not its identity. Retarget
   -- only references to that witnessed local; unrelated indices and all type
@@ -4876,7 +4906,11 @@ module Bootstrap.Infer where
           None -> let message = "function precondition is not established at this call" in
             case (predicates, result) of
               (UArg predicate UEnd, URequire more body) -> term-error sp message st
-              (UArg predicate UEnd, other) -> term-error sp (missing-obligation message predicate) st
+              (UArg predicate UEnd, other) ->
+                let missing = missing-obligation message predicate in
+                (case wrong-named-evidence env env predicate st of
+                  Some detail -> term-error sp (missing <> ". " <> detail) st
+                  None -> term-error sp missing st)
               other -> term-error sp message st
         other -> (term, st)
       other -> (term, st)

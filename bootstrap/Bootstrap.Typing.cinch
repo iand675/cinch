@@ -237,7 +237,7 @@ module Bootstrap.Typing where
       && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) yes && checked-term context scope gamma (branch-facts gamma facts condition False) no
     CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts value ty alternatives
     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
-    CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else primitive-types ty name args)
+    CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else if same name "ref-set" then ref-set-checked ty args else primitive-types ty name args)
       && argument-terms context scope gamma facts args
     CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
     CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
@@ -301,6 +301,11 @@ module Bootstrap.Typing where
   copy-out-checked context result args = case args of
     CArgument sp value (CArgumentsEnd end) -> equal-type result (copy-out-type (core-type value)) && copyable-type context Nil 64 result
     other -> False
+  ref-set-checked :: UType -> CoreTerm -> Bool
+  ref-set-checked result args = type-is "Unit" result && (case args of
+    CArgument sp (CLocal at ty id name actuals) (CArgument bt value (CArgumentsEnd end)) ->
+      (case mutable-borrow ty of Some (region, carrier) -> equal-type carrier (core-type value); None -> False)
+    other -> False)
   task-signature :: String -> List CoreGlobal -> Bool
   task-signature owner declarations = case declarations of
     Nil -> False

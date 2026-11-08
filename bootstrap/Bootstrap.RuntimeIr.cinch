@@ -2190,6 +2190,7 @@ module Bootstrap.RuntimeIr where
               (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", frame, " to ptr"])) pointer slot of
                 (loaded, field) -> (count-op False (core-type first) frame (count-op True ty field loaded), field))
           other -> unsupported w sp "handler field has no checked slot")
+      else if same op "ref-set" then unsupported w sp "mutable writes require checked cell lowering"
       else if number (core-type first) then binary definitions locals w sp op first second
       else if (same op "==" || same op "/=") && scalar (core-type first) then
         (case expressions definitions locals w [first, second] of
