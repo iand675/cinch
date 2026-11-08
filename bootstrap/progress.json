@@ -1358,6 +1358,10 @@
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
                   "status": "running"
                 }
               ]
@@ -17940,8 +17944,8 @@
         "passed": 0,
         "failed": 0,
         "total": 236,
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker.",
+        "status": "running",
+        "phase": "clean-native-build",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20613,9 +20617,9 @@
       {
         "title": "Resolve nested effect rows and replay memo typing",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. performed-effect",
-        "passed": 10,
+        "status": "passed",
+        "phase": "Isolated Stage 1 candidate. owned-bytes-cache",
+        "passed": 12,
         "total": 12,
         "failed": 0,
         "source": "b4523dcf1e4b705b6a8ea06263d237946ce330f87a357a6eea7cfa4370ba44df",
@@ -20668,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:22:40.991367+00:00"
+  "updatedAt": "2026-11-08T20:23:43.386503+00:00"
 }
