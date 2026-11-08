@@ -1,0 +1,135 @@
+{
+  "class_identity_cases": [
+    "a_local_data_type_can_shadow_a_legacy_signature_spelling",
+    "distinct_declaring_classes_with_the_same_name_select_their_own_instances",
+    "evidence_for_another_declaring_class_is_rejected"
+  ],
+  "class_identity_invocation_receipts": {
+    "73230-0.json": "1239429b18e554f1f83a32a6c8fdd594cfd8b59a1f11e4a559dfeab21a33d7c8",
+    "73230-1.json": "c58189c49ea3ee9f54e68689e549bdd4e9e47521168910d692f5b19cbc5f2932",
+    "73230-2.json": "063dbaea6fc66c580ace272341bbe92765e170cedef9542c582e75be3850f54a"
+  },
+  "compiler_sha256": "593d1158766b8c64bf9362d306dd43b50187694fd0d028084c61aec98696b314",
+  "compiler_source_sha256": "b2630aa2281d594be25d9aec74d20d5eea51049d21580e60e1d0da5464eae235",
+  "definition_owned_fixities": true,
+  "full_goal_complete": false,
+  "identical_and_changed_imported_fixities_refused": true,
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "original_acceptance_checks": 14,
+  "programs": [
+    {
+      "executable_sha256": "b8f096c0f407f22a3e3c73e776a7c174aaf787d0df05f5306aa49dbaec873c4a",
+      "ir_sha256": "c92e8d1c79c042e86de3c74aad0506181c27f99e4d0ddce5ea62936818d68622",
+      "name": "mixed"
+    },
+    {
+      "executable_sha256": "2fdec9cee02bc732db3e8b8b63604524e3083fd039b50e58abd904b01520e8b3",
+      "ir_sha256": "91f2e79b1bc2fd190d126a7c38afba62a467936ea13a12382b64a85ddd557bd4",
+      "name": "passing"
+    }
+  ],
+  "rows": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mixed-emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "mixed-link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 2,
+      "expected": 2,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mixed-run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "passing-emit",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "name": "passing-link",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "passing-run",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "produce",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "separate-facade",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "direct",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "renamed-reexport",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "separate-renamed",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "identical-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 3,
+      "expected": 3,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "changed-redeclaration",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "log_sha256": "fa4132f01d4f05a4d7b4c4896edc110684587ada285ed9e0e830fead535d133b",
+      "name": "class-identity",
+      "status": "passed"
+    }
+  ],
+  "schema": 1,
+  "source_sha256": "3b4370de80290e7d0f6348aaa48347c4e8d81b1f2b1d1fa83865234d34dcc0f7",
+  "stage3_agreement_sha256": "f3520f982be1a7cd990b10372556cd88d0bb1cbb81e7a6201997282a32d42b44",
+  "status": "audited-exact-abi7-stage3-external-acceptance"
+}
