@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published memo compiler has a verified fixed point. Exact full suites and frontend parity are in progress.",
-  "activity": "2/105 Stage 3 targets verified and 8/236 Rust targets verified on the published memo revision.",
+  "activity": "3/105 Stage 3 targets verified and 8/236 Rust targets verified on the published memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17941,11 +17941,11 @@
         "title": "Run all 105 Stage 3 targets on the published memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 2,
+        "passed": 3,
         "total": 105,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_load",
+        "phase": "bootstrap_nominals",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20782,12 +20782,12 @@
       {
         "title": "Replay class laws with checked numeric samples and U32 wrapping",
         "unit": "controls",
-        "status": "failed",
+        "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with typed numeric law sampling",
         "passed": 0,
         "total": 11,
-        "failed": 1,
-        "source": "84d1da0d45f09501bcc3469721d5b895eb5ee87ad93b580b4f2191680efd2492",
+        "failed": 0,
+        "source": "4adb20843accaa25cecbddecbe10946d50f34ed8276266c0d8ecdb4886d51928",
         "evidence": null
       },
       {
@@ -20837,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:45:11.367991+00:00"
+  "updatedAt": "2026-11-08T22:46:14.192587+00:00"
 }
