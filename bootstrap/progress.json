@@ -21096,9 +21096,9 @@
       },
       {
         "title": "Repair checked ordering fields in bootstrap_load and bootstrap_nominals",
-        "status": "running",
-        "phase": "bootstrap_nominals",
-        "passed": 3,
+        "status": "passed",
+        "phase": "Both Rust harnesses compiled and every original case ran on the published Stage 3.",
+        "passed": 4,
         "total": 4,
         "unit": "gates",
         "failed": 0,
@@ -21248,5 +21248,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:27:41.741083+00:00"
+  "updatedAt": "2026-11-08T16:29:45.225912+00:00"
 }
