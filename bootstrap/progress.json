@@ -20916,8 +20916,8 @@
       },
       {
         "title": "Compile and execute lexical effect handlers",
-        "status": "waiting-worker",
-        "phase": "Waiting worker. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
+        "status": "running",
+        "phase": "Building-stage1. The corrected candidate uses the checked one-based operation slots. It replays the same original case-evidence, abort, slot order, first-class and repeated-resume cases.",
         "passed": 0,
         "failed": 0,
         "total": 6,
@@ -20926,9 +20926,9 @@
       },
       {
         "title": "Verify Rust tests on the current main integration",
-        "status": "running",
+        "status": "completed-with-merged-native-failures",
         "phase": "package-unit. All 50 tooling tests passed on the exact local merge. These Rust gates cover ordering, evidence and current package behavior.",
-        "passed": 3,
+        "passed": 4,
         "failed": 1,
         "total": 5,
         "unit": "targets",
@@ -20958,5 +20958,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T07:46:22.007607+00:00"
+  "updatedAt": "2026-11-08T07:47:24.060889+00:00"
 }
