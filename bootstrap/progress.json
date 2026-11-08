@@ -20391,8 +20391,8 @@
       {
         "title": "Run all 236 integrated Native groups",
         "status": "running",
-        "phase": "Bootstrap_decisions",
-        "passed": 28,
+        "phase": "Bootstrap_driver",
+        "passed": 29,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -20715,5 +20715,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:06:29.210651+00:00"
+  "updatedAt": "2026-11-08T17:08:12.037263+00:00"
 }
