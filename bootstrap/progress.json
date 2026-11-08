@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "78 of 236 complete groups passed; 1 running, 7 failed and 150 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "78 of 236 complete groups passed; 0 running, 7 failed and 151 pending.Every group includes ignored tests. State: superseded-yielded-worker. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "78 of 236 complete groups passed; 1 running, 7 failed and 150 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "78 of 236 complete groups passed; 0 running, 7 failed and 151 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -824,8 +824,8 @@
         "counts": {
           "verified": 78,
           "blocked": 7,
-          "running": 1,
-          "pending": 150,
+          "running": 0,
+          "pending": 151,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2975,12 +2975,12 @@
           {
             "id": "native:bootstrap_source_refinements",
             "title": "bootstrap_source_refinements",
-            "state": "running",
+            "state": "pending",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
-              "status": "running",
+              "status": "interrupted-superseded",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T13:18:06.247580+00:00",
               "finishedAt": null,
@@ -19566,16 +19566,6 @@
         "auditPending": false
       },
       {
-        "title": "Current compiler: full Rust sweep",
-        "status": "running",
-        "phase": "bootstrap_source_refinements",
-        "passed": 78,
-        "failed": 7,
-        "total": 236,
-        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-        "earlier": false
-      },
-      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -21193,8 +21183,8 @@
     "counts": {
       "verified": 388,
       "blocked": 18,
-      "running": 11,
-      "pending": 157,
+      "running": 10,
+      "pending": 158,
       "recheck": 101
     },
     "total": 675,
@@ -21203,5 +21193,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:26:06.829153+00:00"
+  "updatedAt": "2026-11-08T13:27:51.056555+00:00"
 }
