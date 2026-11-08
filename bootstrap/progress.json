@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "65 of 236 complete groups passed; 1 running, 5 failed and 165 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "66 of 236 complete groups passed; 1 running, 5 failed and 164 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "65 of 236 complete groups passed; 1 running, 5 failed and 165 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "66 of 236 complete groups passed; 1 running, 5 failed and 164 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 65,
+          "verified": 66,
           "blocked": 5,
           "running": 1,
-          "pending": 165,
+          "pending": 164,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -2591,21 +2591,21 @@
           {
             "id": "native:bootstrap_refinement_types",
             "title": "bootstrap_refinement_types",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T09:31:13.987368+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T09:33:10.522286+00:00",
+              "exitCode": 0,
+              "logSha256": "38155491aa455bf18618ced60dc550c1b8f214f4238c311cf7beed2a0ae74703",
               "cases": [
                 {
                   "name": "refinement_types_preserve_binders_and_require_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -2614,21 +2614,21 @@
           {
             "id": "native:bootstrap_resolve",
             "title": "bootstrap_resolve",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T21:27:47.508873+00:00",
-              "finishedAt": "2026-11-06T21:33:19.093030+00:00",
-              "exitCode": 0,
-              "logSha256": "dafdda5ea6dff1e50b18f556292718af6b1927995102eb3b48bfdc2131936cea",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T09:33:10.526944+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "source_module_imports_exports_and_lexical_scopes_resolve",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -19568,8 +19568,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_refinement_types",
-        "passed": 65,
+        "phase": "bootstrap_resolve",
+        "passed": 66,
         "failed": 5,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20983,8 +20983,8 @@
       {
         "title": "Verify the ABI 7 library and mutable object boundary",
         "status": "running",
-        "phase": "Build library provider. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
-        "passed": 2,
+        "phase": "Native package abi admission. Stage 1 links with the ABI 6 seed runtime. Its output uses the ABI 7 library and runtime.",
+        "passed": 3,
         "failed": 0,
         "total": 10,
         "unit": "gates",
@@ -20992,10 +20992,10 @@
       }
     ],
     "counts": {
-      "verified": 375,
+      "verified": 376,
       "blocked": 16,
       "running": 11,
-      "pending": 172,
+      "pending": 171,
       "recheck": 101
     },
     "total": 675,
@@ -21004,5 +21004,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T09:32:42.580456+00:00"
+  "updatedAt": "2026-11-08T09:33:44.900866+00:00"
 }
