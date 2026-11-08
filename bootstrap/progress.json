@@ -20877,10 +20877,10 @@
       },
       {
         "title": "Replay the complete case-evidence group with the repaired Stage3",
-        "status": "running",
-        "phase": "running",
+        "status": "completed-with-failures",
+        "phase": "completed with failures",
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "total": 1,
         "unit": "target",
         "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
@@ -20948,9 +20948,9 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "waiting-worker",
-        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
-        "passed": 0,
+        "status": "running",
+        "phase": "Running. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "passed": 3,
         "failed": 0,
         "total": 9,
         "unit": "gates",
@@ -20970,5 +20970,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:20:45.508078+00:00"
+  "updatedAt": "2026-11-08T08:21:48.702524+00:00"
 }
