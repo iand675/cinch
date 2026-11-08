@@ -21154,9 +21154,9 @@
       {
         "title": "Replay thunk semantics and the original proof cases together",
         "status": "running",
-        "phase": "build all 46 compiler modules and smoke-test Stage1",
+        "phase": "delay-latent-effect",
         "passed": 0,
-        "failed": 0,
+        "failed": 4,
         "total": 15,
         "unit": "cases",
         "source": "1184ab8b3b8472cbad506cfb40307452c3afc098e15b68de14b1d7dcbaf7bd4a"
@@ -21250,5 +21250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:37:22.557467+00:00"
+  "updatedAt": "2026-11-08T14:38:25.649366+00:00"
 }
