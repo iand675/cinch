@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "15/236 Rust targets and 6/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "15/236 Rust targets and 7/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -11999,11 +11999,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 6,
+          "verified": 7,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 97
+          "recheck": 96
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
@@ -12062,10 +12062,42 @@
           {
             "id": "stage3:argv",
             "title": "argv",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
+            "observed": {
+              "status": "passed",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "a340e42f8ff849a2116685e5da1ecdda57bd891256a033f73928df6d3d7f02ec",
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "status": "passed"
+                }
+              ]
+            },
+            "category": "portable behavior",
+            "currentTests": null
+          },
+          {
+            "id": "stage3:arrays",
+            "title": "arrays",
             "state": "running",
             "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
               "status": "running",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
@@ -12074,86 +12106,6 @@
               "exitCode": null,
               "logSha256": null,
               "cases": []
-            },
-            "category": "portable behavior",
-            "currentTests": null
-          },
-          {
-            "id": "stage3:arrays",
-            "title": "arrays",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
-            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
-            "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T10:55:20.633970+00:00",
-              "finishedAt": "2026-11-07T11:13:04.991548+00:00",
-              "exitCode": 101,
-              "logSha256": "9f1884a8ffd48b44bafae0952fd5cc5cde883bdf26868343f6db29d2e88ca260",
-              "cases": [
-                {
-                  "name": "array_copy_evidence_depends_on_the_element_type",
-                  "status": "passed"
-                },
-                {
-                  "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
-                  "status": "passed"
-                },
-                {
-                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
-                  "status": "passed"
-                },
-                {
-                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
-                  "status": "passed"
-                },
-                {
-                  "name": "arrays_keep_record_and_string_elements_alive",
-                  "status": "passed"
-                },
-                {
-                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
-                  "status": "passed"
-                },
-                {
-                  "name": "column_projection_returns_the_original_typed_buffers",
-                  "status": "failed"
-                },
-                {
-                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
-                  "status": "failed"
-                },
-                {
-                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
-                  "status": "failed"
-                },
-                {
-                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
-                  "status": "failed"
-                },
-                {
-                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
-                  "status": "failed"
-                },
-                {
-                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
-                  "status": "failed"
-                },
-                {
-                  "name": "packed_scalars_roundtrip_through_generic_operations",
-                  "status": "failed"
-                },
-                {
-                  "name": "packed_word_storage_resolves_width_from_the_target",
-                  "status": "passed"
-                },
-                {
-                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
-                  "status": "failed"
-                }
-              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -20253,8 +20205,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "argv, bootstrap_body_bindings",
-        "passed": 6,
+        "phase": "arrays, bootstrap_body_bindings",
+        "passed": 7,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20393,11 +20345,11 @@
       {
         "title": "Check source-only task forwarders and interface exports",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. explicit-forwarder-and-rename",
-        "passed": 4,
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. first-class-spawn",
+        "passed": 5,
         "total": 7,
-        "failed": 0,
+        "failed": 2,
         "source": "dc6ac4cd71654ad0150e6297d4693050e2ebde3237caac2f56c35ecc379bc83d"
       },
       {
@@ -20423,20 +20375,20 @@
       {
         "title": "Rebuild the pinned object for the tagged List integration cases",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Pinned provider rebuild. Queued for a shared worker.",
+        "status": "failed",
+        "phase": "Pinned provider rebuild. build pinned provider for the batched Stage 3 object requests",
         "passed": 0,
         "total": 3,
-        "failed": 0,
+        "failed": 1,
         "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab"
       }
     ],
     "counts": {
-      "verified": 359,
+      "verified": 360,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 339
+      "recheck": 338
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20444,5 +20396,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:10:24.466312+00:00"
+  "updatedAt": "2026-11-08T18:11:27.844823+00:00"
 }
