@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 import bootstrap
-from bootstrap_checklist import published_stage3_status
+from bootstrap_checklist import matches_digest, published_stage3_status
 
 
 def publish_interfaces(manifest, source, prefix):
@@ -125,6 +125,11 @@ def verify(evidence, cargo_target):
     if (not targets or len(targets) != len(required) or len(set(required)) != len(required)
             or set(targets) != set(required) or len(targets) != scope["current_total_targets"]):
         raise ValueError("Stage3 test scope must cover every preserved portable target exactly once")
+    native_assertions = scope.get("native_api_assertions", {})
+    for target, review in native_assertions.items():
+        test = bootstrap.ROOT / "compiler/tests" / (target + ".rs")
+        if target not in targets or not matches_digest(test, review.get("source_sha256")):
+            raise ValueError(f"Stage3 direct Rust assertions need a source review for {target}")
     compiler, manifest, objects, runtime, hashes = stage3_artifacts()
     evidence.mkdir(parents=True, exist_ok=False)
     fixtures = evidence / "fixtures"
@@ -143,7 +148,7 @@ def verify(evidence, cargo_target):
     bootstrap.write_json(report_path, report)
     for target in targets:
         row = run_target(target, target in api, evidence, cargo_target, env, hashes[manifest],
-                         scope.get("native_api_assertions", {}))
+                         native_assertions)
         report["rows"].append(row)
         bootstrap.write_json(report_path, report)
         print(f"{target}: {row['coverage']} ({row['detail']})", flush=True)
