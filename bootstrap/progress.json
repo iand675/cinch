@@ -20661,11 +20661,11 @@
       {
         "title": "Replay all ten codata tests with memo and guarded recursion",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with codata",
         "passed": 0,
         "total": 13,
-        "failed": 0,
+        "failed": 1,
         "source": "eada3295b82518ab22234e0b2ebabc54194ab768c7dbe8e5b2b7055dae1993ad",
         "evidence": null
       },
@@ -20716,5 +20716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T21:08:45.926709+00:00"
+  "updatedAt": "2026-11-08T21:09:49.125116+00:00"
 }
