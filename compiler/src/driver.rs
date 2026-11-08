@@ -2003,7 +2003,12 @@ pub fn driver_with_profile(
 }
 
 fn package_object_modules(path: &Path) -> Result<Vec<String>> {
-    let abi_path = path.with_extension("abi.json");
+    let execution = path
+        .parent()
+        .map(|parent| parent.join("build").join("package.cinchif"));
+    let abi_path = execution
+        .filter(|candidate| candidate.exists())
+        .unwrap_or_else(|| path.with_extension("abi.json"));
     let bytes = std::fs::read(&abi_path)
         .map_err(|e| Error::plain(format!("{}: {e}", abi_path.display())))?;
     let abi: serde_json::Value = serde_json::from_slice(&bytes)

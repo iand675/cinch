@@ -1809,6 +1809,7 @@ fn materialize(
         ));
     }
 
+    write_package_execution(&source_dir, &module_names, &object, &abi)?;
     update_lock(
         project,
         name,
@@ -1830,6 +1831,41 @@ fn materialize(
         abi,
         interfaces,
     })
+}
+
+/// Write the package-level `.cinchif` consumed by JIT and native object
+/// admission. It carries the full physical ABI (units, layouts, object hash,
+/// interfaces) plus the modules it defines, so a consumer does not need the
+/// separate `package.abi.json` name.
+fn write_package_execution(
+    source_dir: &Path,
+    modules: &[String],
+    object: &Path,
+    abi: &Path,
+) -> Result<()> {
+    let abi_bytes =
+        std::fs::read(abi).map_err(|e| Error::plain(format!("{}: {e}", abi.display())))?;
+    let mut execution: Value = serde_json::from_slice(&abi_bytes)
+        .map_err(|e| Error::plain(format!("{}: {e}", abi.display())))?;
+    let fields = execution
+        .as_object_mut()
+        .ok_or_else(|| Error::plain("package ABI must be a JSON object"))?;
+    fields.insert("kind".into(), json!("package-execution"));
+    fields.insert("modules".into(), json!(modules));
+    fields.insert(
+        "object".into(),
+        json!(object
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "package.o".into())),
+    );
+    let build = source_dir.join("build");
+    std::fs::create_dir_all(&build)
+        .map_err(|e| Error::plain(format!("{}: {e}", build.display())))?;
+    let path = build.join("package.cinchif");
+    std::fs::write(&path, canonical(&execution)?)
+        .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+    Ok(())
 }
 
 fn validate_name(name: &str) -> Result<()> {
@@ -2300,6 +2336,34 @@ fn verify(project: &Path) -> Result<Verified> {
                 )));
             }
         }
+        let execution_path = interfaces.join("package.cinchif");
+        if execution_path.exists() {
+            let bytes = std::fs::read(&execution_path)
+                .map_err(|e| Error::plain(format!("{}: {e}", execution_path.display())))?;
+            let execution: Value = serde_json::from_slice(&bytes)
+                .map_err(|e| Error::plain(format!("{}: {e}", execution_path.display())))?;
+            if execution.get("kind").and_then(Value::as_str) != Some("package-execution") {
+                return Err(Error::plain(format!(
+                    "{}: not a package execution interface",
+                    execution_path.display()
+                )));
+            }
+            let execution_hash = execution
+                .get("object_content_hash")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    Error::plain(format!(
+                        "{}: no object_content_hash",
+                        execution_path.display()
+                    ))
+                })?;
+            if execution_hash != expected {
+                return Err(Error::plain(format!(
+                    "{}: object hash does not match package.abi.json",
+                    execution_path.display()
+                )));
+            }
+        }
     }
     Ok(Verified {
         packages: packages.len(),
@@ -2541,6 +2605,7 @@ mod tests {
         assert!(installed.source_dir.join("Library.cinch").exists());
         assert!(installed.object.exists());
         assert!(installed.interfaces.join("Library.cinchif").exists());
+        assert!(installed.interfaces.join("package.cinchif").exists());
         let abi: Value =
             serde_json::from_slice(&std::fs::read(&installed.abi).expect("package ABI"))
                 .expect("package ABI JSON");

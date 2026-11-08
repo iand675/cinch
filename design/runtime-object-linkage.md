@@ -19,7 +19,7 @@ for each callable unit. Static closure storage remains private. It leaves
 `__apply` to the final consumer, emits coalescible memo helpers, and neither
 registers a layout table nor enables reclamation at initialization.
 
-Physical manifest schema 1 records:
+The package execution `.cinchif` carries the same physical facts under one interface artifact; `package.abi.json` remains a compatibility companion. Physical manifest schema 1 records:
 
 - Runtime ABI, target triple, word width, endianness and reclamation mode.
 - Actual unit symbols, arities, parameter word classes, known result classes

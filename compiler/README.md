@@ -94,7 +94,7 @@ LLVM.
 
 `cinch jit --package-object package.o --package-dependency dep.o --call Top.answer`
 loads an installed package object and its separately produced dependency
-objects. Each object validates its `package.abi.json`, object bytes, installed
+objects. Each object validates its package execution `.cinchif` (`build/package.cinchif`) or legacy `package.abi.json`, object bytes, installed
 `.cinchif` files, and physical inventory. Dependency objects are added first;
 the root object registers the combined layout prefix (and reclamation, when
 recorded), and the CLI prints one zero-arity unit. Package objects define only
