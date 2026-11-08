@@ -19837,10 +19837,10 @@
       },
       {
         "title": "Bootstrap the candidate with the pinned NonEmpty library",
-        "status": "running",
-        "phase": "building stage2",
+        "status": "failed",
+        "phase": "failed",
         "passed": 2,
-        "failed": 0,
+        "failed": 1,
         "total": 4,
         "unit": "stages",
         "source": "64ee1c52436a3b37cb0217cec1e54de0d9dfbbf5161e577971bb1f9e4feb412e",
@@ -19848,8 +19848,8 @@
       },
       {
         "title": "Replay full Foldable and Category with the NonEmpty object",
-        "status": "waiting-worker",
-        "phase": "round 1 lib_foldable",
+        "status": "running",
+        "phase": "round 1 lib_category",
         "passed": 0,
         "failed": 1,
         "total": 2,
@@ -19935,5 +19935,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:01:45.001694+00:00"
+  "updatedAt": "2026-11-08T00:04:47.584214+00:00"
 }
