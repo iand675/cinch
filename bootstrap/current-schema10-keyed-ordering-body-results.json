@@ -1,0 +1,88 @@
+{
+  "compiler_source_sha256": "5176bebeaa48c3af4abf6ce9e08a9f571e449fae7b3ca35e319a2d544416e8b6",
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "2066081dd8f7d1f3e73a7843aba28bef8fc4fc13373ee6ef95d167dde06f19f4",
+  "keyed_ordering": {
+    "greater_slot": 2,
+    "less_slot": 0
+  },
+  "metadata_sha256": "d592d665c3d89360e497c45ce1ae241619865a0dc528d9cbc3f1fff78b3cd62d",
+  "native_compiler_sha256": "2e0c0db6809223bd71825838a1629fe2d5abfd62b9db6c58f719a0a699349dbb",
+  "native_source_sha256": "283b2ee186ea3c51aad3252fe9bc7eae980d0513229155e9dc3d6ee2801eac3a",
+  "prior_missing_specialization": {
+    "diagnostic": "bootstrap.runtime-ir:4:18: checked external variant is absent from the runtime object: i.82_101_108_97_116_105_111_110_46_79_114_100_46_99_111_109_112_97_114_105_110_103_ [TT]\n",
+    "exit_code": 5,
+    "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+    "name": "comparing",
+    "source_sha256": "024025586d52c308a2dc7180bf2f6f366ee930dc21d8ff8ed2648347f74de561",
+    "status": "failed"
+  },
+  "provider_interface_count": 55,
+  "provider_object_sha256": "9c084483dbcd29f344104ca956bdcd71deed7d562027228c08a5fcd1a6d6bcc7",
+  "revision": "3f674f9fb84877c957276de942c8a5fd994af88e",
+  "rows": [
+    {
+      "exit_code": 0,
+      "log_sha256": "ce5e4d4fc2cbd507344f37aec3f11ca4d4d325f1ba2d00ae3b06650a6a4962fa",
+      "name": "interface_method_bodies",
+      "status": "passed",
+      "tests": 9
+    },
+    {
+      "exit_code": 0,
+      "log_sha256": "098e4c5411547d612914ba64b49bc88de9529c845c578dc891d7531378c78fbc",
+      "name": "case_evidence",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "ir_sha256": "5de8c4d6ccd5e7601e170d344e9bcb1d0c510024e73c2227dbf501fe5fb66d36",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "comparing",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "024025586d52c308a2dc7180bf2f6f366ee930dc21d8ff8ed2648347f74de561",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:6:20: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "comparing-default",
+      "source_sha256": "515ee2d4da2905cf22bac75b6e58c42fa9711e836c33a023cfdc8dee6c75e675",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "",
+      "exit_code": 0,
+      "ir_sha256": "ff38b6a4c0326aebbb518e331f5b86d43f1c2b0fe99ab544d887ecd57b576330",
+      "link_exit": 0,
+      "link_log_sha256": "6021f33487b85f8a9c5f9471588485ff4234e50e83be3e5c4c6e23dd0c32b455",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "probe-ordinary",
+      "program_exit": 0,
+      "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "6272dc6d80b211c76299b9a114c9202b95ad6756fae7ceade17b2b20ea1138d2",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "bootstrap.check:4:22: refinement predicate is not established for this value (undischarged refinement obligation)\n",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "probe-opaque-order",
+      "source_sha256": "b18f2e353621b07beb8da54be899302776a190e11f6448d999b75bd64dbe885f",
+      "status": "passed"
+    }
+  ],
+  "runtime_archive_sha256": "7636d6391c01da589067066ad15f3fba6fa25fc45dd17541820429c1517d1be3",
+  "schema": 1,
+  "scope": "Frozen Stage1, two Native test targets and four Cinch client-only fixtures against one checked library object and runtime archive.",
+  "stage1_compiler_sha256": "a1d6ddb0f0ea25ee8e3a16b3fe483aa1bb6b28510dd5f644a5ab3b49f95e8f67",
+  "stage1_receipt_sha256": "43ed5e271d560a93f0dc27bcc8b51c8b562f7f781cad5020042b93f77b343223",
+  "status": "audited-keyed-ordering-compiled-clients",
+  "validation_state_sha256": "6c77f780f1770b6bc9db50691cc6dc60479b606d7266f85699b391e67e1b8268"
+}
