@@ -20791,17 +20791,6 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-rust-prim-clause-and-law-harness-results.json"
       },
       {
-        "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
-        "unit": "controls",
-        "status": "failed",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
-        "passed": 2,
-        "total": 5,
-        "failed": 1,
-        "source": "ebb74360d498988e68ba9a901008638d9be4c675a11a36f4a86901c6194f3c8a",
-        "evidence": null
-      },
-      {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
         "unit": "controls",
         "status": "passed",
@@ -20848,5 +20837,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:43:47.043560+00:00"
+  "updatedAt": "2026-11-08T23:47:31.724049+00:00"
 }
