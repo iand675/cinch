@@ -20390,9 +20390,9 @@
       },
       {
         "title": "Run all 236 integrated Native groups",
-        "status": "running",
-        "phase": "Bootstrap_effect_types",
-        "passed": 30,
+        "status": "waiting-worker",
+        "phase": "Waiting worker",
+        "passed": 31,
         "failed": 0,
         "total": 236,
         "unit": "groups",
@@ -20715,5 +20715,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:09:15.196989+00:00"
+  "updatedAt": "2026-11-08T17:10:58.748885+00:00"
 }
