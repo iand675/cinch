@@ -1,0 +1,501 @@
+{
+  "base_object_sha256": "0b865c627836e7e0325440552ff663f7e5821c4762a407f5d635676c4aa87e8b",
+  "checked_base_interfaces": 55,
+  "compiler_modules": 46,
+  "compiler_sha256": "5dc2faa3467207f8f810ccbdb22b464027de67f8aabbea9ec08dd94cd6674c65",
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "full_goal_complete": false,
+  "groups": [
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "c56a63c6d869730d11abd1e0ebd12e8ac0fad046d134faaf736de5eb2e1cfa53"
+      },
+      "fixture_text": "module Main where\n  discard-word :: I64 %0 -> Int\n  discard-word ignored = 7\n  main :: Int\n  main = if discard-word (1135792468 :: I64) == 7 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "llvm_sha256": "74268d9023a2e02b678bf7a1f78f03b8386b740ddfb77806c6816414f0dcbf04",
+      "mode": "run",
+      "name": "erased-named",
+      "omitted_argument": true,
+      "result_sha256": "868b9ea015c7eafb58ea78f07e319788f671f9983c964405c3f1665fe01bc279",
+      "source": "validation-fixtures/erased-named/Main.cinch",
+      "source_sha256": "c56a63c6d869730d11abd1e0ebd12e8ac0fad046d134faaf736de5eb2e1cfa53",
+      "status": "passed",
+      "zero_word_call": true
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "d77ec640d7cc384dc616f61f91b5dbb23367fd8848f5ed1832bdd41f556014b5"
+      },
+      "fixture_text": "module Main where\n  factory :: Unit -> (I64 %0 -> Int)\n  factory () = \\ignored -> 7\n  main :: Int\n  main = if factory () (9 :: I64) == 7 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "erased-lambda",
+      "result_sha256": "f13a445161f9115a6d0cd86ada769a7bcd8e83a2e8ede42b600a11836908c1b9",
+      "source": "validation-fixtures/erased-lambda/Main.cinch",
+      "source_sha256": "d77ec640d7cc384dc616f61f91b5dbb23367fd8848f5ed1832bdd41f556014b5",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "93a275e880a2b991985b4aa7c9e5c2fa46589637daae1209d91813f9e16b5eb0"
+      },
+      "fixture_text": "module Main where\n  sum-without :: Int -> I64 %0 -> Int -> Int\n  sum-without a ignored b = a + b\n  main :: Int\n  main = if sum-without 40 (5 :: I64) 2 == 42 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "erased-between-values",
+      "result_sha256": "556ee5ab3866ee4ba2dfc39b68dd5c7136aff04bca03f599fc9cc98cb46dc850",
+      "source": "validation-fixtures/erased-between-values/Main.cinch",
+      "source_sha256": "93a275e880a2b991985b4aa7c9e5c2fa46589637daae1209d91813f9e16b5eb0",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "662ed30b6cfd173671926d4896c40b85a9acb5dc3299c8cd6f3d3905f20c419d"
+      },
+      "fixture_text": "module Main where\n  bounded :: (n :: Nat) %0 -> refined (out <= n) Nat\n  bounded n = 0\n  result :: refined (out <= 7) Nat\n  result = bounded 7\n  main :: Int\n  main = 0\n",
+      "mode": "check",
+      "name": "erased-dependent",
+      "result_sha256": "7ccefffa6cbd5baf4eab8bb71f8d3e70ef27af056c8009504a8488f5052056f0",
+      "source": "validation-fixtures/erased-dependent/Main.cinch",
+      "source_sha256": "662ed30b6cfd173671926d4896c40b85a9acb5dc3299c8cd6f3d3905f20c419d",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "9e19196bcd28ceabf60ef8502f4aa482d8d5c1ff1a38a2be2f7f0253d38d2423"
+      },
+      "fixture_text": "module Main where\n  discard :: Nat %0 -> Int\n  discard ignored = 7\n  relay :: Nat %0 -> Int\n  relay n = discard n\n  main :: Int\n  main = if relay 11 == 7 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "erased-forwarding",
+      "result_sha256": "cae6d4e0b0a195f4018a762aee311b914f9fe9efd372d565ee9ab15341b39b3f",
+      "source": "validation-fixtures/erased-forwarding/Main.cinch",
+      "source_sha256": "9e19196bcd28ceabf60ef8502f4aa482d8d5c1ff1a38a2be2f7f0253d38d2423",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "f89684a3051c436721fa0b3fdaefbed53762cb961c57efd7803d5da6fa001010"
+      },
+      "fixture_text": "module Main where\n  discard :: Unit %0 -> Int\n  discard unused = 7\n  consume :: Nat %1 -> Nat\n  consume n = let unused = discard (let alias = n in ()) in n\n  main :: Int\n  main = if consume 2 == 2 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "erased-alias-stays-static",
+      "result_sha256": "f570b7413c68abe4c9a5a6bab2a7660795f015bd478a4af1332b049a5f04ef84",
+      "source": "validation-fixtures/erased-alias-stays-static/Main.cinch",
+      "source_sha256": "f89684a3051c436721fa0b3fdaefbed53762cb961c57efd7803d5da6fa001010",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/erased-runtime-use-refused/Main.cinch: 3:11: multiplicity %0: an erased argument must never be used at runtime",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "8b020e3e4e8c4fa2a1ae8e4200fcdda1fd4ded3a6a2b409c0066a920159deb0e"
+      },
+      "fixture_text": "module Main where\n  inspect :: Nat %0 -> Nat\n  inspect n = n\n  main :: Int\n  main = 0\n",
+      "mode": "check",
+      "name": "erased-runtime-use-refused",
+      "result_sha256": "e44734e2cae21900fe988cd5a29c91cd79a74c6c93a2faef21af66f85da5e18e",
+      "source": "validation-fixtures/erased-runtime-use-refused/Main.cinch",
+      "source_sha256": "8b020e3e4e8c4fa2a1ae8e4200fcdda1fd4ded3a6a2b409c0066a920159deb0e",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/erased-effect-refused/Main.cinch: 7:20: multiplicity %0: an erased argument cannot perform effects or writes",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "88b1f6e2804f3b703305d42c28ecc77608ced3e6887e243a6237ec4ba62577bc"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  discard :: Unit %0 -> Int\n  discard ignored = 7\n  bad :: Unit ->{Marker} Int\n  bad u = discard (marker u)\n  main :: Int\n  main = 0\n",
+      "mode": "check",
+      "name": "erased-effect-refused",
+      "result_sha256": "d5f88087de64b0ac66c377c573b59dcfbcb9b7e854f47720199de6218478a3f7",
+      "source": "validation-fixtures/erased-effect-refused/Main.cinch",
+      "source_sha256": "88b1f6e2804f3b703305d42c28ecc77608ced3e6887e243a6237ec4ba62577bc",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "ec683459c21cbd284541d77048a1456bde9be2e0ec7396c1d661fd0c4adb3711"
+      },
+      "fixture_text": "module Main where\n  main :: Unit %0 -> Int\n  main _ = 0\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "erased-entry",
+      "result_sha256": "2afe6401aeaf89bee84881d02f708261a19829c315f7d342cfafc877b081370f",
+      "source": "validation-fixtures/erased-entry/Main.cinch",
+      "source_sha256": "ec683459c21cbd284541d77048a1456bde9be2e0ec7396c1d661fd0c4adb3711",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "56fd24ada584f82007b994612cec3d89e95513582993cb4efe69aaf6e7bfd40b"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let thunk = delay (\\() -> 42) in if force thunk == 42 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "force-once",
+      "result_sha256": "289df213d0845ec78bab2f804ee1d8107ae04e1f6a92bccb4478094b1d913356",
+      "source": "validation-fixtures/force-once/Main.cinch",
+      "source_sha256": "56fd24ada584f82007b994612cec3d89e95513582993cb4efe69aaf6e7bfd40b",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "a48b2ded7c3b7381063146880863dae7ae43e7c0cba8202ea21730a14713bd0f"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let count = 42 in let thunk = delay (\\() -> count) in 0\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "drop-unforced",
+      "result_sha256": "f98b675235153d1462779d2e9f8a6d48391daf536cd3f604d2ad71f928b82499",
+      "source": "validation-fixtures/drop-unforced/Main.cinch",
+      "source_sha256": "a48b2ded7c3b7381063146880863dae7ae43e7c0cba8202ea21730a14713bd0f",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "74fb797caed99153bc8853540089ad31a8ad6fa1856fff22c4c788e484dd1802"
+      },
+      "fixture_text": "module Main where\n  choose :: Bool -> Int\n  choose yes = let thunk = delay (\\() -> 42) in if yes then force thunk else 0\n  main :: Int\n  main = if choose True == 42 && choose False == 0 then 0 else 1\n",
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "affine-choice",
+      "result_sha256": "2fe7993b7556b5d7172440e302e67633927427f7ec2ebd9b3f6bb63c6e5cac2b",
+      "source": "validation-fixtures/affine-choice/Main.cinch",
+      "source_sha256": "74fb797caed99153bc8853540089ad31a8ad6fa1856fff22c4c788e484dd1802",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/replay-refused/Main.cinch: 3:10: multiplicity %aff: a thunk must be used at most once",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "36598ac9007d2d38fb03461b58163964f67d8eaae18718e34119dbc0909bb0eb"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = let thunk = delay (\\() -> 42) in force thunk + force thunk\n",
+      "mode": "check",
+      "name": "replay-refused",
+      "result_sha256": "2d75c78bae62092f3d6a857696f1f765052e5dec6916896f142d61e35df511bd",
+      "source": "validation-fixtures/replay-refused/Main.cinch",
+      "source_sha256": "36598ac9007d2d38fb03461b58163964f67d8eaae18718e34119dbc0909bb0eb",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "3f0a027932401249e916b1e89feb973c24a17c05e16ed890f45f2060e11c7d61"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  hold :: Unit -> Thunk {Marker} Int\n  hold u = delay callback\n",
+      "mode": "check",
+      "name": "delay-latent-effect",
+      "result_sha256": "8fab8280faaffb15c69e0f7582007ad8202d0fbd1dc1ff7383ba34e75e6f2ba7",
+      "source": "validation-fixtures/delay-latent-effect/Main.cinch",
+      "source_sha256": "3f0a027932401249e916b1e89feb973c24a17c05e16ed890f45f2060e11c7d61",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "40ff3294e10dae1d51ec1ae10f78a471e66944a3d0b6725c48227c8c7c8665ba"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  use-thunk :: Unit ->{Marker} Int\n  use-thunk u = force (delay callback)\n",
+      "mode": "check",
+      "name": "force-latent-effect",
+      "result_sha256": "142950036c5a94221a0913e8cc1aa963bf51d3413576df65c9be44897dc95fa5",
+      "source": "validation-fixtures/force-latent-effect/Main.cinch",
+      "source_sha256": "40ff3294e10dae1d51ec1ae10f78a471e66944a3d0b6725c48227c8c7c8665ba",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/force-row-refused/Main.cinch: 7:17: performed effects exceed the declared row (performed {m.77_97_105_110_.77_97_114_107_101_114_}, declared {})",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "0b29d4054e31ca4e00bceac2d011f8d3cc71a14bc032ddbe5c738f24ac352f80"
+      },
+      "fixture_text": "module Main where\n  effect Marker where\n    marker :: Unit ->{Marker} Unit\n  callback :: Unit ->{Marker} Int\n  callback u = do { marker u; 42 }\n  use-thunk :: Unit -> Int\n  use-thunk u = force (delay callback)\n",
+      "mode": "check",
+      "name": "force-row-refused",
+      "result_sha256": "76d62ba8f397e808fa9a9c435492b45c10b9228a301a143c537f770e290a7f68",
+      "source": "validation-fixtures/force-row-refused/Main.cinch",
+      "source_sha256": "0b29d4054e31ca4e00bceac2d011f8d3cc71a14bc032ddbe5c738f24ac352f80",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "validation-fixtures/force-carrier-refused/Main.cinch: 3:16: type mismatch: expected ((Thunk ?14) ?15), found Int",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "4b5019bb79aadf3c694bc920da4f9b7fb7a0ac19792991d33cb5e29825078890"
+      },
+      "fixture_text": "module Main where\n  main :: Int\n  main = force 42\n",
+      "mode": "check",
+      "name": "force-carrier-refused",
+      "result_sha256": "d357cdaf7da76fb5ebacefa3e61bf7311081366632cc2443d1301dc12865f14d",
+      "source": "validation-fixtures/force-carrier-refused/Main.cinch",
+      "source_sha256": "4b5019bb79aadf3c694bc920da4f9b7fb7a0ac19792991d33cb5e29825078890",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "37b6018ad060744cff0af1fc112ff6961532093251d040ac90c6388e6f112965"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Protocol",
+      "result_sha256": "ab6c5b536ee952bc2c74f11705f0fad7a6bd05748aa3931c3ad07f5f018049fd",
+      "source": "experiments/malleable-syntax/examples/Protocol.cinch",
+      "source_sha256": "822acfa42c5c2a0c712b49d5fd21d6f773afe462cee9a531503eac550875702c",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Checkout.cinch": "351da0da64e2dccdc899fe143571f4b5418e5e86fec9cf503a54dc89ed5c8402",
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "eef90be33bbba79028286e5b7e4e1ed0b3a86763ce44c0f4c11b42e31a70366b"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Choreography",
+      "result_sha256": "ba33a1d4141bdf3e3a1faaf4b6e25f697bf2de79f8de1ee445a2f5fb557a092a",
+      "source": "experiments/malleable-syntax/examples/Choreography.cinch",
+      "source_sha256": "eef90be33bbba79028286e5b7e4e1ed0b3a86763ce44c0f4c11b42e31a70366b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Once.cinch: 4:13: multiplicity %1: the argument must be used exactly once on every path",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "5aeebb7bf9eed9df0cbd482bb151e1f6e699c5d4142af2bcffb907efa74ad20c"
+      },
+      "mode": "check",
+      "name": "Once",
+      "result_sha256": "f9d69f6334460d9f69fe38c9ed09a6d409c17a7b3f9ec57ca9732ab3cac97639",
+      "source": "experiments/malleable-syntax/examples/negative/Once.cinch",
+      "source_sha256": "94bbd3d2af0faad7ae989da22a3271eaccdead08014a4631a674e0c279668dbb",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Protocol.cinch: 11:24: type mismatch: expected m.77_97_105_110_.80_101_110_100_105_110_103_, found m.77_97_105_110_.79_102_102_101_114_101_100_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "c732f2e5e0d7b8c7ab7f67b971bf2bf562cf58e2029966d1ebf673fa0806a031"
+      },
+      "mode": "check",
+      "name": "Protocol",
+      "result_sha256": "d5aedcda1894bffc9818913c037b46a1ea3c5b9f30b97d0137351027d3de2f9b",
+      "source": "experiments/malleable-syntax/examples/negative/Protocol.cinch",
+      "source_sha256": "af69827f9eda4c2f883ef21e10034c72b161e8f131eece765a58ee6923a04b75",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyState.cinch: 22:45: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_49_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_80_48_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "f7ab09e174700db82e9d3905fe929cf5b085c517e9ac17d3ecf97690402386cf"
+      },
+      "mode": "check",
+      "name": "ChoreographyState",
+      "result_sha256": "33092445a241e9704afc1f1ce77c71ebf529445416092becb1adb6494c09babb",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyState.cinch",
+      "source_sha256": "42ddc0f44b94cdbbb71ed12e2ae65abb9c55f0c0257b97b57ace83b513dbc1b3",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyBranch.cinch: 22:64: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_65_112_112_114_111_118_101_100_83_48_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_83_104_111_112_68_101_99_108_105_110_101_100_83_48_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "3ff98c1a03cd3736cf739ddfcac8f8939656f928607ddeb4df0c14dcb9335dcf"
+      },
+      "mode": "check",
+      "name": "ChoreographyBranch",
+      "result_sha256": "d7568325d8d4c5453cfd23b0c6fee67f593569cd91162924ab10ce922a284244",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyBranch.cinch",
+      "source_sha256": "4442780c4f962ab333e07d2da0482c32cee18419825514fbd72dd1bc646e344b",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyWire.cinch: 22:73: type mismatch: expected m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_65_112_112_114_111_118_101_100_82_101_99_101_105_112_116_, found m.77_97_105_110_.67_104_101_99_107_111_117_116_87_105_114_101_68_101_99_108_105_110_101_100_82_101_97_115_111_110_",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "27bd059fad1a4a22ac7fbbebd04f56c3d1ab09e38f705504eaced795e05c37d6"
+      },
+      "mode": "check",
+      "name": "ChoreographyWire",
+      "result_sha256": "c4d113492925efd1644963170ee34dea6d989154434fd1b22b241d09fd19519d",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyWire.cinch",
+      "source_sha256": "0745ff183874f56b5b17d46d2f52894938845a2f539a286e0135acadd64a64ce",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyReplay.cinch: 23:18: multiplicity %aff: a thunk must be used at most once",
+      "exit_code": 4,
+      "expanded_sources": {
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "6a122e8a59760431acf4019c2b51c55c16697c76003c238174b45da1915726d1"
+      },
+      "mode": "check",
+      "name": "ChoreographyReplay",
+      "result_sha256": "d09888b3ac3d8b136768eaa0ecb68ac5196d6e8c0a62688a01385255d3c957a1",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyReplay.cinch",
+      "source_sha256": "7c0fc9efddd8ba1f67d690af3129b8b41284cdb6f2dad4688a6b1227ca153c02",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/ChoreographyForge.cinch: 4:23: unknown constructor Checkout.MkCheckoutBuyerP1: not exported into this scope",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Checkout.cinch": "351da0da64e2dccdc899fe143571f4b5418e5e86fec9cf503a54dc89ed5c8402",
+        "LocalWire.cinch": "0108cf1ad6ca391153fa8958042bd33e9e2cf62044f9b4891304db94dd20d784",
+        "Main.cinch": "c518de4b5afce8cd1bf4452591c4c375234bfff127618eb7c3d0baa8f2ab3b30"
+      },
+      "mode": "check",
+      "name": "ChoreographyForge",
+      "result_sha256": "b5a681ffa0c9b2cebf49d0bec1aa5696267c27eb40a89fcc899835fba0935c45",
+      "source": "experiments/malleable-syntax/examples/negative/ChoreographyForge.cinch",
+      "source_sha256": "c518de4b5afce8cd1bf4452591c4c375234bfff127618eb7c3d0baa8f2ab3b30",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "74176fe07ac3f0a52bb17d7116ae50489acfd669f5fff3e41c6229849ec83df6"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Tactics",
+      "result_sha256": "59ce43bd38d90935bd536644cb3780c4e7372b1a9978573dbd8f9130b01475a3",
+      "source": "experiments/malleable-syntax/examples/Tactics.cinch",
+      "source_sha256": "4ad5422c6002a0e372f03ba738092507b58f4aa8d75d66aa019d9fe482215fc4",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expanded_sources": {
+        "Main.cinch": "e3b6037a188f5eeaa71beab3118800afcfbe4bd5d10f6abe8b714af8778a1b57"
+      },
+      "leaked_allocations": 0,
+      "mode": "run",
+      "name": "Proof",
+      "result_sha256": "250eb50e03edc646bce2a1381f359f9727fa25ff05e152c19ca76c5afbbfc336",
+      "source": "experiments/malleable-syntax/examples/Proof.cinch",
+      "source_sha256": "518a1c82e22b98565d41e1b9716cb406a17163f8aee6bfc080400f70f90d2824",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsMissing.cinch: 4:29: tactic plan `linear` could not prove `(i < n)`",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "ce7ae3bf00e45ad1b026da217ac68e48f2a0fa12b2efe65a3b2c0b077206b9fd"
+      },
+      "mode": "check",
+      "name": "TacticsMissing",
+      "result_sha256": "dd913af30260d20b95e6eb9236fe7ccfed4328a6175c17a16a436166afecbe17",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsMissing.cinch",
+      "source_sha256": "f62030137d6526ef418f2a7746656d387c9aeb51c3e8ecd2b7d797d6d5627608",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsShadow.cinch: 5:44: tactic plan `assumption linear` could not prove `(n < n)`",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "d23ea74df5887b575a9923f2d051b6132ee558506741b4d32a5525c7bda30f73"
+      },
+      "mode": "check",
+      "name": "TacticsShadow",
+      "result_sha256": "3bbfcc8aebcd3f5c004319dd3baac4742d760388bcf0e287db7e679236db604b",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsShadow.cinch",
+      "source_sha256": "fa12e3ce42d3bfe66f260e6e8c25c81c713735e9f47794b8eef709bce353b053",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TacticsStale.cinch: 6:52: stale evidence: evidence derived at 5:9 is invalidated by the write at 6:15",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "ca75d6c1f1550014645ac0c17be01ef995d92efbba39f9508b22faf8c18e7dd2"
+      },
+      "mode": "check",
+      "name": "TacticsStale",
+      "result_sha256": "2c4d14bd1bf31943fcf2ee67a13c32433deabecdd6f641069f4eb26087e73c3f",
+      "source": "experiments/malleable-syntax/examples/negative/TacticsStale.cinch",
+      "source_sha256": "cec568c2ba862516c9564dd0660c24e11e6b14202d1904ef46923a2904040a7f",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/TensorPrivate.cinch: 4:9: unknown constructor Tensor.MkMatrix: not exported into this scope",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+        "Tensor.cinch": "9471c132450872e1a7b16991078cd9704b0e9c55e86147b175e9a9cb699fdf1a"
+      },
+      "mode": "check",
+      "name": "TensorPrivate",
+      "result_sha256": "69713fc5e4648f502aeea10961da012b83f40976d770892a9833ea4d59b84fd9",
+      "source": "experiments/malleable-syntax/examples/negative/TensorPrivate.cinch",
+      "source_sha256": "d9bee1c90a9d84157d0850f6ded5eaa65d3b90c4b3d8784a1a094353e6c11643",
+      "status": "passed"
+    },
+    {
+      "diagnostic": "experiments/malleable-syntax/examples/negative/Proof.cinch: 4:22: obligation disproved: (Eq 5 6)",
+      "exit_code": 4,
+      "expanded_sources": {
+        "Main.cinch": "9c60866bda2e9bb3d5102adbe0b187c631d7fb13fcaac193c59fa0673b32c213"
+      },
+      "mode": "check",
+      "name": "Proof",
+      "result_sha256": "d27a7a2030653f2e0054cf42a325f4b8cc7dfaad75095c9126a831253e1a0b3f",
+      "source": "experiments/malleable-syntax/examples/negative/Proof.cinch",
+      "source_sha256": "f148e9a03a56e07434f8e56c381348219ce58689b93612aea7e14884b92408ee",
+      "status": "passed"
+    },
+    {
+      "contract_hash": "5383508979629729147",
+      "diagnostic": "",
+      "exit_code": 0,
+      "fixture_text": "module Usage where\n  export preserve, at-most, twice, discard-word\n  preserve :: (n :: Nat) %1 -> refined (out == n) Nat\n  preserve n = n\n  at-most :: Nat %aff -> Nat\n  at-most n = 0\n  twice :: Int %many -> Int\n  twice n = n + n\n  discard-word :: I64 %0 -> Int\n  discard-word unused = 7\n",
+      "interface_sha256": "80683d0169358194752793341c3f9a0992967e2cfad57fcab71f863ea9f34bfe",
+      "mode": "emit",
+      "name": "usage-interface-producer",
+      "schemes": {
+        "at-most": "(Nat %aff -> Nat)",
+        "discard-word": "(I64 %0 -> Int)",
+        "preserve": "((n :: Nat) %1 -> (refined ((cinch-result == n)) Nat))",
+        "twice": "(Int %many -> Int)"
+      },
+      "source_sha256": "3cada5c39d2395e4fc8453988d7b46380874c816c23645229ee5507a4d3eb0bb",
+      "status": "passed"
+    },
+    {
+      "contract_hash": "5383508979629729147",
+      "diagnostic": "",
+      "exit_code": 0,
+      "fixture_text": "module Main where\n  import Usage\n  proof-result :: refined (out == 7) Nat\n  proof-result = preserve 7\n  at-most-result :: Nat\n  at-most-result = at-most 0\n  many-result :: Int\n  many-result = twice 21\n  discarded :: Int\n  discarded = discard-word (9 :: I64)\n  main :: Int\n  main = 0\n",
+      "mode": "check",
+      "name": "usage-interface-consumer",
+      "source_sha256": "18bc004117d19cd73c392a62c903803424b9f9b155e7b6e275b8f0653ac3ea0e",
+      "status": "passed"
+    }
+  ],
+  "groups_passed": 35,
+  "native_source_sha256": "a039a2347f95a9e4f872e4338cfc8e2946ae232f0db3d1929441318228537ac8",
+  "revision": "0cde7ac02d5177ab43c798b45bc2d8f8fe3c0683",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "scope": "Nine erased-arrow checks, eight thunk checks, sixteen original protocol and proof examples, and both checked interface cases on exact Stage 1.",
+  "seed_compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+  "stage1_receipt_sha256": "674bcbcf2a18a171ee289909cd3d8eea07684e8bf131b0e9de0308d0a05c9804",
+  "status": "audited-abi7-stage1-erased-arguments"
+}
