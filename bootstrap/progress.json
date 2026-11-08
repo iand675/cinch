@@ -21163,7 +21163,7 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "2 of 5 startup checks passed. clean-native-build",
+        "phase": "lib",
         "passed": 0,
         "total": 236,
         "unit": "gates",
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T16:35:41.412367+00:00"
+  "updatedAt": "2026-11-08T16:36:44.346133+00:00"
 }
