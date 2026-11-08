@@ -45,11 +45,6 @@
       "state": "passed"
     },
     {
-      "title": "Published Rust argument repair: 97 tests passed",
-      "detail": "Six complete affected Native groups passed, including actual strict evaluation order, distinct effectful readings and later-write evidence refusal. A complete matching Native sweep remains required.",
-      "state": "passed"
-    },
-    {
       "title": "Published witness diagnostic repair: 109 tests passed",
       "detail": "Seven complete Native groups and all 43 compiler source checks pass. Actual proof identities remain private; failed obligations show source expressions. Full matching Native and self-built sweeps remain required.",
       "state": "passed"
@@ -66,8 +61,8 @@
     },
     {
       "title": "Early API-checkpoint behavior through Stage1",
-      "detail": "8 of 8 complete groups passed; 0 running, 0 failed and 0 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
-      "state": "passed"
+      "detail": "0 of 8 complete groups passed; 0 running, 0 failed and 8 pending.These original eight ordinary targets give early feedback and do not replace final Stage3 acceptance.",
+      "state": "running"
     },
     {
       "title": "Earlier API checkpoint: exact Stage3 behavior",
@@ -90,11 +85,6 @@
       "state": "running"
     },
     {
-      "title": "Published Rust literal repair: 82 tests passed",
-      "detail": "All six complete affected groups, all 43 compiler modules and all six original CLI reproductions passed independently. Numeric literals use the actual checked refinement binder; failed predicates and invalid carriers/ranges remain rejected. Full matching suites are still required.",
-      "state": "passed"
-    },
-    {
       "title": "Published Rust opaque kinds: 89 tests passed",
       "detail": "All ten complete affected suites, all 43 compiler modules and all seven original CLI cases passed independently. Opaque parameter kinds and definition-owned contracts survive facades; constructors and layouts stay hidden. Matching complete suites remain required.",
       "state": "passed"
@@ -110,18 +100,8 @@
       "state": "passed"
     },
     {
-      "title": "Previous compiler: all 1,274 Native tests passed",
-      "detail": "All 208 groups passed on the preceding 018a Cinch compiler with its own recorded Rust, prelude and runtime inputs. Exact binaries, full logs and source were independently audited. The current published source still needs its complete matching sweep.",
-      "state": "passed"
-    },
-    {
       "title": "Previous compiler: genuine four-stage bootstrap verified",
       "detail": "The 018a compiler completed Stage0/1/2/3 with matching code and 43 interfaces, actual API consumption and changed-source behavior. That proof does not establish a fresh bootstrap of the current published compiler.",
-      "state": "passed"
-    },
-    {
-      "title": "Previous snapshot: runtime, tooling and editor checks passed",
-      "detail": "171 runtime, 41 tooling and 39 editor tests passed. Matching final-source checks remain a separate requirement.",
       "state": "passed"
     },
     {
@@ -17943,9 +17923,9 @@
         "unit": "targets",
         "passed": 3,
         "total": 105,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "bootstrap_nominals",
+        "phase": "bootstrap_library_object",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20837,5 +20817,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T22:59:42.185882+00:00"
+  "updatedAt": "2026-11-08T23:00:44.605091+00:00"
 }
