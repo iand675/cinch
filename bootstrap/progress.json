@@ -18920,13 +18920,13 @@
       },
       {
         "title": "Development Stage1: checked allocation object",
-        "status": "completed-with-failures",
-        "phase": "The object linked. Four ownership modes passed. The kept structure counted 20 instead of 14 because six fieldless values were allocated. A diagnostic relink with static blocks restored 14 and passed all five modes. The compiler-source replay is pending.",
-        "passed": 4,
-        "failed": 1,
+        "status": "passed",
+        "phase": "All five ownership modes passed on compiler-emitted code. The kept structure counts 14 live blocks. Regular and escaped static constructor tags both ran without leaks. The complete allocation target is tracked separately.",
+        "passed": 5,
+        "failed": 0,
         "total": 5,
-        "source": "ca778bc9d81f2b425fb4e27107a15b7c5628ad30dd557d0fa7b66b778b18a110",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-allocation-object-abi-results.json"
+        "source": "4ed7e2fe9cb2f0e5e72c05100cd844d00a7c612c8372041025f0942b96aef235",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-static-constructor-results.json"
       },
       {
         "title": "Fresh Stage0 through Stage3 rebuild",
@@ -20788,5 +20788,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:37:06.075729+00:00"
+  "updatedAt": "2026-11-08T04:42:37.195350+00:00"
 }
