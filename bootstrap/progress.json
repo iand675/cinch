@@ -12005,11 +12005,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 54,
+          "verified": 55,
           "blocked": 8,
           "running": 3,
-          "pending": 34,
-          "recheck": 6
+          "pending": 32,
+          "recheck": 7
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -13587,18 +13587,23 @@
           {
             "id": "stage3:bootstrap_runtime_ir",
             "title": "bootstrap_runtime_ir",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_ir.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "status": "passed",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "c93a6cc2000275ea014a2b84f6d7c576ba015c7ad3c66e38124fc0407e51b52b",
+              "cases": [
+                {
+                  "name": "typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -14049,17 +14054,17 @@
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "recheck",
+            "detail": "1 of 17 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:40:04.669605+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T03:42:13.869579+00:00",
+              "exitCode": 0,
+              "logSha256": "9f65d7d91efe75c80c0d50a22bf0b8547472e777866193b6eedafc08a0ec8efc",
               "cases": [
                 {
                   "name": "a_write_between_test_and_use_invalidates_the_fact",
@@ -14103,7 +14108,31 @@
                 },
                 {
                   "name": "less_than_discharges_in_then_and_its_negation_in_else",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_conditions_contribute_together",
+                  "status": "passed"
+                },
+                {
+                  "name": "obligations_the_condition_does_not_imply_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "prelude_division_takes_its_divisor_from_a_zero_test",
+                  "status": "passed"
+                },
+                {
+                  "name": "reading_a_condition_never_changes_how_it_typechecks",
+                  "status": "passed"
+                },
+                {
+                  "name": "short_circuit_operands_carry_the_left_outcome",
+                  "status": "passed"
+                },
+                {
+                  "name": "structural_predicate_as_a_condition",
+                  "status": "passed"
                 }
               ]
             },
@@ -14184,18 +14213,27 @@
           {
             "id": "stage3:interface_machine_contracts",
             "title": "interface_machine_contracts",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_machine_contracts.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T03:42:15.156469+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20614,11 +20652,11 @@
       }
     ],
     "counts": {
-      "verified": 328,
+      "verified": 329,
       "blocked": 14,
       "running": 14,
-      "pending": 263,
-      "recheck": 61
+      "pending": 261,
+      "recheck": 62
     },
     "total": 680,
     "acceptanceVerified": 4,
@@ -20626,5 +20664,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T03:42:00.193244+00:00"
+  "updatedAt": "2026-11-08T03:43:15.316701+00:00"
 }
