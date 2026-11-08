@@ -20560,14 +20560,14 @@
         "evidence": null
       },
       {
-        "title": "Check the Cinch memo parser and namespace rules on five original sources",
+        "title": "Check memo syntax, explicit let layout and tuple diagnostics in Cinch",
         "unit": "controls",
-        "status": "completed-with-failures",
-        "phase": "Isolated Stage 1 candidate. replay five original sources and seven memo namespace controls",
-        "passed": 1,
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build the Cinch memo parser and resolver probe",
+        "passed": 0,
         "total": 2,
-        "failed": 1,
-        "source": "0bfb4f428894fadd029bf1c1c142ab98b2c3736f34b688c3507493024eb5285f",
+        "failed": 0,
+        "source": "841aeafb95ecbd7535810a63bc35f457eb23b5e34dbcf19891914a6c0f1cadb6",
         "evidence": null
       },
       {
@@ -20580,6 +20580,16 @@
         "failed": 0,
         "source": "9dd2b45de58652076a5732ef609b6ebfe22ad590cc521c179a2acf096860dc57",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-task-transfer-reference-results.json"
+      },
+      {
+        "title": "Check explicit let layout in the Rust compiler",
+        "unit": "target",
+        "status": "waiting-worker",
+        "phase": "Queued for a shared worker.",
+        "passed": 0,
+        "total": 1,
+        "failed": 0,
+        "source": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834"
       }
     ],
     "counts": {
@@ -20595,5 +20605,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T19:26:58.440075+00:00"
+  "updatedAt": "2026-11-08T19:30:42.606546+00:00"
 }
