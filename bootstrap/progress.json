@@ -20418,9 +20418,9 @@
       {
         "title": "Replay all seven class-default tests on the annotation repair",
         "unit": "controls",
-        "status": "running",
+        "status": "passed",
         "phase": "Isolated Stage 1 candidate. all seven original class-default tests",
-        "passed": 0,
+        "passed": 7,
         "total": 7,
         "failed": 0,
         "source": "3a6f2a9ae70903576ed68b4177beeed5f9a0abfb378587bde30da40b8eefc131",
@@ -20441,8 +20441,8 @@
         "title": "Bootstrap the combined frontend and provider repairs",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 from the combined source",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. guarded-constructor",
+        "passed": 2,
         "total": 14,
         "failed": 0,
         "source": "29f043ad36fd7e9fd13afb59e0caf6061a57eee50ee4b7a54336255004e24a20",
@@ -20462,5 +20462,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:27:50.717980+00:00"
+  "updatedAt": "2026-11-08T18:29:34.022943+00:00"
 }
