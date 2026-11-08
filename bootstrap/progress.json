@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "0 of 236 complete groups passed; 0 running, 0 failed and 236 pending.Every group includes ignored tests. State: waiting-worker. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "0 of 236 complete groups passed; 0 running, 0 failed and 236 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -11897,6 +11897,22 @@
                 },
                 {
                   "name": "interned_symbols_are_counted_immortal_once_per_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_program_is_quiet_under_the_guarded_cap",
+                  "status": "passed"
+                },
+                {
+                  "name": "stats_line_counts_list_cells_only_when_asked",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_allocation_hits_the_named_cap",
                   "status": "running"
                 }
               ]
@@ -18833,6 +18849,16 @@
         "auditPending": false
       },
       {
+        "title": "Current compiler: full Rust sweep",
+        "status": "running",
+        "phase": "runtime-release-archive",
+        "passed": 0,
+        "failed": 0,
+        "total": 236,
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+        "earlier": false
+      },
+      {
         "title": "Cinch task forwarding: six-case source replay",
         "status": "passed",
         "phase": "Unchanged Tasks program and refusal, unsafe capture, and interface boundary",
@@ -19913,9 +19939,9 @@
       },
       {
         "title": "Check byte lengths through checked total helper bodies",
-        "status": "running",
-        "phase": "effectful buffer selection has no observation authority",
-        "passed": 2,
+        "status": "passed-total-byte-observations",
+        "phase": "different buffer cannot borrow fact",
+        "passed": 6,
         "failed": 0,
         "total": 6,
         "unit": "client cases",
@@ -20112,5 +20138,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:07:10.687569+00:00"
+  "updatedAt": "2026-11-08T02:08:12.589166+00:00"
 }
