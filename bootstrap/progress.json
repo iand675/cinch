@@ -20393,8 +20393,8 @@
       {
         "title": "Run the 14 external Stage 3 acceptance checks",
         "status": "running",
-        "phase": "mixed-emit",
-        "passed": 0,
+        "phase": "passing-emit",
+        "passed": 3,
         "total": 14,
         "unit": "gates",
         "failed": 0,
@@ -20533,5 +20533,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:28:15.673875+00:00"
+  "updatedAt": "2026-11-08T17:30:19.436662+00:00"
 }
