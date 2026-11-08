@@ -20661,11 +20661,11 @@
       {
         "title": "Check compiled primitive assumptions and stale dependencies",
         "unit": "controls",
-        "status": "running",
-        "phase": "Isolated Stage 1 candidate. source-free-client",
-        "passed": 3,
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. checked-dependent",
+        "passed": 4,
         "total": 8,
-        "failed": 0,
+        "failed": 1,
         "source": "0fd965020b3d290ae30e940540fbb06a6f0144d5ed4bb46fd7fc546de36b7452",
         "evidence": null
       },
@@ -20717,8 +20717,8 @@
         "title": "Replay records, nominal types and codata on the combined compiler",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. record-object",
-        "passed": 7,
+        "phase": "Combined candidate, starting from the pinned seed. private-record-field-refusal",
+        "passed": 12,
         "total": 20,
         "failed": 0,
         "source": "5927faa4969fbf8ab99ee7d1b98a37fc9ba1bf1e7ac532f8801ec94245773309",
@@ -20771,11 +20771,11 @@
       {
         "title": "Verify Rust primitive clause order and the checked law observation",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to wait for the primitive interface replay to release its worker.",
+        "status": "completed-with-failures",
+        "phase": "Isolated Stage 1 candidate. cinch-law-observation",
         "passed": 0,
         "total": 3,
-        "failed": 0,
+        "failed": 3,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": null
       },
@@ -20826,5 +20826,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:20:00.831941+00:00"
+  "updatedAt": "2026-11-08T23:21:04.037827+00:00"
 }
