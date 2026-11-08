@@ -20949,8 +20949,8 @@
       {
         "title": "Rust mutable writes through calls",
         "status": "running",
-        "phase": "Case_evidence. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
-        "passed": 6,
+        "phase": "Safety. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "passed": 8,
         "failed": 0,
         "total": 9,
         "unit": "gates",
@@ -20970,5 +20970,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:24:57.338379+00:00"
+  "updatedAt": "2026-11-08T08:26:00.473687+00:00"
 }
