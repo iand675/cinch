@@ -19870,7 +19870,7 @@
       {
         "title": "Replay full Foldable and Category with the NonEmpty object",
         "status": "running",
-        "phase": "round 2 lib_foldable",
+        "phase": "round 2 lib_foldable Round 1 passed 14/15 Foldable and 11/12 Category cases.",
         "passed": 0,
         "failed": 0,
         "total": 2,
@@ -19976,5 +19976,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:12:29.900130+00:00"
+  "updatedAt": "2026-11-08T00:13:52.593984+00:00"
 }
