@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 57,
+          "verified": 58,
           "blocked": 8,
           "running": 2,
-          "pending": 30,
+          "pending": 29,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13751,17 +13751,17 @@
           {
             "id": "stage3:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T03:40:22.800335+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T04:05:46.225282+00:00",
+              "exitCode": 0,
+              "logSha256": "72fd3882aa1c193d1ac12bbd92dc3ffb05849080430df2566b2cad11c1b86276",
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
@@ -13773,7 +13773,7 @@
                 },
                 {
                   "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13864,18 +13864,27 @@
           {
             "id": "stage3:bootstrap_test_runner",
             "title": "bootstrap_test_runner",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_test_runner.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T04:05:47.167323+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "an_all_passing_suite_exits_zero_with_a_zero_failure_summary",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_runner_reports_failures_and_encodes_the_failure_count",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20670,10 +20679,10 @@
       }
     ],
     "counts": {
-      "verified": 334,
+      "verified": 335,
       "blocked": 14,
       "running": 13,
-      "pending": 256,
+      "pending": 255,
       "recheck": 63
     },
     "total": 680,
@@ -20682,5 +20691,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:05:19.572266+00:00"
+  "updatedAt": "2026-11-08T04:06:21.469950+00:00"
 }
