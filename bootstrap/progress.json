@@ -12005,10 +12005,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 89,
+          "verified": 90,
           "blocked": 6,
           "running": 1,
-          "pending": 5,
+          "pending": 4,
           "recheck": 4
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -13567,21 +13567,21 @@
           {
             "id": "stage3:bootstrap_refinement_core",
             "title": "bootstrap_refinement_core",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_core.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T05:50:22.305806+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T05:53:57.533850+00:00",
+              "exitCode": 0,
+              "logSha256": "83c32dae2893b0d4a3e56a3db5777b485a56c7b10d9234b0c02bb19750cceda4",
               "cases": [
                 {
                   "name": "refinement_core_rechecks_actual_values_and_contexts",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -13682,18 +13682,23 @@
           {
             "id": "stage3:bootstrap_runtime_library",
             "title": "bootstrap_runtime_library",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T05:53:58.733978+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "checked_library_roots_emit_linkable_owned_and_specialized_workers",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20969,10 +20974,10 @@
       }
     ],
     "counts": {
-      "verified": 385,
+      "verified": 386,
       "blocked": 12,
       "running": 12,
-      "pending": 212,
+      "pending": 211,
       "recheck": 59
     },
     "total": 680,
@@ -20981,5 +20986,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T05:53:18.677715+00:00"
+  "updatedAt": "2026-11-08T05:54:20.702186+00:00"
 }
