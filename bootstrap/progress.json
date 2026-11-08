@@ -21076,9 +21076,9 @@
       },
       {
         "title": "Run the 14 external checks with the repaired Stage 3",
-        "status": "running",
+        "status": "passed-exact-abi7-stage3-external-acceptance",
         "phase": "Class identity",
-        "passed": 13,
+        "passed": 14,
         "failed": 0,
         "total": 14,
         "unit": "groups",
@@ -21193,5 +21193,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:28:54.452479+00:00"
+  "updatedAt": "2026-11-08T13:29:57.743762+00:00"
 }
