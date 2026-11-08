@@ -56,7 +56,7 @@
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
-      "detail": "40 of 236 complete groups passed; 1 running, 1 failed and 194 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
+      "detail": "41 of 236 complete groups passed; 1 running, 1 failed and 193 pending.Every group includes ignored tests. State: running. Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
     },
     {
@@ -494,7 +494,7 @@
     },
     {
       "title": "Finish all current compiler tests",
-      "detail": "40 of 236 complete groups passed; 1 running, 1 failed and 194 pending. Separate compiler snapshot; a matching published-source run remains required."
+      "detail": "41 of 236 complete groups passed; 1 running, 1 failed and 193 pending. Separate compiler snapshot; a matching published-source run remains required."
     },
     {
       "title": "Finish matching runtime, tooling and editor checks",
@@ -822,10 +822,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 40,
+          "verified": 41,
           "blocked": 1,
           "running": 1,
-          "pending": 194,
+          "pending": 193,
           "recheck": 0
         },
         "detail": "235 preserved targets, including library, integration, binary and documentation targets. A target can contain many tests.",
@@ -1869,21 +1869,21 @@
           {
             "id": "native:bootstrap_imported_nonzero",
             "title": "bootstrap_imported_nonzero",
-            "state": "running",
+            "state": "verified",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_nonzero.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T06:35:13.470722+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T06:53:15.615117+00:00",
+              "exitCode": 0,
+              "logSha256": "ee9ba5dae89c5a5ae30f64a4d5c732b16d322d0290674a2b2dee307aae38b8d7",
               "cases": [
                 {
                   "name": "imported_structural_nonzero_uses_checked_argument_identity",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -1892,21 +1892,21 @@
           {
             "id": "native:bootstrap_imported_preconditions",
             "title": "bootstrap_imported_preconditions",
-            "state": "pending",
+            "state": "running",
             "detail": "Complete original target on the current compiler inputs.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_preconditions.rs",
             "observed": {
-              "status": "passed",
-              "source": "4f0a2535e83e1e79f40b70c8d323ac4f3ae888c362b2e0e84ded2a90f0daebd2",
-              "startedAt": "2026-11-06T18:24:12.681944+00:00",
-              "finishedAt": "2026-11-06T18:43:13.175533+00:00",
-              "exitCode": 0,
-              "logSha256": "e31d566e7672940f50c2742003424e5bf6cb5fc817b5d2b2b35b6468ab06c675",
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T06:53:15.617673+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "imported_conditions_use_actual_caller_arguments",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -18915,8 +18915,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "20 passed, 3 running, 81 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 20,
+        "phase": "26 passed, 3 running, 75 queued, 1 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 26,
         "failed": 1,
         "total": 105,
         "unit": "targets",
@@ -19633,8 +19633,8 @@
       {
         "title": "Current compiler: full Rust sweep",
         "status": "running",
-        "phase": "bootstrap_imported_nonzero",
-        "passed": 40,
+        "phase": "bootstrap_imported_preconditions",
+        "passed": 41,
         "failed": 1,
         "total": 236,
         "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
@@ -20931,12 +20931,23 @@
       {
         "title": "Cinch ordering branch facts from compiled interfaces",
         "status": "passed-native-producer-and-cinch-keyed-ordering",
-        "phase": "probe-opaque-order. This candidate checks the defining keyed body and both selected Ord slots before proving numeric facts.",
+        "phase": "All four client-only controls passed against compiled library artifacts. The positive comparison and ordinary client ran, and the default and opaque dictionary cases were refused.",
         "passed": 6,
         "failed": 0,
         "total": 6,
         "unit": "gates",
-        "source": "5176bebeaa48c3af4abf6ce9e08a9f571e449fae7b3ca35e319a2d544416e8b6"
+        "source": "5176bebeaa48c3af4abf6ce9e08a9f571e449fae7b3ca35e319a2d544416e8b6",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-keyed-ordering-body-results.json"
+      },
+      {
+        "title": "Bootstrap the combined guard, list and ordering repairs",
+        "status": "building-stage1",
+        "phase": "building stage1",
+        "passed": 1,
+        "failed": 0,
+        "total": 4,
+        "unit": "stages",
+        "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
       },
       {
         "title": "Rust mutable writes through calls",
@@ -20950,10 +20961,10 @@
       }
     ],
     "counts": {
-      "verified": 398,
+      "verified": 399,
       "blocked": 12,
       "running": 11,
-      "pending": 201,
+      "pending": 200,
       "recheck": 58
     },
     "total": 680,
@@ -20962,5 +20973,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T06:53:13.937278+00:00"
+  "updatedAt": "2026-11-08T06:59:41.499490+00:00"
 }
