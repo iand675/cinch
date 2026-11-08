@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "18/236 Rust targets and 11/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "19/236 Rust targets and 11/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -797,11 +797,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 18,
+          "verified": 19,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 217
+          "recheck": 216
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -1125,44 +1125,44 @@
           {
             "id": "native:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T18:32:53.131785+00:00",
+              "finishedAt": "2026-11-08T18:35:40.027845+00:00",
+              "exitCode": 0,
+              "logSha256": "03c533b23927bbaaba261df9e9493b66375c30126902720d9ccaeb42c698827d",
+              "cases": [
+                {
+                  "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
+                  "status": "passed"
+                }
+              ]
+            },
+            "currentTests": 1
+          },
+          {
+            "id": "native:bootstrap_anonymous_contracts",
+            "title": "bootstrap_anonymous_contracts",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
+            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
+            "observed": {
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T18:35:40.035173+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
               "cases": [
                 {
-                  "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "running"
-                }
-              ]
-            },
-            "currentTests": null
-          },
-          {
-            "id": "native:bootstrap_anonymous_contracts",
-            "title": "bootstrap_anonymous_contracts",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
-            "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
-            "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
-            "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T03:43:47.975190+00:00",
-              "finishedAt": "2026-11-08T03:55:15.004177+00:00",
-              "exitCode": 0,
-              "logSha256": "3b0a968f96e072b7bc644e737be6118b19e8a5f284565cee7629c32125ab238c",
-              "cases": [
-                {
                   "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20345,8 +20345,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types",
-        "passed": 18,
+        "phase": "bootstrap_anonymous_contracts",
+        "passed": 19,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20517,11 +20517,11 @@
       }
     ],
     "counts": {
-      "verified": 367,
+      "verified": 368,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 331
+      "recheck": 330
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20529,5 +20529,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T18:33:12.852316+00:00"
+  "updatedAt": "2026-11-08T18:35:57.123120+00:00"
 }
