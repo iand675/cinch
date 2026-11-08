@@ -20563,9 +20563,9 @@
       },
       {
         "title": "Check nominal byte projections and the original Text.Regex client",
-        "status": "running",
+        "status": "passed-nominal-byte-projections-and-regex",
         "phase": "regex-emit",
-        "passed": 7,
+        "passed": 9,
         "failed": 0,
         "total": 9,
         "unit": "checks",
@@ -20585,8 +20585,8 @@
       },
       {
         "title": "Check explicit library sources against their compiled object",
-        "status": "waiting-worker",
-        "phase": "build and smoke-test Stage1 from all 46 modules",
+        "status": "running",
+        "phase": "modules_load_as_a_multi_file_project",
         "passed": 0,
         "failed": 0,
         "total": 8,
@@ -20773,5 +20773,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T04:23:15.360804+00:00"
+  "updatedAt": "2026-11-08T04:24:17.331179+00:00"
 }
