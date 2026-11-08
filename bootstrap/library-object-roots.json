@@ -70,6 +70,14 @@
     },
     {
       "classes": "O",
+      "symbol": "Algebra.Monoid.Monoid_Dual"
+    },
+    {
+      "classes": "O",
+      "symbol": "Algebra.Monoid.Semigroup_Dual"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.FromList_List"
     },
     {
@@ -82,7 +90,15 @@
     },
     {
       "classes": "OO",
+      "symbol": "Algebra.Monoid.Monoid_Pair"
+    },
+    {
+      "classes": "OO",
       "symbol": "Algebra.Semigroup.Semigroup_Function"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Algebra.Semigroup.Semigroup_Pair"
     },
     {
       "classes": "R",
@@ -91,6 +107,30 @@
     {
       "classes": "R",
       "symbol": "Data.List.FromList_List"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Monoid_Endo"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Monoid_First"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Monoid_Last"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Semigroup_Endo"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Semigroup_First"
+    },
+    {
+      "classes": "T",
+      "symbol": "Algebra.Monoid.Semigroup_Last"
     },
     {
       "classes": "T",
