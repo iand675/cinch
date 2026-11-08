@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "6cd57e196295edfb91aa0e9a58183f477e0cef78",
+  "commit": "af3f1ef8870ae73a4ec7fc2a7202d0f01f912faa",
   "status": "Integrated ABI 7 verification",
   "stages": [
     {
@@ -32,22 +32,12 @@
     {
       "title": "Previous Stage3: report directory",
       "detail": "Caller-directory parity repaired; all4 harness tests and originalNative checker pass. The original complete checker and exact full report also pass through actual Stage3. This scoped repair was proved on e861; the complete new current-source sweep remains required.",
-      "state": "passed"
+      "state": "running"
     },
     {
       "title": "Current repair gates",
       "detail": "4 of 5 complete groups passed; 0 running, 1 failed and 0 pending. Native995f all44 source modules: passed; Earlier4f Stage3 all44 source modules: passed; all3 complete interface components: passed; actual compiler and object9tests: passed; original interface/API13of14: failed. All 46 source-module check: passed.",
       "state": "running"
-    },
-    {
-      "title": "Published Rust improvement: 16 tests passed",
-      "detail": "The complete optimizer target passed with no ignored or filtered cases on the same Rust source. This scoped result does not replace the current proposal's complete verification.",
-      "state": "passed"
-    },
-    {
-      "title": "Published witness diagnostic repair: 109 tests passed",
-      "detail": "Seven complete Native groups and all 43 compiler source checks pass. Actual proof identities remain private; failed obligations show source expressions. Full matching Native and self-built sweeps remain required.",
-      "state": "passed"
     },
     {
       "title": "Earlier4f/NativeE5: complete235-group sweep",
@@ -83,31 +73,6 @@
       "title": "External language examples through Stage3",
       "detail": "9 of13 original positive examples pass; 21 of21 negatives refuse; 8 of21 pass the intended-reason assertions. All34 original cases execute through the actual audited Stage3, with unchanged assertions. The39-test Native editor integration is a separate frontend role.  Separate compiler snapshot; a matching published-source run remains required.",
       "state": "running"
-    },
-    {
-      "title": "Published Rust opaque kinds: 89 tests passed",
-      "detail": "All ten complete affected suites, all 43 compiler modules and all seven original CLI cases passed independently. Opaque parameter kinds and definition-owned contracts survive facades; constructors and layouts stay hidden. Matching complete suites remain required.",
-      "state": "passed"
-    },
-    {
-      "title": "Published Rust scoped literals: 83 tests passed",
-      "detail": "All six complete suites, all 43 compiler modules and the original complete interface producer passed independently. Literal refinements use actual scoped facts while invalid predicates and ranges remain rejected. Full matching suites remain required.",
-      "state": "passed"
-    },
-    {
-      "title": "Published Rust row kinds: 28 tests passed",
-      "detail": "Four complete effects, parameter and interface suites, all 43 compiler modules and ten actual CLI reproductions passed independently. Explicit Row binders retain their identity and incompatible kinds are rejected. Matching complete suites remain required.",
-      "state": "passed"
-    },
-    {
-      "title": "Previous compiler: genuine four-stage bootstrap verified",
-      "detail": "The 018a compiler completed Stage0/1/2/3 with matching code and 43 interfaces, actual API consumption and changed-source behavior. That proof does not establish a fresh bootstrap of the current published compiler.",
-      "state": "passed"
-    },
-    {
-      "title": "Previous Stage3: external checks passed",
-      "detail": "All 14 exact Stage3 external checks passed, including zero-leak runner reports and definition-owned fixities. The new final compiler still requires matching acceptance.",
-      "state": "passed"
     },
     {
       "title": "Method bodies and proof checks",
@@ -490,28 +455,28 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+  "candidateSource": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The published memo compiler has a verified fixed point. Exact full suites and frontend parity are in progress.",
-  "activity": "3/105 Stage 3 targets verified and 11/236 Rust targets verified on the published memo revision.",
+  "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
+  "activity": "3/105 Stage 3 targets verified and 11/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
-      "native": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39"
+      "compiler": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+      "native": "5002a273daf9a9ddd0ce923ffb272e5329e1b1091d9cf7379ba07d11ab06ba12"
     },
     "acceptance": [
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
         "state": "verified",
-        "detail": "Pinned seed and Stage 1 passed all stage smoke checks.",
+        "detail": "Pinned Rust seed built Stage 1 and all stage smoke tests passed.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
           "cases": []
         }
       },
@@ -519,12 +484,12 @@
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
         "state": "verified",
-        "detail": "Stage 1 rebuilt the memo compiler with all 46 compiler interfaces.",
+        "detail": "Stage 1 rebuilt the codata compiler from the same sources and emitted all 46 compiler interfaces.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
           "cases": []
         }
       },
@@ -532,12 +497,12 @@
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
         "state": "verified",
-        "detail": "Stages 2 and 3 match in executable bytes, LLVM IR and all 46 compiler interfaces.",
+        "detail": "Stage 2 and Stage 3 agree in executable bytes, LLVM IR and all 46 compiler interfaces. Both passed their smoke tests.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
           "cases": []
         }
       },
@@ -545,12 +510,12 @@
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
         "state": "verified",
-        "detail": "The compiler rebuilt from changed source produced the expected diagnostic.",
+        "detail": "A source change rebuilt through the ladder and produced the expected changed diagnostic.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
         "observed": {
           "status": "passed",
-          "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
           "cases": []
         }
       },
@@ -17907,7 +17872,7 @@
     ],
     "active": [
       {
-        "title": "Run all 236 Rust targets on the published memo revision",
+        "title": "Run all 236 Rust targets on the preceding memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
         "passed": 11,
@@ -17918,7 +17883,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
-        "title": "Run all 105 Stage 3 targets on the published memo revision",
+        "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
         "passed": 3,
@@ -20675,12 +20640,12 @@
         "title": "Rebuild the codata and memo compiler through Stage 3",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. verify fixed point, smokes, interface consumer and changed-source rebuild",
+        "phase": "Stage 2 and Stage 3 matched, including 46 compiler interfaces. The independent consumer, smokes and changed-source rebuild passed.",
         "passed": 6,
         "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json"
       },
       {
         "title": "Compile and replay the host inline primitive cases",
@@ -20741,7 +20706,7 @@
         "title": "Verify erased record evidence through interfaces and archives",
         "unit": "controls",
         "status": "passed",
-        "phase": "Isolated Stage 1 candidate. malformed-record-labels",
+        "phase": "All 18 checks passed, including source-free archive consumers and rejection of incorrect or malformed evidence. Integration with the published codata compiler is separate.",
         "passed": 18,
         "total": 18,
         "failed": 0,
@@ -20756,8 +20721,19 @@
         "passed": 2,
         "total": 2,
         "failed": 0,
-        "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
-        "evidence": null
+        "source": "5e3f85a7cef141eed39dfcc97551d23f174ff59817c1e751d299e53a13a71d2b",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-record-schema-results.json"
+      },
+      {
+        "title": "Preserve assumed primitive identities in Rust interfaces",
+        "unit": "controls",
+        "status": "passed",
+        "phase": "All 17 original Rust primitive tests passed, including the compiled assumption identity regression.",
+        "passed": 1,
+        "total": 1,
+        "failed": 0,
+        "source": "5002a273daf9a9ddd0ce923ffb272e5329e1b1091d9cf7379ba07d11ab06ba12",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-primitive-assumption-results.json"
       },
       {
         "title": "Replay class laws with checked numeric samples and U32 wrapping",
@@ -20768,6 +20744,17 @@
         "total": 11,
         "failed": 0,
         "source": "4adb20843accaa25cecbddecbe10946d50f34ed8276266c0d8ecdb4886d51928",
+        "evidence": null
+      },
+      {
+        "title": "Check rewrite syntax and resolve defining law signatures",
+        "unit": "controls",
+        "status": "failed",
+        "phase": "Isolated Stage 1 candidate. build the rewrite parser and namespace probe",
+        "passed": 0,
+        "total": 2,
+        "failed": 1,
+        "source": "5913c5ddcbe8967d9276ecffc04b146350d941bc57e045c00446d1f1fcc370ad",
         "evidence": null
       },
       {
@@ -20817,5 +20804,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:00:44.605091+00:00"
+  "updatedAt": "2026-11-08T23:01:28.300848+00:00"
 }
