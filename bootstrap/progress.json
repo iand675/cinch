@@ -18850,8 +18850,8 @@
       {
         "title": "Integrated Stage3 full frontend suite",
         "status": "running",
-        "phase": "51 passed, 3 running, 48 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
-        "passed": 51,
+        "phase": "52 passed, 3 running, 47 queued, 3 failed in tests, 0 harness build failures, and 0 without verified Stage3 execution. This is the integrated candidate sweep.",
+        "passed": 52,
         "failed": 3,
         "total": 105,
         "unit": "targets",
@@ -20866,13 +20866,14 @@
       },
       {
         "title": "Bootstrap the combined guard, list and ordering repairs",
-        "status": "passed-chain-awaiting-independent-audit",
-        "phase": "passed chain awaiting independent audit",
+        "status": "passed",
+        "phase": "The independent audit verified matching Stage2 and Stage3 executables, LLVM, 46 compiler interfaces, the separate interface consumer and the changed-source control. The matching full suite is still open.",
         "passed": 4,
         "failed": 0,
         "total": 4,
         "unit": "stages",
-        "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc"
+        "source": "ea9df15de1687364c3c53e9511fa7d2c56df6432ba385636e8fb80eff38406dc",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-case-ordering-bootstrap-results.json"
       },
       {
         "title": "Replay the complete case-evidence group with the repaired Stage3",
@@ -20947,13 +20948,13 @@
       },
       {
         "title": "Rust mutable writes through calls",
-        "status": "failed",
-        "phase": "Mutation-through-call. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
-        "passed": 3,
-        "failed": 1,
+        "status": "waiting-worker",
+        "phase": "Waiting worker. The runtime suite includes the VM write through an aliased cell. The compiler test checks that a caller observes its callee's write.",
+        "passed": 0,
+        "failed": 0,
         "total": 9,
         "unit": "gates",
-        "source": "4028387f4c29cf57ee02bf2bd5570f630eabec6503bd2b74622dda08b5ee3eb7"
+        "source": "7d92e9dfc90f8e49e36744fd02d56cada8e52f8df6044debc779a64117374bfd"
       }
     ],
     "counts": {
@@ -20969,5 +20970,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T08:15:43.569578+00:00"
+  "updatedAt": "2026-11-08T08:20:45.508078+00:00"
 }
