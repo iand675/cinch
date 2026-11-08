@@ -514,7 +514,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published Cinch compiler has a verified fixed point. The complete matching test suites have separate gates.",
-  "activity": "3/105 Stage 3 targets verified on the published compiler. 27/236 Rust targets and 34/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "3/105 Stage 3 targets verified on the published compiler. 28/236 Rust targets and 34/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -797,11 +797,11 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 27,
+          "verified": 28,
           "blocked": 0,
           "running": 1,
           "pending": 0,
-          "recheck": 208
+          "recheck": 207
         },
         "detail": "Every Rust target on this integrated candidate, including ignored tests and doctests.",
         "items": [
@@ -1344,17 +1344,17 @@
           {
             "id": "native:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "running",
-            "detail": "Running on the integrated Rust compiler.",
+            "state": "verified",
+            "detail": "The complete target passed on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
               "startedAt": "2026-11-08T20:15:28.376753+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T20:32:17.623593+00:00",
+              "exitCode": 0,
+              "logSha256": "ded38e5955f4914dc3346d345ceed44c3b2dbc7eff619ee8c2d2f6b11cabaddf",
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
@@ -1362,30 +1362,30 @@
                 },
                 {
                   "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
-            "currentTests": null
+            "currentTests": 2
           },
           {
             "id": "native:bootstrap_collections",
             "title": "bootstrap_collections",
-            "state": "recheck",
-            "detail": "Queued for the integrated Rust compiler and its matching runtime.",
+            "state": "running",
+            "detail": "Running on the integrated Rust compiler.",
             "doneWhen": "Every original case, including ignored cases, passes with zero failed, skipped or filtered tests on the matching inputs.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_collections.rs",
             "observed": {
-              "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T05:05:49.683302+00:00",
-              "finishedAt": "2026-11-08T05:16:58.160295+00:00",
-              "exitCode": 0,
-              "logSha256": "51e6882af213765c0ac89f2a79e6cca556227f01aab6c415730761672c11dc03",
+              "status": "running",
+              "source": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+              "startedAt": "2026-11-08T20:32:17.641715+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
               "cases": [
                 {
                   "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
-                  "status": "passed"
+                  "status": "running"
                 }
               ]
             },
@@ -20378,8 +20378,8 @@
       {
         "title": "Run all 236 Rust groups on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_checked_program",
-        "passed": 27,
+        "phase": "bootstrap_collections",
+        "passed": 28,
         "total": 236,
         "unit": "gates",
         "failed": 0,
@@ -20629,8 +20629,8 @@
         "title": "Execute Cinch memo groups and verify scope cleanup",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. boxed-demand-twice",
-        "passed": 13,
+        "phase": "Isolated Stage 1 candidate. strict-capture-not-ready",
+        "passed": 15,
         "total": 18,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
@@ -20660,11 +20660,11 @@
       }
     ],
     "counts": {
-      "verified": 399,
+      "verified": 400,
       "blocked": 8,
       "running": 3,
       "pending": 2,
-      "recheck": 299
+      "recheck": 298
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20672,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:31:45.523746+00:00"
+  "updatedAt": "2026-11-08T20:32:47.897610+00:00"
 }
