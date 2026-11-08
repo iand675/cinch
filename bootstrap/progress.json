@@ -479,6 +479,7 @@
     "class_defaults / actual Cinch frontend",
     "concurrency",
     "laws",
+    "prim",
     "codata",
     "guard_coverage"
   ],
@@ -512,7 +513,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The integrated candidate is the target of this checklist. Each pass is tied to its compiler and test artifacts.",
-  "activity": "10/236 Rust targets and 2/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
+  "activity": "10/236 Rust targets and 3/105 self-built targets verified. check the fixed point, compiler interface consumer and changed-source control",
   "checklist": {
     "version": 1,
     "target": {
@@ -591,7 +592,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | codata | guard_coverage",
+        "detail": "class_defaults / actual Cinch frontend | concurrency | laws | prim | codata | guard_coverage",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -12033,62 +12034,29 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 2,
+          "verified": 3,
           "blocked": 0,
           "running": 2,
           "pending": 0,
-          "recheck": 101
+          "recheck": 100
         },
         "detail": "All 105 preserved targets. Source tests require receipts from this candidate's Stage 3.",
         "items": [
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "recheck",
-            "detail": "Queued for the matching Stage 3 executable.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:59:16.374477+00:00",
-              "finishedAt": "2026-11-07T12:01:56.859028+00:00",
-              "exitCode": 101,
-              "logSha256": "87f09ad8950429a4f7b713815f36a5199859ead4dc45dcc8c687ca94d217d892",
-              "cases": [
-                {
-                  "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
-                  "status": "passed"
-                },
-                {
-                  "name": "escaped_constructors_match_and_carry_one_descriptor_word",
-                  "status": "passed"
-                },
-                {
-                  "name": "header_blocks_count_constructor_cells_with_their_header",
-                  "status": "passed"
-                },
-                {
-                  "name": "interned_symbols_are_counted_immortal_once_per_name",
-                  "status": "passed"
-                },
-                {
-                  "name": "normal_program_is_quiet_under_the_guarded_cap",
-                  "status": "failed"
-                },
-                {
-                  "name": "stats_line_counts_list_cells_only_when_asked",
-                  "status": "failed"
-                },
-                {
-                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
-                  "status": "failed"
-                },
-                {
-                  "name": "unbounded_allocation_hits_the_named_cap",
-                  "status": "passed"
-                }
-              ]
+              "status": "running",
+              "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
             },
             "category": "portable behavior",
             "currentTests": null
@@ -14304,18 +14272,91 @@
           {
             "id": "stage3:case_evidence",
             "title": "case_evidence",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 18 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "exitCode": 0,
+              "logSha256": "756b2fe8e06c321f3d06301e2365f980cc393229ee527500ad2ae85f97de98a3",
+              "cases": [
+                {
+                  "name": "a_read_only_fact_survives_a_mutable_write",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_write_between_test_and_use_invalidates_the_fact",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_facts_go_stale_on_the_path_only",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_comparison_binds_its_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_list_binds_non_emptiness",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_three_way_comparison_binds_its_constructors",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_on_a_value_binds_literal_and_default_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "conditions_in_handled_computations_carry_facts",
+                  "status": "passed"
+                },
+                {
+                  "name": "else_branch_of_a_zero_test_discharges_non_zero",
+                  "status": "passed"
+                },
+                {
+                  "name": "fact_bearing_matches_allocate_what_a_plain_if_does",
+                  "status": "passed"
+                },
+                {
+                  "name": "guards_carry_their_fact_and_their_refutation",
+                  "status": "passed"
+                },
+                {
+                  "name": "less_than_discharges_in_then_and_its_negation_in_else",
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_conditions_contribute_together",
+                  "status": "passed"
+                },
+                {
+                  "name": "obligations_the_condition_does_not_imply_are_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "prelude_division_takes_its_divisor_from_a_zero_test",
+                  "status": "passed"
+                },
+                {
+                  "name": "reading_a_condition_never_changes_how_it_typechecks",
+                  "status": "passed"
+                },
+                {
+                  "name": "short_circuit_operands_carry_the_left_outcome",
+                  "status": "passed"
+                },
+                {
+                  "name": "structural_predicate_as_a_condition",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior",
             "currentTests": null
@@ -17669,8 +17710,8 @@
         "total": 8,
         "counts": {
           "verified": 1,
-          "blocked": 5,
-          "running": 2,
+          "blocked": 6,
+          "running": 1,
           "pending": 0,
           "recheck": 0
         },
@@ -17814,8 +17855,8 @@
           {
             "id": "additional:prim",
             "title": "prim",
-            "state": "running",
-            "detail": "Host LLVM/ASM fixture and ten original refusal checks. Cross-target selection and the remaining primitive assertions are separate.",
+            "state": "blocked",
+            "detail": "Inline-primitive probe failures on this candidate: bodies, escape, extra-params, unwind, effects, clr, jvm, io-prim, unsafe-stores, asm-trust-required, pop-missing",
             "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
             "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json",
             "currentTests": null
@@ -20231,8 +20272,8 @@
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
         "status": "running",
-        "phase": "bootstrap_nominals, case_evidence",
-        "passed": 2,
+        "phase": "alloc_accounting, bootstrap_nominals",
+        "passed": 3,
         "total": 105,
         "unit": "gates",
         "failed": 0,
@@ -20370,11 +20411,11 @@
       }
     ],
     "counts": {
-      "verified": 350,
-      "blocked": 6,
-      "running": 5,
+      "verified": 351,
+      "blocked": 7,
+      "running": 4,
       "pending": 2,
-      "recheck": 348
+      "recheck": 347
     },
     "total": 711,
     "acceptanceVerified": 4,
@@ -20382,5 +20423,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:57:38.105728+00:00"
+  "updatedAt": "2026-11-08T17:58:41.182561+00:00"
 }
