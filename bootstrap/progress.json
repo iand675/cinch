@@ -21141,8 +21141,8 @@
       {
         "title": "Rebuild with the expanded pinned object through Stage 3",
         "status": "running",
-        "phase": "build Stage 3 with the self-built Stage 2",
-        "passed": 3,
+        "phase": "check the fixed point, compiler interface consumer and changed-source control",
+        "passed": 4,
         "total": 5,
         "unit": "gates",
         "failed": 0,
@@ -21162,8 +21162,8 @@
       },
       {
         "title": "Run all 105 Stage 3 targets on the integrated candidate",
-        "status": "waiting-stage3-artifacts",
-        "phase": "Waiting for the Stage 2 and Stage 3 executables, LLVM IR and interfaces to match.",
+        "status": "waiting-worker",
+        "phase": "Waiting for a shared compiler worker.",
         "passed": 0,
         "total": 105,
         "unit": "gates",
@@ -21314,5 +21314,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T17:01:13.760696+00:00"
+  "updatedAt": "2026-11-08T17:02:16.857860+00:00"
 }
