@@ -1,0 +1,171 @@
+{
+  "cases": [
+    {
+      "name": "test_all_source_islands_parse_with_their_library_grammars (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_embedded_cinch_uses_the_actual_host_grammar (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_full_document_highlighting_composes_both_injection_levels (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_highlight_queries_are_executable (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_host_boundary_scanner_handles_cinch_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_cinch_grammar_accepts_all_original_sources (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_outer_reader_keeps_raw_text_out_of_host_lexical_modes (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_unfinished_html_retains_a_structural_tree (test_editor.TreeSitterIntegration)",
+      "status": "passed"
+    },
+    {
+      "name": "test_declarative_projection_generates_participant_specific_apis (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_duplicate_imports_refused (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_html_fragments_and_self_closing_components (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_html_is_a_library_not_a_builtin (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_import_in_multiline_string_is_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_import_in_raw_markup_is_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_input_budget_is_checked_before_parsing (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_left_recursion_is_bounded (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_macro_policy_cannot_be_laundered (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_module_scope_is_never_silently_widened (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_nested_comments_strings_characters_and_tick_names (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_nested_extension_inside_host_expression (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_no_ambient_grammar (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_only_declared_library_dependencies_are_expanded (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_projection_checks_roles_and_names_before_emitting_code (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_runtime_imports_in_host_strings_and_markup_are_inert (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_second_library_and_fresh_name_avoidance (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_source_map_round_trip_and_unicode (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_strings_and_comments_do_not_activate_syntax (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_tag_mismatch_and_unfinished_code (test_engine.SyntaxEngineTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_01_clean_diagnostics (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_02_hover_inside_embedded_code_after_unicode (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_03_definition_returns_original_source (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_04_semantic_tokens_are_original_utf16_positions (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_05_type_errors_map_to_the_host_hole (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_06_unfinished_markup_reports_and_recovers (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_07_generated_library_api_navigates_to_its_original_definition (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_08_library_first_open_and_close_preserve_one_module_identity (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_09_tactic_failure_reports_real_goal_at_original_notation (test_lsp.NativeLspTests)",
+      "status": "passed"
+    },
+    {
+      "name": "test_negative_examples_are_rejected_by_cinch (test_native.NativeProofsOfConcept)",
+      "status": "passed"
+    },
+    {
+      "name": "test_positive_examples_execute_as_native_cinch (test_native.NativeProofsOfConcept)",
+      "status": "passed"
+    }
+  ],
+  "compiler_sha256": "c2c97277e0ebc9e63cc22d3f02e0627e314ada1927e6f506146df5599ff61730",
+  "compiler_source_sha256": "f100b29c558442a3e6ee59e7ad79f157b2c60634b3d82722b41b26151fb341d7",
+  "evidence_scope": "All original syntax and editor cases on the matching ABI 7 Native compiler.",
+  "full_goal_complete": false,
+  "log_sha256": "afc6af486270b1426bd2534acbeddc04278717e3ac2c89be75547ddb8b0c14ee",
+  "native_source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e",
+  "revision": "6398b17ba1479c2e5544f1aa51171a49d5364b08",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "skipped": 0,
+  "status": "audited-abi7-native-editor",
+  "tests": 39
+}
