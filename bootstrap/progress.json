@@ -21131,9 +21131,9 @@
       },
       {
         "title": "Check the staged arrow multiplicity representation",
-        "status": "running",
-        "phase": "seed builds the targeted parser and type model",
-        "passed": 0,
+        "status": "passed",
+        "phase": "Parser, type identity, and runtime arity only. Ownership checking and thunk lowering are separate.",
+        "passed": 1,
         "failed": 0,
         "total": 1,
         "unit": "probe",
@@ -21228,5 +21228,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:19:50.339603+00:00"
+  "updatedAt": "2026-11-08T14:20:53.414806+00:00"
 }
