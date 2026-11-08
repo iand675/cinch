@@ -2858,6 +2858,10 @@
                 },
                 {
                   "name": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
                   "status": "running"
                 }
               ]
@@ -11985,10 +11989,10 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 37,
+          "verified": 38,
           "blocked": 5,
           "running": 3,
-          "pending": 52,
+          "pending": 51,
           "recheck": 8
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
@@ -12824,21 +12828,21 @@
           {
             "id": "stage3:bootstrap_imported_nonzero",
             "title": "bootstrap_imported_nonzero",
-            "state": "running",
-            "detail": "Running the original target on the matching Stage3.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_nonzero.rs",
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
               "startedAt": "2026-11-08T02:38:25.558298+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-08T02:55:30.088568+00:00",
+              "exitCode": 0,
+              "logSha256": "1da1b8f6fc03d52d22edc149c9bfdb4ba79d56f3b69f2db1b12ee39ffacfbe7c",
               "cases": [
                 {
                   "name": "imported_structural_nonzero_uses_checked_argument_identity",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             },
@@ -12934,18 +12938,27 @@
           {
             "id": "stage3:bootstrap_interface",
             "title": "bootstrap_interface",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
             "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
+              "startedAt": "2026-11-08T02:55:31.523637+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "sha256_is_sha256",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_interface_reader_answers_a_real_artifact",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -20412,10 +20425,10 @@
       }
     ],
     "counts": {
-      "verified": 282,
+      "verified": 283,
       "blocked": 10,
       "running": 14,
-      "pending": 290,
+      "pending": 289,
       "recheck": 82
     },
     "total": 678,
@@ -20424,5 +20437,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T02:55:05.247766+00:00"
+  "updatedAt": "2026-11-08T02:56:07.305474+00:00"
 }
