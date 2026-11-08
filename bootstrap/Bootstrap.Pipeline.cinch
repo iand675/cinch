@@ -35,10 +35,13 @@ module Bootstrap.Pipeline where
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
   import Data.Json
+  import Data.List (map)
   import Text.Json (canonical-bytes)
-  import Data.Path (Path, path-from-string, path-to-string)
+  import Data.Nat (nat-to-int)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize)
   import Data.String (string-concat, string-to-bytes)
   import Effect.Fs (fs-read, fs-write)
+  import Text.Scan (string-contains)
   import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
 
   -- Check-only preserves all frontend checks while stopping before emission.
@@ -150,18 +153,54 @@ module Bootstrap.Pipeline where
     Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
     Ok interfaces -> case read-runtime-object interfaces object-config of
       Err message -> write-failure ir (string-concat "bootstrap.object: " message) pipeline-interface-failed
-      Ok provider -> case fs-read (path-from-string source) of
-        Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
-        Ok src -> case parse-program-with source src (interface-headers interfaces) of
-          Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-          Parsed program Nil -> (case checked-source program interfaces of
-            Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
-            Ok checked -> if publish then
-              (case write-checked-interfaces ir checked interfaces src of
-                0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-                code -> code)
-              else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
-          Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+      Ok provider -> emit-object-client publish interfaces provider source ir
+  emit-object-client :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client publish interfaces provider source ir = case fs-read (path-from-string source) of
+    Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
+    Ok src -> case parse-program-with source src (interface-headers interfaces) of
+      Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+      Parsed program Nil -> (case checked-source program interfaces of
+        Err errors -> write-failure ir (render-source-diagnostics src errors) pipeline-check-refused
+        Ok checked -> if publish then
+          (case write-checked-interfaces ir checked interfaces src of
+            0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+            code -> code)
+          else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
+      Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+
+  run-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
+  run-source-with-object manifest config runtime prefix source words =
+    let ir = path-from-string (prefix <> ".ll") in
+    let executable = prefix <> ".exe" in
+    let object-copy = prefix <> ".library.o" in
+    let normalize-path = \name -> path-to-string (path-normalize (path-from-string name)) in
+    let paths = map normalize-path [manifest, config, runtime, source, path-to-string ir, path-to-string (refusal-path ir), executable, object-copy] in
+    if not (object-paths-distinct paths) then pipeline-bad-args
+    else case read-interfaces manifest of
+      Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+      Ok interfaces -> case read-runtime-object-document interfaces config of
+        Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+        Ok (provider, metadata, object-path, object-bytes) ->
+          if object-path-member (normalize-path object-path) paths then pipeline-bad-args
+          else case emit-object-client False interfaces provider source ir of
+            0 -> (case fs-write (path-from-string object-copy) object-bytes of
+              Err error -> pipeline-write-failed
+              Ok written -> link-object-client ir executable object-copy runtime metadata words)
+            code -> code
+  link-object-client :: forall r. using (io :: Io r) => Path -> String -> String -> String -> Json -> List String ->{IO r, Diverge} Int
+  link-object-client ir executable object-copy runtime metadata words =
+    let arguments = ["-Wno-override-module", path-to-string ir, object-copy, runtime, "-o", executable] <> object-client-system-libs metadata in
+    case process-run (command (path-from-string "clang") arguments) "" of
+      Ok (0, output) -> let program = path-from-string executable in
+        let program-path = if path-is-absolute program then program else path-from-string ("./" <> executable) in
+        (case process-run (command program-path words) "" of
+          Ok (status, output) -> case ioWrite output of _ -> nat-to-int status
+          Err error -> write-failure ir "bootstrap.driver: cannot execute linked program" pipeline-emit-refused)
+      other -> write-failure ir "bootstrap.driver: could not link executable and runtime objects" pipeline-emit-refused
+  object-client-system-libs :: Json -> List String
+  object-client-system-libs metadata = case object-field "target" metadata of
+    JStr triple -> if string-contains "-linux" triple then ["-ldl", "-lpthread", "-lm"] else Nil
+    other -> Nil
 
   -- The interface-only path shares the real parser, resolver and retained
   -- checker. It never asks another compiler to manufacture source contracts.

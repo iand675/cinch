@@ -64,6 +64,7 @@ module Bootstrap.Export where
   -- authority. Match the graph against the retained defining body association.
   type-measures :: UType -> List TotalFunction
   type-measures ty = case ty of
+    UIndexList element fields -> type-measures element <> type-measures fields
     UIndexCall function args -> Cons function (type-measures args)
     UCon name kind -> kind-measures kind
     UBound id name kind -> kind-measures kind

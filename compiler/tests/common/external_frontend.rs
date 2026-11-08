@@ -88,6 +88,60 @@ fn reachable_sources(files: &[PathBuf], entry: &Path) -> Vec<PathBuf> {
     }
 }
 
+fn next_invocation_id() -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    format!("{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::SeqCst))
+}
+
+fn record_invocation(id: &str, invocation: Json, exit_code: Option<i32>) -> Result<(), String> {
+    let Some(directory) = std::env::var_os("CINCH_TEST_INVOCATIONS").filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    let directory = PathBuf::from(directory);
+    let record = Json::obj(vec![
+        ("invocation", invocation),
+        ("test", std::thread::current().name().map(|name| Json::Str(name.into())).unwrap_or(Json::Null)),
+        ("compiler_exit_code", exit_code.map(|code| Json::Num(f64::from(code))).unwrap_or(Json::Null)),
+    ]);
+    std::fs::create_dir_all(&directory).map_err(|error| format!("create invocation receipt directory: {error}"))?;
+    std::fs::write(directory.join(format!("{id}.json")), record.to_text())
+        .map_err(|error| format!("write selected compiler receipt: {error}"))
+}
+
+pub fn run_cli(frontend: &Frontend, entry: &Path, words: &[&str]) -> Result<i32, String> {
+    let compiler = frontend.compiler.canonicalize().map_err(|e| format!("selected CLI: {e}"))?;
+    let interfaces = frontend.interfaces.canonicalize().map_err(|e| format!("selected interfaces: {e}"))?;
+    validate_interfaces(&interfaces)?;
+    let configured_path = |name| -> Result<PathBuf, String> {
+        let path = std::env::var_os(name).filter(|path| !path.is_empty()).ok_or_else(|| format!("selected CLI requires {name}"))?;
+        PathBuf::from(path).canonicalize().map_err(|e| format!("{name}: {e}"))
+    };
+    let objects = configured_path("CINCH_TEST_OBJECTS")?;
+    let runtime = configured_path("CINCH_TEST_RUNTIME_ARCHIVE")?;
+    let entry = entry.canonicalize().map_err(|e| format!("selected CLI entry: {e}"))?;
+    let prefix = entry.with_file_name("cli-run");
+    let mut args = vec!["--interfaces".into(), interfaces.display().to_string(),
+        "--objects".into(), objects.display().to_string(), "run".into(), runtime.display().to_string(),
+        prefix.display().to_string(), entry.display().to_string()];
+    args.extend(words.iter().map(|word| (*word).to_owned()));
+    let source = std::fs::read_to_string(&entry).map_err(|e| format!("read selected CLI entry: {e}"))?;
+    let file = entry.file_name().ok_or("selected CLI entry needs a filename")?;
+    let input = Json::obj(vec![("path", Json::Str(file.to_string_lossy().into_owned())),
+        ("hash", Json::Str(cinch::interface::content_hash(&source)))]);
+    let receipt = Json::obj(vec![
+        ("compiler", Json::Str(compiler.display().to_string())),
+        ("interfaces", Json::Str(interfaces.display().to_string())),
+        ("entry", Json::Str(entry.display().to_string())),
+        ("mode", Json::Str("RunCli".into())),
+        ("arguments", Json::Arr(args.iter().cloned().map(Json::Str).collect())),
+        ("inputs", Json::Arr(vec![input])),
+    ]);
+    let status = std::process::Command::new(&compiler).args(&args).status()
+        .map_err(|e| format!("invoke selected Cinch CLI: {e}"))?;
+    record_invocation(&next_invocation_id(), receipt, status.code())?;
+    status.code().ok_or_else(|| "selected Cinch CLI terminated without an exit code".into())
+}
+
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
     drive_with_objects(frontend, mode, dir, entry, out, std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from))
 }
@@ -102,8 +156,7 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     let mut files = Vec::new(); sources(&dir, &dir, &mut files)?; files.sort();
     if !files.contains(&entry) { return Err("external test entry is not a project Cinch source".into()) }
     let files = reachable_sources(&files, &entry);
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let invocation_id = format!("{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::SeqCst));
+    let invocation_id = next_invocation_id();
     let work = dir.join(".cinch-self-tests").join(&invocation_id);
     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
     let mut bundle = String::new();
@@ -144,17 +197,7 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     std::fs::write(work.join("compiler.stderr"), &output.stderr).map_err(|e| e.to_string())?;
     std::fs::write(work.join("compiler-status.txt"), format!("{:?}\n", output.status.code())).map_err(|e| e.to_string())?;
     // The suite auditor keeps this receipt when the fixture removes its project.
-    if let Some(directory) = std::env::var_os("CINCH_TEST_INVOCATIONS").filter(|value| !value.is_empty()) {
-        let directory = PathBuf::from(directory);
-        let record = Json::obj(vec![
-            ("invocation", receipt),
-            ("test", std::thread::current().name().map(|name| Json::Str(name.into())).unwrap_or(Json::Null)),
-            ("compiler_exit_code", output.status.code().map(|code| Json::Num(f64::from(code))).unwrap_or(Json::Null)),
-        ]);
-        std::fs::create_dir_all(&directory).map_err(|error| format!("create invocation receipt directory: {error}"))?;
-        std::fs::write(directory.join(format!("{invocation_id}.json")), record.to_text())
-            .map_err(|error| format!("write selected compiler receipt: {error}"))?;
-    }
+    record_invocation(&invocation_id, receipt, output.status.code())?;
     if !output.status.success() {
         let diagnostic = std::fs::read_to_string(ir.with_extension("ll.diagnostics")).unwrap_or_else(|_| String::from_utf8_lossy(&output.stderr).into_owned());
         return Err(format!("selected Cinch compiler exited {:?}: {diagnostic}\ninvocation: {}", output.status.code(), work.display()));

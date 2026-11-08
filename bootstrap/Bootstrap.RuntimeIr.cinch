@@ -2021,14 +2021,37 @@ module Bootstrap.RuntimeIr where
     Cons first rest -> case match-pattern first (cat ["%arg", nat-to-string index]) failed w of
       (matched, bindings) -> case match-parameters rest (index + 1) failed matched of
         (done, more) -> (done, bindings <> more)
+  take-parameter-root :: String -> List Local -> Option (List Local)
+  take-parameter-root returned roots = case roots of
+    Nil -> None
+    Cons root rest -> case root of
+      Discard ty word | same returned word -> Some rest
+      other -> case take-parameter-root returned rest of
+        Some remaining -> Some (Cons root remaining)
+        None -> None
+  projection-return :: List Local -> List Local -> CoreTerm -> Option (String, List Local)
+  projection-return locals roots body = case body of
+    CForget at ty (CLocal sp original id name Nil) -> (case local id locals of
+      Some (declared, word) -> (case take-parameter-root word roots of
+        Some remaining -> Some (word, remaining)
+        None -> None)
+      None -> None)
+    other -> None
+  worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
+  worker-result definitions locals roots w failed body = case projection-return locals roots body of
+    -- The returning argument already owns a reference. Move that
+    -- reference to the result and release the other parameters.
+    Some (word, remaining) -> (drop-locals remaining w, word)
+    None -> case guarded-expression definitions locals w failed body of
+      (done, word) -> (drop-locals roots done, word)
   worker-clauses :: List CoreDefinition -> List Local -> List Local -> Nat -> List CoreClause -> Writer -> Writer
   worker-clauses definitions prefix roots offset clauses w = case clauses of
     Nil -> line w "  unreachable"
     Cons (MkCoreClause sp patterns body) rest ->
       let (one, failed) = fresh w "nexteq" in
       case match-parameters patterns offset failed one of
-        (matched, bindings) -> case guarded-expression definitions (bindings <> prefix) matched failed body of
-          (done, result) -> let returned = line (drop-locals roots done) (cat ["  ret i64 ", result]) in
+        (matched, bindings) -> case worker-result definitions (bindings <> prefix) roots matched failed body of
+          (done, result) -> let returned = line done (cat ["  ret i64 ", result]) in
             worker-clauses definitions prefix roots offset rest (line returned (cat [failed, ":"]))
   worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
   worker definitions classes w d = case d of

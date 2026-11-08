@@ -3,11 +3,14 @@
 -- --compile-only links without executing the artifact. --check accepts a
 -- source and diagnostics base path and stops after the frontend checks.
 -- Either mode accepts --interfaces MANIFEST before the source paths.
+-- With both compiled inputs selected, run takes RUNTIME PREFIX SOURCE
+-- followed by the program's argument words.
 module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
   import Bootstrap.Pipeline (PipelineMode, CheckOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-mode, compile-source-with-manifest-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (run-source-with-object)
   import Data.Path (path-from-string)
 
   run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
@@ -36,8 +39,18 @@ module Main where
         case (object-config, rest) of
           (None, Cons file more) -> run-options mode manifest (Some file) selected more
           other -> pipeline-bad-args
+      else if string-compare flag "run" == 0 then
+        case (selected, manifest, object-config, rest) of
+          (False, Some contracts, Some provider, Cons runtime (Cons prefix (Cons source words))) ->
+            run-source-with-object contracts provider runtime prefix source (program-words words)
+          other -> pipeline-bad-args
       else run-selected mode manifest object-config ws
     Nil -> pipeline-bad-args
+
+  program-words :: List String -> List String
+  program-words words = case words of
+    Nil -> Nil
+    Cons word rest -> if string-compare word "--" == 0 then rest else Cons word (program-words rest)
 
   run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> List String ->{IO r, Diverge} Int
   run-selected mode manifest object-config ws = case mode of

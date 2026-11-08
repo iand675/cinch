@@ -758,9 +758,15 @@ module Bootstrap.Infer where
     Cons error rest -> (UError, st)
     Nil -> reify-checked-argument sp env term st
   reify-checked-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
-  reify-checked-argument sp env term st = case scoped-total-call-index (proof-context env st) (proof-facts env) (map-term-types (normalize st) term) of
-    Some value -> checked-typed-source-index sp value st
-    None -> reify-ordinary-argument sp env term st
+  reify-checked-argument sp env term st =
+    let gamma = proof-context env st in
+    let facts = proof-facts env in
+    let checked = map-term-types (normalize st) term in
+    case scoped-total-call-index gamma facts checked of
+      Some value -> checked-typed-source-index sp value st
+      None -> case scoped-list-index gamma facts checked of
+        Some value -> checked-typed-source-index sp value st
+        None -> reify-ordinary-argument sp env term st
   reify-ordinary-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-ordinary-argument sp env term st = case term of
     CApply source ty (CUse at function symbol role Nil) input ->
@@ -2745,6 +2751,8 @@ module Bootstrap.Infer where
     URefine id name carrier predicate -> URefine id name (relocate-local-index binding new-level carrier) (relocate-local-index binding new-level predicate)
     UIndexForget value -> UIndexForget (relocate-local-index binding new-level value)
     UIndexByteLength value -> UIndexByteLength (relocate-local-index binding new-level value)
+    UIndexList element fields ->
+      UIndexList (relocate-local-index binding new-level element) (relocate-local-index binding new-level fields)
     UIndexCall function args -> UIndexCall function (relocate-local-index binding new-level args)
     UIndexPromote value -> UIndexPromote (relocate-local-index binding new-level value)
     UIndexMath op left right -> UIndexMath op (relocate-local-index binding new-level left) (relocate-local-index binding new-level right)
@@ -2862,8 +2870,18 @@ module Bootstrap.Infer where
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   apply-open-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
-    UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
-      (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
+    UProofFun predicate effects result -> case (fun, arg) of
+      -- Transparent constructors are synthesized with a scoped proof
+      -- lambda. A direct decide must check the same predicate, and the
+      -- payload must independently establish it before erasing the decision.
+      (CApply at ty (CLambda source outer (CPVar binder domain id name)
+        (CLambda witness-at inner (CPProof proof-at proposition proof-id proof-name)
+          (CRefineProof construct refined reference body))) value,
+       EApp decision head input) | decision-syntax-head env head ->
+        (case check classes kinds families env locals arg (decision-type predicate) st of
+          (checked-decision, checked) -> introduce-refinement env sp result value checked)
+      other -> case erased-argument sp env arg predicate st of
+        (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
       (value, checked) -> apply-source-argument classes kinds families env locals sp fun arg value st checked
     other -> case arrow-parts sp (core-type fun) st of

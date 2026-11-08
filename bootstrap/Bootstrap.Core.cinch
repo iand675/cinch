@@ -31,6 +31,7 @@ module Bootstrap.Core where
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct
   export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
+  export scoped-list-index
   export CDecision, decision-type, decision-constructor-scheme, scoped-decision-valid, stable-index-source
   export CRefineProof, scoped-refinement-proof, byte-allocation-contract, byte-read-contract
   export CRefine, CForget, prove-refinement, CRequire, CDischarge, core-predicates, prove-predicates, required-body, CProved, core-condition, core-let-fact, prove-subtraction, numeric-method-operation
@@ -128,6 +129,7 @@ module Bootstrap.Core where
     UIndexForget value -> effect-type-scope qs value
     UIndexPromote value -> effect-type-scope qs value
     UIndexByteLength value -> effect-type-scope qs value
+    UIndexList element fields -> effect-type-scope qs element && effect-type-scope qs fields
     UIndexCall function args -> effect-type-scope qs args
     UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
     URefine id name carrier predicate -> effect-binder qs id name carrier predicate
@@ -506,6 +508,9 @@ module Bootstrap.Core where
     UIndexForget input -> index-value-terms sp input
     UIndexPromote input -> index-value-terms sp input
     UIndexMath op first second -> index-value-terms sp first <> index-value-terms sp second
+    UIndexList element fields -> case fields of
+      UArg first rest -> index-value-terms sp first <> index-value-terms sp rest
+      other -> Nil
     UIndexCall function arguments -> index-argument-terms sp arguments
     other -> (case (value-carrier (type-kind value), index-of-type value) of (Some carrier, Some term) -> index-local-terms sp carrier term; other -> Nil)
   index-argument-terms :: Span -> UType -> List CoreTerm
@@ -795,6 +800,7 @@ module Bootstrap.Core where
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
     UIndexByteLength value -> UIndexByteLength (freeze value)
+    UIndexList element fields -> UIndexList (freeze element) (freeze fields)
     UIndexCall function args -> UIndexCall function (freeze args)
     UIndexPromote value -> UIndexPromote (freeze value)
     UIndexMath op left right -> UIndexMath op (freeze left) (freeze right)
@@ -833,6 +839,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-metas st body
     UIndexForget value -> type-metas st value
     UIndexByteLength value -> type-metas st value
+    UIndexList element fields -> type-metas st element <> type-metas st fields
     UIndexCall function args -> type-metas st args
     UIndexPromote value -> type-metas st value
     UIndexMath op left right -> type-metas st left <> type-metas st right
@@ -956,6 +963,7 @@ module Bootstrap.Core where
   closed-type ty = case ty of
     UIndexForget value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexByteLength value -> valid-type ty && typed-index-admissible ty && closed-type value
+    UIndexList element fields -> valid-type ty && closed-type element && closed-type fields
     UIndexCall function args -> valid-type ty && typed-index-admissible ty && closed-type args
     UIndexPromote value -> valid-type ty && typed-index-admissible ty && closed-type value
     UIndexMath op left right -> valid-type ty && typed-index-admissible ty && closed-type left && closed-type right
@@ -1118,6 +1126,7 @@ module Bootstrap.Core where
     URefineFormer name ids body -> type-index-scope ids Nil body
     UIndexForget value -> type-index-scope bound rigid value
     UIndexByteLength value -> type-index-scope bound rigid value
+    UIndexList element fields -> type-index-scope bound rigid element && type-index-scope bound rigid fields
     UIndexCall function args -> type-index-scope bound rigid args
     UIndexPromote value -> type-index-scope bound rigid value
     UIndexMath op left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
@@ -1984,6 +1993,8 @@ module Bootstrap.Core where
     UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropNotNull (UIndexList element UEnd) -> Some PFalsehood
+    UPropNotNull (UIndexList element (UArg first rest)) -> Some PTruth
     UPropNonZeroPending value -> None
     other -> None
   scoped-core-predicates :: ProofScope -> UType -> Option (List Proposition)
@@ -2031,7 +2042,24 @@ module Bootstrap.Core where
     (Some left, Some right) -> let out = normalize (empty-store "Core mathematical index") (UIndexMath op left right) in if typed-index-admissible out then Some out else None
     other -> None
   actual-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
-  actual-index gamma facts term = case checked-total-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+  actual-index gamma facts term = case checked-total-index gamma facts term of
+    Some value -> Some value
+    None -> case scoped-list-index gamma facts term of Some value -> Some value; None -> ordinary-index gamma facts term
+  scoped-list-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
+  scoped-list-index gamma facts term = case term of
+    CUse sp ty name role actuals | string-compare name (interface-global "Data.Core.Nil") == 0 && string-compare role "constructor" == 0 ->
+      checked-list-index gamma facts term UEnd
+    CApply sp ty (CApply at partial (CUse origin constructor name role actuals) first) rest
+        | string-compare name (interface-global "Data.Core.Cons") == 0 && string-compare role "constructor" == 0 ->
+      (case (actual-index gamma facts first, actual-index gamma facts rest) of
+        (Some head, Some tail) -> checked-list-index gamma facts term (UArg head tail)
+        other -> None)
+    other -> None
+  checked-list-index :: ProofScope -> List Proposition -> CoreTerm -> UType -> Option UType
+  checked-list-index gamma facts term fields = case core-list-element (core-type term) of
+    Some element -> let index = UIndexList element fields in
+      if typed-index-admissible index && proof-term gamma facts term && contract-equal (core-effects term) (URow UEnd) then Some index else None
+    None -> None
   ordinary-index :: ProofScope -> List Proposition -> CoreTerm -> Option UType
   ordinary-index gamma facts term = case term of
     CDischarge sp ty certificates body -> scoped-guarded-call-index gamma facts term

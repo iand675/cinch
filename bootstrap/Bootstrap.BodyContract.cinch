@@ -245,6 +245,7 @@ module Bootstrap.BodyContract where
     other -> True
   body-type-authorized :: List BodyBinding -> UType -> Bool
   body-type-authorized bindings ty = case ty of
+    UIndexList element fields -> body-type-authorized bindings element && body-type-authorized bindings fields
     UIndexCall function args -> (case body-function function bindings of Some binding -> True; None -> False) && body-type-authorized bindings args
     UCon name kind -> body-kind-authorized bindings kind
     UBound id name kind -> body-kind-authorized bindings kind
