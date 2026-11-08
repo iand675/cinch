@@ -21087,8 +21087,8 @@
       {
         "title": "Run the 14 external checks with the repaired Stage 3",
         "status": "running",
-        "phase": "Mixed emit",
-        "passed": 0,
+        "phase": "Passing emit",
+        "passed": 3,
         "failed": 0,
         "total": 14,
         "unit": "groups",
@@ -21203,5 +21203,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T13:24:44.001788+00:00"
+  "updatedAt": "2026-11-08T13:26:06.829153+00:00"
 }
