@@ -20614,8 +20614,8 @@
         "title": "Resolve nested effect rows and replay memo typing",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. 21",
-        "passed": 4,
+        "phase": "Isolated Stage 1 candidate. force-cycle",
+        "passed": 8,
         "total": 12,
         "failed": 0,
         "source": "b4523dcf1e4b705b6a8ea06263d237946ce330f87a357a6eea7cfa4370ba44df",
@@ -20668,5 +20668,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:20:35.375406+00:00"
+  "updatedAt": "2026-11-08T20:21:37.825201+00:00"
 }
