@@ -1,0 +1,16 @@
+{
+  "compiler_source_sha256": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
+  "full_goal_complete": false,
+  "inputs": {
+    "compiler/src/check_decls.rs": "936cefdb0b3734431ed69dbd317116eac2e738e1f2c2cc9cbc9b07371ab0d416",
+    "compiler/tests/prim.rs": "e459a403bf5bd6329bb3982d75ee1776468734dfdcd0a9605a8e369395ebbf34"
+  },
+  "log_sha256": "0eaecccf0ec6189e11459eff9189805b5dfd5cfbbcc6d7fc94f2a708698c63b2",
+  "native_source_sha256": "5002a273daf9a9ddd0ce923ffb272e5329e1b1091d9cf7379ba07d11ab06ba12",
+  "published_cinch_source_sha256": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+  "schema": 1,
+  "scope": "Rust prim target including assumed body identity and intrinsic name coexistence in the compiled interface.",
+  "state_sha256": "2a953115aed9980bf7ef0a0bc9bd7e36e9fb8bb0d307d0f0bac391bb9fa963e8",
+  "status": "audited-native-primitive-assumption-suite",
+  "tests": 17
+}

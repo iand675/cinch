@@ -368,6 +368,26 @@ module Main where
     assert!(m.contains("\"tier\":\"assumed\""), "{m}");
     assert!(m.contains("prim:Main.addB#"), "{m}");
     assert!(m.contains("\"family\":\"llvm\""), "{m}");
+
+    let with_intrinsic = src.replace(
+        "module Main where",
+        "module Main where\n  foreign import ccall \"cinch.prim.eqI64\" equal :: I64 -> I64 -> Bool",
+    );
+    let interface = |source: &str| {
+        let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "assumed-prim.cinch")
+            .expect("the assumed primitive interface checks");
+        interfaces.into_iter().find(|iface| iface.module == "Main").unwrap()
+    };
+    let original = interface(&with_intrinsic);
+    let updated = interface(&with_intrinsic.replace("add i32", "sub i32"));
+    let assumed = |iface: &cinch::interface::Iface| {
+        assert!(iface.assumptions.primitives.iter().any(|id| id == "cinch.prim.eqI64"));
+        iface.assumptions.primitives.iter().find(|id| id.starts_with("prim:Main.addB#"))
+            .expect("the compiled interface keeps the assumed primitive identity")
+            .clone()
+    };
+    assert_ne!(assumed(&original), assumed(&updated));
+    assert_ne!(original.iface_hash(), updated.iface_hash());
 }
 
 /// The text of one unit's function attribute group (empty when the unit

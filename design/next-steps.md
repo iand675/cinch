@@ -89,6 +89,12 @@ an arithmetic line was refused. Cross-target selection, compiled primitive
 assumptions and a matching Stage 2 and Stage 3 have separate gates.
 See [the host primitive audit](../bootstrap/current-schema10-abi7-stage1-primitive-containment-results.json).
 
+Rust interfaces preserve assumed primitive body identities alongside
+intrinsic names. The original primitive target passed all 17 tests. The
+interface regression changes only the assumed body and checks that the
+identity changes while the intrinsic remains listed.
+See [the Rust primitive audit](../bootstrap/current-native-primitive-assumption-results.json).
+
 The combined codata and memo Stage 1 passed all ten original codata tests
 and two eager-recursion refusals. Both executable controls ran without leaks.
 The unchanged stream example checked, and ordinary construction and pattern

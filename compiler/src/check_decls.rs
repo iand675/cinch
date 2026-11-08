@@ -16757,7 +16757,6 @@ impl Checker {
                 iface.exports.fixities.push(exported);
             }
         }
-        let mut prims = Vec::new();
         let mut trusted = Vec::new();
         for (m, f) in &self.module_foreign {
             if m == module {
@@ -16772,7 +16771,7 @@ impl Checker {
                 }
                 iface.exports.foreign.push(foreign);
                 if f.kind == "intrinsic" {
-                    prims.push(f.external.clone());
+                    iface.assumptions.primitives.push(f.external.clone());
                 } else if f.kind == "import" {
                     // The module trusts this external symbol: an
                     // unverified native library remains in the process's
@@ -16791,7 +16790,6 @@ impl Checker {
                 trusted.push(format!("eval at {site}"));
             }
         }
-        iface.assumptions.primitives = prims;
         iface.assumptions.foreign = trusted;
         for (m, e) in &self.upgrade_evidence {
             if m == module {
