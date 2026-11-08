@@ -28,7 +28,7 @@ module Bootstrap.Infer where
   import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures)
   import Bootstrap.Report (Diagnostic)
   import Data.Json
-  import Text.Lex (Span)
+  import Text.Lex (Span, span-line, span-col)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
 
@@ -82,15 +82,15 @@ module Bootstrap.Infer where
     -- Its runtime slot remains distinct; only type conversion uses the RHS.
     MkValueBinding :: String -> Scheme -> Nat -> Nat -> UType -> CheckedBinding
     MkIntrinsicBinding :: String -> Scheme -> String -> CheckedBinding
-    MkProofBinding :: Proposition -> CheckedBinding
-    MkErasedBinding :: String -> UType -> Nat -> CheckedBinding
+    MkProofBinding :: Span -> Option Span -> Proposition -> CheckedBinding
+    MkErasedBinding :: String -> UType -> Nat -> Span -> Option Span -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""; MkErasedBinding name predicate id -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError; MkErasedBinding name predicate id -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"; MkErasedBinding name predicate id -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -778,7 +778,9 @@ module Bootstrap.Infer where
       Some value -> checked-typed-source-index sp value st
       None -> case scoped-list-index gamma facts checked of
         Some value -> checked-typed-source-index sp value st
-        None -> reify-ordinary-argument sp env term st
+        None -> case scoped-borrow-read-index gamma checked of
+          Some value -> checked-typed-source-index sp value st
+          None -> reify-ordinary-argument sp env term st
   reify-ordinary-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-ordinary-argument sp env term st = case term of
     CApply source ty (CUse at function symbol role Nil) input ->
@@ -853,14 +855,16 @@ module Bootstrap.Infer where
       other -> bad sp "local index requires unresolved dictionary evidence" st
 
   let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
-  let-binding sp env name sc id level value st = if not (stable-index-source value) then (MkLocalBinding name sc id level, st) else case (scheme-params sc, scheme-requirements sc) of
+  let-binding sp env name sc id level value st = if volatile-borrow-index (normalize st (scheme-body sc)) then
+    (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
+    else if not (stable-index-source value) then (MkLocalBinding name sc id level, st) else case (scheme-params sc, scheme-requirements sc) of
     (Nil, Nil) -> case reify-argument sp env value st of
       (index, checked) -> case (store-errors checked, index-of-type index) of
         -- Reification can expose the mathematical carrier of a refined
         -- result (for example a byte length). It is not a definition at the
         -- refined carrier. Keep the actual local and its checked RHS fact,
         -- just as Core's scope-definitions does for a mismatched index kind.
-        (Nil, witness) -> if typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
+        (Nil, witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
           (MkValueBinding name sc id level index, checked)
           else (MkLocalBinding name sc id level, st)
         other -> (MkLocalBinding name sc id level, st)
@@ -2270,7 +2274,9 @@ module Bootstrap.Infer where
               more -> needed-evidence sp (env-givens env) requirements in
         let actuals = actual-types pairs in
         case b of
-          MkErasedBinding name predicate id -> (CProofRef sp predicate id name, ss)
+          MkErasedBinding name predicate id origin invalidated -> (case invalidated of
+            None -> (CProofRef sp predicate id name, ss)
+            Some write -> term-error sp (stale-evidence-message origin write) ss)
           MkCheckedBinding name sc role | same role "closed-proof" ->
             term-error sp "a proof definition can only be used as erased evidence" ss
           MkSyntaxBinding symbol -> term-error sp "kernel syntax is not a first-class function" ss
@@ -2330,7 +2336,7 @@ module Bootstrap.Infer where
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
   proof-erased env st gamma = case env of
     Nil -> gamma
-    Cons (MkErasedBinding name predicate id) rest -> scope-erased id (normalize st predicate) (proof-erased rest st gamma)
+    Cons (MkErasedBinding name predicate id origin None) rest -> scope-erased id (normalize st predicate) (proof-erased rest st gamma)
     Cons other rest -> proof-erased rest st gamma
   proof-values :: List CheckedBinding -> Store -> List (Nat, UType)
   proof-values env st = case env of
@@ -2340,26 +2346,72 @@ module Bootstrap.Infer where
       other -> proof-values rest st
     Cons binding rest -> proof-values rest st
   proof-facts :: List CheckedBinding -> List Proposition
-  proof-facts env = case env of Nil -> Nil; Cons (MkProofBinding fact) rest -> Cons fact (proof-facts rest); Cons b rest -> proof-facts rest
-  proof-branch :: List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
-  proof-branch env condition positive st = case scoped-core-branch (proof-context env st) (proof-facts env) (map-term-types (normalize st) condition) positive of
-    Some fact -> Cons (MkProofBinding fact) env
-    None -> env
-  prepend-proof-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
-  prepend-proof-facts facts env = case facts of
+  proof-facts env = case env of
+    Nil -> Nil
+    Cons (MkProofBinding origin None fact) rest -> Cons fact (proof-facts rest)
+    Cons other rest -> proof-facts rest
+  proof-env-after-writes :: List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
+  proof-env-after-writes env writes st = case writes of
     Nil -> env
-    Cons first rest -> Cons (MkProofBinding first) (prepend-proof-facts rest env)
-  proof-case-env :: List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
-  proof-case-env env value pattern positive st = prepend-proof-facts
-    (scoped-core-case-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value) (map-pattern-types (normalize st) pattern) positive) env
-  proof-case-rest-env :: List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
-  proof-case-rest-env env value pattern body st = prepend-proof-facts
-    (scoped-core-case-rest-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
-      (map-pattern-types (normalize st) pattern) (map-term-types (normalize st) body)) env
+    other -> invalidate-proof-bindings (proof-context env st) env writes st
+  invalidate-proof-bindings :: ProofScope -> List CheckedBinding -> List (Span, Option UType) -> Store -> List CheckedBinding
+  invalidate-proof-bindings gamma env writes st = case env of
+    Nil -> Nil
+    Cons entry rest -> let next = invalidate-proof-bindings gamma rest writes st in
+      (case entry of
+        MkProofBinding origin None fact -> Cons (MkProofBinding origin (mutable-fact-write gamma writes fact) fact) next
+        MkErasedBinding name predicate id origin None ->
+          Cons (MkErasedBinding name predicate id origin (mutable-predicate-write writes (normalize st predicate))) next
+        other -> Cons entry next)
+  proof-env-after-term :: List CheckedBinding -> CoreTerm -> Store -> List CheckedBinding
+  proof-env-after-term env term st = proof-env-after-writes env (core-mutable-writes (map-term-types (normalize st) term)) st
+  proof-branch :: Span -> List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
+  proof-branch origin env condition positive st = let term = map-term-types (normalize st) condition in
+    let introduced = (case scoped-core-branch (proof-context env st) (proof-facts env) term positive of
+      Some fact -> Cons (MkProofBinding origin None fact) env
+      None -> env) in
+        proof-env-after-writes introduced (scoped-branch-writes term positive) st
+  prepend-proof-facts :: Span -> List Proposition -> List CheckedBinding -> List CheckedBinding
+  prepend-proof-facts origin facts env = case facts of
+    Nil -> env
+    Cons first rest -> Cons (MkProofBinding origin None first) (prepend-proof-facts origin rest env)
+  proof-case-env :: Span -> List CheckedBinding -> CoreTerm -> CorePattern -> Bool -> Store -> List CheckedBinding
+  proof-case-env origin env value pattern positive st = let term = map-term-types (normalize st) value in
+    let introduced = scoped-core-case-facts (proof-context env st) (proof-facts env) term (map-pattern-types (normalize st) pattern) positive in
+      proof-env-after-writes (prepend-proof-facts origin introduced env) (core-mutable-writes term) st
+  proof-case-rest-env :: Span -> List CheckedBinding -> CoreTerm -> CorePattern -> CoreTerm -> Store -> List CheckedBinding
+  proof-case-rest-env origin env value pattern body st = let checked = map-term-types (normalize st) body in
+    let introduced = (scoped-core-case-rest-facts (proof-context env st) (proof-facts env) (map-term-types (normalize st) value)
+      (map-pattern-types (normalize st) pattern) checked) in
+        proof-env-after-writes (prepend-proof-facts origin introduced env) (guard-fallthrough-writes checked) st
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
-  proof-let-env env binding id sc value st = case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of
-    Some fact -> Cons (MkProofBinding fact) (Cons binding env)
-    None -> Cons binding env
+  proof-let-env env binding id sc value st = let term = map-term-types (normalize st) value in
+    let extended = Cons binding env in
+    let introduced = (case scoped-core-let-fact (proof-context env st) (proof-facts env) id (map-scheme-types (normalize st) sc) term of
+      Some fact -> Cons (MkProofBinding zero None fact) extended
+      None -> extended) in
+        proof-env-after-writes introduced (core-mutable-writes term) st
+  stale-evidence-message :: Span -> Span -> String
+  stale-evidence-message origin write = string-concat-all
+    ["stale evidence: evidence derived at ", proof-position origin, " is invalidated by the write at ", proof-position write]
+  proof-position :: Span -> String
+  proof-position sp = string-concat-all [int-to-string (nat-to-int (span-line sp)), ":", int-to-string (nat-to-int (span-col sp))]
+  stale-proof-notes :: ProofScope -> List CheckedBinding -> Store -> List (Span, Span, Proposition)
+  stale-proof-notes gamma env st = case env of
+    Nil -> Nil
+    Cons (MkProofBinding origin (Some write) fact) rest -> Cons (origin, write, fact) (stale-proof-notes gamma rest st)
+    Cons (MkErasedBinding name predicate id origin (Some write)) rest ->
+      (case scoped-core-predicates gamma (UArg (normalize st predicate) UEnd) of
+        Some [fact] -> Cons (origin, write, fact) (stale-proof-notes gamma rest st)
+        other -> stale-proof-notes gamma rest st)
+    Cons other rest -> stale-proof-notes gamma rest st
+  stale-proof-message :: List CheckedBinding -> Store -> (List Proposition -> Bool) -> Option String
+  stale-proof-message env st proves = stale-proof-with (proof-facts env) proves (stale-proof-notes (proof-context env st) env st)
+  stale-proof-with :: List Proposition -> (List Proposition -> Bool) -> List (Span, Span, Proposition) -> Option String
+  stale-proof-with live proves notes = case notes of
+    Nil -> None
+    Cons (origin, write, fact) rest -> if proves (Cons fact live) then Some (stale-evidence-message origin write)
+      else stale-proof-with live proves rest
   mapped-local :: Nat -> List (Nat, UType) -> Option UType
   mapped-local id pairs = case pairs of Nil -> None; Cons (n, ty) rest -> if id == n then Some ty else mapped-local id rest
   opened-locals :: List Quant -> List (Nat, UType) -> List (String, UType)
@@ -2443,7 +2495,7 @@ module Bootstrap.Infer where
     EIf sp first (ECon at name (EArgsEnd end)) third -> if same name "True" then decision-predicate classes kinds families env locals (EBin sp "||" first third) st else decision-failure sp "conditional predicate needs checked logical form" st
     EBin sp operation first second -> if same operation "&&" || same operation "||" then
       (case decision-predicate classes kinds families env locals first st of
-        (left, test, checked) -> case decision-predicate classes kinds families (proof-branch env test (same operation "&&") checked) locals second checked of
+        (left, test, checked) -> case decision-predicate classes kinds families (proof-branch (expr-span first) env test (same operation "&&") checked) locals second checked of
           (right, other, done) -> if same operation "&&" then (UPropAnd left right, CIf sp (primitive-type "Bool") test other (decision-boolean sp False), done)
             else (UPropOr left right, CIf sp (primitive-type "Bool") test (decision-boolean sp True) other, done))
       else if has operation ["<", "<=", ">", ">=", "==", "/="] then
@@ -2582,12 +2634,12 @@ module Bootstrap.Infer where
         (output, done) -> infer-source-handler classes kinds families env locals sp label clauses input output done
     EIf s condition yes no -> case fresh-meta KType st of
       (ty, ss) -> case check classes kinds families env locals condition (primitive-type "Bool") ss of
-        (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes ty sc of
-          (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no ty sa of
+        (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes ty sc of
+          (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no ty sa of
             (b, sb) -> (CIf s ty c a b, sb)
     ECase s value alts -> case infer classes kinds families env locals value st of
       (scrut, sv) -> case fresh-meta KType sv of
-        (out, so) -> case check-alternatives classes kinds families env locals scrut out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
+        (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
           (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
@@ -2614,11 +2666,11 @@ module Bootstrap.Infer where
       other -> check-inferred classes kinds families env locals expr expected st)
     EList s args -> infer-collection classes kinds families env locals s args (Some expected) st
     EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
-      (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes expected sc of
-        (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no expected sa of
+      (c, sc) -> case check classes kinds families (proof-branch (expr-span condition) env c True sc) locals yes expected sc of
+        (a, sa) -> case check classes kinds families (proof-branch (expr-span condition) env c False sa) locals no expected sa of
           (b, sb) -> (CIf s expected c a b, sb)
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
@@ -2651,7 +2703,7 @@ module Bootstrap.Infer where
   check-tuple-elements classes kinds families env locals sp fields types st = case (fields, types) of
     (EArgsEnd at, UEnd) -> (CArgumentsEnd at, st)
     (EArg at first rest, UArg ty more) -> (case check classes kinds families env locals first ty st of
-      (value, checked) -> (case check-tuple-elements classes kinds families env locals sp rest more checked of
+      (value, checked) -> (case check-tuple-elements classes kinds families (proof-env-after-term env value checked) locals sp rest more checked of
         (values, done) -> (CArgument at value values, done)))
     other -> term-error sp "tuple literal arity disagrees with its expected type" st
   check-inferred :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -2728,7 +2780,7 @@ module Bootstrap.Infer where
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
     ECase s value alternatives -> case infer classes kinds families env locals value st of
-      (scrutinee, checked) -> case check-alternatives classes kinds families env locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+      (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
         (branches, done) -> (CCase s expected scrutinee branches, done)
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
@@ -2787,10 +2839,13 @@ module Bootstrap.Infer where
       let value = map-term-types (normalize st) term in
       case scoped-prove-refinement gamma facts refined value of
         Some evidence -> (CRefine sp expected evidence term, st)
-        None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
-          case scoped-refinement-predicate gamma facts refined value of
-            Some predicate -> term-error sp (missing-obligation message predicate) st
-            None -> term-error sp message st
+        None -> case stale-proof-message env st (\prior ->
+          case scoped-prove-refinement gamma prior refined value of Some evidence -> True; None -> False) of
+            Some message -> term-error sp message st
+            None -> let message = "refinement predicate is not established for this value (undischarged refinement obligation)" in
+              (case scoped-refinement-predicate gamma facts refined value of
+                Some predicate -> term-error sp (missing-obligation message predicate) st
+                None -> term-error sp message st)
 
   obligation-text :: UType -> String
   obligation-text ty = case ty of
@@ -2809,9 +2864,9 @@ module Bootstrap.Infer where
   wrong-named-evidence :: List CheckedBinding -> List CheckedBinding -> UType -> Store -> Option String
   wrong-named-evidence remaining env wanted st = case remaining of
     Nil -> None
-    Cons (MkErasedBinding name predicate id) rest ->
+    Cons (MkErasedBinding name predicate id origin None) rest ->
       (case lookup-binding name env of
-        Some (MkErasedBinding visible actual owner) ->
+        Some (MkErasedBinding visible actual owner origin None) ->
           let stated = normalize st actual in
           if owner == id && not (same-type (without-index-levels stated) (without-index-levels wanted)) then
             Some (string-concat-all ["`", visible, "` is evidence of `", obligation-text stated, "`, not of `", obligation-text wanted, "`"])
@@ -2905,14 +2960,14 @@ module Bootstrap.Infer where
   infer-fields classes kinds families env locals args st = case args of
     EArgsEnd s -> (UEnd, CArgumentsEnd s, st)
     EArg s x rest -> case infer classes kinds families env locals x st of
-      (term, sx) -> case infer-fields classes kinds families env locals rest sx of
+      (term, sx) -> case infer-fields classes kinds families (proof-env-after-term env term sx) locals rest sx of
         (types, terms, ss) -> (UArg (core-type term) types, CArgument s term terms, ss)
     other -> (UEnd, CError (expr-span args), add-error (expr-span args) "malformed tuple expression spine" st)
   infer-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> Store -> (CoreTerm, Store)
   infer-lambda classes kinds families env locals ps body st = case ps of
     Nil -> infer classes kinds families env locals body st
     Cons p rest -> case fresh-meta KType st of
-      (arg, sa) -> case bind-pattern classes kinds families env locals p arg sa of
+      (arg, sa) -> case bind-pattern classes kinds families (proof-env-after-writes env [(pat-span p, None)] sa) locals p arg sa of
         (bound, pattern, sb) -> case infer-lambda classes kinds families bound locals rest body sb of
           (rhs, sr) -> (CLambda (pat-span p) (function-type arg (normalize sr (core-effects rhs)) (core-type rhs)) pattern rhs, sr)
   check-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (CoreTerm, Store)
@@ -2921,7 +2976,7 @@ module Bootstrap.Infer where
     Cons p rest -> case normalize st expected of
       UMeta id kind -> case infer-lambda classes kinds families env locals ps body st of
         (term, checked) -> (term, unify (pat-span p) expected (core-type term) checked)
-      other -> case bind-arrow-pattern classes kinds families env locals p expected st of
+      other -> case bind-arrow-pattern classes kinds families (proof-env-after-writes env [(pat-span p, None)] st) locals p expected st of
         (bound, pattern, row, result, checked) -> case check-lambda classes kinds families bound locals rest body result checked of
           (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, inferred-lambda-effects (expr-span body) (core-effects rhs) row sr)
   inferred-lambda-effects :: Span -> UType -> UType -> Store -> Store
@@ -2954,7 +3009,8 @@ module Bootstrap.Infer where
         (call, checked) -> (CLet at (core-type call) id name sc rhs call, checked)
     other -> apply-open-argument classes kinds families env locals sp fun arg st
   apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
-  apply-open-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
+  apply-open-argument classes kinds families original locals sp fun arg st =
+    let env = proof-env-after-term original fun st in case normalize st (core-type fun) of
     UProofFun predicate effects result -> case (fun, arg) of
       -- Transparent constructors are synthesized with a scoped proof
       -- lambda. A direct decide must check the same predicate, and the
@@ -3003,7 +3059,9 @@ module Bootstrap.Infer where
       if reflexive-equality predicate then (CProofRefl at predicate, st)
       else term-error at "refl requires definitionally equal operands" st
       else (case lookup-binding name env of
-        Some (MkErasedBinding display predicate id) -> (CProofRef at predicate id name, unify sp predicate expected st)
+        Some (MkErasedBinding display predicate id origin invalidated) -> (case invalidated of
+          None -> (CProofRef at predicate id name, unify sp predicate expected st)
+          Some write -> term-error at (stale-evidence-message origin write) st)
         Some (MkCheckedBinding symbol sc role) | same role "closed-proof" ->
           let predicate = scheme-body sc in
           (CProofRefl at predicate, unify sp predicate expected st)
@@ -3127,7 +3185,7 @@ module Bootstrap.Infer where
         if not (checked-class-type classes ty) then term-error s "with binding needs a checked signature value" checked else
         case fresh-id checked of
           (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
-            case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) env) locals rest body expected fresh of
+            case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) (proof-env-after-term env value fresh)) locals rest body expected fresh of
               (result, done) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
                 (resolved, verified) -> (resolved, case with-region ty of Some region -> check-capability-escape s region (core-type result) verified; None -> verified)
     other -> term-error (expr-span bindings) "malformed capability binding spine" st
@@ -3168,7 +3226,7 @@ module Bootstrap.Infer where
   infer-operator classes kinds families env locals sp op a b st =
     if has op ["&&", "||"] then
       case check classes kinds families env locals a (primitive-type "Bool") st of
-        (first, sa) -> case check classes kinds families (proof-branch env first (same op "&&") sa) locals b (primitive-type "Bool") sa of
+        (first, sa) -> case check classes kinds families (proof-branch (expr-span a) env first (same op "&&") sa) locals b (primitive-type "Bool") sa of
           (second, sb) ->
             let boolean = primitive-type "Bool" in
             if same op "&&" then (CIf sp boolean first second (CUse sp boolean "False" "constructor" Nil), sb)
@@ -3222,7 +3280,7 @@ module Bootstrap.Infer where
   bind-proof-pattern :: TypeContext -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
   bind-proof-pattern kinds env locals pattern predicate st = case pattern of
     PWild sp -> (case fresh-id st of (id, fresh) -> (env, CPProof sp predicate id "_", fresh))
-    PVar sp name -> (case fresh-id st of (id, fresh) -> (Cons (MkErasedBinding name predicate id) env, CPProof sp predicate id name, fresh))
+    PVar sp name -> (case fresh-id st of (id, fresh) -> (Cons (MkErasedBinding name predicate id sp None) env, CPProof sp predicate id name, fresh))
     PAnn sp inner annotation -> (case convert-predicate False kinds (value-locals env locals) annotation st of (actual, checked) -> bind-proof-pattern kinds env locals inner predicate (unify sp predicate actual checked))
     other -> (env, CPWild (pat-span pattern) UError, add-error (pat-span pattern) "erased proof pattern cannot inspect evidence" st)
   bind-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
@@ -3363,14 +3421,14 @@ module Bootstrap.Infer where
   check-alternatives classes kinds families env locals scrut result alts st = case alts of
     EAltsEnd s -> (CAlternativesEnd s, st)
     EAlt s p body rest -> case bind-pattern classes kinds families env locals p (core-type scrut) (duplicate-names s (pattern-names p) Nil st) of
-      (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env bound scrut pattern True sb) locals body result sb of
-        (rhs, sr) -> case check-alternatives classes kinds families (proof-case-rest-env env scrut pattern rhs sr) locals scrut result rest sr of
+      (bound, pattern, sb) -> case check-alt-body classes kinds families (proof-case-env s bound scrut pattern True sb) locals body result sb of
+        (rhs, sr) -> case check-alternatives classes kinds families (proof-case-rest-env s env scrut pattern rhs sr) locals scrut result rest sr of
           (more, ss) -> (CAlternative s pattern rhs more, ss)
     other -> term-error (expr-span alts) "malformed alternative spine" st
   check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-alt-body classes kinds families env locals body result st = case body of
     EGuarded s guard rhs -> case check classes kinds families env locals guard (primitive-type "Bool") st of
-      (condition, sc) -> case check classes kinds families (proof-branch env condition True sc) locals rhs result sc of
+      (condition, sc) -> case check classes kinds families (proof-branch (expr-span guard) env condition True sc) locals rhs result sc of
         (value, ss) -> (CGuard s result condition value, ss)
     other -> check classes kinds families env locals body result st
   -- Only the literal builtin True guard counts as an unguarded row.
@@ -3520,7 +3578,7 @@ module Bootstrap.Infer where
     Nil -> let patterns = reverse reversed in
       let bound = case earlier of
             Nil -> env
-            Cons first rest -> prepend-proof-facts
+            Cons first rest -> prepend-proof-facts zero
               (scoped-core-equation-facts (proof-context env st) (normalize-equation-prefix st earlier) (normalize-patterns st patterns)) env in
       (case check-required classes kinds families bound locals body expected st of
         (rhs, ss) -> (patterns, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss))
@@ -3683,8 +3741,8 @@ module Bootstrap.Infer where
     MkLocalBinding n sc id level -> MkLocalBinding n (map-scheme-types (normalize st) sc) id level
     MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
     MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
-    MkProofBinding fact -> MkProofBinding fact
-    MkErasedBinding name predicate id -> MkErasedBinding name (normalize st predicate) id
+    MkProofBinding origin invalidated fact -> MkProofBinding origin invalidated fact
+    MkErasedBinding name predicate id origin invalidated -> MkErasedBinding name (normalize st predicate) id origin invalidated
     MkSyntaxBinding name -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
@@ -4896,7 +4954,7 @@ module Bootstrap.Infer where
           (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
             (body, done) -> (function-type domain effects body, done))
   introduce-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
-  introduce-facts facts env = case facts of Nil -> env; Cons p rest -> Cons (MkProofBinding p) (introduce-facts rest env)
+  introduce-facts facts env = case facts of Nil -> env; Cons p rest -> Cons (MkProofBinding zero None p) (introduce-facts rest env)
   check-required :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-required classes kinds families env locals body expected st = case normalize st expected of
     URequire predicates result -> case scoped-core-predicates (proof-context env st) predicates of
@@ -4911,17 +4969,22 @@ module Bootstrap.Infer where
   discharge-checked-call sp env term st = let ty = normalize st (core-type term) in
     case ty of
       URequire predicates result -> case store-errors st of
-        Nil -> case scoped-prove-predicates (proof-context env st) (proof-facts env) ty of
-          Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
-          None -> let message = "function precondition is not established at this call" in
-            case (predicates, result) of
-              (UArg predicate UEnd, URequire more body) -> term-error sp message st
-              (UArg predicate UEnd, other) ->
-                let missing = missing-obligation message predicate in
-                (case wrong-named-evidence env env predicate st of
-                  Some detail -> term-error sp (missing <> ". " <> detail) st
-                  None -> term-error sp missing st)
-              other -> term-error sp message st
+        Nil -> let evaluated = proof-env-after-writes env (call-operand-writes (map-term-types (normalize st) term)) st in
+          let gamma = proof-context evaluated st in
+          (case scoped-prove-predicates gamma (proof-facts evaluated) ty of
+            Some evidence -> (CDischarge sp (required-body ty) evidence term, st)
+            None -> case stale-proof-message evaluated st (\prior ->
+              case scoped-prove-predicates gamma prior ty of Some evidence -> True; None -> False) of
+                Some message -> term-error sp message st
+                None -> let message = "function precondition is not established at this call" in
+                  (case (predicates, result) of
+                    (UArg predicate UEnd, URequire more body) -> term-error sp message st
+                    (UArg predicate UEnd, other) ->
+                      let missing = missing-obligation message predicate in
+                      (case wrong-named-evidence evaluated evaluated predicate st of
+                        Some detail -> term-error sp (missing <> ". " <> detail) st
+                        None -> term-error sp missing st)
+                    other -> term-error sp message st))
         other -> (term, st)
       other -> (term, st)
 

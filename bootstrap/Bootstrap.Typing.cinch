@@ -157,8 +157,6 @@ module Bootstrap.Typing where
         (case pattern-scope context scope domain first of Some bound -> (case pattern-result ty first of Some result -> constructor-fields context bound expected result rest; None -> None); None -> None)
       None -> None
     other -> None
-  branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
-  branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of Some p -> Cons p facts; None -> facts
   lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
   lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if key == id then Some sc else lookup-local id rest
   application-result :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, UType)
@@ -174,12 +172,17 @@ module Bootstrap.Typing where
           None -> None)
       other -> None)
   checked-application :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
-  checked-application context scope gamma facts ty row f x = checked-term context scope gamma facts f && checked-term context scope gamma facts x
-    && (case application-result context scope gamma facts (core-type f) x of Some (result, effects) -> equal-type result ty && equal-type effects row; None -> False)
+  checked-application context scope gamma facts ty row f x = let before-argument = core-mutable-writes f in
+    let before-call = before-argument <> core-mutable-writes x in
+    checked-term context scope gamma facts f
+      && checked-term context scope (proof-after-writes gamma before-argument) (facts-after-writes gamma facts before-argument) x
+      && (case application-result context scope (proof-after-writes gamma before-call) (facts-after-writes gamma facts before-call) (core-type f) x of
+        Some (result, effects) -> equal-type result ty && equal-type effects row
+        None -> False)
   tuple-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   tuple-terms context scope gamma facts types terms = case (types, terms) of
     (UEnd, CArgumentsEnd sp) -> True
-    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first) && checked-term context scope gamma facts first && tuple-terms context scope gamma facts rest more
+    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first) && checked-term context scope gamma facts first && tuple-terms context scope (proof-after-writes gamma (core-mutable-writes first)) (facts-after-writes gamma facts (core-mutable-writes first)) rest more
     other -> False
   mathematical :: UType -> Bool
   mathematical ty = type-is "Int" ty || type-is "Nat" ty
@@ -196,14 +199,17 @@ module Bootstrap.Typing where
         else False)
     other -> False
   argument-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
-  argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope gamma facts rest; other -> False
+  argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope (proof-after-writes gamma (core-mutable-writes first)) (facts-after-writes gamma facts (core-mutable-writes first)) rest; other -> False
   alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
   alternatives-typed context scope gamma facts scrutinee expected alternatives = case alternatives of
     CAlternativesEnd sp -> True
     CAlternative sp pattern body rest -> (case pattern-scope context scope (core-type scrutinee) pattern of
       Some bound -> let row-scope = proof-pattern pattern gamma in
-        equal-type expected (core-type body) && checked-term context bound row-scope (scoped-core-case-facts row-scope facts scrutinee pattern True <> facts) body
-      None -> False) && alternatives-typed context scope gamma (if core-alternative-covers body then scoped-core-case-facts gamma facts scrutinee pattern False <> facts else facts) scrutinee expected rest
+        let introduced = facts-after-writes row-scope (scoped-core-case-facts row-scope facts scrutinee pattern True) (core-mutable-writes scrutinee) in
+        equal-type expected (core-type body) && checked-term context bound row-scope (introduced <> facts) body
+      None -> False) && (let writes = guard-fallthrough-writes body in
+        let introduced = scoped-core-case-rest-facts gamma facts scrutinee pattern body <> facts in
+        alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma introduced writes) scrutinee expected rest)
     other -> False
   checked-term :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
   checked-term context scope gamma facts term = proper-type (core-type term) && wf context scope (core-type term) && (case term of
@@ -221,21 +227,28 @@ module Bootstrap.Typing where
     CHandle sp ty label residual body handled-by -> checked-handle context scope gamma facts ty label residual body handled-by
     CDecision sp ty predicate condition -> wf context scope predicate && checked-term context scope gamma facts condition && scoped-decision-valid gamma facts ty predicate condition
     CErasedApply sp ty row f witness -> wf context scope row && checked-term context scope gamma facts f
-      && (case core-type f of UProofFun predicate effects result -> equal-type result ty && equal-type effects row && wf context scope predicate && scoped-proof-reference gamma predicate witness; other -> False)
+      && (case core-type f of UProofFun predicate effects result -> equal-type result ty && equal-type effects row && wf context scope predicate && scoped-proof-reference (proof-after-writes gamma (core-mutable-writes f)) predicate witness; other -> False)
     CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
       (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
-        Some bound -> equal-type result (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body && effects-fit (core-effects body) row
+        Some bound -> let writes = [(sp, None)] in equal-type result (core-type body)
+          && checked-term context bound (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body
+          && effects-fit (core-effects body) row
         None -> False)
       other -> False)
     CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
     CSpawn sp ty token body -> checked-spawn ty token body && checked-term context scope gamma facts token && checked-term context scope gamma facts body
     CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
     CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
-      && equal-type ty (core-type body) && checked-term context scope gamma facts value && checked-term context scope gamma facts body
+      && equal-type ty (core-type body) && checked-term context scope gamma facts value
+      && checked-term context scope (proof-after-writes gamma (core-mutable-writes value)) (facts-after-writes gamma facts (core-mutable-writes value)) body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
     CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type ty (core-type yes) && equal-type ty (core-type no)
-      && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) yes && checked-term context scope gamma (branch-facts gamma facts condition False) no
-    CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts value ty alternatives
+      && checked-term context scope gamma facts condition
+      && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) yes
+      && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) no
+    CCase sp ty value alternatives -> let writes = core-mutable-writes value in
+      checked-term context scope gamma facts value
+        && alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
     CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
     CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args else if same name "mut-borrow" then mut-borrow-checked ty args else if same name "ref-set" then ref-set-checked ty args else primitive-types ty name args)
       && argument-terms context scope gamma facts args
@@ -245,7 +258,7 @@ module Bootstrap.Typing where
     CForget sp ty body -> (case refinement-view (core-type body) of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
     CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
     CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
-    CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
+    CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body
     other -> False)
   task-data-closed :: List (String, Kind) -> List CoreData -> Bool
   task-data-closed kinds datas = case datas of
@@ -722,13 +735,14 @@ module Bootstrap.Typing where
       None -> False)
   checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
   checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed (context-kinds context) scope sc
-    && (case scheme-requirements sc of Nil -> True; other -> False)
+    && not (volatile-borrow-index (scheme-body sc)) && (case scheme-requirements sc of Nil -> True; other -> False)
     && equal-type (scheme-body sc) (core-type rhs) && equal-type ty (core-type body)
     && (case scheme-type-scope (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
     && (case add-local-scheme id sc scope of
-      Some bound -> let next = scope-let gamma facts id sc rhs in
+      Some bound -> let writes = core-mutable-writes rhs in
+        let next = proof-after-writes (scope-let gamma facts id sc rhs) writes in
         let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
-        checked-term context bound next more body
+        checked-term context bound next (facts-after-writes gamma more writes) body
       None -> False)
   openings-scope :: TypingContext -> TypeScope -> List (Nat, UType) -> Option TypeScope
   openings-scope context scope openings = case openings of

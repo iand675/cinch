@@ -28,6 +28,9 @@ module Bootstrap.Core where
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export task-kind, task-type, task-result-type, task-parts, task-body-parts, scope-parameters, task-join-result
   export ownership-type-kinds, borrowed-carrier, mutable-borrow, copy-out-type
+  export core-mutable-writes, scoped-branch-writes, guard-fallthrough-writes
+  export mutable-fact-write, mutable-predicate-write, facts-after-writes, proof-after-writes, volatile-borrow-index
+  export scoped-branch-facts, call-operand-writes, scoped-borrow-read-index
   export CHandler, CHandle, CHandlerOperation, CHandlerEnd
   export handler-kind, handler-type, handler-parts, handler-residual, handler-operation-scheme, handler-clause-type, handler-resumption-safe, handler-body-direct, handler-performs
   export CProofRef, CProofRefl, CErasedApply, scope-erased, scoped-proof-reference, reflexive-equality
@@ -752,8 +755,27 @@ module Bootstrap.Core where
     CUse sp ty name role Nil -> if bool-type ty && string-compare role "constructor" == 0 then
       (if string-compare name "True" == 0 then Some True else if string-compare name "False" == 0 then Some False else None) else None
     other -> if decision-constant True term then Some True else if decision-constant False term then Some False else None
+  scoped-branch-writes :: CoreTerm -> Bool -> List (Span, Option UType)
+  scoped-branch-writes term positive = case term of
+    CIf sp ty condition yes no -> case (write-branch-literal yes, write-branch-literal no) of
+      (Some left, Some right) | left /= right -> scoped-branch-writes condition (left == positive)
+      (Some True, other) | not positive -> scoped-branch-writes condition False <> scoped-branch-writes no False
+      (other, Some False) | positive -> scoped-branch-writes condition True <> scoped-branch-writes yes True
+      other -> core-mutable-writes term
+    other -> core-mutable-writes term
+  guard-fallthrough-writes :: CoreTerm -> List (Span, Option UType)
+  guard-fallthrough-writes body = case body of
+    CGuard sp ty condition rhs -> scoped-branch-writes condition False
+    CRequire sp ty inner -> guard-fallthrough-writes inner
+    other -> Nil
   child-writes :: List CoreTerm -> List (Span, Option UType)
   child-writes children = case children of Nil -> Nil; Cons first rest -> core-mutable-writes first <> child-writes rest
+  call-operand-writes :: CoreTerm -> List (Span, Option UType)
+  call-operand-writes term = case term of
+    CApply sp ty f x -> child-writes [f, x]
+    CApplyEff sp ty row f x -> child-writes [f, x]
+    CErasedApply sp ty row f witness -> core-mutable-writes f
+    other -> Nil
   argument-writes :: Span -> CoreTerm -> List (Span, Option UType)
   argument-writes sp term = case mutable-borrow (core-type term) of
     Some (region, carrier) -> [(sp, Some region)]
@@ -787,6 +809,7 @@ module Bootstrap.Core where
     CApplyEff at ty row f x -> opaque-call-writes sp f
     CErasedApply at ty row f witness -> opaque-call-writes sp f
     CDischarge at ty evidence body -> opaque-call-writes sp body
+    CLocal at ty id name actuals -> [(sp, None)]
     other -> Nil
   opaque-symbol-writes :: Span -> String -> String -> List (Span, Option UType)
   opaque-symbol-writes sp name role =
@@ -1447,7 +1470,7 @@ module Bootstrap.Core where
   scope-let scope facts id scheme rhs = let bound = scope-local id (scheme-body scheme) scope in
     case (scheme-params scheme, scheme-requirements scheme) of
       (Nil, Nil) -> if not (stable-index-source rhs && contract-equal (scheme-body scheme) (core-type rhs)) then bound else case actual-index scope facts rhs of
-        Some value -> if scope-index-valid (scheme-body scheme) value then
+        Some value -> if not (volatile-borrow-index value) && scope-index-valid (scheme-body scheme) value then
           (case bound of MkProofScope types values proofs bodies guards -> MkProofScope types (Cons (id, value) values) proofs bodies guards) else bound
         None -> bound
       other -> bound
@@ -1455,6 +1478,89 @@ module Bootstrap.Core where
   scope-erased :: Nat -> UType -> ProofScope -> ProofScope
   scope-erased id predicate gamma = case gamma of
     MkProofScope types values proofs bodies guards -> MkProofScope (scope-remove id types) (scope-remove id values) (Cons (id, predicate) (scope-remove id proofs)) bodies guards
+
+  write-matches :: Option UType -> UType -> Bool
+  write-matches region actual = case region of Some wanted -> contract-equal wanted actual; None -> True
+  arithmetic-mentions :: Arithmetic -> Arithmetic -> Bool
+  arithmetic-mentions needle expression = case expression of
+    AVariable name -> arithmetic-equal needle expression
+    APlus a b -> arithmetic-mentions needle a || arithmetic-mentions needle b
+    AMinus a b -> arithmetic-mentions needle a || arithmetic-mentions needle b
+    ATimes a b -> arithmetic-mentions needle a || arithmetic-mentions needle b
+    ACall name args -> arithmetic-mentions needle args
+    AArgument first rest -> arithmetic-mentions needle first || arithmetic-mentions needle rest
+    other -> False
+  fact-mentions :: Arithmetic -> Proposition -> Bool
+  fact-mentions needle fact = case fact of
+    PCompare relation a b -> arithmetic-mentions needle a || arithmetic-mentions needle b
+    PBoth a b -> fact-mentions needle a || fact-mentions needle b
+    PEither a b -> fact-mentions needle a || fact-mentions needle b
+    PNegate body -> fact-mentions needle body
+    other -> False
+  fact-written :: List (Nat, UType) -> Option UType -> Proposition -> Bool
+  fact-written locals region fact = case locals of
+    Nil -> False
+    Cons (id, ty) rest -> (case mutable-borrow ty of
+      Some (owner, carrier) -> write-matches region owner && fact-mentions (borrow-read-variable id) fact
+      None -> False) || fact-written rest region fact
+  mutable-fact-write :: ProofScope -> List (Span, Option UType) -> Proposition -> Option Span
+  mutable-fact-write gamma writes fact = case writes of
+    Nil -> None
+    Cons (sp, region) rest -> if fact-written (scope-types gamma) region fact then Some sp else mutable-fact-write gamma rest fact
+  borrow-index-regions :: UType -> List UType
+  borrow-index-regions ty = case ty of
+    UIndexBorrowRead (UIndex borrow (IRigid id name level)) -> (case mutable-borrow borrow of Some (region, carrier) -> [region]; None -> Nil)
+    UCompare relation a b -> borrow-index-regions a <> borrow-index-regions b
+    UPropAnd a b -> borrow-index-regions a <> borrow-index-regions b
+    UPropOr a b -> borrow-index-regions a <> borrow-index-regions b
+    UPropNot a -> borrow-index-regions a
+    UPropNonZero a -> borrow-index-regions a
+    UPropNonZeroPending a -> borrow-index-regions a
+    UPropNotNull a -> borrow-index-regions a
+    UIndexForget a -> borrow-index-regions a
+    UIndexByteLength a -> borrow-index-regions a
+    UIndexPromote a -> borrow-index-regions a
+    UIndexMath op a b -> borrow-index-regions a <> borrow-index-regions b
+    UIndexCall function args -> borrow-index-regions args
+    UIndexList element args -> borrow-index-regions args
+    UArg a rest -> borrow-index-regions a <> borrow-index-regions rest
+    URequire conditions body -> borrow-index-regions conditions <> borrow-index-regions body
+    URefine id name carrier predicate -> borrow-index-regions carrier <> borrow-index-regions predicate
+    URefineFormer name ids body -> borrow-index-regions body
+    UIndex carrier value -> borrow-index-regions carrier
+    UPi id name domain row result -> borrow-index-regions domain <> borrow-index-regions row <> borrow-index-regions result
+    UApp f x -> borrow-index-regions f <> borrow-index-regions x
+    UFun a b -> borrow-index-regions a <> borrow-index-regions b
+    UFunEff a row b -> borrow-index-regions a <> borrow-index-regions row <> borrow-index-regions b
+    UProofFun a row b -> borrow-index-regions a <> borrow-index-regions row <> borrow-index-regions b
+    URow labels -> borrow-index-regions labels
+    URowJoin a b -> borrow-index-regions a <> borrow-index-regions b
+    UTuple fields -> borrow-index-regions fields
+    other -> Nil
+  volatile-borrow-index :: UType -> Bool
+  volatile-borrow-index ty = case borrow-index-regions ty of Nil -> False; other -> True
+  predicate-written :: Option UType -> List UType -> Bool
+  predicate-written region regions = case regions of Nil -> False; Cons first rest -> write-matches region first || predicate-written region rest
+  mutable-predicate-write :: List (Span, Option UType) -> UType -> Option Span
+  mutable-predicate-write writes predicate = case writes of
+    Nil -> None
+    Cons (sp, region) rest -> if predicate-written region (borrow-index-regions predicate) then Some sp else mutable-predicate-write rest predicate
+  facts-after-writes :: ProofScope -> List Proposition -> List (Span, Option UType) -> List Proposition
+  facts-after-writes gamma facts writes = case (writes, facts) of
+    (Nil, other) -> facts
+    (other, Nil) -> Nil
+    (other, Cons first rest) -> let live = facts-after-writes gamma rest writes in
+      (case mutable-fact-write gamma writes first of None -> Cons first live; Some sp -> live)
+  erased-after-writes :: List (Nat, UType) -> List (Span, Option UType) -> List (Nat, UType)
+  erased-after-writes proofs writes = case proofs of
+    Nil -> Nil
+    Cons (id, predicate) rest -> let live = erased-after-writes rest writes in
+      (case mutable-predicate-write writes predicate of None -> Cons (id, predicate) live; Some sp -> live)
+  proof-after-writes :: ProofScope -> List (Span, Option UType) -> ProofScope
+  proof-after-writes gamma writes = case (gamma, writes) of
+    (scope, Nil) -> scope
+    (MkProofScope types values proofs bodies guards, other) ->
+      MkProofScope types values (erased-after-writes proofs writes) bodies guards
   scoped-proof-reference :: ProofScope -> UType -> CoreTerm -> Bool
   scoped-proof-reference gamma expected term = valid-type expected && kind-equal (type-kind expected) KProp && (case (gamma, term) of
     (MkProofScope types values proofs bodies guards, CProofRef s predicate id name) -> valid-proof-reference term && contract-equal expected predicate
@@ -1524,8 +1630,8 @@ module Bootstrap.Core where
       Some actual -> contract-equal input actual
       None -> False)
     UPropNot input -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts input test && decision-constant False yes && decision-constant True no; other -> False)
-    UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test gamma (branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
-    UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test gamma (branch-facts gamma facts test False) second no; other -> False)
+    UPropAnd first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-predicate-test (proof-after-writes gamma (scoped-branch-writes test True)) (scoped-branch-facts gamma facts test True) second yes && decision-constant False no; other -> False)
+    UPropOr first second -> (case condition of CIf sp ty test yes no -> decision-predicate-test gamma facts first test && decision-constant True yes && decision-predicate-test (proof-after-writes gamma (scoped-branch-writes test False)) (scoped-branch-facts gamma facts test False) second no; other -> False)
     other -> (case condition of
       CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) -> decision-operand gamma facts first && decision-operand gamma facts second
         && (case (core-predicate gamma predicate, comparison-name operation, decision-index-reading gamma facts first, decision-index-reading gamma facts second) of
@@ -1625,10 +1731,15 @@ module Bootstrap.Core where
 
   core-arithmetic :: ProofScope -> List Proposition -> CoreTerm -> Option Arithmetic
   core-arithmetic gamma facts term = case checked-total-index gamma facts term of Some value -> typed-index-arithmetic gamma value; None -> ordinary-arithmetic gamma facts term
-  read-only-borrow-index :: ProofScope -> UType -> CoreTerm -> Option UType
-  read-only-borrow-index gamma result term = case term of
+  scoped-borrow-read-index :: ProofScope -> CoreTerm -> Option UType
+  scoped-borrow-read-index gamma term = case term of
+    CPrimitive sp result operation (CArgument at input (CArgumentsEnd end)) ->
+      if string-compare operation "copy-out" == 0 then local-borrow-index gamma result input else None
+    other -> None
+  local-borrow-index :: ProofScope -> UType -> CoreTerm -> Option UType
+  local-borrow-index gamma result term = case term of
     CLocal sp ty id name Nil -> (case (borrow-type-parts ty, proof-local id gamma) of
-      (Some (False, region, carrier), Some declared) ->
+      (Some (mutable, region, carrier), Some declared) ->
         if integer-carrier carrier && contract-equal ty declared && contract-equal result carrier
         then Some (UIndexBorrowRead (UIndex ty (IRigid id name 0))) else None
       other -> None)
@@ -1636,7 +1747,7 @@ module Bootstrap.Core where
   borrow-observation-reading :: ProofScope -> UType -> Option Arithmetic
   borrow-observation-reading gamma input = case input of
     UIndex ty (IRigid id name level) -> (case (borrow-type-parts ty, proof-local id gamma) of
-      (Some (False, region, carrier), Some declared) ->
+      (Some (mutable, region, carrier), Some declared) ->
         if integer-carrier carrier && contract-equal ty declared then Some (borrow-read-variable id) else None
       other -> None)
     other -> None
@@ -1668,7 +1779,7 @@ module Bootstrap.Core where
       else None
     CPrimitive s ty op (CArgument a first (CArgumentsEnd end)) ->
       if string-compare op "copy-out" == 0 then
-        (case read-only-borrow-index gamma ty first of Some reading -> typed-index-arithmetic gamma reading; None -> None)
+        (case local-borrow-index gamma ty first of Some reading -> typed-index-arithmetic gamma reading; None -> None)
       else if string-compare op "negate" == 0 && same-number-sort ty (core-type first) && not (nat-type ty) then
         (case core-arithmetic gamma facts first of Some x -> Some (AMinus (AInteger 0) x); None -> None) else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
@@ -1877,7 +1988,8 @@ module Bootstrap.Core where
       other -> False)
     other -> True
   case-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> Bool -> List Proposition
-  case-branch-facts gamma facts value pattern positive = scoped-core-case-facts gamma facts value pattern positive <> facts
+  case-branch-facts gamma facts value pattern positive =
+    facts-after-writes gamma (scoped-core-case-facts gamma facts value pattern positive) (core-mutable-writes value) <> facts
   -- A pure guard on a pattern that always matches can fail only when the
   -- guard is false. Read it in the outer scope so no row binding escapes.
   scoped-core-case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
@@ -1891,7 +2003,8 @@ module Bootstrap.Core where
         else Nil
       other -> Nil
   case-rest-facts :: ProofScope -> List Proposition -> CoreTerm -> CorePattern -> CoreTerm -> List Proposition
-  case-rest-facts gamma facts value pattern body = scoped-core-case-rest-facts gamma facts value pattern body <> facts
+  case-rest-facts gamma facts value pattern body = facts-after-writes gamma
+    (scoped-core-case-rest-facts gamma facts value pattern body <> facts) (guard-fallthrough-writes body)
   -- A failed earlier equation refutes a column only if every other
   -- pattern always matches and the equation has no fallible guard.
   extend-equation-prefix :: List CorePattern -> CoreTerm -> List (List CorePattern) -> List (List CorePattern)
@@ -1917,10 +2030,12 @@ module Bootstrap.Core where
           Some value -> scoped-core-case-facts gamma Nil value prior False
           None -> Nil)
         None -> Nil) <> scoped-core-equation-facts gamma rest patterns
-  branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
-  branch-facts gamma facts condition positive = case scoped-core-branch gamma facts condition positive of
-    Some p -> Cons p facts
-    None -> facts
+  scoped-branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
+  scoped-branch-facts gamma facts condition positive =
+    let with-branch = (case scoped-core-branch gamma facts condition positive of
+      Some p -> Cons p facts
+      None -> facts) in
+    facts-after-writes gamma with-branch (scoped-branch-writes condition positive)
   subtraction-goal :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proposition
   subtraction-goal gamma facts first second = if nat-type (core-type first) && nat-type (core-type second) then
     (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of (Some x, Some y) -> Some (PCompare AtMost y x); other -> None) else None
@@ -1931,10 +2046,17 @@ module Bootstrap.Core where
       (case core-arithmetic gamma facts second of Some divisor -> Some (PCompare Unequal divisor (AInteger 0)); None -> None)
     else None
   scoped-prove-operation :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option Proof
-  scoped-prove-operation gamma facts op first second = case operation-goal gamma facts op first second of
-    Some goal -> let hypotheses = goal-assumptions gamma facts [goal] in case prove hypotheses goal of
+  scoped-prove-operation gamma facts op first second = case operation-obligation gamma facts op first second of
+    Some (goal, hypotheses) -> case prove hypotheses goal of
       Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
       None -> None
+    None -> None
+  operation-obligation :: ProofScope -> List Proposition -> String -> CoreTerm -> CoreTerm -> Option (Proposition, List Proposition)
+  operation-obligation gamma facts op first second = case operation-goal gamma facts op first second of
+    Some goal -> let writes = child-writes [first, second] in
+      (case mutable-fact-write gamma writes goal of
+        Some sp -> None
+        None -> Some (goal, goal-assumptions (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) [goal]))
     None -> None
   scoped-prove-subtraction :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Option Proof
   scoped-prove-subtraction gamma facts first second = scoped-prove-operation gamma facts "-" first second
@@ -1944,8 +2066,8 @@ module Bootstrap.Core where
   certified-operation gamma facts ty evidence body = case body of
     CPrimitive s out op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       same-number-sort ty out && same-number-sort out (core-type first)
-      && proof-term gamma facts first && proof-term gamma facts second
-      && (case operation-goal gamma facts op first second of Some goal -> check-proof (goal-assumptions gamma facts [goal]) goal evidence; None -> False)
+      && proof-term gamma facts first && proof-after-term gamma facts first second
+      && (case operation-obligation gamma facts op first second of Some (goal, hypotheses) -> check-proof hypotheses goal evidence; None -> False)
     other -> False
   scoped-core-let-fact :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   scoped-core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
@@ -1970,7 +2092,7 @@ module Bootstrap.Core where
   erased-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   erased-application gamma facts ty row fun witness = proof-term gamma facts fun && (case core-type fun of
     UProofFun predicate effects result -> valid-type (core-type fun) && contract-equal result ty && contract-equal effects row
-      && scoped-proof-reference gamma predicate witness
+      && scoped-proof-reference (proof-after-writes gamma (core-mutable-writes fun)) predicate witness
     other -> False)
   proof-term :: ProofScope -> List Proposition -> CoreTerm -> Bool
   proof-term gamma facts term = if is-refinement (core-type term) then proof-refined-term gamma facts term else proof-ordinary-term gamma facts term
@@ -1989,33 +2111,52 @@ module Bootstrap.Core where
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
     CProved s ty evidence body -> certified-operation gamma facts ty evidence body
     CPrimitive s ty op args -> string-compare op "/" /= 0 && not (nat-type ty && string-compare op "-" == 0) && proof-term gamma facts args
-    CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty (URow UEnd) f x else True)
-    CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && (if contains-required (core-type f) then application-type gamma facts ty row f x else True)
+    CApply s ty f x -> proof-application gamma facts ty (URow UEnd) f x
+    CApplyEff s ty row f x -> proof-application gamma facts ty row f x
     CScope s ty region evidence callback -> proof-term gamma facts callback
     CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
-    CWith s ty given value body -> proof-term gamma facts value && proof-term gamma facts body
+    CWith s ty given value body -> proof-term gamma facts value && proof-after-term gamma facts value body
     CHandler s ty returned operations -> proof-term gamma facts returned && proof-term gamma facts operations
-    CHandle s ty label residual body handled-by -> proof-term gamma facts body && proof-term gamma facts handled-by
+    CHandle s ty label residual body handled-by -> proof-term gamma facts handled-by && proof-after-term gamma facts handled-by body
     CHandlerOperation s slot openings row closure rest -> proof-term gamma facts closure && proof-term gamma facts rest
-    CLambda s ty pattern body -> if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected (proof-pattern pattern gamma) facts result body; None -> False) else proof-term (proof-pattern pattern gamma) facts body
-    CLet s ty id name sc rhs body -> proof-term gamma facts rhs &&
-      proof-term (scope-let gamma facts id sc rhs) (case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts) body
+    CLambda s ty pattern body -> let writes = [(s, None)] in
+      let scope = proof-pattern pattern (proof-after-writes gamma writes) in
+      let live = facts-after-writes gamma facts writes in
+      if contains-required ty then (case pattern-result ty pattern of Some result -> proof-expected scope live result body; None -> False)
+      else proof-term scope live body
+    CLet s ty id name sc rhs body -> let writes = core-mutable-writes rhs in
+      let introduced = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
+      proof-term gamma facts rhs && proof-term (proof-after-writes (scope-let gamma facts id sc rhs) writes)
+        (facts-after-writes gamma introduced writes) body
     CIf s ty condition yes no -> proof-term gamma facts condition
-      && proof-term gamma (branch-facts gamma facts condition True) yes
-      && proof-term gamma (branch-facts gamma facts condition False) no
-    CCase s ty value alts -> proof-term gamma facts value && proof-case-alternatives gamma facts value alts
+      && proof-term (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) yes
+      && proof-term (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) no
+    CCase s ty value alts -> let writes = core-mutable-writes value in
+      proof-term gamma facts value && proof-case-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value alts
     CTuple s ty fields -> proof-term gamma facts fields
-    CGuard s ty guard rhs -> proof-term gamma facts guard && proof-term gamma (branch-facts gamma facts guard True) rhs
-    CArgument s first rest -> proof-term gamma facts first && proof-term gamma facts rest
+    CGuard s ty guard rhs -> proof-term gamma facts guard
+      && proof-term (proof-after-writes gamma (scoped-branch-writes guard True)) (scoped-branch-facts gamma facts guard True) rhs
+    CArgument s first rest -> proof-term gamma facts first && proof-after-term gamma facts first rest
     CAlternative s pattern body rest -> proof-term (proof-pattern pattern gamma) facts body && proof-term gamma facts rest
     other -> True
+  proof-after-term :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
+  proof-after-term gamma facts first rest = let writes = core-mutable-writes first in
+    proof-term (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) rest
+  proof-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  proof-application gamma facts ty row f x = proof-term gamma facts f && proof-after-term gamma facts f x
+    && (if contains-required (core-type f) then let writes = child-writes [f, x] in
+      application-type (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty row f x else True)
+  checked-proof-application :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  checked-proof-application gamma facts ty row f x = let writes = child-writes [f, x] in
+    proof-term gamma facts f && proof-after-term gamma facts f x
+      && application-type (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty row f x
   proof-case-alternatives :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
   proof-case-alternatives gamma facts value alternatives = case alternatives of
     CAlternativesEnd sp -> True
     CAlternative sp pattern body rest -> let bound = proof-pattern pattern gamma in
       proof-term bound (case-branch-facts bound facts value pattern True) body
-        && proof-case-alternatives gamma (case-rest-facts gamma facts value pattern body) value rest
+        && proof-case-alternatives (proof-after-writes gamma (guard-fallthrough-writes body)) (case-rest-facts gamma facts value pattern body) value rest
     other -> False
   is-refinement :: UType -> Bool
   is-refinement ty = case refinement-view ty of URefine id name carrier predicate -> True; other -> False
@@ -2032,7 +2173,7 @@ module Bootstrap.Core where
     Nil -> Nil
     Cons (local, ty) rest -> let more = refinement-facts gamma rest in case refinement-view ty of
       URefine id name carrier predicate ->
-        if valid-type ty && (integer-index-carrier carrier || byte-buffer-type carrier) then
+        if valid-type ty && not (volatile-borrow-index ty) && (integer-index-carrier carrier || byte-buffer-type carrier) then
           (case core-predicate gamma (substitute-bound [(id, UIndexForget (UIndex ty (IRigid local name 0)))] predicate) of
             Some fact -> Cons fact more
             None -> more) else more
@@ -2126,27 +2267,32 @@ module Bootstrap.Core where
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
     CErasedApply s ty row f witness -> erased-application gamma facts ty row f witness
-    CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty (URow UEnd) f x
-    CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty row f x
+    CApply s ty f x -> checked-proof-application gamma facts ty (URow UEnd) f x
+    CApplyEff s ty row f x -> checked-proof-application gamma facts ty row f x
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
-    CLet s ty id name sc rhs body -> proof-expected gamma facts (scheme-body sc) rhs &&
-      proof-expected (scope-let gamma facts id sc rhs) (case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts) ty body
+    CLet s ty id name sc rhs body -> let writes = core-mutable-writes rhs in
+      let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
+      proof-expected gamma facts (scheme-body sc) rhs &&
+        proof-expected (proof-after-writes (scope-let gamma facts id sc rhs) writes) (facts-after-writes gamma more writes) ty body
     CIf s ty condition yes no -> bool-type (core-type condition) && proof-term gamma facts condition
-      && proof-expected gamma (branch-facts gamma facts condition True) ty yes
-      && proof-expected gamma (branch-facts gamma facts condition False) ty no
-    CCase s ty value alternatives -> proof-term gamma facts value && refined-alternatives gamma facts value ty alternatives
-    CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard && proof-expected gamma (branch-facts gamma facts guard True) ty rhs
+      && proof-expected (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) ty yes
+      && proof-expected (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) ty no
+    CCase s ty value alternatives -> let writes = core-mutable-writes value in
+      proof-term gamma facts value && refined-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
+    CGuard s ty guard rhs -> bool-type (core-type guard) && proof-term gamma facts guard
+      && proof-expected (proof-after-writes gamma (scoped-branch-writes guard True)) (scoped-branch-facts gamma facts guard True) ty rhs
     CScope s ty region evidence callback -> proof-term gamma facts callback
     CSpawn s ty token body -> proof-term gamma facts token && proof-term gamma facts body
     CJoin s ty token body -> proof-term gamma facts token && proof-term gamma facts body
-    CWith s ty given value body -> proof-term gamma facts value && proof-expected gamma facts ty body
+    CWith s ty given value body -> let writes = core-mutable-writes value in
+      proof-term gamma facts value && proof-expected (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) ty body
     other -> False
   refined-alternatives :: ProofScope -> List Proposition -> CoreTerm -> UType -> CoreTerm -> Bool
   refined-alternatives gamma facts value ty alternatives = case alternatives of
     CAlternativesEnd s -> True
     CAlternative s pattern body rest -> let bound = proof-pattern pattern gamma in
       proof-expected bound (case-branch-facts bound facts value pattern True) ty body
-        && refined-alternatives gamma (case-rest-facts gamma facts value pattern body) value ty rest
+        && refined-alternatives (proof-after-writes gamma (guard-fallthrough-writes body)) (case-rest-facts gamma facts value pattern body) value ty rest
     other -> False
 
   proof-clauses :: List CoreClause -> Bool
@@ -2161,12 +2307,12 @@ module Bootstrap.Core where
   refresh-case-alternatives gamma facts value alternatives = case alternatives of
     CAlternative sp pattern body rest -> let bound = proof-pattern pattern gamma in
       CAlternative sp pattern (refresh-certificates bound (case-branch-facts bound facts value pattern True) body)
-        (refresh-case-alternatives gamma (case-rest-facts gamma facts value pattern body) value rest)
+        (refresh-case-alternatives (proof-after-writes gamma (guard-fallthrough-writes body)) (case-rest-facts gamma facts value pattern body) value rest)
     other -> other
   refresh-certificates :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm
   refresh-certificates gamma facts term = case term of
     CHandler s ty returned operations -> CHandler s ty (refresh-certificates gamma facts returned) (refresh-certificates gamma facts operations)
-    CHandle s ty label residual body handled-by -> CHandle s ty label residual (refresh-certificates gamma facts body) (refresh-certificates gamma facts handled-by)
+    CHandle s ty label residual body handled-by -> CHandle s ty label residual (refresh-after-term gamma facts handled-by body) (refresh-certificates gamma facts handled-by)
     CHandlerOperation s slot openings row closure rest -> CHandlerOperation s slot openings row (refresh-certificates gamma facts closure) (refresh-certificates gamma facts rest)
     CInt sp (URefine id name carrier predicate) text -> let refined = URefine id name carrier predicate in
       let value = refresh-certificates gamma facts (CInt sp carrier text) in
@@ -2180,7 +2326,10 @@ module Bootstrap.Core where
       URequire predicates result -> case scoped-core-predicates gamma predicates of Some ps -> CRequire s ty (refresh-certificates gamma (ps <> facts) body); None -> CError s
       other -> CError s
     CDischarge s ty evidence body -> let call = refresh-certificates gamma facts body in
-      case scoped-prove-predicates gamma facts (core-type call) of Some fresh -> CDischarge s ty fresh call; None -> CError s
+      let writes = call-operand-writes call in
+      case scoped-prove-predicates (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) (core-type call) of
+        Some fresh -> CDischarge s ty fresh call
+        None -> CError s
     CProved s ty evidence body -> let out = refresh-certificates gamma facts body in
       if certified-operation gamma facts ty evidence out then CProved s ty evidence out
       else case out of
@@ -2191,30 +2340,37 @@ module Bootstrap.Core where
               None -> CError s)
           else CError s
         other -> CError s
-    CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
-    CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-certificates gamma facts x)
+    CApply s ty f x -> CApply s ty (refresh-certificates gamma facts f) (refresh-after-term gamma facts f x)
+    CApplyEff s ty row f x -> CApplyEff s ty row (refresh-certificates gamma facts f) (refresh-after-term gamma facts f x)
     CErasedApply s ty row f witness -> CErasedApply s ty row (refresh-certificates gamma facts f) witness
     CDecision s ty predicate condition -> CDecision s ty predicate (refresh-certificates gamma facts condition)
     CScope s ty region evidence callback -> CScope s ty region evidence (refresh-certificates gamma facts callback)
     CSpawn s ty token body -> CSpawn s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
     CJoin s ty token body -> CJoin s ty (refresh-certificates gamma facts token) (refresh-certificates gamma facts body)
-    CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-certificates gamma facts body)
-    CLambda s ty pattern body -> CLambda s ty pattern (refresh-certificates (proof-pattern pattern gamma) facts body)
+    CWith s ty given value body -> CWith s ty given (refresh-certificates gamma facts value) (refresh-after-term gamma facts value body)
+    CLambda s ty pattern body -> let writes = [(s, None)] in
+      CLambda s ty pattern (refresh-certificates (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body)
     CLet s ty id name sc rhs body -> let value = refresh-certificates gamma facts rhs in
+      let writes = core-mutable-writes value in
       let more = case scoped-core-let-fact gamma facts id sc value of Some p -> Cons p facts; None -> facts in
-      CLet s ty id name sc value (refresh-certificates (scope-let gamma facts id sc value) more body)
+      CLet s ty id name sc value (refresh-certificates (proof-after-writes (scope-let gamma facts id sc value) writes) (facts-after-writes gamma more writes) body)
     CIf s ty condition yes no -> let c = refresh-certificates gamma facts condition in
-      CIf s ty c (refresh-certificates gamma (branch-facts gamma facts c True) yes)
-        (refresh-certificates gamma (branch-facts gamma facts c False) no)
+      CIf s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) yes)
+        (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c False)) (scoped-branch-facts gamma facts c False) no)
     CCase s ty value alts -> let scrutinee = refresh-certificates gamma facts value in
-      CCase s ty scrutinee (refresh-case-alternatives gamma facts scrutinee alts)
+      let writes = core-mutable-writes scrutinee in
+      CCase s ty scrutinee (refresh-case-alternatives (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) scrutinee alts)
     CTuple s ty fields -> CTuple s ty (refresh-certificates gamma facts fields)
     CPrimitive s ty op args -> CPrimitive s ty op (refresh-certificates gamma facts args)
     CGuard s ty condition body -> let c = refresh-certificates gamma facts condition in
-      CGuard s ty c (refresh-certificates gamma (branch-facts gamma facts c True) body)
-    CArgument s value rest -> CArgument s (refresh-certificates gamma facts value) (refresh-certificates gamma facts rest)
+      CGuard s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) body)
+    CArgument s value rest -> CArgument s (refresh-certificates gamma facts value) (refresh-after-term gamma facts value rest)
     CAlternative s pattern body rest -> CAlternative s pattern (refresh-certificates (proof-pattern pattern gamma) facts body) (refresh-certificates gamma facts rest)
     other -> term
+
+  refresh-after-term :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> CoreTerm
+  refresh-after-term gamma facts first rest = let writes = core-mutable-writes first in
+    refresh-certificates (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) rest
 
   -- Preconditions are proof metadata. Calls retain their obligation until a
   -- CDischarge checks it; CRequire is permitted only at a declared boundary.
@@ -2348,7 +2504,7 @@ module Bootstrap.Core where
       if same-number-sort ty ty && same-number-sort ty (core-type first) && same-number-sort ty (core-type second) && proof-term gamma facts term then
         actual-math-index gamma facts op first second else None
     CPrimitive s ty op (CArgument a input (CArgumentsEnd end)) ->
-      if string-compare op "copy-out" == 0 then read-only-borrow-index gamma ty input
+      if string-compare op "copy-out" == 0 then local-borrow-index gamma ty input
       else if string-compare op "negate" == 0 && same-number-sort ty (core-type input) && not (nat-type ty) && proof-term gamma facts input then
         actual-math-index gamma facts "-" (CInt s ty "0") input else None
     CApply s ty (CApply partial function method first) second -> case scoped-numeric-method-operation gamma method first second of
@@ -2384,8 +2540,8 @@ module Bootstrap.Core where
       CUse s ty name role actuals -> not (string-compare role "local" == 0) && closed-types actuals
       CQualifiedUse s ty name role actuals evidence -> not (string-compare role "local" == 0) && closed-types actuals && evidences-closed evidence
       CMethod s ty name owner slot actuals evidence -> closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
-      CApply s ty f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty (URow UEnd) f x
-      CApplyEff s ty row f x -> proof-term gamma facts f && proof-term gamma facts x && application-type gamma facts ty row f x
+      CApply s ty f x -> checked-proof-application gamma facts ty (URow UEnd) f x
+      CApplyEff s ty row f x -> checked-proof-application gamma facts ty row f x
       other -> False
     other -> False
   application-type :: ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
@@ -2398,9 +2554,12 @@ module Bootstrap.Core where
     CApplyEff s ty row f x -> application-type gamma facts ty row f x
     other -> True
   discharged :: ProofScope -> List Proposition -> UType -> List Proof -> CoreTerm -> Bool
-  discharged gamma facts ty evidence body = closed-runtime-type ty && required-call gamma facts body
-    && contract-equal ty (required-body (core-type body))
-    && (case required-predicates gamma (core-type body) of Some goals -> check-goals (goal-assumptions gamma facts goals) goals evidence; None -> False)
+  discharged gamma facts ty evidence body = let writes = call-operand-writes body in
+    let after = proof-after-writes gamma writes in
+    closed-runtime-type ty && required-call gamma facts body && contract-equal ty (required-body (core-type body))
+      && (case required-predicates after (core-type body) of
+        Some goals -> check-goals (goal-assumptions after (facts-after-writes gamma facts writes) goals) goals evidence
+        None -> False)
   valid-required-call :: CoreTerm -> Bool
   valid-required-call term = closed-type (core-type term) && (case term of
     CUse s ty name role actuals -> closed-types actuals
