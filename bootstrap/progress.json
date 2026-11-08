@@ -11904,11 +11904,11 @@
         "unit": "targets",
         "total": 105,
         "counts": {
-          "verified": 0,
+          "verified": 9,
           "blocked": 0,
-          "running": 0,
-          "pending": 79,
-          "recheck": 26
+          "running": 1,
+          "pending": 74,
+          "recheck": 21
         },
         "detail": "All 100 original targets plus five additions: 96 portable targets and nine interface/API groups.",
         "items": [
@@ -11917,7 +11917,7 @@
             "title": "alloc_accounting",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/alloc_accounting.rs",
             "observed": {
               "status": "failed",
@@ -11967,16 +11967,16 @@
             "id": "stage3:argv",
             "title": "argv",
             "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "detail": "2 of 3 cases recorded a matching Cinch invocation. Remaining cases need a coverage review.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/argv.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:01:57.978528+00:00",
-              "finishedAt": "2026-11-07T12:02:59.551754+00:00",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:15:57.085815+00:00",
+              "finishedAt": "2026-11-08T00:16:45.769706+00:00",
               "exitCode": 0,
-              "logSha256": "b4bd059c8ac29462d614db2d17949c50b49b4b9b803da6331c315f8bc41f9acf",
+              "logSha256": "095ef390cc6decd98efa275c83334320bcba20069b70fabaa4bc7f35a310a28d",
               "cases": [
                 {
                   "name": "a_program_reads_its_own_command_line",
@@ -11999,7 +11999,7 @@
             "title": "arrays",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/arrays.rs",
             "observed": {
               "status": "failed",
@@ -12078,7 +12078,7 @@
             "title": "bootstrap_abstract_nonzero_methods",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_methods.rs",
             "observed": {
               "status": "passed",
@@ -12101,7 +12101,7 @@
             "title": "bootstrap_abstract_nonzero_types",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_abstract_nonzero_types.rs",
             "observed": {
               "status": "failed",
@@ -12124,7 +12124,7 @@
             "title": "bootstrap_anonymous_contracts",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_anonymous_contracts.rs",
             "observed": {
               "status": "passed",
@@ -12147,7 +12147,7 @@
             "title": "bootstrap_argument_scopes",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_argument_scopes.rs",
             "observed": {
               "status": "passed",
@@ -12170,7 +12170,7 @@
             "title": "bootstrap_array_float_bits",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_array_float_bits.rs",
             "observed": {
               "status": "passed",
@@ -12191,25 +12191,25 @@
           {
             "id": "stage3:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_body_bindings.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T12:48:44.509337+00:00",
-              "finishedAt": "2026-11-07T12:58:50.080906+00:00",
-              "exitCode": 101,
-              "logSha256": "b85c65e6d65644990e36939ce98db6dd50463a6216030ea3defc16b607ee5c80",
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:16:47.074239+00:00",
+              "finishedAt": "2026-11-08T00:24:41.462214+00:00",
+              "exitCode": 0,
+              "logSha256": "b65a0561264c5c5a08cb6416cfb627f57c6efdeedd405fec18aaa622afc2d288",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
-                  "status": "failed"
+                  "status": "passed"
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "failed"
+                  "status": "passed"
                 }
               ]
             },
@@ -12220,7 +12220,7 @@
             "title": "bootstrap_boolean_branches",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_boolean_branches.rs",
             "observed": {
               "status": "passed",
@@ -12243,7 +12243,7 @@
             "title": "bootstrap_buffer_aliases",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_buffer_aliases.rs",
             "observed": {
               "status": "passed",
@@ -12266,7 +12266,7 @@
             "title": "bootstrap_byte_observations",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_byte_observations.rs",
             "observed": {
               "status": "failed",
@@ -12297,7 +12297,7 @@
             "title": "bootstrap_check",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_check.rs",
             "observed": {
               "status": "passed",
@@ -12318,21 +12318,25 @@
           {
             "id": "stage3:bootstrap_checked_program",
             "title": "bootstrap_checked_program",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 2 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_checked_program.rs",
             "observed": {
-              "status": "interrupted-superseded",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T13:53:35.352454+00:00",
-              "finishedAt": "2026-11-07T14:52:40.042514+00:00",
-              "exitCode": null,
-              "logSha256": null,
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:24:43.049795+00:00",
+              "finishedAt": "2026-11-08T00:31:52.561607+00:00",
+              "exitCode": 0,
+              "logSha256": "66603fedb51056faa7ac1a5719e7c9ccac05004af07cdbe39ad0a1c364d7f65c",
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
+                  "status": "passed"
                 }
               ]
             },
@@ -12343,7 +12347,7 @@
             "title": "bootstrap_collections",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_collections.rs",
             "observed": {
               "status": "pending",
@@ -12361,7 +12365,7 @@
             "title": "bootstrap_conditional_methods",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_conditional_methods.rs",
             "observed": {
               "status": "pending",
@@ -12379,7 +12383,7 @@
             "title": "bootstrap_contract",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_contract.rs",
             "observed": {
               "status": "pending",
@@ -12397,7 +12401,7 @@
             "title": "bootstrap_core",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_core.rs",
             "observed": {
               "status": "pending",
@@ -12413,18 +12417,23 @@
           {
             "id": "stage3:bootstrap_decisions",
             "title": "bootstrap_decisions",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_decisions.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:31:53.513977+00:00",
+              "finishedAt": "2026-11-08T00:36:00.317856+00:00",
+              "exitCode": 0,
+              "logSha256": "3b0281edc4c6bf3a758fb8d555550381580b9dbfaa055b1b69526c05ae8bf8f2",
+              "cases": [
+                {
+                  "name": "core_decisions_recheck_tests_constructor_authority_and_branch_evidence",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12433,7 +12442,7 @@
             "title": "bootstrap_driver",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_driver.rs",
             "observed": {
               "status": "pending",
@@ -12451,7 +12460,7 @@
             "title": "bootstrap_effect_types",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effect_types.rs",
             "observed": {
               "status": "pending",
@@ -12469,7 +12478,7 @@
             "title": "bootstrap_effects",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_effects.rs",
             "observed": {
               "status": "pending",
@@ -12487,7 +12496,7 @@
             "title": "bootstrap_eval",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_eval.rs",
             "observed": {
               "status": "pending",
@@ -12503,18 +12512,23 @@
           {
             "id": "stage3:bootstrap_export_interfaces",
             "title": "bootstrap_export_interfaces",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_interfaces.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:36:02.368130+00:00",
+              "finishedAt": "2026-11-08T00:43:21.794516+00:00",
+              "exitCode": 0,
+              "logSha256": "df1dccf57d2cb7f553b590947980d57315e782c2e08afa7b71390adc649f15f3",
+              "cases": [
+                {
+                  "name": "source_interfaces_preserve_private_nominals_and_defining_fixities",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12523,7 +12537,7 @@
             "title": "bootstrap_export_types",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_export_types.rs",
             "observed": {
               "status": "pending",
@@ -12541,7 +12555,7 @@
             "title": "bootstrap_function_preconditions",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_function_preconditions.rs",
             "observed": {
               "status": "pending",
@@ -12559,7 +12573,7 @@
             "title": "bootstrap_globals",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_globals.rs",
             "observed": {
               "status": "pending",
@@ -12577,7 +12591,7 @@
             "title": "bootstrap_guarded_arithmetic",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_arithmetic.rs",
             "observed": {
               "status": "pending",
@@ -12593,18 +12607,23 @@
           {
             "id": "stage3:bootstrap_guarded_association",
             "title": "bootstrap_guarded_association",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_association.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:43:23.006788+00:00",
+              "finishedAt": "2026-11-08T00:47:23.006842+00:00",
+              "exitCode": 0,
+              "logSha256": "1f0e1a9e4b4def5df4ebbd208fbdf26fbd529d7cf57026c30404e3aa63ca0990",
+              "cases": [
+                {
+                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12613,7 +12632,7 @@
             "title": "bootstrap_guarded_bodies",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_bodies.rs",
             "observed": {
               "status": "pending",
@@ -12631,7 +12650,7 @@
             "title": "bootstrap_guarded_calls",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_guarded_calls.rs",
             "observed": {
               "status": "pending",
@@ -12649,7 +12668,7 @@
             "title": "bootstrap_handler_core",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_handler_core.rs",
             "observed": {
               "status": "pending",
@@ -12667,7 +12686,7 @@
             "title": "bootstrap_imported_nonzero",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_nonzero.rs",
             "observed": {
               "status": "pending",
@@ -12683,18 +12702,23 @@
           {
             "id": "stage3:bootstrap_imported_preconditions",
             "title": "bootstrap_imported_preconditions",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_imported_preconditions.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
-              "cases": []
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:47:24.223917+00:00",
+              "finishedAt": "2026-11-08T00:58:42.831194+00:00",
+              "exitCode": 0,
+              "logSha256": "43820c8c70be964a0d208c396ed4c048ae95f0d5b1483f64088e8dcf0b2afcb2",
+              "cases": [
+                {
+                  "name": "imported_conditions_use_actual_caller_arguments",
+                  "status": "passed"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12703,7 +12727,7 @@
             "title": "bootstrap_indices",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_indices.rs",
             "observed": {
               "status": "pending",
@@ -12721,7 +12745,7 @@
             "title": "bootstrap_infer",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_infer.rs",
             "observed": {
               "status": "pending",
@@ -12739,7 +12763,7 @@
             "title": "bootstrap_instance_resolution",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_instance_resolution.rs",
             "observed": {
               "status": "pending",
@@ -12757,7 +12781,7 @@
             "title": "bootstrap_interface",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_interface.rs",
             "observed": {
               "status": "pending",
@@ -12773,18 +12797,23 @@
           {
             "id": "stage3:bootstrap_intrinsics",
             "title": "bootstrap_intrinsics",
-            "state": "pending",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "running",
+            "detail": "Running the original target on the matching Stage3.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_intrinsics.rs",
             "observed": {
-              "status": "pending",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": null,
+              "status": "running",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:58:43.793160+00:00",
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "runtime_intrinsics_check_their_contract_and_retain_canonical_symbols",
+                  "status": "running"
+                }
+              ]
             },
             "category": "portable behavior"
           },
@@ -12793,7 +12822,7 @@
             "title": "bootstrap_ir",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ir.rs",
             "observed": {
               "status": "pending",
@@ -12811,7 +12840,7 @@
             "title": "bootstrap_ladder",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_ladder.rs",
             "observed": {
               "status": "pending",
@@ -12829,7 +12858,7 @@
             "title": "bootstrap_lexer",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_lexer.rs",
             "observed": {
               "status": "pending",
@@ -12847,7 +12876,7 @@
             "title": "bootstrap_library_object",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_library_object.rs",
             "observed": {
               "status": "pending",
@@ -12865,7 +12894,7 @@
             "title": "bootstrap_load",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_load.rs",
             "observed": {
               "status": "pending",
@@ -12883,7 +12912,7 @@
             "title": "bootstrap_machine_values",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_machine_values.rs",
             "observed": {
               "status": "pending",
@@ -12901,7 +12930,7 @@
             "title": "bootstrap_manifest",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_manifest.rs",
             "observed": {
               "status": "pending",
@@ -12919,7 +12948,7 @@
             "title": "bootstrap_measure_contracts",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_measure_contracts.rs",
             "observed": {
               "status": "pending",
@@ -12937,7 +12966,7 @@
             "title": "bootstrap_module_scopes",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_module_scopes.rs",
             "observed": {
               "status": "pending",
@@ -12955,7 +12984,7 @@
             "title": "bootstrap_named_refinements",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_named_refinements.rs",
             "observed": {
               "status": "pending",
@@ -12973,7 +13002,7 @@
             "title": "bootstrap_nominals",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nominals.rs",
             "observed": {
               "status": "pending",
@@ -12991,7 +13020,7 @@
             "title": "bootstrap_nonzero_source",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_source.rs",
             "observed": {
               "status": "pending",
@@ -13009,7 +13038,7 @@
             "title": "bootstrap_nonzero_types",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_nonzero_types.rs",
             "observed": {
               "status": "pending",
@@ -13027,7 +13056,7 @@
             "title": "bootstrap_parse",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_parse.rs",
             "observed": {
               "status": "pending",
@@ -13045,7 +13074,7 @@
             "title": "bootstrap_pi",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pi.rs",
             "observed": {
               "status": "pending",
@@ -13063,7 +13092,7 @@
             "title": "bootstrap_pipeline",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_pipeline.rs",
             "observed": {
               "status": "pending",
@@ -13081,7 +13110,7 @@
             "title": "bootstrap_proof",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof.rs",
             "observed": {
               "status": "pending",
@@ -13099,7 +13128,7 @@
             "title": "bootstrap_proof_arrows",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof_arrows.rs",
             "observed": {
               "status": "pending",
@@ -13117,7 +13146,7 @@
             "title": "bootstrap_proof_terms",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proof_terms.rs",
             "observed": {
               "status": "pending",
@@ -13135,7 +13164,7 @@
             "title": "bootstrap_proposition_types",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_proposition_types.rs",
             "observed": {
               "status": "pending",
@@ -13153,7 +13182,7 @@
             "title": "bootstrap_refinement_closure",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_closure.rs",
             "observed": {
               "status": "pending",
@@ -13171,7 +13200,7 @@
             "title": "bootstrap_refinement_constructors",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_constructors.rs",
             "observed": {
               "status": "pending",
@@ -13189,7 +13218,7 @@
             "title": "bootstrap_refinement_core",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_core.rs",
             "observed": {
               "status": "pending",
@@ -13207,7 +13236,7 @@
             "title": "bootstrap_refinement_types",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_refinement_types.rs",
             "observed": {
               "status": "pending",
@@ -13225,7 +13254,7 @@
             "title": "bootstrap_resolve",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_resolve.rs",
             "observed": {
               "status": "pending",
@@ -13243,7 +13272,7 @@
             "title": "bootstrap_runtime_emit",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_emit.rs",
             "observed": {
               "status": "pending",
@@ -13261,7 +13290,7 @@
             "title": "bootstrap_runtime_ir",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_ir.rs",
             "observed": {
               "status": "pending",
@@ -13279,7 +13308,7 @@
             "title": "bootstrap_runtime_library",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library.rs",
             "observed": {
               "status": "pending",
@@ -13297,7 +13326,7 @@
             "title": "bootstrap_runtime_library_abi",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_library_abi.rs",
             "observed": {
               "status": "pending",
@@ -13315,7 +13344,7 @@
             "title": "bootstrap_runtime_objects",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_runtime_objects.rs",
             "observed": {
               "status": "pending",
@@ -13333,7 +13362,7 @@
             "title": "bootstrap_source_constructors",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_constructors.rs",
             "observed": {
               "status": "pending",
@@ -13351,7 +13380,7 @@
             "title": "bootstrap_source_decisions",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_decisions.rs",
             "observed": {
               "status": "passed",
@@ -13374,7 +13403,7 @@
             "title": "bootstrap_source_effects",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_effects.rs",
             "observed": {
               "status": "pending",
@@ -13392,7 +13421,7 @@
             "title": "bootstrap_source_handlers",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_handlers.rs",
             "observed": {
               "status": "pending",
@@ -13410,7 +13439,7 @@
             "title": "bootstrap_source_instances",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_instances.rs",
             "observed": {
               "status": "pending",
@@ -13428,7 +13457,7 @@
             "title": "bootstrap_source_pi",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_pi.rs",
             "observed": {
               "status": "pending",
@@ -13446,7 +13475,7 @@
             "title": "bootstrap_source_projection",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_projection.rs",
             "observed": {
               "status": "pending",
@@ -13464,7 +13493,7 @@
             "title": "bootstrap_source_proofs",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_proofs.rs",
             "observed": {
               "status": "pending",
@@ -13482,7 +13511,7 @@
             "title": "bootstrap_source_refinements",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_source_refinements.rs",
             "observed": {
               "status": "pending",
@@ -13500,7 +13529,7 @@
             "title": "bootstrap_test_runner",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_test_runner.rs",
             "observed": {
               "status": "pending",
@@ -13518,7 +13547,7 @@
             "title": "bootstrap_total",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total.rs",
             "observed": {
               "status": "pending",
@@ -13536,7 +13565,7 @@
             "title": "bootstrap_total_indices",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_indices.rs",
             "observed": {
               "status": "pending",
@@ -13552,17 +13581,17 @@
           {
             "id": "stage3:bootstrap_total_semantics",
             "title": "bootstrap_total_semantics",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 3 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_total_semantics.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:48:53.050859+00:00",
-              "finishedAt": "2026-11-07T11:55:21.329661+00:00",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:10:58.760660+00:00",
+              "finishedAt": "2026-11-08T00:15:42.895653+00:00",
               "exitCode": 0,
-              "logSha256": "42883735ae4a095869c4190be42a69bb5f2b63573ad9b33f215f7a5198b2230f",
+              "logSha256": "28c1d5c12dea75d7163f82e3926e05f97408daa16ccacf11703287a0ea26dd79",
               "cases": [
                 {
                   "name": "compiled_cinch_method_facts_require_the_actual_selected_implementation",
@@ -13585,7 +13614,7 @@
             "title": "bootstrap_type_syntax",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_type_syntax.rs",
             "observed": {
               "status": "passed",
@@ -13608,7 +13637,7 @@
             "title": "bootstrap_typed_indices",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typed_indices.rs",
             "observed": {
               "status": "pending",
@@ -13626,7 +13655,7 @@
             "title": "bootstrap_typing",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_typing.rs",
             "observed": {
               "status": "pending",
@@ -13644,7 +13673,7 @@
             "title": "bootstrap_value_indices",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_indices.rs",
             "observed": {
               "status": "pending",
@@ -13662,7 +13691,7 @@
             "title": "bootstrap_value_kinds",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/bootstrap_value_kinds.rs",
             "observed": {
               "status": "pending",
@@ -13680,7 +13709,7 @@
             "title": "canonical_artifacts",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/canonical_artifacts.rs",
             "observed": {
               "status": "pending",
@@ -13698,7 +13727,7 @@
             "title": "case_evidence",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/case_evidence.rs",
             "observed": {
               "status": "pending",
@@ -13716,7 +13745,7 @@
             "title": "class_identity",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/class_identity.rs",
             "observed": {
               "status": "pending",
@@ -13734,7 +13763,7 @@
             "title": "exhaustion",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/exhaustion.rs",
             "observed": {
               "status": "pending",
@@ -13752,7 +13781,7 @@
             "title": "folded_literal_ownership",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/folded_literal_ownership.rs",
             "observed": {
               "status": "pending",
@@ -13770,7 +13799,7 @@
             "title": "interface_byte_observations",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_byte_observations.rs",
             "observed": {
               "status": "pending",
@@ -13788,7 +13817,7 @@
             "title": "interface_machine_contracts",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_machine_contracts.rs",
             "observed": {
               "status": "pending",
@@ -13806,7 +13835,7 @@
             "title": "lib_hashmap_real",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/lib_hashmap_real.rs",
             "observed": {
               "status": "pending",
@@ -13824,7 +13853,7 @@
             "title": "primitive_length_identity",
             "state": "pending",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/primitive_length_identity.rs",
             "observed": {
               "status": "pending",
@@ -13842,7 +13871,7 @@
             "title": "interface_anonymous_contracts",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_anonymous_contracts.rs",
             "observed": {
               "status": "passed",
@@ -13865,7 +13894,7 @@
             "title": "interface_class_contracts",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_class_contracts.rs",
             "observed": {
               "status": "passed",
@@ -13888,7 +13917,7 @@
             "title": "interface_kinds",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_kinds.rs",
             "observed": {
               "status": "passed",
@@ -13919,7 +13948,7 @@
             "title": "interface_nominals",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
               "status": "passed",
@@ -13940,17 +13969,17 @@
           {
             "id": "stage3:interface_preconditions",
             "title": "interface_preconditions",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_preconditions.rs",
             "observed": {
               "status": "passed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T11:56:39.503287+00:00",
-              "finishedAt": "2026-11-07T11:56:55.613092+00:00",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:15:44.640044+00:00",
+              "finishedAt": "2026-11-08T00:15:56.206739+00:00",
               "exitCode": 0,
-              "logSha256": "977f805fd9a4da3226dc9f84c6045d6a453a7f8092ddddad19ffc10b03286a70",
+              "logSha256": "e75b3f35d1253323cdb3cdb958a0e2ad67839384e0ccef4cb0680c88d1d6b078",
               "cases": [
                 {
                   "name": "numeric_conditions_keep_checked_argument_positions_and_reexports",
@@ -13963,21 +13992,21 @@
           {
             "id": "stage3:interface_prelude_overrides",
             "title": "interface_prelude_overrides",
-            "state": "recheck",
-            "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "state": "verified",
+            "detail": "All 1 original cases passed with matching Stage3 invocation receipts.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_prelude_overrides.rs",
             "observed": {
-              "status": "failed",
-              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
-              "startedAt": "2026-11-07T10:54:59.725984+00:00",
-              "finishedAt": "2026-11-07T10:55:18.536077+00:00",
-              "exitCode": 101,
-              "logSha256": "a668d303e760191067f2ccefd27761fa04b9802a57fd71ccb58ac08bd4427053",
+              "status": "passed",
+              "source": "d7a456f87570d877f3698b3d09a44bb85dc1ad7928ffb11c4dd493f3f7825a2e",
+              "startedAt": "2026-11-08T00:10:07.317766+00:00",
+              "finishedAt": "2026-11-08T00:10:56.540549+00:00",
+              "exitCode": 0,
+              "logSha256": "b1aa7753e660b84e39ba0ca391abe6b8566cb2de6ba54c479e74c09cc57ef23c",
               "cases": [
                 {
                   "name": "source_family_homes_precede_embedded_consumers_with_checked_hashes",
-                  "status": "failed"
+                  "status": "passed"
                 }
               ]
             },
@@ -13988,7 +14017,7 @@
             "title": "interface_refinement_closure",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinement_closure.rs",
             "observed": {
               "status": "passed",
@@ -14011,7 +14040,7 @@
             "title": "interface_refinements",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_refinements.rs",
             "observed": {
               "status": "passed",
@@ -14046,7 +14075,7 @@
             "title": "interface_region_effects",
             "state": "recheck",
             "detail": "Requires the latest genuinely self-built Stage3. Development-compiler checks are listed separately.",
-            "doneWhen": "Run the complete original target through the matching Stage3; separately classify direct Rust API assertions.",
+            "doneWhen": "Run the complete original target through the matching Stage3 and account for direct Rust API assertions separately.",
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_region_effects.rs",
             "observed": {
               "status": "passed",
@@ -18074,9 +18103,9 @@
         "id": "additional",
         "title": "Additional frontend coverage",
         "unit": "targets",
-        "total": 4,
+        "total": 5,
         "counts": {
-          "verified": 0,
+          "verified": 1,
           "blocked": 1,
           "running": 0,
           "pending": 2,
@@ -18207,6 +18236,14 @@
                 }
               ]
             }
+          },
+          {
+            "id": "additional:fixity_interfaces",
+            "title": "fixity_interfaces",
+            "state": "verified",
+            "detail": "Both original tests passed on the matching Stage3. Rust read back the emitted interfaces.",
+            "doneWhen": "Check the imported fixity, renamed operator runtime result and exact defining and facade interface identities.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-stage3-fixity-dispatch-results.json"
           },
           {
             "id": "additional:laws",
@@ -19993,14 +20030,34 @@
         "source": "35af4d86f3c48e09c0f8ae1340187cff552a510b303e63c48b7c7eb03ca66c86"
       },
       {
+        "title": "Transfer the owned parameter through erased unrefine",
+        "status": "waiting-worker",
+        "phase": "Waiting for a worker",
+        "passed": 0,
+        "failed": 0,
+        "total": 8,
+        "unit": "client cases",
+        "source": "06152a32142942c55ef51b918c2320c22162a2e796389aa88773abea25189f0d"
+      },
+      {
         "title": "Run the original argv suite through the real Cinch CLI",
         "status": "running",
-        "phase": "build and smoke-test 46 compiler modules with direct CLI execution",
-        "passed": 0,
+        "phase": "selected-argv",
+        "passed": 1,
         "failed": 0,
         "total": 2,
         "unit": "frontend replays",
         "source": "ab2d7921f3580b190fe7ecf1b355c7da312f451f29e165cf1166133ad62df911"
+      },
+      {
+        "title": "Rebuild requested Algebra object variants and rerun all original cases",
+        "status": "waiting-previous-algebra",
+        "phase": "Waiting for the previous Algebra replay.",
+        "passed": 0,
+        "failed": 0,
+        "total": 22,
+        "unit": "original test cases",
+        "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42"
       },
       {
         "title": "Check original NonEmpty clients against compiled contracts",
@@ -20059,17 +20116,17 @@
       }
     ],
     "counts": {
-      "verified": 5,
+      "verified": 15,
       "blocked": 5,
-      "running": 10,
-      "pending": 86,
-      "recheck": 569
+      "running": 11,
+      "pending": 81,
+      "recheck": 564
     },
-    "total": 675,
+    "total": 676,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T00:59:14.629375+00:00"
+  "updatedAt": "2026-11-08T01:01:07.546620+00:00"
 }
