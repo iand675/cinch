@@ -21153,9 +21153,9 @@
       },
       {
         "title": "Replay thunk semantics and the original proof cases together",
-        "status": "running",
-        "phase": "TacticsStale",
-        "passed": 4,
+        "status": "completed-combined-controls-with-failures",
+        "phase": "Failed cases: force-once, drop-unforced, affine-choice, replay-refused, delay-latent-effect, force-latent-effect, force-row-refused, force-carrier-refused",
+        "passed": 7,
         "failed": 8,
         "total": 15,
         "unit": "cases",
@@ -21250,5 +21250,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T14:40:31.006596+00:00"
+  "updatedAt": "2026-11-08T14:41:33.445354+00:00"
 }
