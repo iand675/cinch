@@ -1,0 +1,20 @@
+{
+  "base_interfaces": 55,
+  "compiler_interfaces": 46,
+  "compiler_ir_sha256": "2950eb863af47c28c72dbe2b1316663eea787a9802d622fa40d82d315a5804a0",
+  "compiler_no_args_exit_code": 1,
+  "compiler_source_sha256": "30c0cd9d012e5d142f5ff3036e365296f08556299503474734259ee8e0a75cab",
+  "full_goal_complete": false,
+  "link_exit_code": 0,
+  "missing_object_roots": 0,
+  "native_source_sha256": "b735bd23ddcb363a5a01275bd225528bf4c7ad6428701343df269578a67a9a39",
+  "object_sha256": "348928ce40fb112754d51e4bb14c0e05a54b760663d1212aa2408c944474dcc7",
+  "revision": "eb53eb565964a9228b9a8730f18303293e9005f9",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "scope": "The exact Stage1 built and linked a runnable Stage2 against the expanded pinned object. The 101-interface closure validated. Stage3 and full suites have separate gates.",
+  "stage1_sha256": "5dc2faa3467207f8f810ccbdb22b464027de67f8aabbea9ec08dd94cd6674c65",
+  "stage2_receipt_sha256": "9ba0878b7e5c47925f19144c10c9a420a972050d2ec64452040715a152d31329",
+  "stage2_sha256": "7a116ac448e2feb21227b8128ebfdb08c994ea41d080219c57865d3b836cdd82",
+  "status": "audited-abi7-expanded-provider-stage2"
+}
