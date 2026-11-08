@@ -21163,18 +21163,18 @@
       },
       {
         "title": "Replay Protocol, Once, Choreography, and checked interfaces with the kernel repair",
-        "status": "running",
-        "phase": "emit and verify the annotated interface",
+        "status": "completed-annotated-arrow-controls-with-failures",
+        "phase": "Failed cases: usage-interface-producer, usage-interface-consumer",
         "passed": 24,
-        "failed": 0,
+        "failed": 2,
         "total": 26,
         "unit": "cases",
         "source": "80d7623875918d06fdac53a8684efe05319db0fd831f96e02fa9b29f8ccfc6ca"
       },
       {
         "title": "Verify erased value arguments in source, checked interfaces, and generated code",
-        "status": "waiting-annotated-baseline",
-        "phase": "Queued after the current annotated-arrow replay. Eight erasure checks plus one static-alias check exercise the zero-word runtime path.",
+        "status": "needs-annotated-baseline-repair",
+        "phase": "inspect the previous annotated arrow replay",
         "passed": 0,
         "failed": 0,
         "total": 35,
@@ -21270,5 +21270,5 @@
     "explanation": "Checklist counts are recorded requirements and test entries, not an estimate of effort or time. Earlier results stay visible but do not count as verification of changed compiler inputs.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T15:02:14.229611+00:00"
+  "updatedAt": "2026-11-08T15:03:16.843188+00:00"
 }
