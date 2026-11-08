@@ -17941,11 +17941,11 @@
         "title": "Run all 236 targets on the published Rust compiler",
         "source": "06a7b66d1edaca4c75b4d3da99727cd6292eb7fddb4dba217ec0e3502cd75407",
         "unit": "targets",
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "total": 236,
         "status": "running",
-        "phase": "ownership",
+        "phase": "lib",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-memo-runtime-results.json"
       },
       {
@@ -20629,8 +20629,8 @@
         "title": "Execute Cinch memo groups and verify scope cleanup",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. 21",
-        "passed": 4,
+        "phase": "Isolated Stage 1 candidate. separate-regions",
+        "passed": 7,
         "total": 18,
         "failed": 0,
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
@@ -20672,5 +20672,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T20:28:36.055654+00:00"
+  "updatedAt": "2026-11-08T20:29:39.159491+00:00"
 }
