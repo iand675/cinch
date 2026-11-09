@@ -145,6 +145,16 @@ row. The earlier text assertion still failed. The proposition-valued
 signature method remains open, including its lambda equation.
 See [the corrected Stage 1 replay](../bootstrap/current-abi7-rewrite-resource-results.json).
 
+The standard selected-Cinch harness verified all five guard coverage,
+ten codata and seven class-default tests on the combined Stage 1.
+The original module target passed six of twelve. The retained failures
+cover sibling source locations, the import cycle, overlap diagnostics,
+the I64 inequality intrinsic and two build manifest checks. The recursive
+binding target passed two of eleven. Eight recursive cases reach ordinary
+name lookup, and the checker accepts 129 nested lets. The eight ported
+targets passed 112 cases through the Rust frontend.
+See [the standard harness replay](../bootstrap/current-abi7-standard-stage1-portable-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

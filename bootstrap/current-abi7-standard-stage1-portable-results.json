@@ -1,0 +1,557 @@
+{
+  "base_interfaces_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
+  "compiler_sha256": "d90ac5affdbc73c52b468b68612611afd2f2fba04cab88d1cdba65ac5d90fe68",
+  "compiler_source_sha256": "6cbb2c2ece6a88371bfb989ce547e57e55326bbfa9764fe331bd956250e4d486",
+  "full_goal_complete": false,
+  "native_targets": {
+    "class_defaults": {
+      "log_sha256": "fa0aa97feb883c575fe38410f20dd5b5149b42e620cab3be903efd24e2f0c5e3",
+      "test_source_sha256": "8a25fa9764e7adc4155570eb2238893924b4fba501a59078c13c8e783ba3da42",
+      "tests": 7
+    },
+    "codata": {
+      "log_sha256": "83e9f54f5ef317694f3d1bead853e3e30ec8515cff92ab22470ca8a887a82afa",
+      "test_source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+      "tests": 10
+    },
+    "concurrency": {
+      "log_sha256": "e924775d64dd536ad642d927b5226bc5936fea997e86284fdf5b86558a07c9c9",
+      "test_source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c",
+      "tests": 20
+    },
+    "guard_coverage": {
+      "log_sha256": "24820f7516c1bc7df5072bdba27157de90a8bdafe2260a75c4a573872dbcfb0d",
+      "test_source_sha256": "59a882f070b86612e195c906b2f6deec721721ec67577fc1cc09b86ab520f3a0",
+      "tests": 5
+    },
+    "integration": {
+      "log_sha256": "f078c77ca7939294ac35553882e7ea49a5ad61ccc0bf2dac6463f28f37ed751e",
+      "test_source_sha256": "30a2d61bed9b6510f44bf01c3b319e4f31e72345f7730ecb3e77e291eec56833",
+      "tests": 39
+    },
+    "laws": {
+      "log_sha256": "a88dc152709190db7aa80ff65fd79cfacd892ed3d111d21201cb1a957ab6312c",
+      "test_source_sha256": "9bee84913a9f7e1bb76fca7d6acc9a995e2c871eb18fc853d6fa96d354f796d7",
+      "tests": 8
+    },
+    "letrec": {
+      "log_sha256": "befbdc3b39bc25d16a0e08c461a285fc3ed3c60335855fc7fd02dbaaf74afb54",
+      "test_source_sha256": "74cadf6588ed19778c1b9348791fe18a89a0d7e3117b00f620f6ddd519a5ba71",
+      "tests": 11
+    },
+    "modules": {
+      "log_sha256": "16ca7ccc5d007d8da4339b8db57a43f24d5b1d32a2d3ef2c3fe8c2e4c93eb127",
+      "test_source_sha256": "7334479e35f67d45c4b976177e958c5d1d545e9e21aa17bc94443aff6074642f",
+      "tests": 12
+    }
+  },
+  "schema": 1,
+  "stage1_receipt_sha256": "4f4ee5e6665f6e8626c95fdc3592fe96e2c70cd3669b6996272bd8b667034289",
+  "stage1_targets": {
+    "class_defaults": {
+      "failed": [],
+      "invocations": {
+        "a_changed_default_changes_the_class_contract_and_only_that_method": [
+          {
+            "exit_code": 0,
+            "sha256": "edda8e700625e2fefbf390709e7875796d1d541802260d7161619656c5202a91"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "262047d08f7961975ef404a7af97861dd0c4feda34bbec38606fcce06bbb10b6"
+          }
+        ],
+        "a_default_for_an_undeclared_method_is_refused_at_the_class": [
+          {
+            "exit_code": 4,
+            "sha256": "b5c62c35cbc2d476b5bf33362a676b634fc9b43d8a24c6ce5f9b662762ad1d6c"
+          }
+        ],
+        "an_ill_typed_default_is_reported_at_its_class_with_no_instance": [
+          {
+            "exit_code": 4,
+            "sha256": "280250f655750ac071411405e39d6d2a5711c3fb2ebb75219bc078a64cb4d14a"
+          }
+        ],
+        "an_omitted_method_takes_its_default_and_a_definition_overrides_it": [
+          {
+            "exit_code": 0,
+            "sha256": "7f989115ef9dffd28d6ac5c80abe09cd58f22a17a167e41c4be0f5d275717f2b"
+          }
+        ],
+        "an_omitted_method_without_a_default_is_still_refused": [
+          {
+            "exit_code": 4,
+            "sha256": "97f3af153d15042dac4d7ec380e30942e07fade3d1600fefca45ebd45abc9edc"
+          }
+        ],
+        "annotations_keep_definition_and_default_parameter_identities": [
+          {
+            "exit_code": 0,
+            "sha256": "d248f061a5c898bc4e3f7cdeb846073286621bcaf549b801844a4dee58882ada"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "bbf9810e59a095d4cc04e746be329a0abf2d44df562dc2016997c96f69c8190a"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "36e33201f3717f3263ba9a229e3dcb928219525a724f6a3aadde913e421f7fb1"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "40e850aa9b04d38ccf964bc67b7a7971ec2cbeb6d5a47015700e2aa9ac59cfc9"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "24cb795064d34cc0f62e19ff6aee24f99dec3dd80c1b1dbacfcdac419700c172"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "19847087432ff1020ad74f8d9ad7845df3d0a31f94710833e4f9d3dab2c7c02c"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "c14c51ed93e53a8417b4bbd7f69ca5e107494e28f8ad7eb7c5c4770a1999d558"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "f3c07e886700e3b30af33e0383e87f21b40479d5da80e459622e5c9fee4212b0"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "d3136db7426bd410c339cd22760c8146ed5e02269a8f00a4aef3de6aba6be52a"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "a4e489be1a9affa4e01414ab00d25c238fb404bb6819c66b1d0bae3026928951"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "abf4a56b3e50bf5fbf364bb7b2c030fa549fdb0e541b25a16707dbda302592ea"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "15de5330785b7cdfa5aad9c07961839546963c3211be4e0a7b0db9514d5dba43"
+          }
+        ],
+        "the_mconcat_default_works_at_a_function_carrier_and_a_refinement": [
+          {
+            "exit_code": 0,
+            "sha256": "cb7b22a64c33df2a4e44fe013161aa02abcb3d7b0385177b62e808c2f4b6a80d"
+          }
+        ]
+      },
+      "log_sha256": "144efc499eaabc36c014914ac12d21e476e3bf17c4faf4a53d88c3fd1bf85a8a",
+      "passed": 7,
+      "test_source_sha256": "8a25fa9764e7adc4155570eb2238893924b4fba501a59078c13c8e783ba3da42",
+      "tests": 7
+    },
+    "codata": {
+      "failed": [],
+      "invocations": {
+        "acceptance_example_04_productive_stream_checks": [
+          {
+            "exit_code": 0,
+            "sha256": "182daa0cc0f90f23579635aad12ea1b84258a2a9764dc9e225297bf83884992d"
+          }
+        ],
+        "codata_is_observed_not_destructured": [
+          {
+            "exit_code": 4,
+            "sha256": "6b621b9c23b0e69805473860dc4028cae49782bb08a292f8fe04d37ce1016cf7"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "9f5c85c7104e1c433fa4f286f386d8f8f889a78badb78c6a29190b6f3a76b147"
+          }
+        ],
+        "codata_keeps_thunk_and_memo_discipline": [
+          {
+            "exit_code": 4,
+            "sha256": "4c43ed45c0d110b271edce6a296e56b6985d79fab75ee16565c8641fcb5cdb1a"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "aac524a5e4ba6b9057e17e5437a21004d45fbd1402f9963d97b5a83e1b07a6e6"
+          }
+        ],
+        "corec_needs_an_observation_layer_per_step": [
+          {
+            "exit_code": 4,
+            "sha256": "881e311ab85f7449242b423fd65cafe28fcdaf1bed6048a2a4287aeaea44d9be"
+          }
+        ],
+        "corec_stream_observes_head_and_tail": [
+          {
+            "exit_code": 0,
+            "sha256": "4b65b94abc4d533ae455fca0fc38a874ffd1a8010fa5897839c2c749fe8b66d8"
+          }
+        ],
+        "guarded_delay_and_force_accepted": [
+          {
+            "exit_code": 0,
+            "sha256": "e6411b7d61be2f99e9f70b06d3b1d3f2264522a3f31b6274c36b1cbd45fa5ef5"
+          }
+        ],
+        "later_is_not_interchangeable_with_thunk": [
+          {
+            "exit_code": 4,
+            "sha256": "f8e890869143d4e555c24dd744ef857170167212a2fd19d1f88975bbe2b0424a"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "df2e006b826daec9013c825c9fc4604e276e42f39baa27f31505353ea82c0506"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "ed65e3b36d26cb626930c3296f7d6ee2942dae34d6790bb865e74ef2b950ed88"
+          }
+        ],
+        "later_must_not_be_an_unrestricted_thunk": [
+          {
+            "exit_code": 4,
+            "sha256": "fee599689b5cbff2e60449895785b5b1855d1815e5a6d53ae0acd93bd62c609e"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "734f05e9dce7cc2bec53ee2cb24d064e95e461e633d731bc81a7d1de46fed506"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "691db82c1bb17e1971c4e68621ef833c8d6bd9e51e2b0534d594541154f9eea7"
+          }
+        ],
+        "unproductive_corec_is_rejected_naming_the_call": [
+          {
+            "exit_code": 4,
+            "sha256": "069bb6071be8dc2b6dc90da793f5bf3bbcc3e940437aa6b7eec12216d1826051"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "c0f06678c9b543b373db9273401be1c69608ea1122a13b32a02ca46fab819170"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "e08a03276530e2c63fa274e8ff1c9a882d95a34eea717d852a33d236c543fb7f"
+          }
+        ],
+        "unrestricted_filter_loses_productivity": [
+          {
+            "exit_code": 4,
+            "sha256": "34c98d6ffe8efeb53f80f9df17e3eac069509708da1c4d825cf4977e7d639e81"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "5c108ac56aaaee1477d24bdf933c5b00eff69e3f18cedeb80750140c89983ccd"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "30935f315c897c8ef4e7c65c13114aca7fc2a0a9963244db26a0053887746406"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "869a085b44770aa9685823885a43365c963bd52b0f47ee6e6cdc57a908aa21df"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "b78bbf184fec42d8d699fbdd42310a617426d566ac24516f35b711399a53527a"
+          }
+        ]
+      },
+      "log_sha256": "2f80984ebad5ef079f1a66d05cd5d90f87e0d6f173fed12ba7bea3e015364bec",
+      "passed": 10,
+      "test_source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+      "tests": 10
+    },
+    "guard_coverage": {
+      "failed": [],
+      "invocations": {
+        "all_guarded_match_is_rejected": [
+          {
+            "exit_code": 4,
+            "sha256": "7f8226db45c230f8f69d5431f37255f8b87b7b95b89423784dcb62c098b18cac"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "7308c74d3e59f969115306520dff77db088ee72d4f3b7039df5e1f2ae8eced40"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "c1eb38cabc19dabaa365a97def237d3a399b806a3a0f9492ab08a7e9dcc017f7"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "7911c5caa4f1c439456cf7a9d508cb920e8b7b311f7e6b531c3efdb2f40c95d6"
+          }
+        ],
+        "guarded_equations_use_the_same_fallthrough_and_coverage_as_case": [
+          {
+            "exit_code": 0,
+            "sha256": "ec1930b510c8d48d102cf3126a01462e2919654ac3f88f80d5d966fe8c809c5f"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "5dbcf0ecfe7f5fe9aa71b53e094748ebd38b5cd5e2ffe9d06336fe7d7ec72e3a"
+          }
+        ],
+        "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor": [
+          {
+            "exit_code": 0,
+            "sha256": "ecd093ffc5a5e7f4e0ac2f6b7550005a3dd66ab2aafdeecb31b457ee73b15db9"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "f720c51680f52e04467b810ce9388ba1e45c9432ede134f615d2b4f363d2c9c8"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "9ea5a7ac8316a4893addc773428b0d39e69a3626e30775dd17bbee48b0a85dac"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "122474aeb7d4f2df9d67b8ec0f3141d6972486bab099ee2f60fa521b48b5825e"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "a5b993703fdaad19f1c84f68d0f432b0f3b432895ee730c6bd5afc2713bf7bb4"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "a693ea998c684babeaf4d6bc98948cccfde43d0f8ce9b8e6228d76d02e2a5dde"
+          }
+        ],
+        "true_guard_counts_as_unguarded": [
+          {
+            "exit_code": 0,
+            "sha256": "611bbe5346c77167236c1c45481e5a0d473f446899d5584f98f02cef95a3e15f"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "decb71f01dc78e4475df015fd4b764ac4d70fa1be05bf6f532e6221eeff8cf86"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "92629b400b89c4512c2b80194f1d4a12024d23908d33aa5e0377c22444140f3d"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "7955c947d928e016e1490a2718474fef7a59ca3107abec770d60227e758f0e20"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "48c5381710d7e47528c1689d620f62753a023b7735bcb9f4aca8c6e520b5963a"
+          },
+          {
+            "exit_code": 4,
+            "sha256": "2a09870a7da4769a8e983aa4286f3ad8c02037741eac3a4844e8abdfb405dfdd"
+          }
+        ],
+        "unguarded_final_row_compiles_and_runs_every_row": [
+          {
+            "exit_code": 0,
+            "sha256": "9ec5e82c5ab8129cb1479610472c41ad336c1ff6f54483b9795dee8006028415"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "7224939dd1b72e0b3c2c154e59ff7e0bde611988f067cbabab29dd335fe5f181"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "2739b4b67bac968a619d8186862de5bee81046f81e9c63ee7dfa95d35d8f1f1e"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "028d2e4231974d59b50801a637fd3b19fa04afa3858f708584c8fa7f1f06c438"
+          }
+        ]
+      },
+      "log_sha256": "1463704a5cd0a87e21e714f82ce34a875fd3b867b69a5ce42424b15e2137f47e",
+      "passed": 5,
+      "test_source_sha256": "59a882f070b86612e195c906b2f6deec721721ec67577fc1cc09b86ab520f3a0",
+      "tests": 5
+    },
+    "letrec": {
+      "failed": [
+        "eager_call_cycle_is_rejected",
+        "eager_cycle_is_rejected_naming_the_variable",
+        "guarded_delay_cycle_runs",
+        "guarded_delay_value_cycle_is_accepted",
+        "guarded_lambda_cycle_is_accepted",
+        "letrec_local_function_recurses",
+        "letrec_mutual_recursion",
+        "nested_let_depth_limit_is_a_named_diagnostic",
+        "value_knot_read_under_a_lambda_yields_the_value"
+      ],
+      "invocations": {
+        "eager_call_cycle_is_rejected": [
+          {
+            "exit_code": 4,
+            "sha256": "7a4af8a6a38a0dd837786f762abf1e83efd78991c00611db6c79a7b2f3a8af23"
+          }
+        ],
+        "eager_cycle_is_rejected_naming_the_variable": [
+          {
+            "exit_code": 4,
+            "sha256": "46627655c7caca59e8b9ba9c1eb6451bb0dda9affd5c787527d0e72d4c10f829"
+          }
+        ],
+        "guarded_delay_cycle_runs": [
+          {
+            "exit_code": 4,
+            "sha256": "a57e33df9bda5f741e19e8985ee015537dacc5311be2ccedf0dba55aeaab993e"
+          }
+        ],
+        "guarded_delay_value_cycle_is_accepted": [
+          {
+            "exit_code": 4,
+            "sha256": "fa7201300b5c170b0b4f1535c9c70336a0150c8ebe7c96c6b13bd9db1a59e233"
+          }
+        ],
+        "guarded_lambda_cycle_is_accepted": [
+          {
+            "exit_code": 4,
+            "sha256": "adf9f9705908b45addc3b8e96c175d88861df8b6f1da012169d42912e28a2597"
+          }
+        ],
+        "letrec_group_of_functions_and_values": [
+          {
+            "exit_code": 0,
+            "sha256": "73aa14e5236d4e84369fe101b48493ee1c1fb3416550dc558f8ef57d64014e46"
+          }
+        ],
+        "letrec_local_function_recurses": [
+          {
+            "exit_code": 4,
+            "sha256": "a3f3fac5805cb5c90191459030525807400ea84a391a0d6bb9fe444a19750d0f"
+          }
+        ],
+        "letrec_mutual_recursion": [
+          {
+            "exit_code": 4,
+            "sha256": "e04baf1408570fab1b5ea0fb2f27cf3182c25355a1d30d8bc1fd5101b5d3a332"
+          }
+        ],
+        "multi_binding_let_group": [
+          {
+            "exit_code": 0,
+            "sha256": "191fa1047946b5a9f17e70eacef875bb5081dbb2c46867053f294f64f4ae8463"
+          }
+        ],
+        "nested_let_depth_limit_is_a_named_diagnostic": [
+          {
+            "exit_code": 0,
+            "sha256": "4f89e255cad03e013bd91e593323ba3437d7d6b4f12b26c9dfbc88ba55da4557"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "18819781d0f2987b227012b851110996434027257000121b9cd60b647554a9f8"
+          }
+        ],
+        "value_knot_read_under_a_lambda_yields_the_value": [
+          {
+            "exit_code": 4,
+            "sha256": "6d279e0c8e74f05082508ef6eeddddd3a0f07a3fb56dbe0fea38d34508208920"
+          }
+        ]
+      },
+      "log_sha256": "58bb1ad54e2c5c1c32157e6a4719123f5e74f41267d0cc6a9f1456fed29af5ec",
+      "passed": 2,
+      "test_source_sha256": "74cadf6588ed19778c1b9348791fe18a89a0d7e3117b00f620f6ddd519a5ba71",
+      "tests": 11
+    },
+    "modules": {
+      "failed": [
+        "a_failure_in_a_sibling_module_names_its_file",
+        "import_cycle_is_rejected",
+        "imported_instance_is_used_by_the_importer",
+        "instance_coherence_across_modules",
+        "multi_file_module_links_and_runs",
+        "multi_module_file_links_and_runs"
+      ],
+      "invocations": {
+        "a_failure_in_a_sibling_module_names_its_file": [
+          {
+            "exit_code": 4,
+            "sha256": "fad1c8cef72194e6abd880aa58aee633ed692f6b90871bf5d75f2e585cfabad0"
+          }
+        ],
+        "a_module_can_import_a_signature_declared_later_in_the_same_file": [
+          {
+            "exit_code": 0,
+            "sha256": "f7449569444f31d7ae8e9dde8ac649bfc3e851d21a0c677f9cb25917b607b718"
+          }
+        ],
+        "entry_module_name_is_free": [
+          {
+            "exit_code": 0,
+            "sha256": "8097b7d632344f3bfd7bd4a7e25ac1adf2b9795ce6e2114381eec0593307e46f"
+          }
+        ],
+        "import_cycle_is_rejected": [
+          {
+            "exit_code": 4,
+            "sha256": "8cacd4d9044cab1a242b60e63bcd6cae8ab48677f0ae5cb5f0e622517dd15220"
+          }
+        ],
+        "imported_fixity_is_visible": [
+          {
+            "exit_code": 0,
+            "sha256": "91301fdb3aa27bbe0ed1588232751f250f67c8e20d027d19ccf7ca024359435b"
+          }
+        ],
+        "imported_instance_is_used_by_the_importer": [
+          {
+            "exit_code": 4,
+            "sha256": "638a651c9432e377838cfc5955afc0b535942736ae3a664990750be7b48412e9"
+          }
+        ],
+        "imported_module_is_resolved_by_declaration": [
+          {
+            "exit_code": 4,
+            "sha256": "2e8b0f1e82b0c1722dbf56b89fb1185cafd2a57c6ccbf93055425683f9ae3197"
+          },
+          {
+            "exit_code": 0,
+            "sha256": "2d7c5a5df2cacd1f8c323fa4abb9c24927d6cc8b8dfb3c93be0fc26e0a6da18a"
+          }
+        ],
+        "instance_coherence_across_modules": [
+          {
+            "exit_code": 4,
+            "sha256": "17156a68f63287431ee24545bafe6889fb6653d2d53a930054b4717455dda8de"
+          }
+        ],
+        "interface_round_trips_through_disk": [
+          {
+            "exit_code": 0,
+            "sha256": "5e7a545cea690508b70d01ffe6be62625cb3b7ae4fd6acc884995d2644d368d1"
+          }
+        ],
+        "missing_import_file_is_named": [
+          {
+            "exit_code": 4,
+            "sha256": "8f9fc3e5f2692b6a571ecb0e14c0cd389bc80d22246f891ad980e844349e36c6"
+          }
+        ],
+        "multi_file_module_links_and_runs": [
+          {
+            "exit_code": 0,
+            "sha256": "dc3185c3086f0601ecf9674ab44617a0a6a51326f78914c9bbd3b08f302f86cf"
+          }
+        ],
+        "multi_module_file_links_and_runs": [
+          {
+            "exit_code": 0,
+            "sha256": "b3bb8f4c4b12defb682d8f7d385979c329e9f919d2656ab6fd16ae67b00cd8dd"
+          }
+        ]
+      },
+      "log_sha256": "a8c158be1122877ef4e40f77468777041a8b712436741960959fba39b58ef690",
+      "passed": 6,
+      "test_source_sha256": "7334479e35f67d45c4b976177e958c5d1d545e9e21aa17bc94443aff6074642f",
+      "tests": 12
+    }
+  },
+  "status": "audited-selected-stage1-targets"
+}
