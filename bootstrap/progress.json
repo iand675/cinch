@@ -21092,10 +21092,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 1,
+        "passed": 2,
         "failed": 4,
         "status": "running",
-        "phase": "Replay original lib_category target on Stage 3",
+        "phase": "Replay original lib_char_tuple target on Stage 3",
         "evidence": null
       },
       {
@@ -21310,5 +21310,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:11:23.901568+00:00"
+  "updatedAt": "2026-11-09T06:14:28.796725+00:00"
 }
