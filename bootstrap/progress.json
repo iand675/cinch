@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 11,
+        "passed": 12,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_abstract_nonzero_types with the combined Stage 3",
+        "phase": "Replay bootstrap_anonymous_contracts with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21127,8 +21127,8 @@
         "total": 236,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for the combined Stage 1 law and export checks",
+        "status": "superseded-before-build",
+        "phase": "Use the matching 236-target Rust sweep for the merged compiler",
         "evidence": null
       },
       {
@@ -21191,10 +21191,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 14,
+        "passed": 15,
         "failed": 11,
         "status": "running",
-        "phase": "Replay original lib_rational target on Stage 3",
+        "phase": "Replay original lib_resolv target on Stage 3",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:18:15.111118+00:00"
+  "updatedAt": "2026-11-09T07:19:17.740628+00:00"
 }
