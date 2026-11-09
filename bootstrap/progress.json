@@ -21466,10 +21466,10 @@
         "source": "74b0ca5b9541e7df4b709bc1af3d75cf0b6129516ea266d87cad940716274b31",
         "unit": "checks",
         "total": 6,
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 with the pinned seed",
+        "phase": "Emit a row-polymorphic object",
         "evidence": null
       },
       {
@@ -21695,5 +21695,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:46:06.257646+00:00"
+  "updatedAt": "2026-11-09T08:47:30.553243+00:00"
 }
