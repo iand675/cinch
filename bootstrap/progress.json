@@ -21202,10 +21202,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 14,
-        "passed": 0,
+        "passed": 3,
         "failed": 0,
         "status": "running",
-        "phase": "mixed-emit",
+        "phase": "passing-emit",
         "evidence": null
       },
       {
@@ -21235,10 +21235,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 13,
+        "passed": 14,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_load",
+        "phase": "bootstrap_nominals",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-opening-native-results.json"
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:23:48.884976+00:00"
+  "updatedAt": "2026-11-09T08:24:53.087302+00:00"
 }
