@@ -47,6 +47,14 @@ The same Stage 3 passed all five guard-coverage and eight allocation
 accounting cases, with 33 matching compiler invocation receipts.
 See [the guard and allocation audit](../bootstrap/current-abi7-combined-stage3-guards-allocation.json).
 
+A separate codata contract candidate built Stage 1. Rust and Cinch both
+emitted the canonical observation contract for `Provider.Stream`. The
+Stage 1 object and interface supported a consumer with only its own source.
+The executable observed the stream through the compiled provider and ran
+with zero leaks. The remaining refusal replays and full candidate suite
+are still being checked.
+See [the codata object audit](../bootstrap/current-abi7-stage1-codata-object-client.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,

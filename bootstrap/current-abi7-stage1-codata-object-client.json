@@ -1,0 +1,50 @@
+{
+  "canonical_type": "Provider.Stream",
+  "compiler_sha256": "8cc0ec4de0e2d573c556a45eda4bcbfbf2d4b912e1069ec5781c915293ef166f",
+  "compiler_source_sha256": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
+  "consumer_manifest_sha256": "1ea9cfd90c88a936961e2aeb8c37b864aa6fc321fed6aeba426da9cce1918ef9",
+  "full_goal_complete": false,
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "8667aa2b701e3789fd9a8de3b9549445252ee5ed8f994344678589ef1c3ea464",
+  "observations": [
+    "head",
+    "tail"
+  ],
+  "original_stage1_suite_complete": false,
+  "retained_checks": [
+    {
+      "interface_sha256": "b85ce342a4ce09e67552a2f84c881f7b29728113afa1de07fef39072fb119b9b",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "native-observation-interface",
+      "status": "passed"
+    },
+    {
+      "compiler_sha256": "8cc0ec4de0e2d573c556a45eda4bcbfbf2d4b912e1069ec5781c915293ef166f",
+      "name": "stage1",
+      "receipt_sha256": "90c2e81f0ab12ad762d0ebfb4034a363019e7321cfb25ddda668d63088da92d6",
+      "status": "passed"
+    },
+    {
+      "interface_sha256": "2107ff5b262979f563b6d92f7a8f7b99861a44619d315492c663dc5957fc9d42",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "emit-codata-provider-object",
+      "object_sha256": "c26a34d619f98ea9d5b40c96ca51b5dbcde61e098589ccdf579310a9a5e85803",
+      "status": "passed"
+    },
+    {
+      "ir_sha256": "850ed8136e86177e1f7323f1b01c629dd2e053acd08deaf0114c0c539ececfd7",
+      "name": "compile-source-free-client",
+      "source_sha256": "e38b0ef254868113c9e8794bc3e1a8c8eab89b928ce175879f93e4c3d7035e08",
+      "status": "passed"
+    },
+    {
+      "executable_sha256": "ebdf410ab3d7c11aba98d1157bad0972f05fc33d944c2ae5f4ac3eff9a1ffac1",
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "execute-object-client",
+      "status": "passed"
+    }
+  ],
+  "runtime_abi": 7,
+  "seed_compiler_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+  "status": "audited-stage1-codata-object-and-source-free-client"
+}
