@@ -89,6 +89,11 @@ implications, case fallthrough, shadowing, and refusals for the wrong branch
 or value.
 See [the Boolean branch audit](../bootstrap/current-abi7-combined-stage3-boolean-branches.json).
 
+The combined Stage 3 built the original buffer-alias checker. All nine
+controls passed, including refusal to use a bound from another buffer or
+from an alias that had been shadowed.
+See [the buffer-alias audit](../bootstrap/current-abi7-combined-stage3-buffer-aliases.json).
+
 The matching Rust compiler for the merged candidate passed all 39 original
 editor and syntax tests. The audit checks the exact compiler, runtime archive,
 editor inputs, and all original test names.
