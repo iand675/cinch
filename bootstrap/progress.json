@@ -5060,6 +5060,22 @@
                 },
                 {
                   "name": "letrec_group_of_functions_and_values",
+                  "status": "passed"
+                },
+                {
+                  "name": "letrec_local_function_recurses",
+                  "status": "passed"
+                },
+                {
+                  "name": "letrec_mutual_recursion",
+                  "status": "passed"
+                },
+                {
+                  "name": "letrec_rejects_reordering_mutable_accesses",
+                  "status": "passed"
+                },
+                {
+                  "name": "letrec_strict_forward_dependencies_run",
                   "status": "running"
                 }
               ]
@@ -13655,5 +13671,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:08:14.547021+00:00"
+  "updatedAt": "2026-11-09T09:09:18.001044+00:00"
 }
