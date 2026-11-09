@@ -11911,7 +11911,36 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "adding_equations_retains_target_checks_and_cannot_discard_source_contracts",
+                  "status": "failed"
+                },
+                {
+                  "name": "constructor_extension_keeps_shared_type_anchors_and_checks_its_result",
+                  "status": "failed"
+                },
+                {
+                  "name": "descriptive_name_join_and_numeric_suffix_construct_only_valid_names",
+                  "status": "failed"
+                },
+                {
+                  "name": "heterogeneous_code_tuples_keep_caller_and_definition_bindings",
+                  "status": "failed"
+                },
+                {
+                  "name": "names_cannot_acquire_free_private_members_from_a_possessed_group",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_type_application_and_tuples_keep_their_scoped_trees",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_type_constructor_clause_and_export_builders_form_a_private_family",
+                  "status": "running"
+                }
+              ]
             }
           }
         ]
@@ -15951,5 +15980,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:28:14.514083+00:00"
+  "updatedAt": "2026-11-09T11:29:17.598551+00:00"
 }
