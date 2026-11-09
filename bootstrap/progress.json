@@ -5476,6 +5476,18 @@
                 },
                 {
                   "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "header_blocks_count_constructor_cells_with_their_header",
+                  "status": "passed"
+                },
+                {
+                  "name": "interned_symbols_are_counted_immortal_once_per_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_program_is_quiet_under_the_guarded_cap",
                   "status": "running"
                 }
               ]
@@ -14143,5 +14155,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:31:40.224366+00:00"
+  "updatedAt": "2026-11-09T09:32:43.815483+00:00"
 }
