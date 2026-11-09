@@ -1313,7 +1313,7 @@ fn write_artifacts(
     ]);
     let doc = J::obj([
         ("entry", entry.into()),
-        ("runtime_abi", 1u64.into()),
+        ("runtime_abi", crate::interface::RUNTIME_ABI_VERSION.into()),
         (
             "modules",
             J::arr(&modules, |(m, h)| {

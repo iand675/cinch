@@ -29,6 +29,28 @@ fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+fn assert_manifest(dir: &Path, entry: &str, modules: &[&str]) {
+    let build = dir.join("build");
+    let manifest = std::fs::read_to_string(build.join(format!("{entry}.manifest.json")))
+        .expect("checked build manifest");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse build manifest");
+    assert_eq!(manifest["entry"], entry);
+    assert_eq!(
+        manifest["runtime_abi"].as_u64(),
+        Some(u64::from(cinch::interface::RUNTIME_ABI_VERSION))
+    );
+    let dependencies = manifest["modules"].as_array().expect("manifest module identities");
+    for module in modules {
+        let interface = std::fs::read_to_string(build.join(format!("{module}.cinchif")))
+            .expect("checked module interface");
+        let iface = cinch::interface::Iface::from_json(&interface).expect("parse module interface");
+        let hashes: Vec<_> = dependencies.iter().filter(|row| row["module"] == *module)
+            .map(|row| row["iface_hash"].as_str().expect("manifest interface hash"))
+            .collect();
+        assert_eq!(hashes, [iface.iface_hash()], "{module}");
+    }
+}
+
 #[test]
 fn multi_file_module_links_and_runs() {
     let dir = write_project(&[
@@ -60,9 +82,7 @@ fn multi_file_module_links_and_runs() {
     let lib_iface = std::fs::read_to_string(dir.join("build/Lib.cinchif")).expect("iface");
     assert!(lib_iface.contains("\"module\":\"Lib\""), "{lib_iface}");
     assert!(lib_iface.contains("Lib.double"), "{lib_iface}");
-    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
-    assert!(manifest.contains("\"modules\""), "{manifest}");
-    assert!(manifest.contains("runtime_abi"), "{manifest}");
+    assert_manifest(&dir, "Main", &["Lib", "Main"]);
 }
 
 #[test]
@@ -240,9 +260,7 @@ fn multi_module_file_links_and_runs() {
     for f in ["build/Lib.cinchif", "build/Main.cinchif"] {
         assert!(dir.join(f).exists(), "missing artifact {f}");
     }
-    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
-    assert!(manifest.contains("\"Lib\""), "{manifest}");
-    assert!(manifest.contains("\"Main\""), "{manifest}");
+    assert_manifest(&dir, "Main", &["Lib", "Main"]);
 }
 
 #[test]
