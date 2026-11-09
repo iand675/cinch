@@ -21246,10 +21246,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 5,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Replay original evidence_invalidation target on Stage 3",
+        "phase": "Replay original goal_tactics target on Stage 3",
         "evidence": null
       },
       {
@@ -21519,5 +21519,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:42:13.162096+00:00"
+  "updatedAt": "2026-11-09T07:44:37.776448+00:00"
 }
