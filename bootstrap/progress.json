@@ -17942,10 +17942,10 @@
         "source": "5c9bb48a4d15ea441b7be58cca8f347a7ac97fe85e394e5a5e156580af20d3da",
         "unit": "checks",
         "total": 12,
-        "passed": 8,
+        "passed": 9,
         "failed": 3,
-        "status": "running",
-        "phase": "Replay original guard_coverage target on Stage 3",
+        "status": "completed-with-failures",
+        "phase": "Integrated batch finished",
         "evidence": null
       },
       {
@@ -21116,8 +21116,8 @@
         "total": 8,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "Build Stage 1 with the pinned seed",
         "evidence": null
       },
       {
@@ -21200,5 +21200,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:12:15.606015+00:00"
+  "updatedAt": "2026-11-09T05:13:19.475809+00:00"
 }
