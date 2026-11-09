@@ -158,6 +158,24 @@ The rule that follows: a module reached from emitted code must be available on t
 
 Today the compiler carries a single `TargetProfile`, and without `--target` it is `TargetProfile::native()`, which is simultaneously the host and the target. That coincidence is why the distinction has stayed invisible; `--target` is what separates them. The interface cache needs the same split: an interface selected for the target is keyed by the target profile, and anything resolved against the host is keyed by the host profile, so a rebuild under a different host cannot silently reuse the wrong module set.
 
+**Evaluation has a host and a target too, so it needs an executor.** Macros and staged units are evaluated by an interpreter inside the compiler process, and that interpreter cannot run target code: today a `foreign import` in compile-time code is refused with "a foreign import cannot run at compile time (it needs target code and a linked foreign library)". The refusal is correct and it is also the gap: a macro that wants a syscall, a foreign call, or the target's own arithmetic is exactly the macro that has to be evaluated where the target exists.
+
+So evaluation gets an executor, named per build:
+
+| Executor | Where it runs | What it can evaluate |
+| --- | --- | --- |
+| `local` | in the compiler process | pure macros only, which is the current interpreter and its refusals |
+| `remote` | a process that runs on the target, reached by command or endpoint | anything a target binary can run, including foreign imports and `prim` bodies |
+
+The rules that make this sound rather than convenient:
+
+- **The executor states its triple and the build checks it.** A mismatch is a hard error naming both, not a warning. The executor can lie, so this is a trust boundary like `raw` link words: the build records who ran what under which triple rather than pretending to prove it, and the artifact manifest carries that record.
+- **A remote result is cached by content, not by convenience**: the unit's hash, the argument hash, the target triple and the executor's identity all key the cache entry, so a cached result is reused only for the same target and the same executor.
+- **Pure macros stay local.** Sending everything to a remote executor would make every build depend on a network hop and a service; only the evaluations the interpreter cannot do cross the boundary.
+- **Evaluation results are facts about the target**, so they belong to the target profile's part of the interface cache, exactly like target-selected modules.
+
+This is the reason the host and target split comes first: without a build that names both profiles, an executor cannot be asked for "the target" and a refusal cannot say which context it came from.
+
 ## 4.2 Platform modules are an opt-in surface
 
 `Unix.Watch` needs `kevent` on Darwin and `inotify_init1` on Linux, and both are ordinary Cinch modules in one package, so conditional `modules` lets a package ship both and compile neither one it cannot use. That is the alternative to `#ifdef`-shaped source and to one package per platform, and the chosen list is ordered by the package's own `order` field, so the total check order stays data.
