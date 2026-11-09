@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
-  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 33/236 Rust targets passed. Newer candidates have separate rebuilds.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 34/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17952,11 +17952,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate 3",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 33,
+        "passed": 34,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_contract",
+        "phase": "bootstrap_core",
         "evidence": null
       },
       {
@@ -21022,6 +21022,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-concurrency-letrec.json"
       },
       {
+        "title": "Original class defaults on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 7,
+        "passed": 7,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All seven original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-class-defaults.json"
+      },
+      {
         "title": "Run the matching Rust compiler suite",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
@@ -21082,9 +21093,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 10,
+        "failed": 11,
         "status": "running",
-        "phase": "Replay original safe_subtraction target on Stage 3",
+        "phase": "Replay original small_nats target on Stage 3",
         "evidence": null
       },
       {
@@ -21187,14 +21198,36 @@
         "evidence": null
       },
       {
-        "title": "Build lexical sequencing and replay the original do tests",
-        "source": "c75b8293bf42ab4f18966e61e232c8fdd1074b2131817a8a9cabd56601cdb62b",
+        "title": "Verify lexical sequencing and full do let groups",
+        "source": "f91cc125a6c7f1a14ed8daa531d923064946ad894b0dde8830a66a42ee65872e",
         "unit": "gates",
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "superseded-before-build",
-        "phase": "Replaced by the expanded do local-group candidate.",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Build the checked sequencing provider and replay do with its object",
+        "source": "6f4b534d5c3057122ce38316d4795f13c2fb6318523537c0c07695b2e39135c7",
+        "unit": "gates",
+        "total": 4,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Replay the original fixity tests with Stage 3 interface output",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 2,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21310,5 +21343,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:21:03.508033+00:00"
+  "updatedAt": "2026-11-09T06:22:09.593352+00:00"
 }
