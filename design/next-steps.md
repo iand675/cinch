@@ -9,6 +9,13 @@ interface consumer checks pass, and all 20 original concurrency
 tests passed on Stage 3. The matching full suites remain open.
 See [the published compiler receipt](../bootstrap/current-abi7-published-task-capture-compiler.json).
 
+The combined checked-law and guarded-recursion compiler rebuilt through
+Stage 3. Its Stage 2 and Stage 3 executables, LLVM IR and all 46 compiler
+interfaces agree. A separate entry check consumed the emitted compiler
+contracts, and all eight original law cases passed on Stage 1. The changed-source rebuild and the complete matching test suites
+remain open.
+See [the combined Stage 3 audit](../bootstrap/current-abi7-combined-stage3-agreement.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,

@@ -1,0 +1,172 @@
+{
+  "compiler_interfaces": {
+    "compiler.ll.Bootstrap.Ast.cinchif": "d8063ab5cb52d29aa73870fb52de1b62a24f3b19ff6259f574b756eb2e438dcc",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "a88a7edc10eae48037573204c20ff59fc6341aff444db4599985f0f8ae5e579b",
+    "compiler.ll.Bootstrap.Builtin.cinchif": "26b97aa03cd9e41d21294616439aeb624af54588c429fc13823df370d8389e9d",
+    "compiler.ll.Bootstrap.Check.cinchif": "a8078cd7ec58250b5078132b0cdd4db5d0b16e2e8489622c3dd5645aab4236cc",
+    "compiler.ll.Bootstrap.Contracts.cinchif": "389431cf09ea36f8f928f00c817f48b9d595bc8d3e10bfa7493e322be6a43763",
+    "compiler.ll.Bootstrap.Core.cinchif": "ca48fb3bb045ce627c966e3d0d7a76a29322314e18cab21dd7d9ada215ab7bef",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "b486fa3fb18ea042374254d4ab12acbf44c4ac84fecb5101e4b83babb84f4b6b",
+    "compiler.ll.Bootstrap.Driver.cinchif": "7dd4425dd9294ab2874689093528b3f52b543903539153d94851359100a52559",
+    "compiler.ll.Bootstrap.Eval.cinchif": "247f0c60b911f2e793ad7e525b7f5b5ff7d4da70cb73862f52792a9f809476ff",
+    "compiler.ll.Bootstrap.Export.cinchif": "0c24e8f400655c5686ce252cd6f6e438fb6a0cc35a9188d07df8b1fbd6296541",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "067e807cb3070c6e7ed10223fc566258a0fa64e52e42c3ca73399a0c81fb1a93",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "63b1cbcb64c3b8448a4bbf697e179ed15305f10104a7ec1380cd244f2ab2b5c5",
+    "compiler.ll.Bootstrap.Foreign.cinchif": "358cf808b837b5b1f99634f4c863b39f28b4c289f66cc51d5a5b36a7e86fe286",
+    "compiler.ll.Bootstrap.Global.cinchif": "32d1a15b7d6dbe4efffb0883c81ea6183ac45465eff9f8219e29ac10726ca882",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "91efafdc0de5e58794acfa1be1a70836d3a0c606f00ad4e2b85b52e74b13a3d8",
+    "compiler.ll.Bootstrap.Index.cinchif": "58b3e5f2629f4b3644e889eb4a0e1ecabf1f3a358210ebaef2720ec895718e62",
+    "compiler.ll.Bootstrap.Infer.cinchif": "2f672cd4588779359c006ca955f167be533fa443aa10317b2297b6c607ea96ef",
+    "compiler.ll.Bootstrap.Inputs.cinchif": "ff4ce1649f87b1bbdc7b78fe7f2c4782c5cce7e1659b600c137444db07ddb2fb",
+    "compiler.ll.Bootstrap.Instance.cinchif": "ed48bdf51d97d95d7b44c3a83120e63e4345f8c224969cd9f7c9b8a9e0b9ab3e",
+    "compiler.ll.Bootstrap.Interface.cinchif": "494004dd65f67097af57a64b40af813a1f05e3538932fb4a4e1f0d3f386db2c7",
+    "compiler.ll.Bootstrap.Ir.cinchif": "63c4319f4744ddb89b9381f7c63991f715208e9661d3176861e3e41e1f73fc59",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "d223e0564acc0e5000511b009e4a2a5096db1054b68e95820fba21012b82f8bb",
+    "compiler.ll.Bootstrap.Load.cinchif": "5a1420221b40e15237d299dc25423f5f5e78b278d1067acfd8c09dae56d305b5",
+    "compiler.ll.Bootstrap.Manifest.cinchif": "3a396fdd557cc1584abd45a894ef97262c7723390559b11683b9025909aa0a32",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "bf997c90bc696c4bbf6f9b6cff827c59307c795640bfecfacaceb1c94f037c2a",
+    "compiler.ll.Bootstrap.Object.cinchif": "1620ce77f41792de7a0c825fad30becce27eed12a74225dafb05d07ce930420e",
+    "compiler.ll.Bootstrap.Parse.cinchif": "95d51502da9843bacf560783cae25b276068f9c215c68bc0490e32587b22bf29",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "8e0c6bd1f6ea12ab5ee5bf2bf349b2a3aacc082389f84fa8c946f46af5827293",
+    "compiler.ll.Bootstrap.Proof.cinchif": "a99dbfdf50eea564df215fe3d5bc85fa65038409ff0ff94623a2afff83112cde",
+    "compiler.ll.Bootstrap.Report.cinchif": "cb4005d1b25cfa2427c7e3e7167ebe47ae7be611214e7ca1e4c9e7a8b2ce9f51",
+    "compiler.ll.Bootstrap.Resolve.cinchif": "fb59bc60a7976b7bd1d7dc3ed28f97f6fc3fac77e990dfad2884eb93b6500587",
+    "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "a5a836578f62bb9e956eb53246e03aeee18ef2b9a269936c2b4d3720815ac099",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "65358c1bd4fe983f3dcc5f49f9d037dd239ebe5dea52f7df5c45840d7df1ea44",
+    "compiler.ll.Bootstrap.Stage.cinchif": "6c3b34a83955b99a37a642c7d13d55fa0ca90492d0179a94665214d6cb9a7efb",
+    "compiler.ll.Bootstrap.StageEval.cinchif": "3cb3d85d5f6aa914858c2628ae50ff72012dbcf3a9d8c54357b79fdce6a722a8",
+    "compiler.ll.Bootstrap.Test.cinchif": "9a1232348adb1eb88b3df5a09601928071b7a153ac6da8c5cee9ed536258f293",
+    "compiler.ll.Bootstrap.Total.cinchif": "7bebc70d18c783ebf4816f9b03691f3d5151d90304d52467460f201ad006bbdf",
+    "compiler.ll.Bootstrap.TotalSemantics.cinchif": "9af57b05708253e635187a670ffdbd1fcb926ec65ca763516747808760e1b10e",
+    "compiler.ll.Bootstrap.Type.cinchif": "0493608df0e628ceb3705a81f4cde0031b5abadc03e982b417b105423dcf3b90",
+    "compiler.ll.Bootstrap.Typing.cinchif": "4b09d4cf990e6166d772e0584c783ddf5734b59d78fe9bfd031e5ed7d508ba52",
+    "compiler.ll.Main.cinchif": "fe3db99bf677c3a8b37265c75b010f55a41ba21034fbf73608ce10e10d784348",
+    "compiler.ll.Text.Builder.cinchif": "a85a368374e87b1ac19e40be04dc68adee0d051f2de32e8350b2e0f98033ce29",
+    "compiler.ll.Text.Json.cinchif": "948f235034d0bdbf4ba3c8fe53d68b8c5c9c1bd22903840909d02ea146bd5b72",
+    "compiler.ll.Text.Lex.cinchif": "9b8b55a581052a521418b871a58883c1d02feb8e63507f43508f4e09baa685af",
+    "compiler.ll.Text.Parse.cinchif": "cee78f54ebc142b4cefe47b4b549d3519e8417f326b191124f984bcb5b7c4a06",
+    "compiler.ll.Text.Scan.cinchif": "1c5692ba71d8e01be37fdec84ad152bb0680585d377505a601f06e5c67384bcd"
+  },
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "full_goal_complete": false,
+  "interface_consumer": {
+    "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+    "manifest_sha256": "a8d647e0d36c2eb4fe014d9bbc86bf663d3c405752515d57f6e2022a8df7ed57",
+    "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+    "status": "passed"
+  },
+  "llvm_sha256": "96ddebcac6aa6d5f1077372e3e14a63a9adf79da7059bbcd4c7e5db1d5c8f6f2",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "scope": "Matching Stage 2 and Stage 3 artifacts and a separate interface consumer, with eight original law tests verified on Stage 1. The changed-source rebuild and matching full suites are separate gates.",
+  "stage1_equation_method_export": {
+    "interface_sha256": "9b7e1882af92732917c74d0df6f548589bea56b4f55a0459ce0ebdbe98618725",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "methods": [
+      {
+        "exports": [
+          "sameWord"
+        ],
+        "name": "sameWord",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: U32) -> (Eq (Main.echo x) (Main.echo x)))",
+        "slot": 0
+      },
+      {
+        "exports": [
+          "sameInteger"
+        ],
+        "name": "sameInteger",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: Int) -> (Eq (Main.echo x) (Main.echo x)))",
+        "slot": 1
+      },
+      {
+        "exports": [
+          "sameLambda"
+        ],
+        "name": "sameLambda",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: Int) -> (Eq ((Main.through (\\y -> (Main.echo y))) x) ((Main.through (\\y -> (Main.echo y))) x)))",
+        "slot": 2
+      }
+    ],
+    "name": "equation-method-export",
+    "source_sha256": "d9eec0d3d34b618d94760e5e76a0ae83728b341e9c290ed8d223867d4ed1f104",
+    "status": "passed"
+  },
+  "stage1_original_laws": {
+    "exit_code": 0,
+    "invocation_receipts": {
+      "30784-0.json": "8792ededd7da60c838b036854f6ca2955e10925dbe0b1a47d96fae924d529c3e",
+      "30784-1.json": "66080b4bb51f88ac83a93acfa12218ddaee115b8777b66a5ee92698ed1bb779e",
+      "30784-10.json": "d47ee9610302bfbb07c6a023273a55373aa2a499eb6240e1e1d9022ab381ee65",
+      "30784-11.json": "f26f67dfc0813761b85404e75fb132cef96ad507cdccb0974bd4ff11b7d46cf0",
+      "30784-12.json": "b94fc44dc1da6fd82c6c6b8142d5e76c0517277a77e8f9fc65fab00acf163e06",
+      "30784-13.json": "61f381fa0f16646d4a587f0025693fcca7384916f55bbc9d59c5250e7c95c38d",
+      "30784-2.json": "8c7972ae069589f358db30ccf0dc3d0c33644582aef53cdf419e4d1092d8399b",
+      "30784-3.json": "5b482ada459c725e09f26dd0d22aea6f453ef1deda641ef9dbfa7b8cfd919078",
+      "30784-4.json": "226b0c8bb11cfa6be30a92613e08dabeb7cfa1a243048e403abe29e67eb9a63b",
+      "30784-5.json": "d784426a702cf90ea35c9a5414028c5ba3bca2f0cf014acd17607501ecdb4fc3",
+      "30784-6.json": "d8a39fe03440152f36b43a15c1ab07718b231cc708fe15eb61ee1a4fae3cbc96",
+      "30784-7.json": "989c30bf5dad1a83cce0a80e1079e74c24e8a7089afd3edd3b553609ec4d9c7e",
+      "30784-8.json": "9e3115661f3b53727b3af52dc70f7f9b2071949caeadd95c59e1f93413ab5c24",
+      "30784-9.json": "03a61cd57dcb95598da01bf0c6e5d3ff62d15c8823ac1f8daecdc3d4d91e0a69"
+    },
+    "log_sha256": "37462951ceb591f19bb210c263eecdbb9a28b4ad9c76dc8369f06e97b5dfe44b",
+    "name": "original-laws",
+    "status": "passed",
+    "tests": [
+      {
+        "name": "checked_class_laws_travel_with_the_defining_interfaces",
+        "status": "passed"
+      },
+      {
+        "name": "class_laws_state_the_equations",
+        "status": "passed"
+      },
+      {
+        "name": "law_abiding_instance_passes_sample_wise",
+        "status": "passed"
+      },
+      {
+        "name": "law_breaking_instance_is_rejected_naming_the_law",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_indices_promote_integer_literals",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_samples_use_the_checked_numeric_representation",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
+        "status": "passed"
+      }
+    ]
+  },
+  "stages": {
+    "stage0": {
+      "executable_sha256": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+      "stage_receipt_sha256": "07b0173c9ee3cfdcf4f752edc267474a3e8c1efbc2b04e61cda14496f4c00cef"
+    },
+    "stage1": {
+      "executable_sha256": "d700e02128c2db4bfb1b8e788c33357df004060a4d3f8bb0f830fc768b387c89",
+      "stage_receipt_sha256": "2893fe4c0b20f0db961ca7f0f4474315f38bf520c03d75d50b28b05f161f9dc6"
+    },
+    "stage2": {
+      "executable_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+      "stage_receipt_sha256": "96b6d790d727b7817006e1131e8afe2b62afff8a3dcec8385bffd1d79169a425"
+    },
+    "stage3": {
+      "executable_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+      "stage_receipt_sha256": "d0fa35206cfd9104b9093fa1bac83e4ac3ef0bd1d2a09ed25caac970f3f9f066"
+    }
+  },
+  "status": "audited-combined-stage2-stage3-artifact-agreement"
+}
