@@ -17889,8 +17889,8 @@
         "passed": 0,
         "total": 236,
         "failed": 0,
-        "status": "waiting-target-boundary",
-        "phase": "Wait for the preceding Rust target to finish before switching revisions.",
+        "status": "running",
+        "phase": "runtime-release-archive",
         "evidence": null
       },
       {
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:38:23.877583+00:00"
+  "updatedAt": "2026-11-09T00:40:07.168092+00:00"
 }
