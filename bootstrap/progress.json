@@ -21224,10 +21224,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 5,
-        "passed": 2,
-        "failed": 1,
-        "status": "running",
-        "phase": "Replay original interface_primitive_bodies target on Stage 3",
+        "passed": 3,
+        "failed": 2,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 12 passed, 2 failed.",
         "evidence": null
       },
       {
@@ -21270,8 +21270,8 @@
         "total": 1,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Compile the complete original type-syntax component",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:17:12.481892+00:00"
+  "updatedAt": "2026-11-09T07:18:15.111118+00:00"
 }
