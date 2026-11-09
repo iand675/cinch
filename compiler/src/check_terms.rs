@@ -1065,12 +1065,10 @@ impl Checker {
             }),
             ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = s.elab_letrec(&mut env2, decls)?;
+                let recursive = s.elab_letrec(&mut env2, decls)?;
                 let (bcore, bty) = s.infer(&mut env2, body)?;
-                if let Some(g) = &group {
-                    s.discharge_group(g, &bty, *span)?;
-                }
-                Ok((wrap_lets(binds, bcore), bty))
+                let scoped = s.finish_recursive_bindings(recursive, bcore, &bty, *span)?;
+                Ok((scoped, bty))
             }),
             ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
                 let (tw, fw) =
@@ -1744,13 +1742,10 @@ impl Checker {
             }),
             ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = s.elab_letrec(&mut env2, decls)?;
+                let recursive = s.elab_letrec(&mut env2, decls)?;
                 let scoped = s.numeric_contract_in_value_scope(expected, env, &env2);
                 let bcore = s.check(&mut env2, body, &scoped)?;
-                if let Some(g) = &group {
-                    s.discharge_group(g, expected, *span)?;
-                }
-                Ok(wrap_lets(binds, bcore))
+                s.finish_recursive_bindings(recursive, bcore, expected, *span)
             }),
             ast::Term::Case(scrut, alts, span) => {
                 let (scrut_core, scrut_ty, reading) = self.infer_scrutinee(env, scrut)?;
@@ -4445,19 +4440,17 @@ impl Checker {
             }
             let checked = checker.isolate(|checker| {
                 let mut scope = env.clone();
-                let (bindings, group) = if recursive {
+                let bindings = if recursive {
                     checker.elab_letrec_form(&mut scope, decls, LocalForm::Proof)?
                 } else {
-                    checker.elab_locals(&mut scope, decls, LocalForm::Proof)?
+                    let (bindings, memo) = checker.elab_locals(&mut scope, decls, LocalForm::Proof)?;
+                    RecursiveBindings { bindings, memo, knots: Vec::new(), functions: HashMap::new() }
                 };
                 let goal = checker.proof_values_in_scope(prop, &source, &scope);
                 let body = checker.check_proof(&mut scope, body, &goal)?;
-                if let Some(group) = group {
-                    checker.discharge_group(&group, &Ty::Prp(Box::new(goal)), span)?;
-                }
                 checker.pending_erasure_checks.push((checker.current_module.clone(), span,
-                    wrap_lets(bindings.clone(), ECore::Unit)));
-                Ok(wrap_lets(bindings, body))
+                    wrap_lets(bindings.bindings.clone(), ECore::Unit)));
+                checker.finish_recursive_bindings(bindings, body, &Ty::Prp(Box::new(goal)), span)
             });
             let performed = checker.exit_perf(saved_effects);
             checker.current_logical = saved_logical;
@@ -7144,7 +7137,7 @@ impl Checker {
         &mut self,
         env: &mut Env,
         decls: &'a [ast::LocalDecl],
-    ) -> Result<(Vec<(LocalId, ECore)>, Option<MemoGroup>)> {
+    ) -> Result<RecursiveBindings> {
         self.elab_letrec_form(env, decls, LocalForm::Plain)
     }
 
@@ -7153,7 +7146,7 @@ impl Checker {
         env: &mut Env,
         decls: &'a [ast::LocalDecl],
         form: LocalForm,
-    ) -> Result<(Vec<(LocalId, ECore)>, Option<MemoGroup>)> {
+    ) -> Result<RecursiveBindings> {
         // Signatures first.
         let mut sigs: HashMap<String, Ty> = HashMap::new();
         for d in decls {
@@ -7419,12 +7412,16 @@ impl Checker {
             .iter()
             .map(|row| !self.uni.resolve_row(row).is_pure())
             .collect();
-        let (initializer_order, guarded_targets) = order_rec_initializers(&members, &cores, &effectful)?;
-        for (m, captured) in mems.iter_mut().zip(guarded_targets) {
-            if captured && !m.is_cell && !m.is_fun {
+        let functions: Vec<_> = mems.iter().map(|m| m.is_fun).collect();
+        let (initializer_order, forward_captures) =
+            order_rec_initializers(&members, &cores, &effectful, &functions)?;
+        let mut knots = Vec::new();
+        for (m, captures_before_init) in mems.iter_mut().zip(forward_captures) {
+            if captures_before_init && !m.is_cell && !m.is_fun {
                 let slot = self.fresh_local();
                 self.note_local_class(slot, Class::Obj);
                 m.boxed = Some(slot);
+                knots.push(KnotSlot { local: slot, name: m.name.clone(), ty: m.ty.clone() });
             }
         }
 
@@ -7439,7 +7436,7 @@ impl Checker {
         }
 
         // Captured words for each function member's unit: free variables
-        // from outside the group, siblings' boxes and cells, and
+        // from outside the group, sibling values or their slots, and
         // (transitively) siblings' captured words.
         let member_locals: HashSet<LocalId> = mems.iter().map(|m| m.l).collect();
         let mut by_local: HashMap<LocalId, usize> = HashMap::new();
@@ -7474,10 +7471,8 @@ impl Checker {
                     let rm = &mems[r];
                     if rm.is_fun {
                         want.extend(captured[r].iter().copied());
-                    } else if rm.is_cell {
-                        want.push(rm.l);
-                    } else if let Some(b) = rm.boxed {
-                        want.push(b);
+                    } else {
+                        want.push(rm.boxed.unwrap_or(rm.l));
                     }
                 }
                 want.sort_by_key(|l| l.0);
@@ -7563,13 +7558,61 @@ impl Checker {
             if m.name.is_empty() || m.is_cell {
                 continue;
             }
-            let is_value = m.is_fun || is_syntactic_value(m.body);
-            let def = is_value.then(|| wrap_lets(out.clone(), ECore::Var(m.l)));
+            // A copy of a scoped group would own a different knot. Keep
+            // its bindings at this scope's single evaluation.
+            let generalizable = knots.is_empty() && (m.is_fun || is_syntactic_value(m.body));
+            let def = generalizable.then(|| wrap_lets(out.clone(), ECore::Var(m.l)));
             let ty = self.uni.zonk(&m.ty);
             let scheme = self.generalize_local(&env0, m.l, &ty, def.as_ref());
             self.bind_syntax_local(env, &m.syntax_name, m.l, scheme, None, m.span)?;
         }
-        Ok((out, group))
+        let functions = mems.iter().zip(unit_ids).zip(captured).filter_map(|((member, unit), captures)| {
+            unit.map(|id| (id, (member.ty.clone(), captures.len())))
+        }).collect();
+        Ok(RecursiveBindings { bindings: out, memo: group, knots, functions })
+    }
+
+    fn finish_recursive_bindings(
+        &mut self,
+        recursive: RecursiveBindings,
+        body: ECore,
+        result_ty: &Ty,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let RecursiveBindings { mut bindings, memo, knots, functions } = recursive;
+        if let Some(group) = &memo {
+            self.discharge_group(group, result_ty, span)?;
+        }
+        if knots.is_empty() {
+            return Ok(wrap_lets(bindings, body));
+        }
+
+        let mut flow = KnotFlow {
+            checker: self,
+            roots: &knots,
+            functions: &functions,
+            locals: knots.iter().enumerate().map(|(index, slot)| (slot.local, index)).collect(),
+            visiting: HashSet::new(),
+            initialized: HashSet::new(),
+            suspended: false,
+            span,
+        };
+        for (local, initializer) in &bindings {
+            let captured = flow.value(initializer)?;
+            flow.bind(*local, captured);
+        }
+        let captured = flow.value(&body)?;
+        flow.reject(flow.in_type(captured, result_ty))?;
+
+        let result = self.fresh_local();
+        self.note_local_ty(result, result_ty);
+        bindings.push((result, body));
+        for slot in knots.into_iter().rev() {
+            let unit = self.fresh_local();
+            self.note_local_ty(unit, &Ty::Unit);
+            bindings.push((unit, ECore::BoxClear(Box::new(ECore::Var(slot.local)), slot.ty)));
+        }
+        Ok(wrap_lets(bindings, ECore::Var(result)))
     }
 
     /// Bind the components of an irrefutable structural pattern to fresh
@@ -10369,12 +10412,9 @@ impl Checker {
         span: ast::Span,
     ) -> Result<ECore> {
         let mut env2 = env.clone();
-        let (binds, group) = self.elab_letrec(&mut env2, decls)?;
+        let recursive = self.elab_letrec(&mut env2, decls)?;
         let bcore = self.cps(&mut env2, body, kv)?;
-        if let Some(g) = &group {
-            self.discharge_group(g, &kv.ty, span)?;
-        }
-        Ok(wrap_lets(binds, bcore))
+        self.finish_recursive_bindings(recursive, bcore, &kv.ty, span)
     }
 
     /// `let` in continuation-passing style. Only simple value bindings
@@ -11804,6 +11844,255 @@ fn rec_initializer_stable(core: &ECore, partial: &impl Fn(LocalId, usize) -> boo
     }
 }
 
+struct RecursiveBindings {
+    bindings: Vec<(LocalId, ECore)>,
+    memo: Option<MemoGroup>,
+    knots: Vec<KnotSlot>,
+    functions: HashMap<GlobalId, (Ty, usize)>,
+}
+
+struct KnotSlot {
+    local: LocalId,
+    name: String,
+    ty: Ty,
+}
+
+/// Track the scoped slot carried by a value, including hidden closure
+/// captures. One witness suffices: every tracked slot ends at this scope.
+struct KnotFlow<'a> {
+    checker: &'a Checker,
+    roots: &'a [KnotSlot],
+    functions: &'a HashMap<GlobalId, (Ty, usize)>,
+    locals: HashMap<LocalId, usize>,
+    visiting: HashSet<GlobalId>,
+    initialized: HashSet<LocalId>,
+    suspended: bool,
+    span: ast::Span,
+}
+
+impl KnotFlow<'_> {
+    fn reject(&self, captured: Option<usize>) -> Result<()> {
+        if let Some(index) = captured {
+            return Err(Error::at(self.span, format!(
+                "region escape: a value retains recursive binding `{}`",
+                self.roots[index].name
+            )));
+        }
+        Ok(())
+    }
+
+    fn in_type(&self, captured: Option<usize>, ty: &Ty) -> Option<usize> {
+        captured.filter(|_| self.checker.value_may_hide_scope(ty, &mut Vec::new(), 32))
+    }
+
+    fn bind(&mut self, local: LocalId, captured: Option<usize>) {
+        let captured = match self.checker.local_tys.get(&local) {
+            Some(ty) => self.in_type(captured, ty),
+            None => captured,
+        };
+        if let Some(slot) = captured {
+            self.locals.insert(local, slot);
+        }
+    }
+
+    fn values(&mut self, nodes: &[ECore]) -> Result<Option<usize>> {
+        let mut captured = None;
+        for node in nodes {
+            captured = captured.or(self.value(node)?);
+        }
+        Ok(captured)
+    }
+
+    fn term_type(&self, node: &ECore) -> Option<Ty> {
+        let ty = match node {
+            ECore::Var(local) => self.checker.local_tys.get(local)?,
+            ECore::MkClos { fn_id, .. } | ECore::Global(fn_id, _) => &self.functions.get(fn_id)?.0,
+            ECore::Proj(_, _, ty) | ECore::DictProj(.., ty) | ECore::Demand(_, ty)
+            | ECore::BoxGet(_, ty) | ECore::BoxInit(_, _, ty) => ty,
+            _ => return None,
+        };
+        Some(self.checker.uni.zonk(ty))
+    }
+
+    // A closure retains its captures, but the result of calling it only
+    // retains them if its checked return type can carry such a value.
+    fn call_result(
+        &mut self,
+        captured: Option<usize>,
+        callee: &ECore,
+        arguments: usize,
+    ) -> Result<Option<usize>> {
+        if captured.is_none() {
+            return Ok(None);
+        }
+        if let ECore::Lam { params, body } = callee {
+            if params.len() == arguments {
+                return self.value(body);
+            }
+        }
+        let Some(mut ty) = self.term_type(callee) else { return Ok(captured) };
+        for _ in 0..arguments {
+            ty = match ty {
+                Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } => *cod,
+                _ => return Ok(captured),
+            };
+        }
+        Ok(self.in_type(captured, &ty))
+    }
+
+    fn force_result(&mut self, captured: Option<usize>, args: &[ECore]) -> Result<Option<usize>> {
+        let [thunk] = args else { return Ok(captured) };
+        match self.term_type(thunk) {
+            Some(Ty::Thunk { inner, .. } | Ty::Later(inner)) => return Ok(self.in_type(captured, &inner)),
+            _ => {}
+        }
+        if let ECore::App(head, args) = thunk {
+            if let (ECore::Prim(PrimOp::Delay), [callback]) = (&**head, args.as_slice()) {
+                return self.call_result(captured, callback, 1);
+            }
+        }
+        Ok(captured)
+    }
+
+    fn check_suspended(&mut self, body: &ECore) -> Result<()> {
+        let previous = std::mem::replace(&mut self.suspended, true);
+        let result = self.value(body);
+        self.suspended = previous;
+        result.map(|_| ())
+    }
+
+    fn check_recursive_body(&mut self, id: &GlobalId, captured: Option<usize>) -> Result<()> {
+        if captured.is_some() && self.visiting.insert(id.clone()) {
+            if let Some((_, body)) = self.checker.pending_rec.iter().find(|(candidate, _)| candidate == id) {
+                self.check_suspended(body)?;
+            }
+            self.visiting.remove(id);
+        }
+        Ok(())
+    }
+
+    fn value(&mut self, node: &ECore) -> Result<Option<usize>> {
+        Ok(match node {
+            ECore::Var(local) => self.locals.get(local).copied(),
+            ECore::LitFold { body, .. } => self.value(body)?,
+            ECore::Let(local, value, body) => {
+                let captured = self.value(value)?;
+                self.bind(*local, captured);
+                let result = self.value(body)?;
+                self.locals.remove(local);
+                result
+            }
+            ECore::BoxGet(slot, _) if !self.suspended && matches!(&**slot, ECore::Var(local)
+                if self.roots.iter().any(|root| root.local == *local) && !self.initialized.contains(local)) => {
+                // The runtime faults before an uninitialized slot yields a value.
+                None
+            }
+            ECore::Proj(value, _, ty) | ECore::DictProj(value, .., ty)
+            | ECore::Demand(value, ty) | ECore::BoxGet(value, ty) => {
+                let captured = self.value(value)?;
+                self.in_type(captured, ty)
+            }
+            ECore::If(condition, yes, no) => {
+                self.value(condition)?;
+                self.value(&yes.body)?.or(self.value(&no.body)?)
+            }
+            ECore::Case { scrut, alts } => {
+                let scrut = self.value(scrut)?;
+                let mut captured = None;
+                for alt in alts {
+                    let fields = match &alt.pat {
+                        CPat::Con { fields, .. } => fields.as_slice(),
+                        CPat::Var(local, _) => std::slice::from_ref(local),
+                        CPat::Wild => &[],
+                    };
+                    for &field in fields {
+                        self.bind(field, scrut);
+                    }
+                    captured = captured.or(self.value(&alt.body)?);
+                    for field in fields {
+                        self.locals.remove(field);
+                    }
+                }
+                captured
+            }
+            ECore::Lam { params, body } => {
+                let mut bound = params.clone();
+                let mut free = Vec::new();
+                free_locals(body, &mut bound, &mut free);
+                self.check_suspended(body)?;
+                free.iter().find_map(|local| self.locals.get(local).copied())
+            }
+            ECore::MkClos { fn_id, env } => {
+                let captured = self.values(env)?;
+                self.check_recursive_body(fn_id, captured)?;
+                captured
+            }
+            ECore::App(head, args) => {
+                if let ECore::Global(id, _) = &**head {
+                    if let Some((_, count)) = self.functions.get(id) {
+                        // Direct local calls receive the lifted environment
+                        // ahead of their source arguments.
+                        let (captures, arguments) = args.split_at(*count);
+                        let retained = self.values(captures)?;
+                        let supplied = self.values(arguments)?;
+                        self.reject(supplied)?;
+                        self.check_recursive_body(id, retained)?;
+                        return self.call_result(retained, head, arguments.len());
+                    }
+                }
+                let callee = self.value(head)?;
+                let arguments = self.values(args)?;
+                match &**head {
+                    ECore::Ctor(id, ..) if id.0 != crate::core::MUTABLE_CELL => arguments,
+                    ECore::Prim(PrimOp::Delay) => arguments,
+                    ECore::Prim(PrimOp::Force) => self.force_result(arguments, args)?,
+                    ECore::Prim(op) if op.is_pure_arith() => None,
+                    _ => {
+                        // The callee may retain an argument, and a partial
+                        // application retains its callee.
+                        self.reject(arguments)?;
+                        self.call_result(callee, head, args.len())?
+                    }
+                }
+            }
+            ECore::BoxInit(slot, payload, _) => {
+                let captured = self.value(payload)?;
+                if self.roots.iter().any(|root| root.local == *slot) {
+                    self.initialized.insert(*slot);
+                } else {
+                    self.reject(captured)?;
+                }
+                captured
+            }
+            ECore::BoxClear(slot, _) => {
+                self.value(slot)?;
+                None
+            }
+            ECore::LazyInit(_, value) | ECore::RefSet(_, value, _) => {
+                let captured = self.value(value)?;
+                self.reject(captured)?;
+                None
+            }
+            ECore::InstDict(_, values, _, _) | ECore::DeclsQuote { holes: values, .. } => {
+                let captured = self.values(values)?;
+                self.reject(captured)?;
+                None
+            }
+            ECore::Quote { holes, body, .. } => {
+                let captured = self.values(holes)?.or(self.value(body)?);
+                self.reject(captured)?;
+                None
+            }
+            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+            | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_)
+            | ECore::Bool(_) | ECore::Unit | ECore::Global(..) | ECore::Ctor(..)
+            | ECore::Prim(_) | ECore::Foreign(_) | ECore::LazyAlloc | ECore::BoxAlloc
+            | ECore::Fault | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_)
+            | ECore::SyntaxLit(..) | ECore::StrLit(_) => None,
+        })
+    }
+}
+
 #[derive(Clone, Copy)]
 struct RecUse {
     owner: usize,
@@ -11844,6 +12133,7 @@ fn order_rec_initializers(
     members: &[(LocalId, ast::Span, String)],
     cores: &[ECore],
     effectful: &[bool],
+    functions: &[bool],
 ) -> Result<(Vec<usize>, Vec<bool>)> {
     let mut by_local: HashMap<LocalId, usize> = HashMap::new();
     for (i, (l, _, _)) in members.iter().enumerate() {
@@ -11928,15 +12218,34 @@ fn order_rec_initializers(
         initialized[next] = true;
         order.push(next);
     }
-    // Eager reads now see an initialized local. Only a suspended use may
-    // capture the slot before the value is available.
-    let mut guarded_targets = vec![false; n];
-    for edge in &edges {
-        if edge.guard_depth > 0 {
-            guarded_targets[edge.target] = true;
+    // Lifted functions can be materialized by any initializer that
+    // references them. Propagate the earliest such site through their
+    // capture chains, including mutually recursive functions.
+    let mut position = vec![0; n];
+    for (at, &member) in order.iter().enumerate() {
+        position[member] = at;
+    }
+    let mut earliest = position.clone();
+    loop {
+        let mut changed = false;
+        for edge in &edges {
+            if functions[edge.target] && earliest[edge.owner] < earliest[edge.target] {
+                earliest[edge.target] = earliest[edge.owner];
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
         }
     }
-    Ok((order, guarded_targets))
+
+    let mut forward_captures = vec![false; n];
+    for edge in &edges {
+        if edge.guard_depth > 0 && earliest[edge.owner] <= position[edge.target] {
+            forward_captures[edge.target] = true;
+        }
+    }
+    Ok((order, forward_captures))
 }
 
 /// Collect reads and applications of group members. Each lambda or delay
@@ -11988,7 +12297,7 @@ fn rec_walk(
             ECore::Var(id) => record(id, Some(1)),
             other => rec_walk(other, guard, owner, by_local, edges),
         },
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::BoxGet(d, _) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => {
             rec_walk(d, guard, owner, by_local, edges);
         }
         ECore::App(f, args) => {
@@ -12069,7 +12378,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(h, by_local, out);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => {
             rec_collect_refs(d, by_local, out)
         }
         ECore::App(f, args) => {
@@ -12144,7 +12453,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(h, guard, owner, edges);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => {
             top_rec_walk(d, guard, owner, edges);
         }
         ECore::App(f, args) => {
@@ -12247,7 +12556,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(h, subs);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => {
             subst_rec_refs(d, subs)
         }
         ECore::App(f, args) => {

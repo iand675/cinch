@@ -99,6 +99,8 @@ enum ECore {
     /// Read a fixpoint box: a use of a recursive `letrec` value inside a
     /// thunk, resolved when the thunk runs; the type is the value's.
     BoxGet(Box<ECore>, Ty),
+    /// Release a scoped knot’s payload and invalidate subsequent reads.
+    BoxClear(Box<ECore>, Ty),
     /// Write through a `Mut` borrow (evidence invalidation over mutable
     /// state): store `val` into the cell the exclusive borrow `local`
     /// names, yielding `Unit`. Lowers to [`crate::core::Core::RefSet`].
@@ -364,7 +366,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
             free_locals(v, bound, out);
         }
-        ECore::BoxGet(v, _) => free_locals(v, bound, out),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => free_locals(v, bound, out),
         ECore::Case { scrut, alts } => {
             free_locals(scrut, bound, out);
             for alt in alts {
@@ -446,7 +448,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         ECore::BoxAlloc => {}
         ECore::BoxInit(_, v, _) => hoist_lambdas(v, hint, counter, fns),
         ECore::RefSet(_, v, _) => hoist_lambdas(v, hint, counter, fns),
-        ECore::BoxGet(v, _) => hoist_lambdas(v, hint, counter, fns),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => hoist_lambdas(v, hint, counter, fns),
         ECore::Case { scrut, alts } => {
             hoist_lambdas(scrut, hint, counter, fns);
             for alt in alts {
@@ -557,7 +559,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             note_local(*l, map, next);
             assign_locals(v, map, next);
         }
-        ECore::BoxGet(v, _) => assign_locals(v, map, next),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => assign_locals(v, map, next),
         ECore::Case { scrut, alts } => {
             assign_locals(scrut, map, next);
             for alt in alts {
@@ -770,6 +772,7 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
         ECore::BoxInit(l, v, t) => ECore::BoxInit(m(l), Box::new(remap_ecore(v, r)), r.ty(t)),
         ECore::RefSet(l, v, t) => ECore::RefSet(m(l), Box::new(remap_ecore(v, r)), r.ty(t)),
         ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(remap_ecore(v, r)), r.ty(t)),
+        ECore::BoxClear(v, t) => ECore::BoxClear(Box::new(remap_ecore(v, r)), r.ty(t)),
         ECore::Case { scrut, alts } => ECore::Case {
             scrut: Box::new(remap_ecore(scrut, r)),
             alts: alts
@@ -834,7 +837,7 @@ fn def_parts(e: &ECore, parts: &mut CopyParts) {
                 def_parts(h, parts);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, parts),
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => def_parts(d, parts),
         ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v, _) => def_parts(v, parts),
         ECore::InstDict(_, args, _, _) => {
             for a in args {
@@ -928,7 +931,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
         ECore::BoxInit(_, v, _) => resolve_lit_words(v, lits),
         ECore::RefSet(_, v, _) => resolve_lit_words(v, lits),
-        ECore::BoxGet(v, _) => resolve_lit_words(v, lits),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => resolve_lit_words(v, lits),
         ECore::Case { scrut, alts } => {
             resolve_lit_words(scrut, lits);
             for alt in alts {
@@ -998,7 +1001,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
         ECore::BoxInit(_, v, _) => resolve_idx_words(v, vals),
         ECore::RefSet(_, v, _) => resolve_idx_words(v, vals),
-        ECore::BoxGet(v, _) => resolve_idx_words(v, vals),
+        ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => resolve_idx_words(v, vals),
         ECore::Case { scrut, alts } => {
             resolve_idx_words(scrut, vals);
             for alt in alts {
@@ -1082,7 +1085,7 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::BoxAlloc
         | ECore::BoxInit(..)
         | ECore::RefSet(_, _, _)
-        | ECore::BoxGet(..)
+        | ECore::BoxGet(..) | ECore::BoxClear(..)
         | ECore::Quote { .. }
         | ECore::DeclsQuote { .. } => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
@@ -1270,7 +1273,7 @@ impl<'a> LowerCx<'a> {
             ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::MkClos { .. } | ECore::Lam { .. }
             | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
             ECore::Int(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
-            | ECore::RefSet(..) => Some(Class::Raw),
+            | ECore::RefSet(..) | ECore::BoxClear(..) => Some(Class::Raw),
             ECore::App(f, _) if matches!(**f, ECore::Ctor(..)) => Some(Class::Obj),
             ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
@@ -1442,6 +1445,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::BoxInit(l, v, ty) => C::BoxInit(*l, Box::new(low(v)), cx.class(ty)),
         ECore::RefSet(l, v, ty) => C::RefSet(*l, Box::new(low(v)), cx.class(ty)),
         ECore::BoxGet(v, ty) => C::BoxGet(Box::new(low(v)), cx.class(ty)),
+        ECore::BoxClear(v, ty) => C::BoxClear(Box::new(low(v)), cx.class(ty)),
         ECore::Case { scrut, alts } => C::Case {
             scrut: Box::new(low(scrut)),
             alts: alts
@@ -5562,7 +5566,7 @@ impl Checker {
             ECore::LazyInit(_, t) => self.fold_pass(t, unit, fold),
             ECore::BoxInit(_, v, _) => self.fold_pass(v, unit, fold),
             ECore::RefSet(_, v, _) => self.fold_pass(v, unit, fold),
-            ECore::BoxGet(v, _) => self.fold_pass(v, unit, fold),
+            ECore::BoxGet(v, _) | ECore::BoxClear(v, _) => self.fold_pass(v, unit, fold),
             ECore::Case { scrut, alts } => {
                 self.fold_pass(scrut, unit, fold);
                 for alt in alts {
@@ -11307,6 +11311,7 @@ impl Checker {
             }
             ECore::RefSet(l, v, ty) => ECore::RefSet(*l, Box::new(self.fill_holes(v, sol)?), ty.clone()),
             ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?), t.clone()),
+            ECore::BoxClear(v, t) => ECore::BoxClear(Box::new(self.fill_holes(v, sol)?), t.clone()),
             ECore::Quote { template, holes, body } => ECore::Quote {
                 template: template.clone(),
                 holes: holes

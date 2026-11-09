@@ -304,3 +304,80 @@ fn nested_let_depth_limit_is_a_named_diagnostic() {
         .join()
         .expect("the let-depth probes");
 }
+
+#[test]
+fn recursive_value_cannot_escape_its_region() {
+    let initializer = r"    letrec r :: (Nat, Unit -> Nat); r = (41, \w -> case r of (n, f) -> n + 1)";
+    for (name, declaration, equation, body) in [
+        ("return-knot", "keep :: Unit -> (Nat, Unit -> Nat)", "keep u", "r"),
+        ("return-knot-closure", "keep :: Unit -> Unit -> Nat", "keep u", "case r of (n, f) -> f"),
+        (
+            "store-knot-closure",
+            "store :: forall g. Mut g (Unit -> Nat) -> Unit",
+            "store destination",
+            "case r of (n, f) -> refSet destination f",
+        ),
+    ] {
+        let source = format!(
+            "module Main where\n  {declaration}\n  {equation} =\n{initializer}\n    in {body}\n  main :: Int\n  main = 0\n",
+        );
+        expect_err(name, &source, "region escape: a value retains recursive binding `r`");
+    }
+}
+
+#[test]
+fn values_independent_of_the_knot_can_escape() {
+    expect_ok(
+        "letrec-independent-value",
+        r#"
+module Main where
+  keep :: Unit -> Unit -> Int
+  keep u =
+    letrec r :: (Nat, Unit -> Nat); base :: Int; independent :: Unit -> Int; r = (41, \w -> case r of (n, f) -> n + 1); base = 42; independent = \w -> base
+    in independent
+
+  project :: Unit -> Nat
+  project u =
+    letrec r :: (Nat, Unit -> Nat); r = (41, \w -> case r of (n, f) -> n + 1)
+    in case r of (n, f) -> n
+
+  main :: Int
+  main = if project () == 41 then keep () () else 1
+"#,
+        42,
+    );
+}
+
+#[test]
+fn guarded_value_scope_releases_every_iteration() {
+    expect_ok(
+        "letrec-knot-teardown",
+        r#"
+module Main where
+  consume :: Unit -> Nat
+  consume u =
+    letrec r :: (Nat, Unit -> Nat); r = (41, \w -> case r of (n, f) -> n + 1)
+    in case r of (n, f) -> f ()
+
+  loop :: Nat -> Nat -> Nat
+  loop n total = if n == 0 then total else loop (n - 1) (total + consume ())
+
+  main :: Int
+  main = if loop 128 0 == 5376 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn reading_a_knot_while_it_initializes_faults() {
+    expect_ok(
+        "letrec-knot-black-hole",
+        r#"
+module Main where
+  main :: Int
+  main = letrec x :: Int; x = 1 + force (delay (\() -> x)) in x
+"#,
+        70,
+    );
+}

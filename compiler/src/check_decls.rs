@@ -20556,7 +20556,7 @@ impl Checker {
                 scope: scope.clone(),
             },
             Core::StrLit(s) => Value::Str(s.clone()),
-            Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) => {
+            Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) | Core::BoxClear(..) => {
                 return Err(Error::plain(
                     "a recursive `letrec` value cannot be evaluated at compile time (the staging evaluator has no fixpoint boxes)",
                 ))

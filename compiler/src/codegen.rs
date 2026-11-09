@@ -5771,7 +5771,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         Core::LazyInit(_, t) => collect_prims(t, out),
         Core::BoxInit(_, v, _) => collect_prims(v, out),
         Core::RefSet(_, v, _) => collect_prims(v, out),
-        Core::BoxGet(v, _) => collect_prims(v, out),
+        Core::BoxGet(v, _) | Core::BoxClear(v, _) => collect_prims(v, out),
         Core::Case { scrut, alts } => {
             collect_prims(scrut, out);
             for a in alts {
@@ -5827,7 +5827,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             out.push(*l);
             collect_binders(v, out);
         }
-        Core::BoxGet(v, _) => collect_binders(v, out),
+        Core::BoxGet(v, _) | Core::BoxClear(v, _) => collect_binders(v, out),
         Core::Let(x, _, e, body) => {
             out.push(*x);
             collect_binders(e, out);
@@ -6260,9 +6260,8 @@ impl CoreEmitter<'_, '_> {
                     return err(format!("box init for unknown local {}", cell.0));
                 }
                 let v = self.emit_expr(v)?;
-                // The box keeps one reference (its value slot is
-                // uncounted until S8 tears knots down) and the result is
-                // another.
+                // The slot keeps one reference until scope teardown.
+                // The initializer result owns another reference.
                 rc_op(self.b, self.reg.rc_debug, false, &v, *class);
                 let slot = self.slot(*cell);
                 let bw = self.b.reg();
@@ -6291,6 +6290,16 @@ impl CoreEmitter<'_, '_> {
                 let r = self.b.load_at(&p, 8);
                 rc_op(self.b, self.reg.rc_debug, false, &r, *class);
                 Ok(r)
+            }
+            Core::BoxClear(cell, class) => {
+                let w = self.emit_expr(cell)?;
+                let p = self.b.reg();
+                self.b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+                let payload = self.b.load_at(&p, 8);
+                self.b.store_at(&p, 0, "0");
+                self.b.store_at(&p, 8, "0");
+                rc_op(self.b, self.reg.rc_debug, true, &payload, *class);
+                Ok("0".to_string())
             }
             Core::LazyAlloc => {
                 // `{ state; owned; value }`; the owned slot is filled by
@@ -8554,7 +8563,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
         }
         Core::Fault => q_imm(out, quote_op::FAULT),
-        Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) => {
+        Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) | Core::BoxClear(..) => {
             return Err(crate::Error::plain(
                 "a recursive `letrec` value cannot be reified into a quotation body",
             ))

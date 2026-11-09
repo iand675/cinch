@@ -1,0 +1,85 @@
+{
+  "full_goal_complete": false,
+  "log_sha256": "7050d0a3bc136615e90031d0c6c14f5cd88017feecd385c7fcbc824300913e3b",
+  "native_source_sha256": "8551b636cbc616daa51361c5b0855c15453efc2d03c505eed38b26756e4b1ff7",
+  "passed": 18,
+  "schema": 1,
+  "status": "audited-rust-guarded-value-scope",
+  "test_binary_sha256": "8148fcbfdb6f71a1ab729b4e147946b46f14d958570071cacb486892d6657829",
+  "test_source_sha256": "289c2d763e51174e24c4c7ade1042817a2d14349ec97e2477fd5f3432ee3b574",
+  "tests": [
+    {
+      "name": "eager_call_cycle_is_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "eager_cycle_is_rejected_naming_the_variable",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_cycle_runs",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_value_cycle_is_accepted",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_lambda_cycle_is_accepted",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_value_scope_releases_every_iteration",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_can_store_a_closure_before_its_capture_is_initialized",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_group_of_functions_and_values",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_local_function_recurses",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_mutual_recursion",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_rejects_reordering_mutable_accesses",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_strict_forward_dependencies_run",
+      "status": "passed"
+    },
+    {
+      "name": "multi_binding_let_group",
+      "status": "passed"
+    },
+    {
+      "name": "nested_let_depth_limit_is_a_named_diagnostic",
+      "status": "passed"
+    },
+    {
+      "name": "reading_a_knot_while_it_initializes_faults",
+      "status": "passed"
+    },
+    {
+      "name": "recursive_value_cannot_escape_its_region",
+      "status": "passed"
+    },
+    {
+      "name": "value_knot_read_under_a_lambda_yields_the_value",
+      "status": "passed"
+    },
+    {
+      "name": "values_independent_of_the_knot_can_escape",
+      "status": "passed"
+    }
+  ],
+  "total": 18
+}

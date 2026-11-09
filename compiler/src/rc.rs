@@ -417,6 +417,10 @@ impl Pass {
                 let class = *class;
                 self.borrowed(d, owned, live, class, move |d| Core::BoxGet(Box::new(d), class))
             }
+            Core::BoxClear(d, class) => {
+                let class = *class;
+                self.borrowed(d, owned, live, Class::Raw, move |d| Core::BoxClear(Box::new(d), class))
+            }
             Core::BoxInit(l, v, class) => {
                 let (l, class) = (self.resolve(l.0), *class);
                 self.write_through(l, v, owned, live, class, move |v| {
@@ -466,7 +470,7 @@ impl Pass {
             Core::ConstBytes(_) | Core::ConstString { .. } | Core::Lam { .. } | Core::InstDict(..)
             | Core::LazyAlloc | Core::BoxAlloc => Some(Class::Obj),
             Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_) | Core::LazyInit(..)
-            | Core::RefSet(..) => Some(Class::Raw),
+            | Core::RefSet(..) | Core::BoxClear(..) => Some(Class::Raw),
             Core::Proj(_, f) => Some(concrete(f.class)),
             Core::DictProj(_, _, _, c) | Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) => {
                 Some(concrete(*c))
@@ -793,7 +797,7 @@ impl Verifier {
                 }
                 self.join(st, outs)
             }
-            Core::Proj(d, _) | Core::DictProj(d, ..) | Core::Demand(d, _) | Core::BoxGet(d, _) => match &**d {
+            Core::Proj(d, _) | Core::DictProj(d, ..) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => match &**d {
                 Core::Var(r) => {
                     self.read(st, r.0)?;
                     Ok(true)

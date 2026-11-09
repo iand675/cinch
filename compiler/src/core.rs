@@ -1793,6 +1793,8 @@ pub enum Core {
     /// Read a fixpoint box at use time, handing out an owned reference
     /// to its value (of the class given).
     BoxGet(Box<Core>, Class),
+    /// Clear a scoped knot and drop its payload using this class.
+    BoxClear(Box<Core>, Class),
     /// Write through a `Mut` borrow: evaluate `val`, store it into the
     /// mutable cell the exclusive borrow `local` names, and yield `Unit`.
     /// The binder carries the shared cell word. The payload class controls
@@ -3317,7 +3319,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                     all_calls(h, fns, insts, foreigns, out);
                 }
             }
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 all_calls(d, fns, insts, foreigns, out)
             }
             Core::InstDict(_, args, _) => {
@@ -3607,7 +3609,7 @@ fn calls_walk(
                 calls_walk(h, false, fns, insts, foreigns, callees, out);
             }
         }
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
             calls_walk(d, false, fns, insts, foreigns, callees, out)
         }
         Core::InstDict(_, args, _) => {
@@ -4014,7 +4016,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(v, f);
         }
-        Core::BoxGet(v, _) => walk_locals(v, f),
+        Core::BoxGet(v, _) | Core::BoxClear(v, _) => walk_locals(v, f),
         Core::Dup(l, _, body) | Core::Drop(l, _, body) => {
             f(*l);
             walk_locals(body, f);
@@ -4112,7 +4114,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 use_range(v, l)
             }
         }
-        Core::BoxGet(v, _) => use_range(v, l),
+        Core::BoxGet(v, _) | Core::BoxClear(v, _) => use_range(v, l),
         Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
             let (bmin, bmax) = use_range(body, l);
             let k = usize::from(*x == l);
@@ -4213,7 +4215,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(v, map, next);
             }
-            Core::BoxGet(v, _) => assign(v, map, next),
+            Core::BoxGet(v, _) | Core::BoxClear(v, _) => assign(v, map, next),
             Core::Dup(l, _, body) | Core::Drop(l, _, body) => {
                 note(*l, map, next);
                 assign(body, map, next);
@@ -4300,6 +4302,7 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
             Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)), *class)
         }
         Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
+        Core::BoxClear(v, c) => Core::BoxClear(Box::new(rw(v)), *c),
         Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
         Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
         Core::If(c, t, fe) => Core::If(
@@ -4448,6 +4451,7 @@ fn instantiate(
                 Core::RefSet(*ren.get(l).unwrap_or(l), Box::new(go(v, holes, binds, ren, next)), *class)
             }
             Core::BoxGet(v, c) => Core::BoxGet(Box::new(go(v, holes, binds, ren, next)), *c),
+            Core::BoxClear(v, c) => Core::BoxClear(Box::new(go(v, holes, binds, ren, next)), *c),
             Core::Dup(l, c, body) => {
                 Core::Dup(*ren.get(l).unwrap_or(l), *c, Box::new(go(body, holes, binds, ren, next)))
             }
@@ -5080,7 +5084,7 @@ fn has_alloc(e: &Core) -> bool {
         match e {
             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
             | Core::RefSet(_, _, _)
-            | Core::BoxGet(..) | Core::Demand(..) | Core::Quote { .. }
+            | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::App(head, _) if matches!(&**head, Core::Ctor(id, _) if id.0 == MUTABLE_CELL) => *found = true,
@@ -5100,7 +5104,6 @@ fn has_alloc(e: &Core) -> bool {
             }
             Core::LazyInit(_, t) => go(t, found),
             Core::BoxInit(_, v, _) => go(v, found),
-            Core::BoxGet(v, _) => go(v, found),
             Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, found),
             Core::If(c, t, fe) => {
                 go(c, found);
@@ -5164,7 +5167,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
         Core::LazyInit(_, t) => scan_calls(t, f),
         Core::BoxInit(_, v, _) => scan_calls(v, f),
         Core::RefSet(_, v, _) => scan_calls(v, f),
-        Core::BoxGet(v, _) => scan_calls(v, f),
+        Core::BoxGet(v, _) | Core::BoxClear(v, _) => scan_calls(v, f),
         Core::If(c, t, fe) => {
             scan_calls(c, f);
             scan_calls(&t.body, f);
@@ -5196,7 +5199,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
         | Core::RefSet(_, _, _)
-        | Core::BoxGet(..) | Core::Demand(..) => *n += 1,
+        | Core::BoxGet(..) | Core::BoxClear(..) | Core::Demand(..) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
@@ -5260,7 +5263,7 @@ fn weights_ok(e: &Core) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 go(d, ok)
             }
             Core::BoxInit(_, v, _) => go(v, ok),
@@ -5296,7 +5299,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
             | Core::StrLit(_) => true,
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 go(d, bound)
             }
             Core::BoxInit(l, v, _) => {
@@ -5425,7 +5428,7 @@ fn body_impure(e: &Core) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(..) | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
                 go(d, bad)
             }
             Core::BoxInit(_, v, _) => go(v, bad),
@@ -6277,7 +6280,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
             out.push(&mut **d)
         }
         Core::BoxInit(_, v, _) => out.push(&mut **v),
@@ -6330,7 +6333,7 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
             *c = c.subst(cv);
         }
         Core::Proj(_, f) => f.class = f.class.subst(cv),
-        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
+        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c) | Core::BoxInit(_, _, c) | Core::RefSet(_, _, c) => *c = c.subst(cv),
         Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
         Core::Case { alts, .. } => {
@@ -6872,7 +6875,7 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
             out.push(&**d)
         }
         Core::BoxInit(_, v, _) => out.push(&**v),

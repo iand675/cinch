@@ -227,6 +227,15 @@ value-knot cases now compile and run. The integrated Stage 3 replay
 has a separate gate.
 See [the guarded-value audit](../bootstrap/current-abi7-guarded-value-results.json).
 
+Rust now checks that guarded recursive values stay in scope and clears
+their slots on normal return. All 18 recursive-binding tests passed,
+including the 128-iteration teardown, three escape refusals and
+black-hole behavior. See [the Rust audit](../bootstrap/current-native-guarded-value-results.json).
+
+The Cinch task-capture successor passed all 20 original concurrency
+cases on Stage 3. Stage 2 and Stage 3 match, and the changed-source
+rebuild passed. See [the Stage 3 audit](../bootstrap/current-abi7-stage3-task-capture-results.json).
+
 An isolated Cinch Stage 1 passed all four original tail-call programs.
 The three million-call programs ran on 8 MiB stacks and emitted LLVM
 `musttail` calls. The original non-tail control exhausted its stack

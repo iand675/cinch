@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 fn visit(e: &Core, f: &mut dyn FnMut(&Core)) {
     f(e);
     match e {
-        Core::DictProj(x, ..) | Core::Proj(x, _) | Core::Demand(x, _) | Core::BoxGet(x, _) => visit(x, f),
+        Core::DictProj(x, ..) | Core::Proj(x, _) | Core::Demand(x, _) | Core::BoxGet(x, _) | Core::BoxClear(x, _) => visit(x, f),
         Core::InstDict(_, xs, _) | Core::Lam { env: xs, .. } => for x in xs { visit(x, f); },
         Core::App(h, xs) => { visit(h, f); for x in xs { visit(x, f); } },
         Core::Let(_, _, x, b) => { visit(x, f); visit(b, f); },
@@ -22,7 +22,7 @@ fn visit(e: &Core, f: &mut dyn FnMut(&Core)) {
 }
 fn children(e: &mut Core, f: &mut dyn FnMut(&mut Core) -> Result<()>) -> Result<()> {
     match e {
-        Core::DictProj(x, ..) | Core::Proj(x, _) | Core::Demand(x, _) | Core::BoxGet(x, _) => f(x)?,
+        Core::DictProj(x, ..) | Core::Proj(x, _) | Core::Demand(x, _) | Core::BoxGet(x, _) | Core::BoxClear(x, _) => f(x)?,
         Core::InstDict(_, xs, _) | Core::Lam { env: xs, .. } => for x in xs { f(x)?; },
         Core::App(h, xs) => { f(h)?; for x in xs { f(x)?; } },
         Core::Let(_, _, x, b) => { f(x)?; f(b)?; },
