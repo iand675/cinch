@@ -10102,6 +10102,34 @@
                 },
                 {
                   "name": "native_declaration_construction_cannot_escape_into_runtime",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_declaration_constructs_checked_field_trees",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_erased_fields_keep_proof_obligations",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_fields_bind_only_preceding_telescope_values",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_fields_bind_the_record_itself",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_fields_cannot_acquire_private_types_from_insertion",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_fields_keep_private_definition_types_under_same_spelled_caller_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_record_fields_still_check_duplicates_and_requested_names",
                   "status": "running"
                 }
               ]
@@ -14504,5 +14532,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:02:43.874494+00:00"
+  "updatedAt": "2026-11-09T10:03:46.644901+00:00"
 }
