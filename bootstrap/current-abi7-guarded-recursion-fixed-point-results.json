@@ -1,0 +1,162 @@
+{
+  "base_interfaces_sha256": "5fddbd77edd723044540b88fdec4d4a1f88ff0bebdc06d058c4f43be0a78afd1",
+  "changed_source": {
+    "compiler_sha256": "59199d84842ea86cd2c7271859aba797ceb17106d3d96c3a798b1d8a825ce1b2",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "c4a6b82c7c945c784ebf9ad16605e2b84540a7ab1639482322c99ec02cc07058"
+  },
+  "compiler_interfaces": {
+    "compiler.ll.Bootstrap.Ast.cinchif": "07c027b60dbb59a1812d2b2d430f78222604ca07d156cff796457bed653631ee",
+    "compiler.ll.Bootstrap.BodyContract.cinchif": "0ae8c25f37938dbb6e68f7929867d32cb221797e6b0ba2d462eeacd1fc2af0dc",
+    "compiler.ll.Bootstrap.Builtin.cinchif": "f61da416b6ad388dabb97b5a6c344524404ad73b322f4ad304d475977f872f15",
+    "compiler.ll.Bootstrap.Check.cinchif": "b8d865152361b9179e6563a219795b7f0c63554b7f9db76e750c2cc6bc13fba8",
+    "compiler.ll.Bootstrap.Contracts.cinchif": "ed1abc8a2e2a93f72d628920650c60edd361a56d91cdae9786a67854ebb4093f",
+    "compiler.ll.Bootstrap.Core.cinchif": "f40dd267ce84a8036d09b9c5bdb331b181b6a45ca42f5a29c6f8794a8c306759",
+    "compiler.ll.Bootstrap.Dictionary.cinchif": "902fef5a92cded68b8d6eaa313a966c4649cda78064ac6100456a543a335e20c",
+    "compiler.ll.Bootstrap.Driver.cinchif": "667a07ef4b70780b20037329f2fe7780ea65e2138dca0eb5f92e83f2e66c198f",
+    "compiler.ll.Bootstrap.Eval.cinchif": "5f7f685509daa69938a08ab656ea5c52d5ec74ee4ffa99136ade33958999256b",
+    "compiler.ll.Bootstrap.Export.cinchif": "4018e5ff255500363140d2e85dd08a40d3d5990db401e67a55b12804c75cb9c0",
+    "compiler.ll.Bootstrap.ExportNominal.cinchif": "f385edc3c123592232719a0b437db77dcc2be3ca3590ece18d64979351c6eda1",
+    "compiler.ll.Bootstrap.ExportType.cinchif": "783d8f4c6cf08b5e46a40951da2bdd0e71b29e94b1b4cf8052320b59bf15d3ff",
+    "compiler.ll.Bootstrap.Foreign.cinchif": "8dd10a8a1967a2b452b329dfd4f958e871d7e69e86d72b0732a77eaca6276a7e",
+    "compiler.ll.Bootstrap.Global.cinchif": "6568fe854fa5f35b2b0d0068fc9eecf41cae17a83a5733535254d38a844f35a5",
+    "compiler.ll.Bootstrap.Guarded.cinchif": "b4330c1efd3f8d7a87380c647f32842af9e2865edb1aed5d2b2599332d6267d0",
+    "compiler.ll.Bootstrap.Index.cinchif": "58b3e5f2629f4b3644e889eb4a0e1ecabf1f3a358210ebaef2720ec895718e62",
+    "compiler.ll.Bootstrap.Infer.cinchif": "b6831a64117f2c8970bc2ef73c8294fd73d825b8acf3373a644aa16da2829b16",
+    "compiler.ll.Bootstrap.Inputs.cinchif": "5e496f528f78fc2149ed0824cd55e9b254eb17bc641aa68295f97012f4bd788f",
+    "compiler.ll.Bootstrap.Instance.cinchif": "d3d723645e18f9eaa2227f450dab82c29d2f5bcf66528561ec90469c7b26365a",
+    "compiler.ll.Bootstrap.Interface.cinchif": "494004dd65f67097af57a64b40af813a1f05e3538932fb4a4e1f0d3f386db2c7",
+    "compiler.ll.Bootstrap.Ir.cinchif": "b067858e62079d280ff789c2699af379442f759f61c4245e166d7848117c3f27",
+    "compiler.ll.Bootstrap.Kinds.cinchif": "504e350a0db86e7d09940a79f3666cd8f7f70a3b1949c4335b2d76b48a0b478d",
+    "compiler.ll.Bootstrap.Load.cinchif": "1f3522cb47e46b5f498bf416d4e79f463038bb409d361dd5af724f93060853e0",
+    "compiler.ll.Bootstrap.Manifest.cinchif": "3a396fdd557cc1584abd45a894ef97262c7723390559b11683b9025909aa0a32",
+    "compiler.ll.Bootstrap.Nominal.cinchif": "7072c10cf744466d226b5374c16736076bb8c317966e72cef72a91cca7991088",
+    "compiler.ll.Bootstrap.Object.cinchif": "be2b58bd4afbba630b2e218d128180656ac5d0634cc17d5756d6cf6afeedad5c",
+    "compiler.ll.Bootstrap.Parse.cinchif": "fe70c465b45a5c3770243508203365bf267ed83c8432b733af5a604a1c2816e6",
+    "compiler.ll.Bootstrap.Pipeline.cinchif": "34ac59da0b8fbc46591021ce9663ed56c64974300731cb2ff5b0c4ef0068b14d",
+    "compiler.ll.Bootstrap.Proof.cinchif": "a99dbfdf50eea564df215fe3d5bc85fa65038409ff0ff94623a2afff83112cde",
+    "compiler.ll.Bootstrap.Report.cinchif": "eb309220e02024e21b0e044fcabdf755bacdcdd7a3f16c3338605b9d2659a770",
+    "compiler.ll.Bootstrap.Resolve.cinchif": "41fa94c337280e98e820a98ad613a80341e4107012b3e523008b7fc49d0e844a",
+    "compiler.ll.Bootstrap.RuntimeAbi.cinchif": "a5a836578f62bb9e956eb53246e03aeee18ef2b9a269936c2b4d3720815ac099",
+    "compiler.ll.Bootstrap.RuntimeIr.cinchif": "cd059d2cb81fe22ff3238420247f2edfc2aad7447d2934b97273a1eeb37f9897",
+    "compiler.ll.Bootstrap.Stage.cinchif": "ce2e572b70f20c430233412b9b369f97d080edc78908bf6dcdd63e2051dcb774",
+    "compiler.ll.Bootstrap.StageEval.cinchif": "20081ded0ba724f794bded277e16cb8a5c51b38f7f20c4c075ebcf1dd5f2dec4",
+    "compiler.ll.Bootstrap.Test.cinchif": "44bb308b3035af5c082361068d56f8e871d177e4ab607510e06e87daa9926a60",
+    "compiler.ll.Bootstrap.Total.cinchif": "7bebc70d18c783ebf4816f9b03691f3d5151d90304d52467460f201ad006bbdf",
+    "compiler.ll.Bootstrap.TotalSemantics.cinchif": "9af57b05708253e635187a670ffdbd1fcb926ec65ca763516747808760e1b10e",
+    "compiler.ll.Bootstrap.Type.cinchif": "91380df1a1462f2c62bbea80deec3c975166506859446d1ba7aaccb9ac5b3edd",
+    "compiler.ll.Bootstrap.Typing.cinchif": "ede1d69557759b478db18aa1354f27d0a68625e45bdc82740f17ec493f844eba",
+    "compiler.ll.Main.cinchif": "0da104190cbac0cca5144e08553080c499c02014df19f6660f173ea1845c00bb",
+    "compiler.ll.Text.Builder.cinchif": "a85a368374e87b1ac19e40be04dc68adee0d051f2de32e8350b2e0f98033ce29",
+    "compiler.ll.Text.Json.cinchif": "948f235034d0bdbf4ba3c8fe53d68b8c5c9c1bd22903840909d02ea146bd5b72",
+    "compiler.ll.Text.Lex.cinchif": "9b8b55a581052a521418b871a58883c1d02feb8e63507f43508f4e09baa685af",
+    "compiler.ll.Text.Parse.cinchif": "cee78f54ebc142b4cefe47b4b549d3519e8417f326b191124f984bcb5b7c4a06",
+    "compiler.ll.Text.Scan.cinchif": "1c5692ba71d8e01be37fdec84ad152bb0680585d377505a601f06e5c67384bcd"
+  },
+  "compiler_ir_sha256": "63efca2d3a47035641c211c27d9821b1dbad46349eba0dd0cea1062a7aa501a9",
+  "compiler_sha256": "ae1cb66030a8f13c192fec438b40b7c81cbe9d59a830c7af3041f9237b0cc60f",
+  "compiler_source_sha256": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
+  "full_goal_complete": false,
+  "interface_consumer": {
+    "compiler_sha256": "ae1cb66030a8f13c192fec438b40b7c81cbe9d59a830c7af3041f9237b0cc60f",
+    "manifest_sha256": "005e991b6b3a772eae370d67d9c3db8282a8ce4d2ef3aab82f1391d6004d939c",
+    "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+    "status": "passed"
+  },
+  "native_source_sha256": "bdeb432070835dde5c241c75977e40d889164be7ad11603ef8651de5a21d1ecd",
+  "revision": null,
+  "scope": "Matching Stage 2 and Stage 3 and six independently audited tail-call controls. Full acceptance remains open.",
+  "stage2_receipt_sha256": "efb31c6ecd629f929fa2571a0443380bfe533b8c7e7f9f1a30864b6996833d08",
+  "stage3_receipt_sha256": "8a19c003eddaa40fcf7890bcdac472f9944b58a2b512ffb8a1db983e34b988da",
+  "status": "passed-guarded-recursion-fixed-point-and-changed-source",
+  "tail_controls": {
+    "compiler_sha256": "ae1cb66030a8f13c192fec438b40b7c81cbe9d59a830c7af3041f9237b0cc60f",
+    "name": "tail-calls",
+    "status": "passed",
+    "tests": [
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 42,
+        "llvm_sha256": "02945f3631a46da57ee24615dc8db6d1750941acebdcdc80f758eb190fdd4bf7",
+        "name": "local-nontail-and-partial",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "2d18866d12e9a22c1d6aa8e865add986c380b56249d84b55e3cc4cb38f82f6ff",
+        "stack": "512K",
+        "status": "passed",
+        "tail_calls": []
+      },
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 42,
+        "llvm_sha256": "ad838a7735cdffda6d890ce70dad92210e3af2a1899857caff83bb0c255d72a7",
+        "name": "local-mixed-arity-tail",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "fd5b3ca3d3eff2c45f48b0e380bdf5962aee60730822c7a2ba1dd8e7604c765e",
+        "stack": "512K",
+        "status": "passed",
+        "tail_calls": [
+          "  %v82 = musttail call i64 @\"cinch.typed..rec6#tail\"(i64 %arg0, i64 %arg1, i64 %v81)",
+          "  %v102 = musttail call i64 @\"cinch.typed..rec7#tail\"(i64 %arg0, i64 %v101, i64 0)"
+        ]
+      },
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 0,
+        "llvm_sha256": "170d51e56a4019d4c22692da42b34ec83b2a0d422042679fa2ea0201f050ce25",
+        "name": "self-tail-1m",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "5925f58fa4b5d379f9257274a9d598548b629c83d9d53d58aa165f4a5b956ccb",
+        "stack": "8M",
+        "status": "passed",
+        "tail_calls": [
+          "  %v31 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.115_117_109_45_116_111_#tail\"(i64 %v27, i64 %v30)"
+        ]
+      },
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 0,
+        "llvm_sha256": "f2abb4441790fdcf14ad67438e9114de9f2995ca5b768f808d650205ec0c9577",
+        "name": "mutual-tail-1m",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "703cf1a4b4a81a26b053282f624fc2759d51dc0a14b552ba931162c7f77d4691",
+        "stack": "8M",
+        "status": "passed",
+        "tail_calls": [
+          "  %v30 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.112_111_110_103_#tail\"(i64 %v29)",
+          "  %v44 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.112_105_110_103_#tail\"(i64 %v43)"
+        ]
+      },
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 0,
+        "llvm_sha256": "4adbf5fac5fc8552b7706395d318ec62b2740d3dce66544d839db7d57031dd0a",
+        "name": "mixed-arity-tail-1m",
+        "run_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+        "source_sha256": "87791111d77f89740926d611481a9ac2cbe29d3413b8ac8705d54d226aa0653c",
+        "stack": "8M",
+        "status": "passed",
+        "tail_calls": [
+          "  %v30 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.115_116_101_112_#tail\"(i64 %v29, i64 0)",
+          "  %v43 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.119_97_108_107_#tail\"(i64 %arg0, i64 %v42)"
+        ]
+      },
+      {
+        "compile_exit": 0,
+        "compile_log_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+        "exit_code": 73,
+        "llvm_sha256": "e0ea9c11ff843427ae09c106a2ff06d8951e5b5879443be6d5c34de67f3fc516",
+        "name": "deep-recursion-control",
+        "run_log_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+        "source_sha256": "d16b5f70fd653d16402fcc7ef490099487c67f8999a6fc08a0c3732c965e97f8",
+        "stack": "8M",
+        "status": "passed",
+        "tail_calls": []
+      }
+    ]
+  }
+}

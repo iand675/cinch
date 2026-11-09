@@ -9,6 +9,14 @@ interface consumer checks pass, and all 20 original concurrency
 tests passed on Stage 3. The matching full suites remain open.
 See [the published compiler receipt](../bootstrap/current-abi7-published-task-capture-compiler.json).
 
+The guarded-recursion and tail-call candidate rebuilt through Stage 3.
+The executable, LLVM IR and all 46 compiler interfaces agree between
+Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,
+and a deliberate compiler-source edit reached the rebuilt diagnostic.
+All six tail-call controls passed on the exact Stage 3, including the
+three million-call fixtures and the non-tail stack exhaustion control.
+See [the guarded-recursion and tail-call audit](../bootstrap/current-abi7-guarded-recursion-fixed-point-results.json).
+
 The combined manifest and typed-law candidate rebuilt from Stage 0
 through Stage 3. Its executable, LLVM IR and all 46 compiler interfaces
 match between Stage 2 and Stage 3. The 55 base interfaces, 12 smoke
