@@ -1,0 +1,72 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-class-defaults",
+  "targets": {
+    "class_defaults": {
+      "cases": [
+        {
+          "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+          "status": "passed"
+        },
+        {
+          "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+          "status": "passed"
+        },
+        {
+          "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_without_a_default_is_still_refused",
+          "status": "passed"
+        },
+        {
+          "name": "annotations_keep_definition_and_default_parameter_identities",
+          "status": "passed"
+        },
+        {
+          "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "45409-0.json": "f8fd41720aa1a9dadc6115aa4a2ef3fb32d894d6c604752b058491b88c1fc6dc",
+        "45409-1.json": "8b9e9ce17f13972f187045758c6317ef07f892bf53d3c1939cbd83abcf0d115a",
+        "45409-10.json": "dbb1320bd0d27cde28350b797135b3f320d7290a64bd7eb71b833bf0b625e11d",
+        "45409-11.json": "5007bd0887ddce0fbb16d14e7bebd0afb5e2c5311acda3363537f6f917384b77",
+        "45409-12.json": "dd6089ef8ecbd69b99a0def336892ce2d144ba0995b1a076a26cb88a84e5b281",
+        "45409-13.json": "31de004b491a2d819c20a5e58edd9dc5f996c93f668a01be34b5b3ae21199342",
+        "45409-14.json": "a8b5193db65d814456669b273ab330a786e3e7b7c2b384a6c5e1c1150b4c272e",
+        "45409-15.json": "d426d257cf98c0798bb121cc59a4416666cd036929f8963d7a1d8e7d1d15b0d8",
+        "45409-16.json": "bd4d2ffe94b561173abf8f3bbeae46f694073b1e2a3ff9512359b60b568dbd0e",
+        "45409-17.json": "efcfedb3746302b8c5d01c71bec67ff31019ebdee04e09acdf7eea94c7a7d1ec",
+        "45409-18.json": "d2f1a2459d2bd4e65bffd1b9686b3a95d48d65d2e2310c55f3fe07c6ef6dd6c9",
+        "45409-2.json": "d6fa6ef9d3e0878621eda6c8b7596b4f2c96ed6ca3717a948cbf7fbf275be1fc",
+        "45409-3.json": "1405d7b7bcebd9042bf3a3a1c47a7dde50a4dd9eb4e1906e3457d1b494109deb",
+        "45409-4.json": "e7650b241c5c3092d9face0e027de709b9db42494f0b52b24520c59c7269f433",
+        "45409-5.json": "ebe3a76c7d698ab0deb510ef1c55f161806a46920fd6b0f670a1615849dcf07d",
+        "45409-6.json": "cf1afff8b71ae3079ba6b07585fef217856151980eeb1f1fb2964956b7c084d8",
+        "45409-7.json": "762a3546c0981fc5ea1e44988b80dc549abd6c0bd87296c1fa70be56f0d38d81",
+        "45409-8.json": "31500eec56619c50243ccbe57ea88447f61cf902d5ca0a28beebeba7095624e8",
+        "45409-9.json": "f24b1e853b85821c3be9e08d8a0712b8586e6cc0e559a2b7ed6d7ed267bc954c"
+      },
+      "log_sha256": "6c86f2fb6560d2e0568b906f6a3b04e44c90c4b2c9a6d9588ccd36558a5d8513",
+      "passed": 7,
+      "test_source_sha256": "fc75cc31bfc7fd80a2d9abd6f3290240bba50def5c962f6abaa2d50dcb066e6b",
+      "total": 7
+    }
+  }
+}
