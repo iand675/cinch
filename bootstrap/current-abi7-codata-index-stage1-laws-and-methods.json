@@ -1,0 +1,104 @@
+{
+  "acceptance_identity_sha256": "8fdee4afc9cb8878cbf6e96a6c4b5be1a5f8a56e9f6518923b2057d5267ff65c",
+  "compiler_sha256": "d31208ef7c228eede0ad930cb6465a1b5b0544f4e9f449d55491dc5f7292db40",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "law_results": {
+    "exit_code": 0,
+    "invocation_receipts": {
+      "93366-0.json": "8ccf91979360b5f53dfa3bc7f345a3a40a244485049dad295004802cd300962d",
+      "93366-1.json": "d3e26d0ded8c3673407c3a3c030b37068e57d84588015f2443e6090b34444b64",
+      "93366-10.json": "b96fa1ad47e7945be090344a8f752e20ea7f6892fe3c20995cba08eb971a1d99",
+      "93366-11.json": "d9361c02a4052dfb5ebfeae89ccacd8a2890da803f21ac250a52f07d2fed6ce9",
+      "93366-12.json": "0322cf14bc751c17f2a51791bfde3353e4e88d8c65a2c827b09c014b56a02c6f",
+      "93366-13.json": "2bf5a8d145a28e16a074daa8b62b2070bc91589b5e43c9b21765a781c5d7fe0c",
+      "93366-2.json": "08c0517f2d03e3671c8330edb1e987ef3c3538a86649f9f49a427f767b83bb0d",
+      "93366-3.json": "197399addf4be9987c0f7c2189db319ba39528acc39c180e4d05643e5971bad6",
+      "93366-4.json": "82e6a2bb397165d64134006e266ac7ab1436cb54c8f126fd68966eaf27f70f16",
+      "93366-5.json": "fd8747cf9bada1103ca61264aab1839bd0f1124b42310d31d3602179d3237143",
+      "93366-6.json": "d949325db58ce7d9beb306c8c927e18790bb6ef8c35b57db3a6d7edf567139fb",
+      "93366-7.json": "73e922719a621553df7195690743624d71729f55f224865e13ccb4fd4c398f16",
+      "93366-8.json": "be8ce4ae810c8245d2a9af3205a009b5723408d8b45a002a3d38ced8e573cf5e",
+      "93366-9.json": "f462c823a583337773f31aa69ef8732d577ad43f02357143fa9dd072c56dc377"
+    },
+    "log_sha256": "480cb4588e10c1a036e44299a24f1b99ab754e55070b944e2f6fb350e3e9d365",
+    "name": "original-laws",
+    "status": "passed",
+    "tests": [
+      {
+        "name": "checked_class_laws_travel_with_the_defining_interfaces",
+        "status": "passed"
+      },
+      {
+        "name": "class_laws_state_the_equations",
+        "status": "passed"
+      },
+      {
+        "name": "law_abiding_instance_passes_sample_wise",
+        "status": "passed"
+      },
+      {
+        "name": "law_breaking_instance_is_rejected_naming_the_law",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_indices_promote_integer_literals",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_samples_use_the_checked_numeric_representation",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
+        "status": "passed"
+      }
+    ]
+  },
+  "method_exports": {
+    "interface_sha256": "9b7e1882af92732917c74d0df6f548589bea56b4f55a0459ce0ebdbe98618725",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "methods": [
+      {
+        "exports": [
+          "sameWord"
+        ],
+        "name": "sameWord",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: U32) -> (Eq (Main.echo x) (Main.echo x)))",
+        "slot": 0
+      },
+      {
+        "exports": [
+          "sameInteger"
+        ],
+        "name": "sameInteger",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: Int) -> (Eq (Main.echo x) (Main.echo x)))",
+        "slot": 1
+      },
+      {
+        "exports": [
+          "sameLambda"
+        ],
+        "name": "sameLambda",
+        "resolved": null,
+        "scheme": "using (dict :: Main.EchoEquations) => ((x :: Int) -> (Eq ((Main.through (\\y -> (Main.echo y))) x) ((Main.through (\\y -> (Main.echo y))) x)))",
+        "slot": 2
+      }
+    ],
+    "name": "equation-method-export",
+    "source_sha256": "d9eec0d3d34b618d94760e5e76a0ae83728b341e9c290ed8d223867d4ed1f104",
+    "status": "passed"
+  },
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "49341f866824d4d490aa9e67c7ddaf147ec41bdcc891056aead4ef691cb5f660",
+  "original_test_source_sha256": "9bee84913a9f7e1bb76fca7d6acc9a995e2c871eb18fc853d6fa96d354f796d7",
+  "provider_interfaces_sha256": "447bcdcd9c062c337f5cfe58c1cff8e2e7d1f523ff793d338000a5f60dd8b12d",
+  "stage_receipt_sha256": "0177e5ba568ae35ad73c61d747ed8780d63c42d45bfbb3d839fd2a1e79f60030",
+  "status": "audited-merged-stage1-laws-and-methods"
+}

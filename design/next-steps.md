@@ -83,6 +83,20 @@ tail-call tests. The full matching Rust inventory and Cinch bootstrap chain
 are still running.
 See [the matching Rust audit](../bootstrap/current-abi7-codata-index-opening-native-results.json).
 
+The matching Stage 1 executable passed all eight original law cases with
+14 selected-compiler invocations. It also exported the three erased
+equation methods under their declaring class and checked slots. Stage 2
+is building from those same inputs.
+See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json).
+
+The pinned producer emitted the five requested Bits variants and the two
+Map variants without changing any of the 55 library interface files. The
+original two bitwise cases and all four coverage-recorder cases passed on
+the preceding combined Stage 3 against the expanded object. The active
+merged ladder retains its frozen provider while this expansion is verified
+separately.
+See [the compiled library audit](../bootstrap/current-abi7-checked-library-bits-map-results.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.

@@ -1,0 +1,99 @@
+{
+  "cases_by_target": {
+    "lib_coverage": {
+      "adapted_source_sha256": "1b2787e03b2b6717843052c3b28051b58b4fd459b2c7caf14af2a4e5e1f3dbce",
+      "cases": [
+        {
+          "name": "empty_recorder_reports_are_well_formed",
+          "status": "passed"
+        },
+        {
+          "name": "hit_accumulation_counts_up_and_orders_by_label",
+          "status": "passed"
+        },
+        {
+          "name": "merge_identity_associativity_and_keywise_sum",
+          "status": "passed"
+        },
+        {
+          "name": "total_agrees_with_the_sum_of_the_counts",
+          "status": "passed"
+        }
+      ],
+      "invocations": {
+        "73213-0.json": "5107314da5b46ad31782c2de07f5804657ce75c514d2f4939357ad55c1ef5f19",
+        "73213-1.json": "e89ae56d2a33c39c4c8f18ece7a99d13f0b4de988e6e0418f0bb0a020e291bae",
+        "73213-2.json": "3dbccf8532b94773ebb6055de7ef6ae494e6ea4c1833ceeb0aab832497611554",
+        "73213-3.json": "30099d3784f6ea70cff756cfd4086891f1d10ea071ede4601648cd3d1f3db98d"
+      },
+      "log_sha256": "57821a81bbb5904a10e31de8ecdf040833edbb661dfb1537d0053c25a73d7b04",
+      "original_source_sha256": "a1f7435e5684f8e38fcce1a14f83709fd8312900d2460e6da95c4b1371115103"
+    },
+    "prelude_lib": {
+      "adapted_source_sha256": "f8b4541934793129161dbad5aceb81d73d5b035c2593ac56c621432b9ee06f4d",
+      "cases": [
+        {
+          "name": "bitwise_operators_and_rust_precedence",
+          "status": "passed"
+        },
+        {
+          "name": "bitwise_operators_on_machine_ints",
+          "status": "passed"
+        }
+      ],
+      "invocations": {
+        "72324-0.json": "87c231d601eeae7ee329c59f5c158dc8eb61752fce4e000fb5d95da51888c254",
+        "72324-1.json": "c0a6dfc23f5d4ff5c634c2e4d49235b3fe13ef7e753049275f133baee6d86fa5"
+      },
+      "log_sha256": "5de97d87306861424ec5749277b4b9d540b9dc1989a623a7331194752dc5e204",
+      "original_source_sha256": "9b745970b53cc3564caf785a1dab567940775643a8a88cb26b17b2a844a956a5"
+    }
+  },
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_count": 55,
+  "library_producer": {
+    "description": "ABI 7 Native library producer with shared mutable cells, checked keyed ordering bodies and structural list contracts.",
+    "revision": "7f085f299e0c81848f977ef60082144757770385",
+    "runtime_abi": 7,
+    "schema": 1,
+    "source_sha256": "855245a9d9163a49576e7028ecc919ae4586ffbfbdf6c9ad3383389939b62b9e"
+  },
+  "metadata_sha256": "174f692bf7490b23c4113f668e8f078bb2482c5801bc8c656ab632060c93d811",
+  "object_sha256": "39ebf5d777adc924bca63d35aaff15e7457a46f63a168b235f5228bf5fb63b6d",
+  "previous_roots_sha256": "78b4db881b28061c1729f92494483825818153655c121b56d834adb176179cc9",
+  "requested_roots": [
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.&"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.<<"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.>>"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.^"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.|"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Map.map-insert"
+    },
+    {
+      "classes": "OT",
+      "symbol": "Data.Map.map-lookup"
+    }
+  ],
+  "roots_sha256": "b80004701bdd5890845d3e58672931708428a75e04ca015371b10e641422b2ee",
+  "status": "audited-checked-library-bits-map-variants"
+}
