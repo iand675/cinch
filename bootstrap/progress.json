@@ -21391,8 +21391,8 @@
         "total": 7,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Build the exact Rust compiler and exercise the entropy success and fault paths",
+        "status": "superseded-before-build",
+        "phase": "Check platform ABI and foreign linker names in one build",
         "evidence": null
       },
       {
@@ -21497,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:32:28.653062+00:00"
+  "updatedAt": "2026-11-09T07:33:32.145416+00:00"
 }
