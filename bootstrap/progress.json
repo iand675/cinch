@@ -618,7 +618,7 @@
         "id": "gap:laws",
         "title": "Elaborate source class laws and declarations",
         "state": "recheck",
-        "detail": "The corrected Stage 1 passes the true and false equation cases. Its typed interface also records the lawful Box result. The original harness reports 6/8, including a stale text assertion. The proposition-valued signature method and exact Stage 3 replay remain open.",
+        "detail": "Seven of eight original law tests pass on the resource-corrected Stage 1. The remaining case needs checked proposition-valued signature methods. The full matching Stage 3 replay remains open.",
         "doneWhen": "Retain and check the original class laws and namespace declarations; pass all original family and law assertions.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-rewrite-resource-results.json"
       },
@@ -20825,14 +20825,14 @@
       },
       {
         "title": "Check rewrite equations against cited laws and record assumptions",
-        "unit": "controls",
-        "status": "failed",
-        "phase": "Isolated Stage 1 candidate. replay all eight original class-law tests",
-        "passed": 8,
-        "total": 11,
+        "unit": "tests",
+        "status": "completed-with-failures",
+        "phase": "Seven of eight original law tests passed with the typed assertion. The remaining case needs a proposition-valued signature method with a lambda operand.",
+        "passed": 7,
+        "total": 8,
         "failed": 1,
         "source": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-rewrite-resource-results.json"
       },
       {
         "title": "Verify the five original targets through the standard Rust and Cinch harness",
@@ -20857,7 +20857,7 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-standard-stage1-portable-results.json"
       },
       {
-        "title": "Verify recursive local scope, eager cycle refusals and original letrec cases",
+        "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
         "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:50:35.748073+00:00"
+  "updatedAt": "2026-11-09T00:52:19.399857+00:00"
 }
