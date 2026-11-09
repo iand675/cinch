@@ -18,6 +18,13 @@ matching Stage 3. The rest of the matching test suites remain open.
 See [the combined Stage 3 audit](../bootstrap/current-abi7-combined-stage3-agreement.json)
 and [the changed-source and law replay audit](../bootstrap/current-abi7-combined-fixed-point-and-stage3-laws.json).
 
+The same combined Stage 3 passed all 20 concurrency cases and 16 of the
+18 recursive-binding cases. The two failures report initializer ordering
+when a closure is stored before its captured value is initialized or a
+partially applied recursive member is called through another initializer.
+The expanded replay retains both failures and all invocation receipts.
+See [the concurrency and recursive-binding audit](../bootstrap/current-abi7-combined-stage3-concurrency-letrec.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,
