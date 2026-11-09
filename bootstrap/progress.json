@@ -14647,11 +14647,11 @@
             "evidence": "https://github.com/iand675/cinch/blob/main/compiler/tests/interface_nominals.rs",
             "observed": {
               "status": "passed",
-              "source": "c84f464392031dfdc9a0e3671bc8ab2d97cc23df2bdb61e8f0994e683d5e7b42",
-              "startedAt": "2026-11-08T02:05:57.308336+00:00",
-              "finishedAt": "2026-11-08T02:06:08.998086+00:00",
+              "source": "311ce3ad2b5bfb6b76fadf2e5777ebbef715889acecfbaaf0298381418ff9854",
+              "startedAt": "2026-11-07T11:56:21.609525+00:00",
+              "finishedAt": "2026-11-07T11:56:38.038626+00:00",
               "exitCode": 0,
-              "logSha256": "4741728ad7964ab3f108882aa978b03ceeb0b1a367658ac375e42d34dafe64f7",
+              "logSha256": "f9dee63e7b3bab3dcde903dc7f242fb355f8312ea766a2bcb2dd34c58f851581",
               "cases": [
                 {
                   "name": "resolved_schemes_preserve_definition_sites_and_private_contracts",
@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 19,
+        "passed": 20,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_check with the combined Stage 3",
+        "phase": "Replay bootstrap_checked_program with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
@@ -21576,10 +21576,10 @@
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
         "total": 7,
-        "passed": 1,
+        "passed": 2,
         "failed": 1,
         "status": "running",
-        "phase": "Replay the original small_nats tests",
+        "phase": "Replay the original dependent tests",
         "evidence": null
       },
       {
@@ -21739,5 +21739,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:59:08.780876+00:00"
+  "updatedAt": "2026-11-09T09:00:12.396749+00:00"
 }
