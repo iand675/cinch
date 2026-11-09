@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations | syntax_index_evidence | syntax_index_lambdas | syntax_lambdas | syntax_proof_patterns | syntax_quoted_macro_scope | syntax_runtime_proofs",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations | syntax_index_evidence | syntax_index_lambdas | syntax_lambdas | syntax_proof_patterns | syntax_quoted_macro_scope | syntax_runtime_proofs | syntax_signature_scope",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10266,9 +10266,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 20,
+          "blocked": 21,
           "running": 1,
-          "pending": 23,
+          "pending": 22,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11854,6 +11854,52 @@
           {
             "id": "additional:syntax_signature_scope",
             "title": "syntax_signature_scope",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "failed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 101,
+              "logSha256": "be82e08dd0ce4528f31ec75c5bcb1006525d1d2b9c2481b1b6a9f4ae3bf7825a",
+              "cases": [
+                {
+                  "name": "a_caller_provider_cannot_discharge_a_different_same_shaped_private_signature",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_captured_call_selects_the_callers_signature_and_provider",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_captured_using_head_keeps_its_source_owner_when_emitted_in_another_module",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_quoted_declaration_using_head_keeps_its_private_signature",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_quoted_helper_keeps_its_private_signature_and_provider_under_caller_decoys",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_quoted_using_head_cannot_acquire_a_signature_missing_at_definition_site",
+                  "status": "failed"
+                },
+                {
+                  "name": "quoted_declaration_using_heads_retain_compiler_known_copy_constraints",
+                  "status": "failed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "additional:syntax_structural_builders",
+            "title": "syntax_structural_builders",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -11865,22 +11911,8 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": [
-                {
-                  "name": "a_caller_provider_cannot_discharge_a_different_same_shaped_private_signature",
-                  "status": "running"
-                }
-              ]
+              "cases": []
             }
-          },
-          {
-            "id": "additional:syntax_structural_builders",
-            "title": "syntax_structural_builders",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           }
         ]
       }
@@ -15537,9 +15569,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 9,
+        "failed": 10,
         "status": "running",
-        "phase": "Replay original syntax_signature_scope target on Stage 3",
+        "phase": "Replay original syntax_structural_builders target on Stage 3",
         "evidence": null
       },
       {
@@ -15908,9 +15940,9 @@
     ],
     "counts": {
       "verified": 312,
-      "blocked": 24,
+      "blocked": 25,
       "running": 4,
-      "pending": 445,
+      "pending": 444,
       "recheck": 21
     },
     "total": 806,
@@ -15919,5 +15951,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:27:11.174810+00:00"
+  "updatedAt": "2026-11-09T11:28:14.514083+00:00"
 }
