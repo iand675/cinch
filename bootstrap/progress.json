@@ -20994,9 +20994,9 @@
         "unit": "targets",
         "total": 162,
         "passed": 2,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay letrec with the combined Stage 3",
+        "phase": "Replay modules with the combined Stage 3",
         "evidence": null
       },
       {
@@ -21060,9 +21060,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 5,
+        "failed": 6,
         "status": "running",
-        "phase": "Replay original proof_guarded_lets target on Stage 3",
+        "phase": "Replay original proof_value_identity target on Stage 3",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:00:37.101283+00:00"
+  "updatedAt": "2026-11-09T06:01:40.350183+00:00"
 }
