@@ -21114,10 +21114,10 @@
         "source": "2da684bd135bd3fc95bac3288029ea71554aa9904eeff5552d09676417347b46",
         "unit": "checks",
         "total": 8,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 with the pinned seed",
+        "phase": "Exercise primitive profile selection in specific-llvm",
         "evidence": null
       },
       {
@@ -21222,5 +21222,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:27:42.755213+00:00"
+  "updatedAt": "2026-11-09T05:31:27.959794+00:00"
 }
