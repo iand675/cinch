@@ -43,6 +43,10 @@ The audit retains 22 exact invocations for the runtime and refusal assertions.
 The separate codata interface and compiled-provider checks remain open.
 See [the codata source audit](../bootstrap/current-abi7-combined-stage3-codata.json).
 
+The same Stage 3 passed all five guard-coverage and eight allocation
+accounting cases, with 33 matching compiler invocation receipts.
+See [the guard and allocation audit](../bootstrap/current-abi7-combined-stage3-guards-allocation.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,

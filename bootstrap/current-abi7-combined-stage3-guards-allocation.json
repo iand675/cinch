@@ -1,0 +1,121 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-guards-allocation",
+  "targets": {
+    "alloc_accounting": {
+      "cases": [
+        {
+          "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+          "status": "passed"
+        },
+        {
+          "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+          "status": "passed"
+        },
+        {
+          "name": "header_blocks_count_constructor_cells_with_their_header",
+          "status": "passed"
+        },
+        {
+          "name": "interned_symbols_are_counted_immortal_once_per_name",
+          "status": "passed"
+        },
+        {
+          "name": "normal_program_is_quiet_under_the_guarded_cap",
+          "status": "passed"
+        },
+        {
+          "name": "stats_line_counts_list_cells_only_when_asked",
+          "status": "passed"
+        },
+        {
+          "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+          "status": "passed"
+        },
+        {
+          "name": "unbounded_allocation_hits_the_named_cap",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "88011-0.json": "b89d449ed5f187c1d2e2de4dd0d96bc62a54c0766adbdd2771bb9bfdf39ebea0",
+        "88011-1.json": "ba294b4fbd81ff67e7fc57816d13a9c902f20d4a2781fb842d88b6196b07a29c",
+        "88011-10.json": "6751ffd645fe5ce0dec278542392f115997e84093d44557afda2ae931cfc04b0",
+        "88011-2.json": "b8372f60611c239ef1b21f313e7ea173a4500e5ed0df112f52bb71f4470131c3",
+        "88011-3.json": "d18654c16c123ada0395b110a7199f591e611219fade4d537a934980b87b2f54",
+        "88011-4.json": "b2eafd38ed3490a47f93618c768cf940a62358d8219f947c0bc1fafbabc5da5c",
+        "88011-5.json": "ef7914f24dabd675798f37f299ff1e84dfb77515bc440556a7117f9e2139e5ce",
+        "88011-6.json": "bab76552ff264ad3a10eed71498b70b4cb8958db7caa17d705893040a288fee5",
+        "88011-7.json": "23fdb93df256410de4d2d540d8c75a8d940ecad6188c04f8066d5c80d4f28846",
+        "88011-8.json": "93a95b9b090dd88d090b93a21f87f5734cd34fecf2f47dceaa9fbc2fc5854e0c",
+        "88011-9.json": "f42c8feffdea0501243b49cae5e11c36769cb9cca9b56d571de0c0ddbc8aed59"
+      },
+      "log_sha256": "a8a8396447777046bbb78f574efc7d88710cb1477c7ab90f762f8347e2a3f3a4",
+      "passed": 8,
+      "test_source_sha256": "8f40dfbf2c2cdddb8691eb7e6ba2d4742709ffdda4fe64ba5f385e51b05e45a2",
+      "total": 8
+    },
+    "guard_coverage": {
+      "cases": [
+        {
+          "name": "all_guarded_match_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+          "status": "passed"
+        },
+        {
+          "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+          "status": "passed"
+        },
+        {
+          "name": "true_guard_counts_as_unguarded",
+          "status": "passed"
+        },
+        {
+          "name": "unguarded_final_row_compiles_and_runs_every_row",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "78618-0.json": "f67f1f5d0f2641091624cb6b45ee25ccfdcc9370ea136891724e16557ff102b2",
+        "78618-1.json": "67c18b0cdf75fb4f139e435b3638f42985e260fefc46d80d80e1474538c7fcb9",
+        "78618-10.json": "32d778e18fb2983ec8cd9c600db48baed268b3d050843d265331f6c9a69b425e",
+        "78618-11.json": "6fc9a39fd1a83fe934c889afcbe7de9e830766f3e97f2f578e44455df92d14eb",
+        "78618-12.json": "859e4222e1fa8d2fe99fb7e32cb8cd3d379c28380bfc2ecd181078e91575f764",
+        "78618-13.json": "d8aac31f7d0f2b8a0ec272ded959d9c16796fe846f7d4056254e8724854bd45a",
+        "78618-14.json": "26d2037ce77c6e130355caf4a4cd08cf7ae1676df81d6e63cd4d2f96884103b3",
+        "78618-15.json": "14211629078ae8b695f46390bc3fc3882ce1ee96107a46d26f7035960000839e",
+        "78618-16.json": "3b342da1c05b7b3aceb8c84ab6aace15b57fc2903b13e6800c8ecaab0c4f1280",
+        "78618-17.json": "92ae78fd8bc78ad45ee2917c4c1f4f915dcbb3f58421890d7648c84b48c3f628",
+        "78618-18.json": "416e5c423fa067d10d6d0f054b21320d6bdfc1a96068ac4d660f1af0b2f429be",
+        "78618-19.json": "c39c1e9b0b6bbb6f97c472df57bf19bd08da4f6b1f778f6d3a0933d21141b1e6",
+        "78618-2.json": "843e14c5be7c53a5338dbad8d0698200602913224162e99cccb6e3559815414e",
+        "78618-20.json": "fe414fc4c4fa3407319294cb45c99e4ab5a794a15667330011d0a8a1ed7688ba",
+        "78618-21.json": "b0aa7e780807d856eb37566759dc38e57b727253a937297e4d30443e3d650246",
+        "78618-3.json": "7c9fa586f58e5880ffeed0346e34b30f489e7272193f3ea7bc5d4a11f33c57e0",
+        "78618-4.json": "1a1a6b7fcc21bd6bb250d512d82a085d7bfe7f26a0b3063f222b84f2e2654c36",
+        "78618-5.json": "780f21837468e0ec9964d82325bf79814e04c1d63c30979008a8de252f4b7a30",
+        "78618-6.json": "d85050135f880a90a1979c49f43a5efdc846fca0874eee115f55f48f0c01c9d5",
+        "78618-7.json": "1a49fd5086b456c214438054db2a0b92f9045e4c18757a2a0d7934e67bf27442",
+        "78618-8.json": "434240e7973e5a8f379781206b907875da1fe01b21dc758ea6b1c888236761fb",
+        "78618-9.json": "970642a55bb76f1c3fbc98a8e997eec0fc48d844eb695bf08fe816f3c2b071f6"
+      },
+      "log_sha256": "2ebb6f1e3e9d20d151dbb475cbe6743d5d3516cb2908d9a0c5a7f075a430b5fb",
+      "passed": 5,
+      "test_source_sha256": "59a882f070b86612e195c906b2f6deec721721ec67577fc1cc09b86ab520f3a0",
+      "total": 5
+    }
+  }
+}
