@@ -20816,8 +20816,8 @@
         "title": "Verify the five original targets through the standard Rust and Cinch harness",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run the selected Cinch codata target",
-        "passed": 6,
+        "phase": "Isolated Stage 1 candidate. run the selected Cinch integration target",
+        "passed": 7,
         "total": 10,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20903,5 +20903,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:03:36.757414+00:00"
+  "updatedAt": "2026-11-09T00:05:40.735252+00:00"
 }
