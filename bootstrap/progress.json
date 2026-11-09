@@ -3260,6 +3260,10 @@
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+                  "status": "passed"
+                },
+                {
+                  "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
                   "status": "running"
                 }
               ]
@@ -16172,5 +16176,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:24:57.737416+00:00"
+  "updatedAt": "2026-11-09T12:26:01.839184+00:00"
 }
