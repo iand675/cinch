@@ -706,7 +706,7 @@
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
         "state": "running",
-        "detail": "The merged candidate assigns 202 of 236 original targets to a run. 34 still need assertion review. Passing outcomes require separate receipts.",
+        "detail": "The merged candidate assigns 206 of 236 original targets to a run. 30 still need assertion review. Passing outcomes require separate receipts.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-target-routing.json"
       },
@@ -17922,9 +17922,9 @@
         "total": 8,
         "passed": 8,
         "failed": 0,
-        "status": "running",
-        "phase": "Replay codata with the combined Stage 3",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-agreement.json"
+        "status": "passed",
+        "phase": "Stage 2 and Stage 3 artifacts match. Smoke tests, the separate interface consumer and the changed-source rebuild passed.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-fixed-point.json"
       },
       {
         "title": "Rebuild with checked equality methods and guarded recursion",
@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 18,
+        "passed": 19,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_byte_observations with the combined Stage 3",
+        "phase": "Replay bootstrap_check with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
@@ -21187,6 +21187,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-buffer-aliases.json"
       },
       {
+        "title": "Original byte observations on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All three original tests passed, including five runtime input sizes, primitive identity, and an observation renamed by a facade.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-byte-observations.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21257,11 +21268,22 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Replay codata with the combined Stage 3",
-        "evidence": null
+        "phase": "Replay bootstrap_argument_scopes with the combined Stage 3",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
+      },
+      {
+        "title": "Original codata tests on the merged Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "passed": 10,
+        "failed": 0,
+        "total": 10,
+        "status": "passed",
+        "phase": "All original codata cases passed with 22 matching invocations.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
         "title": "Run the complete matching Rust compiler inventory",
@@ -21271,18 +21293,18 @@
         "passed": 18,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_source_instances Audited 383 passing cases across the first 14 complete targets.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-fourteen-targets.json"
+        "phase": "bootstrap_source_instances Audited 430 passing cases across the first 18 complete targets.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
         "title": "Run the original external checks on the merged Stage 3",
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "checks",
         "total": 14,
-        "passed": 0,
+        "passed": 2,
         "failed": 0,
         "status": "waiting-worker",
-        "phase": "Wait for the matching fixed point.",
+        "phase": "mixed-link",
         "evidence": null
       },
       {
@@ -21390,9 +21412,9 @@
         "unit": "targets",
         "total": 22,
         "passed": 0,
-        "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "failed": 1,
+        "status": "failed",
+        "phase": "AssertionError(PosixPath('/Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-merged-supplemental-frontend-1/harness-metadata/check.log'))",
         "evidence": null
       },
       {
@@ -21411,6 +21433,17 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 11,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Replay 47 original declaration and object artifact tests on the merged compiler outside the Stage 3 matrix",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 4,
         "passed": 0,
         "failed": 0,
         "status": "waiting-worker",
@@ -21466,10 +21499,21 @@
         "source": "74b0ca5b9541e7df4b709bc1af3d75cf0b6129516ea266d87cad940716274b31",
         "unit": "checks",
         "total": 6,
-        "passed": 3,
+        "passed": 6,
         "failed": 0,
-        "status": "running",
-        "phase": "Emit a row-polymorphic object",
+        "status": "passed",
+        "phase": "All six checks passed. The compiled object retained its effect row, a source-free client ran with zero leaks, and a pure caller requiring Blocking was refused.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-open-effect-row-contracts.json"
+      },
+      {
+        "title": "Repeat the original effect-row interface and object checks on the merged compiler",
+        "source": "c998c4eaec569483f8c1f22c9fa1ddc37616ef9494fbbd6223c477102fe6915b",
+        "unit": "checks",
+        "total": 6,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21479,8 +21523,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -21532,10 +21576,10 @@
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
         "total": 7,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "phase": "Replay the original range_facts tests",
         "evidence": null
       },
       {
@@ -21695,5 +21739,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:47:30.553243+00:00"
+  "updatedAt": "2026-11-09T08:52:18.960154+00:00"
 }
