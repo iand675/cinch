@@ -51,6 +51,10 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
+  --target <triple>  the target to build for (this compiler's own triple)
+  --target-version <version>  the platform version package conditions see
+  --print-link-plan  report every contribution to the final link
+  --allow-raw-link NAME  consent to one package's raw link words
   --          everything after it is a program argument (run), so an
               argument that looks like a flag can still be passed
 
@@ -112,6 +116,10 @@ The first word of `cinch doc` with no further argument prints `cinch doc: expect
 | `--object-roots <path>` | all modes parse it, `emit-object` uses it | Names a JSON document of concrete library variants. An empty document is accepted everywhere and does nothing; a document with a row in any other mode is refused. |
 | `--package-object <path>` | `build`, `run` | Links one separately produced package object. |
 | `--rebuild` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Forces a rewrite of this compile's package-store entry. |
+| `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Only this compiler's own triple is accepted, because a cross compile needs a runtime built for the target. |
+| `--target-version <version>` | the same modes | States the target platform version that a package manifest's `os_version` conditions are evaluated against. A condition with no version refuses rather than reading the host's. |
+| `--print-link-plan` | the same modes | Reports every contribution to the final link with the package that asked for it, before anything is linked. |
+| `--allow-raw-link <name>` | the same modes | Consents to one package's raw link words, the flag form of the root manifest's `raw_link`. |
 | `--` | all | Everything after it is a program argument, taken verbatim. |
 
 The object-roots document is JSON with `schema` set to 1 and up to three arrays, `units`, `dictionaries`, and `methods`. A unit or dictionary row has `symbol` and `classes`, and a method row has `class`, `slot`, and `own`. A class vector spells `R`, `O`, or `T` per class. The document is read by every mode, and only `emit-object` acts on a non-empty one.

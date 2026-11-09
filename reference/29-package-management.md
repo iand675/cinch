@@ -36,12 +36,25 @@ That excerpt is two of its 55 module rows, one of which carries `"facade": true`
 | `modules[].path` | Compiler and registry | Relative path to the source inside the package |
 | `modules[].facade` | Compiler | Marks the re-export facade, which fixes the check-order split |
 | `modules[].embedded` | Nobody | Informational; the embedded source table decides whether a path has bytes |
-| `order` | Compiler | Check order; `Package::parse` reads it, the installer does not |
-| `schema` | Registry | `1` or `2` are accepted; the compiler does not validate it |
+| `modules[].exposed` | Compiler | Whether another package may import it, default `true`; see [Exposed and internal modules](#exposed-and-internal-modules) |
+| `order` | Compiler | Check order; a name the target does not resolve is an error |
+| `schema` | Compiler and registry | `1` for a fixed module list, `2` to allow `select`, `prelude`, and `link`; absent means `1` |
+| `prelude` | Compiler | The module injected as an implicit import into every module of this package, `"default"`, or `"none"`; see [The prelude setting](#the-prelude-setting) |
+| `select` | Compiler | Conditional modules and link words, evaluated against the compile target; see [Conditions on the target](#conditions-on-the-target) |
+| `link` | Compiler and installer | Semantic link requirements; see [Link requirements](#link-requirements) |
+| `raw_link` | Compiler | Package names whose raw link words this project consents to; only a root manifest's list is consulted |
+| `local_link` | Compiler | Machine-specific link words; project configuration, never package metadata |
 | `source_manifest` | Nobody | A human note in the base manifest |
 | `dependencies` | Installer | Package dependencies; see below |
 
-Two behaviours follow from that table and surprise people. A manifest with `"schema": 9` installs without complaint, because the compiler's reader does not check the field; the registry does check it, and rejects anything other than 1 or 2. And a manifest with no `order` installs locally, because the installer derives its module list from `modules` and only `Package::parse` reads `order`. Write both fields anyway; the [design](../design/package-management.md) makes `order` part of the format.
+An unknown key inside a module entry, a `when` condition, or a `link` object is refused rather than ignored, because a misspelled field would silently drop the thing it was meant to declare:
+
+```text
+cinch: package manifest: when: unknown condition `ostype` (allowed: os, arch, os_version, libc, compiler, runtime_abi, target)
+cinch: package manifest: link: unknown key `librarys` (allowed: libs, frameworks, rpaths, libdirs, dll_dirs, soname, whole_archive, import_libs, system_libs, pkgconfig, raw)
+```
+
+A manifest with no `order` installs locally, because the installer derives its module list from `modules` and only the compiler reads `order`. Write both fields anyway: a build needs the order, because the fixity pre-pass and the check/interface split both depend on it.
 
 Manifest faults are named at the source:
 
@@ -51,6 +64,141 @@ cinch pkg: path ../b5: module M: /tmp/b5/Missing.cinch: No such file or director
 ```
 
 A version is parsed leniently: `1.0` is accepted and padded, and the vendor directory is `vendor/<namespace>/<name>/1.0`. The registry requires `major.minor.patch` with an optional prerelease and rejects the publish instead.
+
+## Conditions on the target
+
+A package that binds a system library, or that ships one implementation per operating system, says so with `select`: a list of entries, each a `when` condition plus the modules and link words it adds when that condition holds.
+
+```json
+{
+  "schema": 2,
+  "name": "acme/watch",
+  "version": "0.1.0",
+  "modules": [ { "name": "Watch", "path": "Watch.cinch" } ],
+  "order": ["Watch"],
+  "select": [
+    { "when": { "os": ["darwin"] },
+      "modules": [ { "name": "Watch.Kevent", "path": "darwin/kevent.cinch", "exposed": true } ] },
+    { "when": { "os": ["linux"], "libc": ["glibc"] },
+      "modules": [ { "name": "Watch.Inotify", "path": "linux/inotify.cinch", "exposed": false } ] },
+    { "when": { "os_version": ">=14.0" },
+      "link": { "libs": ["dl"] } }
+  ]
+}
+```
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `os` | `darwin`, `linux`, `windows` | The target's operating system. `macos` is accepted and normalised |
+| `arch` | `aarch64`, `x86_64`, `arm64` | The target's architecture; `arm64` and `aarch64` are the same value, as are `amd64` and `x86_64` |
+| `libc` | `glibc`, `musl`, `libSystem`, `msvcrt` | The C library the target links |
+| `os_version` | a comparison: `>=14.0`, `<13`, `=13.4`, or a bare `13.4` for exact | The target platform version, compared numerically so `14.10` is greater than `14.9` |
+| `compiler` | a comparison against the compiler's version | For a package that needs a language feature |
+| `runtime_abi` | an exact version | The runtime ABI a prebuilt object must match |
+| `target` | an exact triple | The escape hatch for a case the other keys cannot express |
+
+Inside one `when`, keys are ANDed; a list value is ORed; a missing key matches anything. Every matching entry applies, and its modules and link words are unioned, so a package can state a base set plus a version override. Two entries that name one module with different paths are refused, and an entry that changes nothing is refused too.
+
+The facts come from the compile target, never the build host:
+
+- `--target <triple>` accepts this compiler's own triple (`aarch64-apple-darwin` on an Apple silicon Mac) and refuses anything else, because a cross compile needs a runtime built for the target: `target `x86_64-unknown-linux-gnu` is not this compiler's host target `aarch64-apple-darwin``.
+- `--target-version <version>` states the platform version. A manifest condition on `os_version` refuses without it rather than reading the host's version, which would make the lock machine-specific:
+
+```text
+cinch: acme/watch: the manifest selects on `os_version >=14.0`, and the target states no platform version; pass --target-version (for example --target-version 14.0)
+```
+
+The resolved module set changes the package store key, so a package resolved for one target never satisfies a compile for another.
+
+## Exposed and internal modules
+
+A module entry without `exposed` is part of the package's surface, and another package may import it. `"exposed": false` makes it internal: it compiles as part of its package and is refused to an importer:
+
+```text
+cinch: module Internal is declared by package acme/lib and is not exposed; the package's internal module cannot be imported from Main
+```
+
+Modules of the *same* package may import each other freely, and a project with no manifest is unaffected, because ownership only exists where a manifest claims it.
+
+## The prelude setting
+
+`prelude` names the module imported implicitly at the top of every module of that package. The setting belongs to the package, so a dependency and its consumer can differ:
+
+| Value | Effect |
+| --- | --- |
+| absent or `"default"` | The compiler's own prelude, the embedded `Prelude` facade |
+| `"none"` | Nothing is injected. The preregistered type names stay in scope, because a signature needs them; nothing else does |
+| `"Acme.Prelude"` | That module is injected. It must be a module the package declares or a dependency provides |
+
+The injected module is a real dependency: it lands in the module's import set, in the check order, and in the recorded interface. A prelude module is written against the default prelude rather than importing itself, and it typically re-exports the default facade so its readers keep the operators:
+
+<!-- cinch:check -->
+```cinch
+module Acme.Prelude where
+  import Prelude
+  export module Prelude
+
+  export helper
+
+  helper :: Int -> Int
+  helper n = n + 1
+```
+
+Two paths to one declaration are one name, so a module may import both a re-export and the module it re-exports. Two *different* declarations under one local name are the error, and the message names both paths and both origins:
+
+```text
+cinch: the name `x` is imported from both A (A) and C (C): rename one (a selection like `import C (x as ...)`)
+```
+
+## Link requirements
+
+A package that needs native code says what it needs in semantic fields, and the compiler turns them into link words, reports them per package, and records them in the artifact manifest.
+
+| Tier | Fields | Understood | In the lock | Portable |
+| --- | --- | --- | --- | --- |
+| Semantic | `libs`, `system_libs`, `import_libs`, `frameworks`, `rpaths`, `libdirs`, `dll_dirs`, `soname`, `whole_archive`, `pkgconfig` | yes: validated, ordered, reported per package | resolved words | yes, when an `rpaths` entry is relative or `@loader_path`-based |
+
+Two of those fields belong to one linker each, so a target that cannot express them is a refusal rather than a silent drop: `frameworks` is ld64's (`-framework`), and `soname` is GNU ld's (`-Wl,-soname`). A manifest that sets either unconditionally fails the build on the other platform, and the message says which `select` entry to add:
+
+```text
+cinch: acme/tls: asks for the framework(s) Security, and frameworks belong to the Darwin linker; select that entry on `os: ["darwin"]`
+cinch: acme/tls: asks for soname libacme.so.1, which belongs to the GNU linker; select that entry on `os: ["linux"]`
+```
+| Raw | `raw.ldflags`, `raw.cflags` | no: recorded verbatim and reported | verbatim | only for one machine |
+| Local | a root manifest's `local_link` | no | no, and the build records that it was used | no, by definition |
+
+`--print-link-plan` reports every contribution with the package that asked for it, before anything is built:
+
+```text
+$ cinch build ./Main.cinch -o prog --print-link-plan
+link plan: semantic     acme/native              -Wl,-rpath,@loader_path/lib -lm
+```
+
+The manifest records the same plan, so a built artifact states what it was linked against and whether a local override took part:
+
+```json
+"link": { "local": false, "raw": [], "words": ["-Wl,-rpath,@loader_path/lib", "-lm"] }
+```
+
+Raw words are a gate, not a default. A closure that contains them fails the build with the package, the words, and both ways to consent:
+
+```text
+cinch: acme/raw: the manifest asks for raw link words (-Wl,--as-needed); this project has not consented. Add "raw_link": ["acme/raw"] to the root .cinchpkg, or pass --allow-raw-link acme/raw
+```
+
+Consent is per package and comes from the root project, so a transitive dependency cannot smuggle words in behind a package the consumer trusted. Four kinds stay refused even under consent, because they change what the produced binary *is* rather than how a library is found:
+
+```text
+cinch: acme/raw: raw link word `-Wl,--script=evil.ld` is refused even with consent; it changes what the produced binary is, not how a library is found
+```
+
+The refused set is `-Wl,--script`, `--script`, `-nostdlib`, `-nostartfiles`, `-Wl,-e`, `-Xlinker`, and a response file (`@path`).
+
+A `pkgconfig` entry is resolved **once**, at install time: `cinch pkg install` runs `pkg-config --modversion`, `--libs`, and `--cflags`, checks the `min` constraint, and records the version and words in `.cinchlock` under `native`. A build then links exactly what the install resolved and never re-reads the ambient system. A package that asks for pkg-config with no lock record is refused rather than linked without its library:
+
+```text
+cinch: acme/gio needs native libraries recorded in .cinchlock (gio), and this project has no record for it; run `cinch pkg install`
+```
 
 ## Dependencies
 
@@ -465,9 +613,38 @@ cinch pkg add --git URL --git-rev REV [--project DIR]
 cinch pkg install [--project DIR] [--registry URL] [--token TOKEN] [--locked]
 cinch pkg publish [--registry URL] [--project DIR] [--token TOKEN] [--visibility public|private]
 cinch pkg verify [--slsa] [--project DIR]
+cinch pkg info NAME [--project DIR] [--target TRIPLE] [--target-version VERSION]
 ```
 
 An unsupported command prints this usage and exits 2.
+
+`cinch pkg info` reports what one installed package resolves to for a target, before anything is compiled: the selected modules, which of them are internal, the prelude, and what the link plan will add.
+
+```text
+$ cinch pkg info acme/watch --target-version 14.0
+acme/watch 0.1.0
+target: aarch64-apple-darwin
+target version: 14.0
+schema: 2
+prelude: default
+modules:
+  Watch from Watch.cinch
+  Watch.Kevent from darwin/kevent.cinch
+select:
+  0: os=darwin (applies, 1 module(s))
+  1: os=linux, libc=glibc (does not apply, 1 module(s))
+link: nothing
+```
+
+The compile commands take four flags that a package manifest's conditions and link fields depend on:
+
+```text
+--target <triple>           the target to build for; only this compiler's own triple is accepted
+--target-version <version>  the platform version `os_version` conditions are evaluated against
+--print-link-plan           report every contribution to the final link, with its package
+--allow-raw-link NAME       consent to one package's raw link words, the flag form of `raw_link`
+```
+
 
 Not implemented, and proposed by the design:
 

@@ -89,7 +89,7 @@ Because a package is source plus a manifest, the manifest needs to describe what
   "name": "acme/tls",
   "link": {
     "libs": ["ssl", "crypto"],
-    "flags": ["-Wl,-rpath,@loader_path/../lib"],
+    "rpaths": ["@loader_path/../lib"],
     "frameworks": ["Security"],
     "pkgconfig": [ { "name": "openssl", "min": "3.0" } ]
   }
@@ -111,11 +111,11 @@ A `select` entry holds a `when` condition plus the modules and link words it add
     {
       "when": { "os": ["darwin"], "arch": ["arm64", "x86_64"] },
       "modules": [ { "name": "Tls.SecureTransport", "path": "darwin/SecureTransport.cinch" } ],
-      "link": { "frameworks": ["Security"], "flags": ["-mmacosx-version-min=14.0"] }
+      "link": { "frameworks": ["Security"] }
     },
     {
       "when": { "os": ["darwin"], "os_version": ">=15.0" },
-      "link": { "flags": ["-Wl,-dead_strip_dylibs"] }
+      "link": { "libs": ["dl"] }
     },
     {
       "when": { "os": ["linux"], "libc": "glibc" },
@@ -201,11 +201,11 @@ The point of the split is not to make linking safe, which it cannot be, but to k
 ## 4.4 Resolution is recorded, then the build is frozen against it
 
 - **Resolution time.** The resolver evaluates `select` against the requested target at `cinch pkg add` / `install` time, runs `pkg-config --modversion/--libs/--cflags` for each surviving `pkgconfig` entry, and writes the effective result into `.cinchlock`: target triple, selected modules, resolved versions, ordered linker words, and include paths. A build never consults the ambient system again, so a build in CI and a build on a laptop agree or refuse instead of silently differing.
-- **Cross-compilation.** A lock holds one resolution per target. `cinch pkg install --target aarch64-apple-darwin` adds that target's record beside the others, and building for a target without a record is an error naming the target.
+- **Cross-compilation (planned).** A lock would hold one resolution per target, and `cinch pkg install --target` would add a target's record beside the others. Today a lock holds the host's single record, because `--target` refuses any triple but the host's: cross compilation needs a runtime built for the target first, and pretending otherwise would record a resolution nothing can build.
 - **A missing target is a refusal, not a default.** If no `select` entry applies and the package has no unconditional modules that suffice, resolution fails with the package name, the target triple, and the condition keys that were checked. A package that silently builds wrong on an untested platform is worse than one that refuses.
 - **Verification.** `cinch pkg verify --target TRIPLE` re-derives the resolution from the manifest and the recorded `pkgconfig` versions and fails when the lock and the manifest disagree, which is the same shape as the existing identity and object-hash checks.
 
-The remaining link rules stand as stated above: a missing library reports the failing package plus clang's own message, and only installed packages may contribute flags.
+`frameworks` and `soname` are refused on a target whose linker does not take them, because silently dropping a linker field links something other than what the package asked for. The remaining link rules stand as stated above: a missing library reports the failing package plus clang's own message, and only installed packages may contribute flags.
 - **Provenance.** A package that declares `link` or `pkgconfig` is marked in its interface as requiring native code. The registry can restrict which namespaces may publish such a package, and `cinch pkg verify` can refuse an install whose lock lacks the resolved record.
 - **Diagnostics.** A missing library is reported as the failing package, the requested entry, and clang's own message, which is the shape the compiler already uses for link failures.
 - **Where the flags may come from.** Only installed packages, never the project's own manifest or the command line at first, so a build's link line is a function of the lock.
@@ -226,9 +226,15 @@ Target shape, following Go's split:
 | `wasm32/wasi` | WASI preview 2 imports | The component target has no kernel, only the adapter's imports |
 | FreeBSD, NetBSD, OpenBSD | `kqueue` plus per-BSD constants, one module each | The interfaces are POSIX-shaped but the numbers and struct layouts are per system |
 
-- `runtime/src/sys/mod.rs` defines the interface in words and bytes: `fn openat(dir: i64, path: &[u8], flags: i64, mode: i64) -> (i64, i64)`, returning the result and the platform error number as data. No `std::io`, no `io::Error`, no libc types in the signature.
-- `sys/linux.rs` and `sys/darwin.rs` are the only files allowed to name a kernel entry point. A test greps the runtime sources and fails the build when `unsafe extern "C"` appears outside `sys/`.
+Landed in this revision, with tests:
+
+- `runtime/src/sys/mod.rs` defines the interface in words and bytes: `write(fd, buf)`, `read(fd, buf)`, `close(fd)`, `open(path, flags)`, `open_read(path)`, `exit(code)`, `getpid()`, `kill(pid, sig)`, `pause()`, `atexit(f)`, `mmap_anon(size)`, `munmap(addr, size)`, `mprotect(addr, size, prot)`, `getpagesize()`, `ioctl(fd, request, arg)`, `sigaction`, `sigaltstack`, `this_thread_stack()`, the thread-key calls, the pty calls, and `getenv`. Every fallible call answers `(result, errno)`: `result` is the call's own value or `-1`, and `errno` is the platform's positive number or `0`. Names are NUL-terminated by one helper, which refuses an embedded NUL or an over-long name with `EINVAL`.
+- `sys/linux.rs` issues the `syscall` instruction with numbers pinned per architecture (x86_64 and aarch64 tables), converting the kernel's `-errno` band to `(-1, errno)`. `pause` is `rt_sigsuspend` over an all-zero mask; `open` is `openat(AT_FDCWD, ...)`; `_exit` is `exit_group`.
+- `sys/darwin.rs` declares the `libSystem` entries and reads errno through `__error()`, which is why Darwin has no numbers table. One real bug surfaced here: Apple arm64 passes variadic arguments on the stack, so `open` and `ioctl` must be declared variadic and a fixed-argument declaration silently loses the window-size argument.
+- A test walks the runtime sources and fails when `unsafe extern "C"` names a foreign function outside `sys/`, with a second test proving the scanner sees a declaration, so the audit cannot pass blind.
 - Errno stays ours: `platform.rs` keeps its map from platform number to the named `NetError`/`FsError` values, so the boundary contract survives unchanged.
+- The direction the user set for the Linux stubs themselves: they should be Cinch `prim` bodies carrying inline-asm IR (one body per architecture behind `when`), not Rust `asm!`, so the syscall is written in the language. The mechanism is verified on the current compiler: a `prim` with an `unsafe llvm { ... }` body whose IR is `call i64 asm sideeffect "mov $0, $1", "=r,r"(i64 %0)` checks, emits, links and runs. What the switchover still needs is a Linux host to execute the stubs, because this machine can only prove they compile and that the mechanism runs.
+- What is still libc-direct on purpose: the Linux pthread family, `sigaction`/`sigaltstack` (their struct ABI is the C library's), `getpagesize`, the pty helpers, `getenv`, and `atexit`, each in a marked section of `sys/linux.rs`; all of Darwin by design; and `std` for allocation, threads, mutexes, subprocess spawning and the filesystem wrappers not moved yet.
 - The first milestone keeps Rust's std for allocation, threads, and mutexes, because std links libc anyway. "No libc at all" is a later rung (`#![no_std]`, our allocator, our panic, our `_start`), and the honest goal now is: our own bindings, our own numbers, no wrapper crates, one auditable place for the OS.
 
 What it unlocks, in order: `-nostdlib` static Linux binaries with our own `_start`; `poll`/`epoll`/`kqueue` as first-class capabilities instead of threads parked in blocking reads; and a single audit surface for the no-faults rules, where every kernel call is in `sys/` and every failure becomes a named value.
@@ -301,22 +307,56 @@ Ordering by what unblocks the most: `sys` socket and event calls, then `Net.Tcp`
 
 # 7 Open items
 
-- **The `Prim.*` module rename.** The cut is settled (section 1), but moving the primitive types out of `Data.*` changes module names that the guide, the tutorial, the library reference, and every example mention. The migration is mechanical and the docs harness verifies it, but it is the largest single edit in the plan.
+Landed in this revision, with tests: target identity (`TargetProfile` carries `os`, `arch`, `libc`, `os_version` and a real triple; `--target` and `--target-version`), manifest schema 2 (`select` conditions, `exposed`, `prelude`, and the `link` tiers with the raw consent gate), package resolution wired into loading with ownership and cross-package exposure, per-package prelude injection recorded as a dependency, name deduplication by declaring origin, the link plan with `--print-link-plan`, pkg-config resolved at install into `.cinchlock`, and `cinch pkg info` for per-target availability.
+
+Still open:
+
+- **The `Prim.*` module rename and the base package split.** The cut is settled (section 1), but moving the primitive types out of `Data.*` changes module names that the guide, the tutorial, the library reference, and every example mention, and it makes `cinch/base` a package that must be published or vendored before anything compiles. That is the largest single edit in the plan and it is not in this revision.
 - **Offline bootstrap.** Registry delivery plus an optional vendored snapshot, as in section 2, or strict network-on-first-use.
-- **Prelude diagnostics.** The mechanism is settled (section 3): injected import, identity by declaring module, re-exports tracked. What remains is message quality: a mismatch or an ambiguous instance should resolve through the re-export chain and name the two preludes and the two declaring modules.
+- **Prelude diagnostics.** The mechanism is settled and shipped (section 3): injected import, identity by declaring module, re-exports tracked, one name when two paths reach one declaration. What remains is message quality for an ambiguous instance: today it names the class and the type, and a prelude collision should also name both preludes and both declaring modules.
 - **Link policy.** Whether `libs` and `pkgconfig` are open to any namespace or gated to vetted ones, and whether `cinch pkg verify` refuses a lock whose resolved link record is missing. The semantic, raw, and local tiers are settled in section 4.3; what remains is who may publish each tier.
 
-# 8 Aspects this design has not yet faced
+# 8 Retiring the per-op primitive implementations
+
+The direction the user set: the primitive operations should be written in Cinch with LLVM IR bodies, not implemented per op in Rust or special-cased per op in the compiler. This section records what stands in the way and the order that keeps the tree green.
+
+What exists today, measured:
+
+| Surface | Count | Where |
+| --- | --- | --- |
+| Compiler primitive operations | 132 variants, 113 name arms | `PrimOp` in `compiler/src/core.rs`, lowered in `compiler/src/codegen.rs` |
+| Runtime exports | 187 `#[no_mangle]` functions | `compiler/runtime/src/*.rs`, mostly `abi.rs` |
+| Runtime symbols the prelude declares | 87 | `cinch.runtime.*` in `compiler/prelude/*/*.cinch` |
+| Machine scalar and float symbols the prelude declares | 831 names (families over 13 widths) | `cinch.prim.*` |
+
+The mechanism works: a `prim` with an `unsafe llvm { ... }` body can carry inline assembly or any IR fragment, and containment records the trust as an assumption. Verified on the current compiler with a body whose IR is `call i64 asm sideeffect "mov $0, $1", "=r,r"(i64 %0)`: it checked, emitted, linked and ran. Linux syscalls want exactly that shape, with one body per architecture guarded by `when`, because the register names differ between `x86_64` and `aarch64`.
+
+Three constraints decide the order:
+
+- **The prim surface and the internal word representation are different widths.** A `prim :: Bool -> Bool -> Bool` body sees `i8` arguments while the compiler's own lowering works on `i64` words, and a body that returns `i64` is refused with "does not return the declared result shape (i8)". So a converted op is a real function at the canonical width with marshalling at its call sites, not a drop-in for the word-level lowering. That is fine for inlining but it means each conversion has to state which representation it is written against.
+- **The checker constructs some prims itself.** Negating a boolean term builds a `Prim(NotBool)` node; the totality checker folds boolean and comparison prims into predicates; the staging interpreter evaluates them at compile time. Retiring a variant therefore needs either an internal `Core::Prim` node that the surface no longer names, or a rewrite of those three passes to treat every prim body generically.
+- **`cinch.runtime.*` is the other half.** Bignum `Nat`/`Int`, bytes, arrays, tasks, I/O and the fault path are Rust functions that the prelude declares. Moving them into Cinch prims means writing limb loops, allocation calls and scheduling in Cinch, on top of prims that reach the allocator.
+
+Order that keeps each step verifiable:
+
+1. **Surface-only machine ops.** The float operations and the machine conversions that no checker pass constructs are the easy majority: each becomes a `prim` with an `llvm` body over the canonical width, and its `PrimOp` variant and codegen arm are deleted. Oracle: `compiler/tests/primitives.rs`, the machine conversion suites, and an IR assertion per family.
+2. **Ops the checker folds.** Bool and comparison ops move once the totality checker folds prim bodies rather than variants, or once the internal node is kept and only the surface declaration changes. Oracle: the `safety` and `total` suites, which already assert folded proofs.
+3. **Runtime-carried ops.** Bytes, arrays and bignum move after a Cinch-level allocator prim exists; that prim is the runtime's own allocator behind one symbol, which is the smallest possible Rust surface and the one place the no-faults rules must stay.
+4. **OS wrappers.** `cinch_fs_*`, `cinch_net_*`, `cinch_proc_*`, `cinch_pty_*`, and `cinch_signal_*` become Cinch modules over the syscall prims this revision added, which is also when `sys/linux.rs` loses its Rust `asm!` and the runtime keeps only `sys` and the allocator side.
+
+Each step bumps the runtime ABI and invalidates the store, which is expected: the primitive identity is part of the artifact, so a converted op is a different artifact by construction.
+
+# 9 Aspects this design has not yet faced
 
 Collected while reviewing the proposal against the tree. Each entry says why it matters and what it would take; none of them is answered above.
 
-**Target identity does not exist yet.** `TargetProfile::native()` builds its triple as `format!("{}-unknown-unknown", ARCH)`, with no vendor, no operating system, and no version (`compiler/src/core.rs`), and there is no CLI flag that changes it (documented behaviour today: a `--target` word after the entry file is passed to the program as an argument). `select` conditions on `os`, `arch`, and `os_version` therefore cannot be evaluated at all until a real triple exists. Worse, `os_version` must come from an explicit target parameter and never from the host, or the same commit resolves to different lock entries on two laptops with different macOS versions, which is exactly the non-reproducibility the lock is supposed to remove.
+**Target identity (fixed).** `TargetProfile` now carries `os`, `arch`, `libc`, and `os_version` beside a real triple (`aarch64-apple-darwin`), the profile identity in the store key includes them, and `--target`/`--target-version` set them. `--target` accepts only the host triple and refuses another with the reason, because a cross compile needs a runtime built for the target. `os_version` comes from the flag and never from the host, so a condition on it refuses rather than making the lock machine-specific.
 
 **Preludes need only dependency tracking, and the tracking costs two things.** The user's rule: compile with the prelude injected as an implicit module import, then let module dependencies and re-export origins answer whether `PreludeA` and `PreludeB` share one `List` and one instance set. That removes the whole question of a global prelude, and it leaves two pieces of work. First, the injected module must be in the module's recorded dependency set and in the check order, or fixity and eager-reference collection see a module that names things it never imported. Second, diagnostics have to resolve through re-exports: today an `ambiguous instance` names the class and the type, and a prelude collision needs the declaring module and the prelude path for each side, otherwise the reader cannot tell "one instance re-exported twice" from "two instances with the same shape".
 
 **Raw link flags are trust, so structure them for audit and reproducibility, not for sandboxing.** The user's objection is correct: a project that links a native library runs that library's code before `main` and inside its address space, so no arrangement of flags makes linking safe, and pretending otherwise would only cripple the FFI. The reasons to structure the field anyway are different ones. Reproducibility: a structured `rpaths`/`libdirs`/`soname` prevents the everyday failure where a lock records `-L/opt/homebrew/opt/openssl@3/lib` and no other machine can build. Audit: a declared `libs: ["ssl"]` can be reviewed across a closure, while an opaque argument list cannot, and a leaf package's arguments reach the final link of consumers that never import it, so the blast radius of an unreviewable field is the whole build. Blast radius again: `-Wl,--script`, `-nostdlib`, `-Wl,-e`, `-Xlinker`, and response files change what the produced binary *is*, which a package that merely wants OpenSSL never needs. What does deserve an explicit statement is the semantic consequence: a linked native library can run code at load time, so a program's effect row and its no-faults claim cover the checked fragment only, and that should be said in the package's documentation and in the language's own claims rather than implied away.
 
-**`pkg-config` is neither hermetic nor portable.** Its output carries absolute paths (`-L/opt/homebrew/opt/openssl@3/lib`), `.pc` files can inject arbitrary flags, macOS ships no `pkg-config` at all, and cross-compilation needs `PKG_CONFIG_SYSROOT_DIR` and `--define-prefix`. Recording the resolved words in the lock hides the problem instead of solving it: the lock then contains machine-specific paths. The durable record is a soname plus a version range to check at runtime, with library paths required to be relative or `@loader_path`-based unless the package came from a local path dependency.
+**`pkg-config` is neither hermetic nor portable (handled, with a caveat).** Its output carries absolute paths (`-L/opt/homebrew/opt/openssl@3/lib`), `.pc` files can inject arbitrary flags, macOS ships no `pkg-config` at all, and cross-compilation needs `PKG_CONFIG_SYSROOT_DIR` and `--define-prefix`. Recording the resolved words in the lock hides the problem instead of solving it: the lock then contains machine-specific paths. The durable record is a soname plus a version range to check at runtime, with library paths required to be relative or `@loader_path`-based unless the package came from a local path dependency.
 
 **Source packages versus binary packages.** If a registry ships `package.o`, that object is bound to one triple, one runtime ABI, one layout table, and the exact base build it was compiled against, so a base upgrade invalidates every binary in the store and every dependent's lock. Decide which the registry publishes: source only (rebuild at install, slow but portable), or binary with automatic rebuild on mismatch (fast but the mismatch is a compile in disguise). The lock should record which it got, and the provenance claim should say "built from these sources by this compiler" rather than only naming the builder.
 
