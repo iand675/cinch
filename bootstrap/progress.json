@@ -21280,9 +21280,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 18,
-        "failed": 16,
+        "failed": 17,
         "status": "running",
-        "phase": "Replay original lib_yaml target on Stage 3",
+        "phase": "Replay original lib_zlib target on Stage 3",
         "evidence": null
       },
       {
@@ -21585,5 +21585,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:08:46.370774+00:00"
+  "updatedAt": "2026-11-09T08:09:49.920882+00:00"
 }
