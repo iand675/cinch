@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
-  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 35/236 Rust targets passed. Newer candidates have separate rebuilds.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 37/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17952,11 +17952,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate 3",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 35,
+        "passed": 37,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_decisions",
+        "phase": "bootstrap_effect_types",
         "evidence": null
       },
       {
@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 7,
+        "passed": 8,
         "failed": 2,
         "status": "running",
-        "phase": "Replay alloc_accounting with the combined Stage 3",
+        "phase": "Replay argv with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21387,5 +21387,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:36:22.616365+00:00"
+  "updatedAt": "2026-11-09T06:38:26.699960+00:00"
 }
