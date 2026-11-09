@@ -21202,10 +21202,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 14,
-        "passed": 3,
+        "passed": 13,
         "failed": 0,
         "status": "running",
-        "phase": "passing-emit",
+        "phase": "class-identity",
         "evidence": null
       },
       {
@@ -21413,8 +21413,8 @@
         "total": 6,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Native interface region and effect cases",
         "evidence": null
       },
       {
@@ -21456,9 +21456,9 @@
         "unit": "gates",
         "total": 3,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "failed": 1,
+        "status": "failed",
+        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 1001:32: cannot determine the type of the scrutinee; add a type annotation (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-recursive-call-dependencies-candidate-2/build/stage1/sources/Bootstrap.Typing.cinch)\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-recursive-call-dependencies-candidate-2/build/stage1/build.log')",
         "evidence": null
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:24:53.087302+00:00"
+  "updatedAt": "2026-11-09T08:26:17.391741+00:00"
 }
