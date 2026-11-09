@@ -137,6 +137,14 @@ typed law observation assertion and proposition-valued signature method
 have separate gates.
 See [the Stage 1 audit](../bootstrap/current-abi7-records-and-rewrite-results.json).
 
+The resource-corrected rewrite Stage 1 passed six of eight cases in the
+earlier harness. It accepted the shipped equations and refused the false
+equation with the required justification diagnostic. The lawful Box
+fixture emitted the exact eight-sample observation in its typed interface
+row. The earlier text assertion still failed. The proposition-valued
+signature method remains open, including its lambda equation.
+See [the corrected Stage 1 replay](../bootstrap/current-abi7-rewrite-resource-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

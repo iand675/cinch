@@ -1,0 +1,50 @@
+{
+  "assumption_interface_sha256": "95f2b279f56a10819d2c382161c66d5ed10eebed35e50de1db4e86539de7f41f",
+  "assumptions": [
+    "Algebra.Semigroup.assoc"
+  ],
+  "compiler_sha256": "da308b545a18871e9859e34ffa2894adbd308b9fac2eae58778333a811f78129",
+  "compiler_source_sha256": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
+  "equation_controls": [
+    {
+      "diagnostic_sha256": null,
+      "exit_code": 0,
+      "invocation_sha256": "2f29a05965bcdbe31573d9179aebb24bcaed04f019fbda2c42931232c54b5359"
+    },
+    {
+      "diagnostic_sha256": "6cfd0b0eb9913403db70485a73e89b1a1398921493444d856bb3544f44af20e0",
+      "exit_code": 4,
+      "invocation_sha256": "0a239ce09d3b6b6d08d308c27fe77f4234d71aa0e2e0231e4215352bcb88940c"
+    }
+  ],
+  "full_goal_complete": false,
+  "law_log_sha256": "a65d95ae61aef05dfd5589745a41d7795fbf91f3775c8aca1948e8608409ab59",
+  "native_source_sha256": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
+  "observation_interface_sha256": "0bb7fa8f1aeb40e9aef6beae5425c5b76afb2a641533b083e952aac934174ab4",
+  "original_failed": 2,
+  "original_passed": 6,
+  "original_test_sha256": "49d4441fccfb4e8ce07f98b8e325f1afe1f67702c8fc8ad90c6193cc3bdd7a4f",
+  "pending": [
+    "proposition-valued signature method",
+    "full matched suite on Stage 3"
+  ],
+  "runtime_control": {
+    "compile_exit": 0,
+    "link_exit": 0,
+    "log_sha256": "52361baba7cab90226df36f58d4485d08ecd6baeef3a3409744f94d56ca0c622",
+    "name": "u32-runtime-boundaries",
+    "run_exit": 0,
+    "source_sha256": "5e5a8053f80d8caee8d9453affb2c38062f88cb2e23b8348433bb528255c9866",
+    "status": "passed"
+  },
+  "schema": 1,
+  "stage1_receipt_sha256": "115cbefea7782aa15a220e6d28b92f297f797894299ba8373f5a81a99c0c194e",
+  "status": "audited-scoped-stage1-rewrite-replay",
+  "typed_observation": {
+    "class": "Algebra.Semigroup.Semigroup",
+    "instance": "LawLib.Semigroup_Box",
+    "law": "assoc",
+    "status": "checked (8 samples)"
+  },
+  "wrapper_sha256": "6628320cf61b94a9c67103ca3071bcda0a910f9411f716110db066119343c3fb"
+}
