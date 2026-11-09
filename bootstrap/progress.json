@@ -21213,10 +21213,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 5,
+        "passed": 7,
         "failed": 0,
         "status": "running",
-        "phase": "class_defaults",
+        "phase": "integration",
         "evidence": null
       },
       {
@@ -21269,9 +21269,9 @@
         "unit": "targets",
         "total": 5,
         "passed": 1,
-        "failed": 3,
-        "status": "running",
-        "phase": "Replay original platform target on Stage 3",
+        "failed": 4,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 29 passed, 13 failed.",
         "evidence": null
       },
       {
@@ -21457,8 +21457,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "Build symbol-literal Stage 1 with the pinned Rust seed",
         "evidence": null
       },
       {
@@ -21541,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:50:32.570051+00:00"
+  "updatedAt": "2026-11-09T07:51:35.982839+00:00"
 }
