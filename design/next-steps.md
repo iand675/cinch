@@ -83,6 +83,17 @@ consumers exercised eight input sizes and checked that a body belongs to the
 actual declaration and dependency definitions.
 See [the argument and body-binding audit](../bootstrap/current-abi7-combined-stage3-argument-and-body-bindings.json).
 
+The combined Stage 3 built the original Boolean branch checker. All 21
+controls agreed with the retained Rust assertions, including short-circuit
+implications, case fallthrough, shadowing, and refusals for the wrong branch
+or value.
+See [the Boolean branch audit](../bootstrap/current-abi7-combined-stage3-boolean-branches.json).
+
+The matching Rust compiler for the merged candidate passed all 39 original
+editor and syntax tests. The audit checks the exact compiler, runtime archive,
+editor inputs, and all original test names.
+See [the matching editor audit](../bootstrap/current-abi7-codata-index-native-editor.json).
+
 The merged codata and checked-import-index candidate cleared the clean Rust
 build and passed all 171 runtime and 52 tooling tests on its frozen inputs.
 The matching Rust compiler passed the original 18 recursive-binding and four

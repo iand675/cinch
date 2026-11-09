@@ -1,0 +1,116 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-boolean-branches",
+  "targets": {
+    "bootstrap_boolean_branches": {
+      "boolean_branch_controls": [
+        {
+          "accepted": true,
+          "name": "guarded JSON slot conversion"
+        },
+        {
+          "accepted": true,
+          "name": "true conjunction keeps left guard"
+        },
+        {
+          "accepted": true,
+          "name": "false disjunction keeps negative left guard"
+        },
+        {
+          "accepted": false,
+          "name": "false conjunction cannot negate left guard"
+        },
+        {
+          "accepted": false,
+          "name": "true disjunction cannot assert left guard"
+        },
+        {
+          "accepted": true,
+          "name": "nested conjunction keeps outer guard"
+        },
+        {
+          "accepted": true,
+          "name": "case false comparison keeps nonzero"
+        },
+        {
+          "accepted": false,
+          "name": "case true equality cannot prove nonzero"
+        },
+        {
+          "accepted": true,
+          "name": "case literal fallthrough excludes zero"
+        },
+        {
+          "accepted": false,
+          "name": "case matched zero cannot prove nonzero"
+        },
+        {
+          "accepted": false,
+          "name": "guarded literal failure is not pattern refutation"
+        },
+        {
+          "accepted": false,
+          "name": "false literal guard leaves zero possible"
+        },
+        {
+          "accepted": true,
+          "name": "true literal guard covers its pattern"
+        },
+        {
+          "accepted": true,
+          "name": "case alias keeps actual scalar identity"
+        },
+        {
+          "accepted": true,
+          "name": "case shadow keeps actual scalar identity"
+        },
+        {
+          "accepted": true,
+          "name": "case Boolean wildcard uses preceding refutation"
+        },
+        {
+          "accepted": false,
+          "name": "case Boolean wildcard cannot invent a polarity"
+        },
+        {
+          "accepted": true,
+          "name": "case true inequality keeps nonzero"
+        },
+        {
+          "accepted": false,
+          "name": "case false inequality cannot prove nonzero"
+        },
+        {
+          "accepted": true,
+          "name": "case successive literals keep ordered refutations"
+        },
+        {
+          "accepted": false,
+          "name": "case facts do not escape to another local"
+        }
+      ],
+      "cases": [
+        {
+          "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "4527-0.json": "a51be32580974911de3abad026782decd9efdcdaaf63531d6217cba526c01e92"
+      },
+      "log_sha256": "85217c9b189f4081245b2a36d0581be751bbe8339f4349da9bc09b5d348164e0",
+      "passed": 1,
+      "test_source_sha256": "0110895a0c55ea3085bb128dd675b4e42be6bd33360286065b5b73cd6ad6f1a4",
+      "total": 1
+    }
+  }
+}
