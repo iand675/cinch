@@ -21226,8 +21226,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Run the original project and verify the emitted fixity interfaces",
         "evidence": null
       },
       {
@@ -21343,5 +21343,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:28:48.369316+00:00"
+  "updatedAt": "2026-11-09T06:31:32.884063+00:00"
 }
