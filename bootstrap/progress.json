@@ -21071,9 +21071,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 0,
-        "failed": 3,
+        "failed": 4,
         "status": "running",
-        "phase": "Replay original lib_bigdecimal target on Stage 3",
+        "phase": "Replay original lib_builder target on Stage 3",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:01:40.350183+00:00"
+  "updatedAt": "2026-11-09T06:03:04.379805+00:00"
 }
