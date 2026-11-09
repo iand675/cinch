@@ -17924,7 +17924,7 @@
         "failed": 0,
         "status": "running",
         "phase": "Build combined Stage 2",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json"
       },
       {
         "title": "Rebuild with checked equality methods and guarded recursion",
@@ -21217,6 +21217,39 @@
         "failed": 0,
         "status": "running",
         "phase": "bootstrap_library_object",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-opening-native-results.json"
+      },
+      {
+        "title": "Run the original external checks on the merged Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "checks",
+        "total": 14,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the matching fixed point.",
+        "evidence": null
+      },
+      {
+        "title": "Run the original language examples on the merged Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "examples",
+        "total": 34,
+        "passed": 0,
+        "failed": 0,
+        "status": "checking-stage3-agreement",
+        "phase": "Wait for the matching fixed point.",
+        "evidence": null
+      },
+      {
+        "title": "Run the original editor suite with the matching Rust compiler",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "total": 39,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane.",
         "evidence": null
       },
       {
@@ -21407,6 +21440,17 @@
         "evidence": null
       },
       {
+        "title": "Replay 20 original nominal identity and proof tactic cases",
+        "source": "08519d64acba9062732be4a8dea6d26b5f613e6538858e500894bc069f919663",
+        "unit": "gates",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Compare checked import loading on the original argument-scope inputs",
         "source": "1d4c7bb058efd3a716136aaa7e1c850b205ef355fb7e658944dcdbaa0ade5680",
         "unit": "gates",
@@ -21447,8 +21491,8 @@
         "passed": 3,
         "failed": 0,
         "status": "passed",
-        "phase": "Checked object expansion and original test replays finished",
-        "evidence": null
+        "phase": "All six affected original cases passed. The seven new variants retained all 55 interface bytes.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-checked-library-bits-map-results.json"
       },
       {
         "title": "Replay the original symbol and higher-kinded targets",
@@ -21541,5 +21585,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:00:14.553834+00:00"
+  "updatedAt": "2026-11-09T08:01:19.025867+00:00"
 }
