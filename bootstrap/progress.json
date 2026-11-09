@@ -3330,6 +3330,10 @@
               "cases": [
                 {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_observation_identity_survives_a_renamed_facade",
                   "status": "running"
                 }
               ]
@@ -16310,5 +16314,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T13:12:08.936805+00:00"
+  "updatedAt": "2026-11-09T13:13:52.134557+00:00"
 }
