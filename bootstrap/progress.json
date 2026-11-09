@@ -17933,8 +17933,8 @@
         "passed": 0,
         "total": 110,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "verify the fixed point, 12 smokes, interface consumer and changed-source rebuild",
+        "status": "running",
+        "phase": "guard_coverage",
         "evidence": null
       },
       {
@@ -20969,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:36:39.908284+00:00"
+  "updatedAt": "2026-11-09T01:37:43.188039+00:00"
 }
