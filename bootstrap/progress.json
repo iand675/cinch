@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 10,
+        "passed": 11,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_abstract_nonzero_methods with the combined Stage 3",
+        "phase": "Replay bootstrap_abstract_nonzero_types with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21192,9 +21192,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 14,
-        "failed": 9,
+        "failed": 10,
         "status": "running",
-        "phase": "Replay original lib_pty target on Stage 3",
+        "phase": "Replay original lib_random target on Stage 3",
         "evidence": null
       },
       {
@@ -21226,8 +21226,8 @@
         "total": 5,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Replay original interface_conditional_methods target on Stage 3",
         "evidence": null
       },
       {
@@ -21334,10 +21334,10 @@
         "source": "1d4c7bb058efd3a716136aaa7e1c850b205ef355fb7e658944dcdbaa0ade5680",
         "unit": "gates",
         "total": 3,
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
-        "status": "running",
-        "phase": "Measure repeated checked contexts, trial 2",
+        "status": "passed",
+        "phase": "Comparison completed",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:13:00.446150+00:00"
+  "updatedAt": "2026-11-09T07:14:03.970924+00:00"
 }
