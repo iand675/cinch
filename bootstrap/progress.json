@@ -5130,6 +5130,30 @@
                 },
                 {
                   "name": "entry_module_name_is_free",
+                  "status": "passed"
+                },
+                {
+                  "name": "import_cycle_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_fixity_is_visible",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_instance_is_used_by_the_importer",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_module_is_resolved_by_declaration",
+                  "status": "passed"
+                },
+                {
+                  "name": "instance_coherence_across_modules",
+                  "status": "passed"
+                },
+                {
+                  "name": "interface_round_trips_through_disk",
                   "status": "running"
                 }
               ]
@@ -13716,5 +13740,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:11:23.970938+00:00"
+  "updatedAt": "2026-11-09T09:12:27.271028+00:00"
 }
