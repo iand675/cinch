@@ -17931,10 +17931,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
         "total": 16,
-        "passed": 10,
+        "passed": 11,
         "failed": 3,
         "status": "running",
-        "phase": "Replay original guard_coverage target on Stage 3",
+        "phase": "Replay original letrec target on Stage 3",
         "evidence": null
       },
       {
@@ -21233,5 +21233,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:33:23.547078+00:00"
+  "updatedAt": "2026-11-09T05:34:46.343249+00:00"
 }
