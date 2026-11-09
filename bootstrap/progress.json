@@ -13979,8 +13979,8 @@
         "passed": 6,
         "failed": 0,
         "status": "passed",
-        "phase": "Checked row-polymorphic contracts verified in Rust and Cinch",
-        "evidence": null
+        "phase": "All six checks passed. The compiled object retained its effect row, a source-free client ran with zero leaks, and a pure caller requiring Blocking was refused.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-merged-open-effect-rows.json"
       },
       {
         "title": "Rebuild lexical sequencing and full do let groups after correcting the resolver type error",
@@ -14049,6 +14049,17 @@
         "evidence": null
       },
       {
+        "title": "Original BigDecimal, Base64, and Matrix failures on the range candidate",
+        "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
+        "unit": "tests",
+        "total": 23,
+        "passed": 0,
+        "failed": 23,
+        "status": "completed-with-failures",
+        "phase": "The 23 failures cluster into three errors shared by their library fixtures.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-library-failures.json"
+      },
+      {
         "title": "Verify refined returns and proof refusals across six original compiler and library targets",
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
@@ -14075,10 +14086,32 @@
         "source": "10ca60b04d2064fd8166f0f45535c2876cea870a1c4880ad4a7441e2fa01a5b5",
         "unit": "checks and targets",
         "total": 9,
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
         "status": "running",
-        "phase": "Check refined-return-cannot-be-fabricated",
+        "phase": "Replay all original range_facts cases",
+        "evidence": null
+      },
+      {
+        "title": "Verify bounded Nat arithmetic in Base64 and isolate the BigDecimal Core error",
+        "source": "fb44bbe8fbbbad181f9ac117890b428735e6be06fadef70f47d2811e09d53a0b",
+        "unit": "checks and targets",
+        "total": 14,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Verify the original counterexamples against the qualified class-law diagnostics",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "checks",
+        "total": 6,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -14238,5 +14271,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:39:27.706229+00:00"
+  "updatedAt": "2026-11-09T09:40:02.911879+00:00"
 }
