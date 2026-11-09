@@ -186,6 +186,13 @@ leak-checked run passes thirteen, with the existing three-block
 guarded value knot still requiring region-scoped teardown.
 See [the Rust ordering audit](../bootstrap/current-native-letrec-initializer-order-results.json).
 
+An isolated Cinch Stage 1 now passes all twenty original concurrency
+cases through the standard test harness. The checker follows a moved
+nominal wrapper's instantiated fields to the borrowed referent. The
+original safe referent and source forwarder controls also pass, with
+interface emission enabled. The matching Stage 3 replay remains open.
+See [the concurrency audit](../bootstrap/current-abi7-transferred-capture-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
