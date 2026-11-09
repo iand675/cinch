@@ -21247,9 +21247,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 18,
-        "failed": 15,
+        "failed": 16,
         "status": "running",
-        "phase": "Replay original lib_uri_ipaddr target on Stage 3",
+        "phase": "Replay original lib_yaml target on Stage 3",
         "evidence": null
       },
       {
@@ -21541,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:58:10.449071+00:00"
+  "updatedAt": "2026-11-09T08:00:14.553834+00:00"
 }
