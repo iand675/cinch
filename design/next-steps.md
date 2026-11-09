@@ -29,6 +29,10 @@ All seven original class-default source cases passed on that same Stage 3,
 including parameter identity, missing methods and refinement carriers.
 See [the class-default audit](../bootstrap/current-abi7-combined-stage3-class-defaults.json).
 
+All 39 original integration tests passed on the same combined Stage 3.
+The audit retains 57 matching compiler invocation receipts.
+See [the integration audit](../bootstrap/current-abi7-combined-stage3-integration.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,
