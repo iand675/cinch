@@ -15966,9 +15966,9 @@
         "unit": "gates",
         "total": 2,
         "passed": 1,
-        "failed": 0,
-        "status": "running",
-        "phase": "Run the original hk target through the declaration-kind Stage 1",
+        "failed": 1,
+        "status": "completed-with-failures",
+        "phase": "Original frontend replay finished",
         "evidence": null
       },
       {
@@ -16051,5 +16051,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:49:11.433123+00:00"
+  "updatedAt": "2026-11-09T11:54:42.017391+00:00"
 }
