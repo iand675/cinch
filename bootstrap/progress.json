@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 18,
+          "verified": 21,
           "blocked": 2,
           "running": 1,
-          "pending": 215,
+          "pending": 212,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -2847,17 +2847,17 @@
           {
             "id": "native:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T10:11:17.514578+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T10:11:44.811530+00:00",
+              "exitCode": 0,
+              "logSha256": "dff048c10d7ec709f3aecbc7ed5e5063edfa4b17940e5fa5bbf90f27781f04b1",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -2869,7 +2869,27 @@
                 },
                 {
                   "name": "header_blocks_count_constructor_cells_with_their_header",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "interned_symbols_are_counted_immortal_once_per_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_program_is_quiet_under_the_guarded_cap",
+                  "status": "passed"
+                },
+                {
+                  "name": "stats_line_counts_list_cells_only_when_asked",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_allocation_hits_the_named_cap",
+                  "status": "passed"
                 }
               ]
             }
@@ -2877,29 +2897,91 @@
           {
             "id": "native:bin-cinch",
             "title": "bin-cinch",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "passed",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T10:11:44.823792+00:00",
+              "finishedAt": "2026-11-09T10:11:45.313349+00:00",
+              "exitCode": 0,
+              "logSha256": "bef3293c31b87232e865a4821781a7ef534e3d90144e4aeab1005fd791a66b01",
+              "cases": []
+            }
           },
           {
             "id": "native:argv",
             "title": "argv",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "passed",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T10:11:45.320287+00:00",
+              "finishedAt": "2026-11-09T10:12:03.225014+00:00",
+              "exitCode": 0,
+              "logSha256": "64841718ea3cdfba3078ebd3fc46f1b62dd33df54997604653c8062b41b7d817",
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "status": "passed"
+                }
+              ]
+            }
           },
           {
             "id": "native:arrays",
             "title": "arrays",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T10:12:03.232632+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "array_copy_evidence_depends_on_the_element_type",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "arrays_keep_record_and_string_elements_alive",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:attributes",
@@ -14065,10 +14147,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 18,
+        "passed": 21,
         "failed": 2,
         "status": "running",
-        "phase": "alloc_accounting Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "arrays Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -14579,10 +14661,10 @@
       }
     ],
     "counts": {
-      "verified": 300,
+      "verified": 303,
       "blocked": 8,
       "running": 3,
-      "pending": 474,
+      "pending": 471,
       "recheck": 21
     },
     "total": 806,
@@ -14591,5 +14673,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:11:30.679022+00:00"
+  "updatedAt": "2026-11-09T10:12:33.660029+00:00"
 }
