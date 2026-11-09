@@ -17875,10 +17875,10 @@
         "title": "Verify build manifests and original module tests in Rust and Cinch",
         "source": "20c76ab4b0423a5cf790060bcdaa5c487acbd8ea7b769d8ec25575423b82a447",
         "unit": "checks",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 7,
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "reproduce the Rust ABI mismatch and run the original module tests",
         "evidence": null
       },
@@ -20837,11 +20837,11 @@
       {
         "title": "Replay original defaults, modules and recursive binding targets",
         "unit": "controls",
-        "status": "running",
+        "status": "completed-with-failures",
         "phase": "Isolated Stage 1 candidate. run the selected Cinch letrec target",
         "passed": 4,
         "total": 6,
-        "failed": 1,
+        "failed": 2,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": null
       },
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:16:19.528662+00:00"
+  "updatedAt": "2026-11-09T00:18:03.106962+00:00"
 }
