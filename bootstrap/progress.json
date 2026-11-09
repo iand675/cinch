@@ -21204,8 +21204,8 @@
         "total": 14,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Await the combined Stage 3 fixed point.",
+        "status": "running",
+        "phase": "mixed-emit",
         "evidence": null
       },
       {
@@ -21213,9 +21213,9 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "examples",
         "total": 34,
-        "passed": 0,
+        "passed": 34,
         "failed": 0,
-        "status": "running",
+        "status": "passed-exact-abi7-stage3-language",
         "phase": "Await the combined Stage 3 fixed point.",
         "evidence": null
       },
@@ -21235,10 +21235,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 12,
+        "passed": 13,
         "failed": 0,
         "status": "running",
-        "phase": "jit",
+        "phase": "bootstrap_load",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-opening-native-results.json"
       },
       {
@@ -21457,8 +21457,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -21533,9 +21533,9 @@
         "unit": "checks",
         "total": 3,
         "passed": 1,
-        "failed": 1,
-        "status": "running",
-        "phase": "Run the original sym target through the symbol-literal Stage 1",
+        "failed": 2,
+        "status": "completed-with-failures",
+        "phase": "Original frontend replay finished",
         "evidence": null
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:21:39.849274+00:00"
+  "updatedAt": "2026-11-09T08:22:44.367437+00:00"
 }
