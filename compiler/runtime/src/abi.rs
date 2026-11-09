@@ -49,11 +49,6 @@ pub enum Resource {
 /// exit waits for the first instead of racing it through `exit`.
 static EXHAUSTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-unsafe extern "C" {
-    fn _exit(code: i32) -> !;
-    fn pause() -> i32;
-}
-
 /// Whether an `Exhausted` exit is under way.
 pub(crate) fn exhausting() -> bool {
     EXHAUSTING.load(std::sync::atomic::Ordering::Relaxed)
@@ -64,7 +59,9 @@ pub(crate) fn exhausting() -> bool {
 fn claim_exhausted() {
     if EXHAUSTING.swap(true, std::sync::atomic::Ordering::SeqCst) {
         loop {
-            unsafe { pause() };
+            // `pause` returns only when a signal arrives, so this is a
+            // wait for the other thread's exit, not a spin.
+            crate::sys::pause();
         }
     }
 }
@@ -95,19 +92,19 @@ pub fn exhausted(r: Resource) -> ! {
 }
 
 /// The `Exhausted` exit from a signal handler or from an allocator that
-/// cannot allocate: the same line, then `_exit`, the only exit that is
-/// async-signal-safe and needs no memory.
+/// cannot allocate: the same line, then `crate::sys::exit`, the only
+/// exit that is async-signal-safe and needs no memory.
 pub(crate) fn exhausted_in_signal(r: Resource) -> ! {
     claim_exhausted();
     exhausted_line(r);
-    unsafe { _exit(EXIT_EXHAUSTED) }
+    crate::sys::exit(EXIT_EXHAUSTED)
 }
 
 /// Leave immediately with the `Exhausted` code: an allocation failed
 /// while an `Exhausted` exit (whose line is already written or being
 /// written) was running.
 pub(crate) fn exhausted_again() -> ! {
-    unsafe { _exit(EXIT_EXHAUSTED) }
+    crate::sys::exit(EXIT_EXHAUSTED)
 }
 
 /// Exit code of a failed leak check (`CINCH_LEAK_CHECK=1`,

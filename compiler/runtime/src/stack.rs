@@ -51,6 +51,8 @@ use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 use std::sync::Once;
 
+use crate::sys::Key;
+
 /// The inaccessible band at the low end of every guarded stack, and the
 /// extent below it the handler also attributes to the stack.
 pub const GUARD_BYTES: usize = 64 << 10;
@@ -69,12 +71,6 @@ const ALT_STACK_BYTES: usize = 128 << 10;
 const PROT_NONE: i32 = 0;
 const PROT_READ: i32 = 1;
 const PROT_WRITE: i32 = 2;
-const MAP_PRIVATE: i32 = 2;
-#[cfg(target_os = "linux")]
-const MAP_ANON: i32 = 0x20;
-#[cfg(not(target_os = "linux"))]
-const MAP_ANON: i32 = 0x1000;
-const MAP_FAILED: *mut c_void = !0usize as *mut c_void;
 
 const SIGSEGV: i32 = 11;
 #[cfg(target_os = "linux")]
@@ -150,43 +146,13 @@ impl StackT {
     }
 }
 
-/// `pthread_key_t`: `unsigned int` on Linux, `unsigned long` on Darwin.
-#[cfg(target_os = "linux")]
-type Key = u32;
-#[cfg(not(target_os = "linux"))]
-type Key = usize;
-
-unsafe extern "C" {
-    fn sigaction(sig: i32, act: *const SigAction, old: *mut SigAction) -> i32;
-    fn sigaltstack(ss: *const StackT, old: *mut StackT) -> i32;
-    fn mmap(addr: *mut c_void, len: usize, prot: i32, flags: i32, fd: i32, off: i64) -> *mut c_void;
-    fn munmap(addr: *mut c_void, len: usize) -> i32;
-    fn mprotect(addr: *mut c_void, len: usize, prot: i32) -> i32;
-    fn getpagesize() -> i32;
-    fn pthread_self() -> usize;
-    fn pthread_key_create(key: *mut Key, dtor: Option<unsafe extern "C" fn(*mut c_void)>) -> i32;
-    fn pthread_getspecific(key: Key) -> *mut c_void;
-    fn pthread_setspecific(key: Key, value: *const c_void) -> i32;
-}
-
-#[cfg(not(target_os = "linux"))]
-unsafe extern "C" {
-    fn pthread_get_stackaddr_np(thread: usize) -> *mut c_void;
-    fn pthread_get_stacksize_np(thread: usize) -> usize;
-}
-
-/// Storage for a `pthread_attr_t` (56 bytes on glibc x86_64 and musl, 64
-/// on glibc aarch64), read only through the calls below.
-#[cfg(target_os = "linux")]
-#[repr(C, align(16))]
-struct Attr([u8; 128]);
-
-#[cfg(target_os = "linux")]
-unsafe extern "C" {
-    fn pthread_getattr_np(thread: usize, attr: *mut Attr) -> i32;
-    fn pthread_attr_getstack(attr: *const Attr, addr: *mut *mut c_void, size: *mut usize) -> i32;
-    fn pthread_attr_destroy(attr: *mut Attr) -> i32;
-}
+// The calls themselves are [`crate::sys`]'s: `sigaction` and
+// `sigaltstack` take this module's `SigAction` and `StackT` as opaque
+// pointers, and the thread, mapping and page-size calls are its own
+// functions, so this module names no foreign symbol. The two struct
+// layouts stay here because they are data, not entry points, and they
+// move into `sys/` when the stack trap becomes its own seam
+// (design/base-as-a-package.md section 5.1).
 
 /// The addresses a fault on this thread is stack exhaustion at:
 /// `lo..hi`.
@@ -208,19 +174,26 @@ static mut PREV_BUS: SigAction = NO_ACTION;
 /// process.
 fn install() -> Key {
     INSTALL.call_once(|| {
-        let mut key: Key = 0;
-        if unsafe { pthread_key_create(&mut key, None) } != 0 {
+        let Some(key) = crate::sys::thread_key_create() else {
             // Without a key no thread can be guarded: the system is out
             // of thread-specific slots, a thread resource.
             crate::abi::exhausted(crate::abi::Resource::Threads);
-        }
+        };
         KEY.store(key as usize, Relaxed);
         let mut act = NO_ACTION;
         act.handler = on_fault as extern "C" fn(i32, *mut c_void, *mut c_void) as usize;
         act.flags = SA_SIGINFO | SA_ONSTACK;
         unsafe {
-            sigaction(SIGSEGV, &act, &raw mut PREV_SEGV);
-            sigaction(SIGBUS, &act, &raw mut PREV_BUS);
+            crate::sys::sigaction(
+                SIGSEGV,
+                (&act as *const SigAction).cast(),
+                (&raw mut PREV_SEGV).cast(),
+            );
+            crate::sys::sigaction(
+                SIGBUS,
+                (&act as *const SigAction).cast(),
+                (&raw mut PREV_BUS).cast(),
+            );
         }
     });
     KEY.load(Relaxed) as Key
@@ -229,7 +202,7 @@ fn install() -> Key {
 /// The handler for `SIGSEGV` and `SIGBUS` (module docs).
 extern "C" fn on_fault(sig: i32, info: *mut c_void, _ctx: *mut c_void) {
     let addr = unsafe { info.cast::<u8>().add(SI_ADDR_OFFSET).cast::<usize>().read() };
-    let zone = unsafe { pthread_getspecific(KEY.load(Relaxed) as Key) }.cast::<Zone>();
+    let zone = unsafe { crate::sys::pthread_getspecific(KEY.load(Relaxed) as Key) }.cast::<Zone>();
     if !zone.is_null() {
         let zone = unsafe { &*zone };
         if (zone.lo..zone.hi).contains(&addr) {
@@ -237,31 +210,15 @@ extern "C" fn on_fault(sig: i32, info: *mut c_void, _ctx: *mut c_void) {
         }
     }
     let prev = if sig == SIGBUS { &raw const PREV_BUS } else { &raw const PREV_SEGV };
-    unsafe { sigaction(sig, prev, null_mut()) };
+    unsafe { crate::sys::sigaction(sig, prev.cast(), null_mut()) };
 }
 
-/// The lowest usable address of the calling thread's stack.
-#[cfg(not(target_os = "linux"))]
+/// The lowest usable address of the calling thread's stack (both
+/// platforms answer through their own call in [`crate::sys`]; glibc and
+/// musl report the range above their guard, and Darwin's
+/// `pthread_get_stackaddr_np` answers the high end).
 fn stack_low() -> Option<usize> {
-    let t = unsafe { pthread_self() };
-    let top = unsafe { pthread_get_stackaddr_np(t) } as usize;
-    let size = unsafe { pthread_get_stacksize_np(t) };
-    top.checked_sub(size)
-}
-
-/// The lowest usable address of the calling thread's stack (glibc and
-/// musl report the range above their guard).
-#[cfg(target_os = "linux")]
-fn stack_low() -> Option<usize> {
-    let mut attr = Attr([0; 128]);
-    if unsafe { pthread_getattr_np(pthread_self(), &mut attr) } != 0 {
-        return None;
-    }
-    let mut addr = null_mut();
-    let mut size = 0;
-    let ok = unsafe { pthread_attr_getstack(&attr, &mut addr, &mut size) } == 0;
-    unsafe { pthread_attr_destroy(&mut attr) };
-    ok.then_some(addr as usize)
+    crate::sys::this_thread_stack().map(|(low, _)| low)
 }
 
 /// Run `body` with stack exhaustion on the calling thread turned into
@@ -269,7 +226,7 @@ fn stack_low() -> Option<usize> {
 /// before any Cinch code runs on it.
 pub fn guarded<R>(body: impl FnOnce() -> R) -> R {
     let key = install();
-    let page = (unsafe { getpagesize() }).max(1) as usize;
+    let page = crate::sys::getpagesize();
     let Some(low) = stack_low() else {
         // A thread whose stack the C library cannot describe cannot be
         // guarded; this is a runtime invariant on both platforms.
@@ -280,7 +237,7 @@ pub fn guarded<R>(body: impl FnOnce() -> R) -> R {
     // live on this thread (the base of a thread, by contract).
     let here = &raw const key as usize;
     let band = here.checked_sub(lo).is_some_and(|room| room >= 2 * GUARD_BYTES)
-        && unsafe { mprotect(lo as *mut c_void, GUARD_BYTES, PROT_NONE) } == 0;
+        && crate::sys::mprotect(lo as i64, GUARD_BYTES, PROT_NONE).0 == 0;
     let zone = Zone {
         lo: lo.saturating_sub(GUARD_BYTES),
         hi: if band { lo + GUARD_BYTES } else { lo },
@@ -290,7 +247,7 @@ pub fn guarded<R>(body: impl FnOnce() -> R) -> R {
         band: band.then_some(lo),
         alt: alt_stack(),
     };
-    unsafe { pthread_setspecific(key, (&raw const zone).cast()) };
+    unsafe { crate::sys::pthread_setspecific(key, (&raw const zone).cast()) };
     body()
 }
 
@@ -306,16 +263,16 @@ struct Armed {
 
 impl Drop for Armed {
     fn drop(&mut self) {
-        unsafe { pthread_setspecific(self.key, null()) };
+        unsafe { crate::sys::pthread_setspecific(self.key, null()) };
         if let Some(sp) = self.alt {
             let off = StackT::new(null_mut(), ALT_STACK_BYTES, SS_DISABLE);
             unsafe {
-                sigaltstack(&off, null_mut());
-                munmap(sp, ALT_STACK_BYTES);
+                crate::sys::sigaltstack((&off as *const StackT).cast(), null_mut());
             }
+            crate::sys::munmap(sp as i64, ALT_STACK_BYTES);
         }
         if let Some(lo) = self.band {
-            unsafe { mprotect(lo as *mut c_void, GUARD_BYTES, PROT_READ | PROT_WRITE) };
+            crate::sys::mprotect(lo as i64, GUARD_BYTES, PROT_READ | PROT_WRITE);
         }
     }
 }
@@ -325,20 +282,21 @@ impl Drop for Armed {
 /// `main`); answers the mapping this call made.
 fn alt_stack() -> Option<*mut c_void> {
     let mut cur = StackT::new(null_mut(), 0, 0);
-    if unsafe { sigaltstack(null(), &mut cur) } == 0 && cur.flags & SS_DISABLE == 0 {
+    if unsafe { crate::sys::sigaltstack(null(), (&mut cur as *mut StackT).cast()) }.0 == 0
+        && cur.flags & SS_DISABLE == 0
+    {
         return None;
     }
-    let sp = unsafe {
-        mmap(null_mut(), ALT_STACK_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0)
-    };
+    let (sp, _) = crate::sys::mmap_anon(ALT_STACK_BYTES);
     // Without a signal stack an overflow could not be reported: the
     // thread has no memory for the one place stack exhaustion is caught.
-    if sp == MAP_FAILED {
+    if sp < 0 {
         crate::abi::exhausted(crate::abi::Resource::Stack);
     }
+    let sp = sp as *mut c_void;
     let ss = StackT::new(sp, ALT_STACK_BYTES, 0);
-    if unsafe { sigaltstack(&ss, null_mut()) } != 0 {
-        unsafe { munmap(sp, ALT_STACK_BYTES) };
+    if unsafe { crate::sys::sigaltstack((&ss as *const StackT).cast(), null_mut()) }.0 != 0 {
+        crate::sys::munmap(sp as i64, ALT_STACK_BYTES);
         crate::abi::exhausted(crate::abi::Resource::Stack);
     }
     Some(sp)

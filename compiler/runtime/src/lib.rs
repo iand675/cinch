@@ -497,6 +497,15 @@
 //! child spawned by `std::process::Command` over the slave end and the
 //! master end read, written and controlled through the handle
 //! (`PrimOp::Pty` presents the same `Result` convention).
+//!
+//! The syscall layer ([`sys`], design/base-as-a-package.md section 5):
+//! the one directory allowed to name an operating system entry point.
+//! It offers words and bytes with a `(result, errno)` convention, a
+//! `syscall`-instruction backend for Linux and a `libSystem` backend for
+//! Darwin, and an audit test that fails when a foreign declaration
+//! appears anywhere else in the crate. The platform, stack, heap, net
+//! and pseudo-terminal layers call it instead of declaring C symbols
+//! themselves; `std` stays in use for allocation, threads and mutexes.
 
 pub mod abi;
 pub mod block;
@@ -517,6 +526,7 @@ pub mod rc;
 pub mod string;
 pub mod stack;
 pub mod sym;
+pub mod sys;
 pub mod task;
 pub mod text;
 

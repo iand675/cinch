@@ -62,12 +62,13 @@
 //! `nm` by the tests below (the standing runtime rule).
 
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::net::TcpStream;
+use std::os::fd::AsRawFd;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-use crate::platform::{io_code, INVALID_ARGUMENT};
+use crate::platform::{io_code, io_code_errno, INVALID_ARGUMENT};
 
 /// The live sockets, by handle word.
 static SOCKETS: LazyLock<Mutex<BTreeMap<i64, TcpStream>>> =
@@ -136,6 +137,11 @@ pub unsafe extern "C" fn cinch_net_tcp_connect(host: i64, port: i64) -> i64 {
 /// stream failure. `max` is the allocation and the read cap, so a `max`
 /// outside `1..=i64::MAX` is `INVALID_ARGUMENT` and the caller's own
 /// buffer size bounds the allocation.
+///
+/// The call is `crate::sys::read` on the handle's descriptor, which is
+/// the one read a connected socket answers; a signal that arrived
+/// before any byte did is retried, so an interrupted read is never
+/// reported as an empty stream.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_net_read(h: i64, max: i64) -> i64 {
     let Ok(max) = usize::try_from(max) else {
@@ -144,16 +150,20 @@ pub unsafe extern "C" fn cinch_net_read(h: i64, max: i64) -> i64 {
     if max == 0 {
         return -INVALID_ARGUMENT;
     }
-    let Some(mut s) = dup(h) else {
+    let Some(s) = dup(h) else {
         return -INVALID_ARGUMENT;
     };
     let mut buf = vec![0u8; max];
-    match s.read(&mut buf) {
-        Ok(n) => {
-            buf.truncate(n);
-            crate::abi::box_bytes(crate::bytes::Bytes::from(buf))
+    loop {
+        let (n, err) = crate::sys::read(s.as_raw_fd() as i64, &mut buf);
+        if n >= 0 {
+            buf.truncate(n as usize);
+            return crate::abi::box_bytes(crate::bytes::Bytes::from(buf));
         }
-        Err(e) => -io_code(&e),
+        if err == crate::sys::EINTR {
+            continue;
+        }
+        return -io_code_errno(err);
     }
 }
 
@@ -214,6 +224,8 @@ pub unsafe extern "C" fn cinch_net_resolve(host: i64, port: i64) -> i64 {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Read;
+
     use super::*;
 
     /// One `Bytes` word holding `s`'s bytes.

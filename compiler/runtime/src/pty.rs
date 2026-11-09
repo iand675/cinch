@@ -47,11 +47,11 @@
 //! # Library requirement
 //!
 //! Every call the pair needs (`posix_openpt`, `grantpt`, `unlockpt`,
-//! `ptsname_r` and `open`) is in the C library on both platforms:
+//! `ptsname`, `open` and `ioctl`) is in the C library on both platforms:
 //! libSystem on Darwin and the C library itself on Linux, whichever
 //! glibc generation provides. No extra library is required on either
 //! platform, and no library of the `libutil` kind is needed here, so
-//! the extern block carries no link attribute and the driver passes no
+//! `crate::sys` carries no link attribute and the driver passes no
 //! extra link flag.
 //!
 //! # Named refusals (boundaries this module does not cross)
@@ -80,29 +80,13 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-use crate::platform::{exit_code, io_code, INVALID_ARGUMENT};
+use crate::platform::{exit_code, io_code, io_code_errno, INVALID_ARGUMENT};
 
-// The POSIX pseudo-terminal calls and the control call this module
-// needs. Each of them is in the C library on both platforms (the module
-// header's library note), so the block carries no link attribute;
-// `ioctl` carries the `TIOCSWINSZ` window-size request.
-unsafe extern "C" {
-    // Allocate the master end of a pseudo-terminal pair (a descriptor,
-    // or -1 with `errno` set) and leave the pair's slave locked.
-    fn posix_openpt(flags: i32) -> RawFd;
-    // Give the pair's slave to this user with the mode a terminal needs.
-    fn grantpt(master: RawFd) -> i32;
-    // Clear the slave's lock, so the path below can be opened.
-    fn unlockpt(master: RawFd) -> i32;
-    // Write the slave's device path into `buf` (`buf_len` counts the
-    // NUL): 0, or the error number / -1 with `errno` set per platform.
-    fn ptsname_r(master: RawFd, buf: *mut u8, buf_len: usize) -> i32;
-    // Open a device node by path (`flags`, and a mode only with
-    // `O_CREAT`): a descriptor, or -1 with `errno` set.
-    fn open(path: *const std::ffi::c_char, flags: i32, ...) -> RawFd;
-    // The terminal control call (`TIOCSWINSZ`).
-    fn ioctl(fd: RawFd, request: u64, ...) -> i32;
-}
+// The pair's calls are [`crate::sys`]'s: `posix_openpt`, `grantpt`,
+// `unlockpt`, `ptsname`, `open` and `ioctl` all live in that layer, so
+// this module names no foreign symbol. The `winsize` shape below stays
+// here because it is the argument the control call carries, not an
+// entry point.
 
 /// The open flags both ends of the pair are opened with: read/write,
 /// no controlling terminal (the pair is not this process's own).
@@ -114,9 +98,10 @@ const O_NOCTTY: i32 = 0o400;
 #[cfg(not(target_os = "linux"))]
 const O_NOCTTY: i32 = 0x2_0000;
 
-/// `ERANGE`, what `ptsname_r` answers a buffer too small to hold the
+/// `ERANGE`, what `ptsname` answers a buffer too small to hold the
 /// slave's path: 34 on both platforms, fixed by the ABI, never derived.
-const ERANGE: i32 = 34;
+/// The width is [`crate::sys`]'s error number (`i64`).
+const ERANGE: i64 = 34;
 
 /// `TIOCSWINSZ` per platform: both are `_IOW('t', 103, struct winsize)`
 /// and the value is fixed by the ABI, never derived.
@@ -166,36 +151,24 @@ fn master_dup(h: i64) -> Option<OwnedFd> {
     table().get(&h).and_then(|e| e.master.try_clone().ok())
 }
 
-/// The slave's device path for a master, from `ptsname_r`: the slave's
-/// name is bounded (`/dev/pts/NNN` on Linux, `/dev/ttysNNN` on Darwin),
-/// so a fixed generous buffer holds it, and the second attempt covers
-/// the `ERANGE` answer a short buffer would give.
-fn slave_path(master: RawFd) -> std::io::Result<std::ffi::CString> {
+/// The slave's device path for a master, from `crate::sys::ptsname`:
+/// the slave's name is bounded (`/dev/pts/NNN` on Linux, `/dev/ttysNNN`
+/// on Darwin), so a fixed generous buffer holds it, and the second
+/// attempt covers the `ERANGE` answer a short buffer would give. The
+/// answer is the path bytes without a NUL.
+fn slave_path(master: RawFd) -> Result<Vec<u8>, i64> {
     let mut buf = vec![0u8; 128];
     loop {
-        let r = unsafe { ptsname_r(master, buf.as_mut_ptr(), buf.len()) };
+        let (r, err) = crate::sys::ptsname(master as i64, &mut buf);
         if r == 0 {
             let len = buf.iter().position(|b| *b == 0).unwrap_or(buf.len());
-            return std::ffi::CString::new(&buf[..len]).map_err(|_| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "the slave's path carries a NUL before its end",
-                )
-            });
+            return Ok(buf[..len].to_vec());
         }
-        // glibc answers the error number itself; Darwin answers -1 and
-        // sets `errno`. Both are read here, and `ERANGE` retries once
-        // at a larger size before the failure is reported.
-        let err = if r > 0 {
-            r
-        } else {
-            std::io::Error::last_os_error().raw_os_error().unwrap_or(r)
-        };
         if err == ERANGE && buf.len() < 1024 {
             buf.resize(buf.len() * 4, 0);
             continue;
         }
-        return Err(std::io::Error::from_raw_os_error(err));
+        return Err(err);
     }
 }
 
@@ -214,30 +187,32 @@ pub unsafe extern "C" fn cinch_pty_open() -> i64 {
     // The master end. `O_NOCTTY` keeps the pair from becoming this
     // process's controlling terminal. The descriptor is taken into an
     // `OwnedFd` at once, so every failure below closes it.
-    let master = unsafe { posix_openpt(O_RDWR | O_NOCTTY) };
+    let (master, err) = unsafe { crate::sys::posix_openpt(O_RDWR | O_NOCTTY) };
     if master < 0 {
-        return -io_code(&std::io::Error::last_os_error());
+        return -io_code_errno(err);
     }
-    let master = unsafe { OwnedFd::from_raw_fd(master) };
+    let master = unsafe { OwnedFd::from_raw_fd(master as RawFd) };
     // `grantpt` gives the slave to this user with a terminal's mode,
     // and `unlockpt` clears its lock so the path can be opened.
-    if unsafe { grantpt(master.as_raw_fd()) } != 0 {
-        return -io_code(&std::io::Error::last_os_error());
+    let (r, err) = unsafe { crate::sys::grantpt(i64::from(master.as_raw_fd())) };
+    if r != 0 {
+        return -io_code_errno(err);
     }
-    if unsafe { unlockpt(master.as_raw_fd()) } != 0 {
-        return -io_code(&std::io::Error::last_os_error());
+    let (r, err) = unsafe { crate::sys::unlockpt(i64::from(master.as_raw_fd())) };
+    if r != 0 {
+        return -io_code_errno(err);
     }
     let path = match slave_path(master.as_raw_fd()) {
         Ok(path) => path,
-        Err(e) => return -io_code(&e),
+        Err(err) => return -io_code_errno(err),
     };
     // The slave end, opened the way the pair's own allocation opens it:
     // the path's device node, read/write, no controlling terminal.
-    let slave = unsafe { open(path.as_ptr(), O_RDWR | O_NOCTTY) };
+    let (slave, err) = crate::sys::open(&path, O_RDWR | O_NOCTTY);
     if slave < 0 {
-        return -io_code(&std::io::Error::last_os_error());
+        return -io_code_errno(err);
     }
-    let slave = unsafe { OwnedFd::from_raw_fd(slave) };
+    let slave = unsafe { OwnedFd::from_raw_fd(slave as RawFd) };
     let h = NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     table().insert(
         h,
@@ -423,11 +398,15 @@ pub unsafe extern "C" fn cinch_pty_resize(h: i64, cols: i64, rows: i64) -> i64 {
         ws_xpixel: 0,
         ws_ypixel: 0,
     };
-    let r = unsafe { ioctl(e.master.as_raw_fd(), TIOCSWINSZ, &ws as *const Winsize) };
+    let (r, err) = crate::sys::ioctl(
+        i64::from(e.master.as_raw_fd()),
+        TIOCSWINSZ,
+        (&ws as *const Winsize).cast(),
+    );
     if r == 0 {
         0
     } else {
-        -io_code(&std::io::Error::last_os_error())
+        -io_code_errno(err)
     }
 }
 

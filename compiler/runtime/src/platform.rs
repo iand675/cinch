@@ -120,6 +120,23 @@ pub(crate) fn io_code(e: &std::io::Error) -> i64 {
     }
 }
 
+/// Map a platform error number (the `errno` half of a [`crate::sys`]
+/// answer) to the named code. The six numbers below are fixed by POSIX
+/// and identical on Linux and Darwin, so this map needs no per-target
+/// table; anything else is `IO_ERROR`, which is what the `std::io` map
+/// above answers for a kind it does not name.
+pub(crate) fn io_code_errno(errno: i64) -> i64 {
+    match errno {
+        2 => NOT_FOUND,
+        13 => PERMISSION_DENIED,
+        17 => ALREADY_EXISTS,
+        20 => NOT_A_DIRECTORY,
+        21 => IS_A_DIRECTORY,
+        22 => INVALID_ARGUMENT,
+        _ => IO_ERROR,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Word buffers
 // ---------------------------------------------------------------------------
@@ -233,18 +250,56 @@ pub extern "C" fn cinch_clock_wall_ns() -> i64 {
 
 /// Read the file at `path` into `out` (replacing its contents): 0, or
 /// the negated error code.
+///
+/// The read goes through [`crate::sys`]: `open`, then `read` until the
+/// kernel answers 0, then `close`. The content is what the reads
+/// returned, so no metadata call decides a buffer size (a file that
+/// changes while it is read is still read to its end).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_fs_read(path: i64, out: i64) -> i64 {
     let (Some(p), Some(o)) = (unsafe { buf_path(path) }, unsafe { buf(out) }) else {
         return -INVALID_ARGUMENT;
     };
-    match std::fs::read(&p) {
+    match read_file(&p) {
         Ok(bytes) => {
             *o = bytes;
             0
         }
-        Err(e) => -io_code(&e),
+        Err(code) => -code,
     }
+}
+
+/// The whole file at `path`, or the named error code.
+fn read_file(path: &std::path::Path) -> Result<Vec<u8>, i64> {
+    use std::os::unix::ffi::OsStrExt;
+
+    let (fd, err) = crate::sys::open_read(path.as_os_str().as_bytes());
+    if fd < 0 {
+        return Err(io_code_errno(err));
+    }
+    let mut out: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 16 << 10];
+    let result = loop {
+        let (n, err) = crate::sys::read(fd, &mut chunk);
+        if n == 0 {
+            break Ok(());
+        }
+        if n < 0 {
+            // A signal that arrived before any byte did: the read never
+            // happened, so it is retried rather than reported.
+            if err == crate::sys::EINTR {
+                continue;
+            }
+            break Err(io_code_errno(err));
+        }
+        out.extend_from_slice(&chunk[..n as usize]);
+    };
+    // The descriptor is closed whatever the reads did. A close that
+    // fails has nothing to report: the content is already decided, and
+    // retrying a close is the one thing that must not happen (the
+    // descriptor may be gone already).
+    crate::sys::close(fd);
+    result.map(|()| out)
 }
 
 /// Write `data` to the file at `path`, creating or truncating it: 0,
@@ -443,20 +498,16 @@ pub extern "C" fn cinch_random_bytes(n: i64) -> i64 {
 // Signals
 // ---------------------------------------------------------------------------
 
-unsafe extern "C" {
-    /// POSIX `kill(2)` (the signal numbers are the platform's).
-    fn kill(pid: i32, sig: i32) -> i32;
-}
-
 /// Send signal `sig` (a POSIX signal number) to process `pid`: the raw
 /// `kill` result (0, or -1 on failure), which the Cinch side maps to its
 /// named error. A `pid` outside the `i32` range is `InvalidArgument`.
+/// The call itself is `crate::sys::kill`.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_signal_send(pid: i64, sig: i64) -> i64 {
     let (Ok(pid), Ok(sig)) = (i32::try_from(pid), i32::try_from(sig)) else {
         return -INVALID_ARGUMENT;
     };
-    i64::from(unsafe { kill(pid, sig) })
+    crate::sys::kill(i64::from(pid), i64::from(sig)).0
 }
 
 // ---------------------------------------------------------------------------

@@ -76,17 +76,11 @@ struct Config {
     leak_check: bool,
 }
 
-unsafe extern "C" {
-    fn getenv(name: *const std::ffi::c_char) -> *const std::ffi::c_char;
-    fn atexit(f: extern "C" fn()) -> i32;
-    fn write(fd: i32, buf: *const u8, n: usize) -> isize;
-}
-
-/// The environment, read through `getenv` so initialisation never
-/// allocates (it runs inside the allocator).
+/// The environment, read through `crate::sys::getenv` so
+/// initialisation never allocates (it runs inside the allocator).
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     if env_bytes(c"CINCH_ALLOC_STATS") == Some(b"1") {
-        unsafe { atexit(print_stats) };
+        crate::sys::atexit(print_stats);
     }
     let limit = configured_limit(env_bytes(c"CINCH_HEAP_LIMIT"));
     Config {
@@ -128,13 +122,12 @@ pub fn leak_check() -> bool {
     CONFIG.leak_check
 }
 
+/// An environment entry's bytes, or `None` when it is unset. The C
+/// string is only the caller's spelling: the read itself is
+/// `crate::sys::getenv`, and the answer borrows the environment block,
+/// so it allocates nothing.
 pub(crate) fn env_bytes(name: &std::ffi::CStr) -> Option<&'static [u8]> {
-    let p = unsafe { getenv(name.as_ptr()) };
-    if p.is_null() {
-        None
-    } else {
-        Some(unsafe { std::ffi::CStr::from_ptr(p) }.to_bytes())
-    }
+    crate::sys::getenv(name.to_bytes())
 }
 
 /// Parse `<digits>[K|M|G]` (binary multiples, either case); also the
@@ -341,7 +334,7 @@ impl Line {
     pub(crate) fn flush(&self) {
         let mut off = 0;
         while off < self.len {
-            let n = unsafe { write(2, self.buf[off..].as_ptr(), self.len - off) };
+            let (n, _) = crate::sys::write(2, &self.buf[off..self.len]);
             if n <= 0 {
                 return;
             }
