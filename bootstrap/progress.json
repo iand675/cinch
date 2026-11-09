@@ -20975,7 +20975,7 @@
         "total": 20,
         "status": "passed",
         "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage3-task-capture-results.json"
       },
       {
         "title": "Build the pinned object with three additional HashMap variants",
@@ -20986,6 +20986,17 @@
         "failed": 0,
         "status": "passed",
         "phase": "The expanded object preserves all 55 base interfaces",
+        "evidence": null
+      },
+      {
+        "title": "Replay 113 original tests outside the Stage 3 matrix",
+        "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
+        "unit": "targets",
+        "total": 12,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
         "evidence": null
       },
       {
@@ -21057,5 +21068,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:31:22.446780+00:00"
+  "updatedAt": "2026-11-09T03:33:35.140432+00:00"
 }
