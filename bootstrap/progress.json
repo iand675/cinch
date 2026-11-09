@@ -21191,10 +21191,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 13,
+        "passed": 14,
         "failed": 9,
         "status": "running",
-        "phase": "Replay original lib_option_result target on Stage 3",
+        "phase": "Replay original lib_pty target on Stage 3",
         "evidence": null
       },
       {
@@ -21334,10 +21334,10 @@
         "source": "1d4c7bb058efd3a716136aaa7e1c850b205ef355fb7e658944dcdbaa0ade5680",
         "unit": "gates",
         "total": 3,
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "status": "running",
-        "phase": "Compare the original argument-scope input cannot erase function effects",
+        "phase": "Measure repeated checked contexts, trial 2",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:11:57.846881+00:00"
+  "updatedAt": "2026-11-09T07:13:00.446150+00:00"
 }
