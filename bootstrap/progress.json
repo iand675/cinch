@@ -20893,8 +20893,8 @@
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. check all guarded value escapes, the black hole and leak-free scope teardown",
-        "passed": 3,
+        "phase": "Isolated Stage 1 candidate. run all eleven original letrec cases",
+        "passed": 4,
         "total": 7,
         "failed": 0,
         "source": "cdc110397f33faba2725c7e09d786be01b4b64709f3f96315a91bebc39ad6fef",
@@ -21024,5 +21024,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:09:16.934198+00:00"
+  "updatedAt": "2026-11-09T03:10:40.515879+00:00"
 }
