@@ -21015,10 +21015,10 @@
         "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
         "unit": "checks",
         "total": 11,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 with checked equality methods",
+        "phase": "Replay all eight original class-law tests",
         "evidence": null
       },
       {
@@ -21079,5 +21079,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:41:10.993597+00:00"
+  "updatedAt": "2026-11-09T03:45:37.169299+00:00"
 }
