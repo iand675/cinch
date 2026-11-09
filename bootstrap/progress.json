@@ -20826,11 +20826,11 @@
       {
         "title": "Check rewrite equations against cited laws and record assumptions",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Isolated Stage 1 candidate. replay all eight original class-law tests",
-        "passed": 1,
+        "passed": 8,
         "total": 11,
-        "failed": 0,
+        "failed": 1,
         "source": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
         "evidence": null
       },
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:49:32.779273+00:00"
+  "updatedAt": "2026-11-09T00:50:35.748073+00:00"
 }
