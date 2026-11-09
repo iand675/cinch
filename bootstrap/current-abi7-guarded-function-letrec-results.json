@@ -1,0 +1,125 @@
+{
+  "cases": [
+    {
+      "name": "eager_call_cycle_is_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "eager_cycle_is_rejected_naming_the_variable",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_cycle_runs",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_value_cycle_is_accepted",
+      "status": "failed"
+    },
+    {
+      "name": "guarded_lambda_cycle_is_accepted",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_group_of_functions_and_values",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_local_function_recurses",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_mutual_recursion",
+      "status": "passed"
+    },
+    {
+      "name": "multi_binding_let_group",
+      "status": "passed"
+    },
+    {
+      "name": "nested_let_depth_limit_is_a_named_diagnostic",
+      "status": "passed"
+    },
+    {
+      "name": "value_knot_read_under_a_lambda_yields_the_value",
+      "status": "failed"
+    }
+  ],
+  "compiler_source_sha256": "61d1f429e526394d35fa36670f47bb977b69892342958d817043324aa262433a",
+  "controls": [
+    {
+      "exit_code": 42,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "forward",
+      "passed": true
+    },
+    {
+      "exit_code": 42,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "lambda-shadow",
+      "passed": true
+    },
+    {
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "eager-shadow",
+      "passed": true
+    },
+    {
+      "exit_code": 42,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "forward-call",
+      "passed": true
+    },
+    {
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "mutable-order",
+      "passed": true
+    },
+    {
+      "exit_code": 42,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "guarded-shared-capture",
+      "passed": true
+    }
+  ],
+  "full_goal_complete": false,
+  "interfaces_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
+  "invocation_receipts": {
+    "13784-0.json": "dd33e0a1bcf871d2e65b2d7888f969df6fff76ec462ccf36802552f11003c5da",
+    "13784-1.json": "a245235e5a0d4cfffcc7396745f91f7e4ebc8dc39bc9a0f4111cbb9fedee43e8",
+    "13784-10.json": "e6b82e4bf3be6be79b44f8c4ebd382d6e3570d39d83ab28873c891bc86c963c6",
+    "13784-11.json": "329dfbe2e3e03041d5529514b152c7e5bf82c0adf5fca722825b0b95a05a51aa",
+    "13784-12.json": "64106af824f2ee16ec234d7d7bd8fdec4275fdc19d83a34806fec951382f356a",
+    "13784-2.json": "74f7ec688326cbf7d28697b181daa514980fdb456286ca5102b8e30c3e61fce7",
+    "13784-3.json": "08276ec29ebf6046697f7dbe5e1cdb7787d3402cc0ebd46467c6566f97286c58",
+    "13784-4.json": "bc970156692c010c7e45e69fcb0f53b631b5ab24a57d5229454e09bf98753485",
+    "13784-5.json": "309a09ecaa4276e6b77733b2dfc59db98cf08e40fdb907331345f091e9d4a02e",
+    "13784-6.json": "ef954efe2913aaf0a3ed41d3404fc4bdecb836c4f42e25561a35ff2b2825ba74",
+    "13784-7.json": "1ccac898de84e7bdc1276fccda72f27a3b59719f28d480aeac515fac20e68560",
+    "13784-8.json": "b5afcbc92ffb9a3853ad679a0d2cab5ff0b14800d74ac4b21e64a441db499a2c",
+    "13784-9.json": "b88d32f3e3cdf2191efce185da886efa7b6545dff078969f59ed2a670284e1d0"
+  },
+  "log_sha256": "e9795dd8f14f25ce420c2efcfe3551b5cb90f7793120931ad7f7bbfe8cf9b52f",
+  "native_source_sha256": "77a6627bcc1d6f15e79e0967b2b4f797a24c7671c0cee8efcccb7d9463572708",
+  "object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+  "passed": 9,
+  "remaining": [
+    "region-scoped guarded value knots",
+    "constant-stack lowering",
+    "matching Stage 3 replay"
+  ],
+  "schema": 1,
+  "stage1": {
+    "compiler_sha256": "08b0e61af1abd019f60d86a2674aa275c76c100b821537512e2de9bf9dd12b91",
+    "name": "stage1",
+    "stage_receipt_sha256": "da8d71669dd41522085455bb4cc8705d2630214d498ab6900b870a0e5a2a1362",
+    "status": "passed"
+  },
+  "status": "audited-isolated-stage1-guarded-function-groups",
+  "test_binary_sha256": "4744da280247850d8ad5f27ef0b99b4e3ab9e27df215e95d9bbeb4cadfe76426",
+  "test_source_sha256": "74cadf6588ed19778c1b9348791fe18a89a0d7e3117b00f620f6ddd519a5ba71",
+  "total": 11,
+  "wrapper_sha256": "2aa6f441d98ad10eec3dee3f750e88f4adf3d646c0e9a21e38911a1594c6fc6c"
+}

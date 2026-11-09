@@ -190,6 +190,13 @@ leak-checked run passes thirteen, with the existing three-block
 guarded value knot still requiring region-scoped teardown.
 See [the Rust ordering audit](../bootstrap/current-native-letrec-initializer-order-results.json).
 
+The guarded-function Stage 1 passed nine of eleven original recursive
+binding cases. Self and mutual recursion, delayed function calls and the
+shared capture control ran without leaks. Forward bindings, eager cycle
+refusals and the nested let depth limit also passed. Both remaining cases
+require region-scoped value knots. Constant-stack lowering has a
+separate validation. See [the recursive function audit](../bootstrap/current-abi7-guarded-function-letrec-results.json).
+
 An isolated Cinch Stage 1 now passes all twenty original concurrency
 cases through the standard test harness. The checker follows a moved
 nominal wrapper's instantiated fields to the borrowed referent. The
