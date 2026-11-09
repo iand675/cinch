@@ -1,0 +1,88 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiled_provider_boundary_verified": false,
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-merged-stage3-codata",
+  "targets": {
+    "codata": {
+      "cases": [
+        {
+          "name": "acceptance_example_04_productive_stream_checks",
+          "status": "passed"
+        },
+        {
+          "name": "codata_is_observed_not_destructured",
+          "status": "passed"
+        },
+        {
+          "name": "codata_keeps_thunk_and_memo_discipline",
+          "status": "passed"
+        },
+        {
+          "name": "corec_needs_an_observation_layer_per_step",
+          "status": "passed"
+        },
+        {
+          "name": "corec_stream_observes_head_and_tail",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_and_force_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "later_is_not_interchangeable_with_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "later_must_not_be_an_unrestricted_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "unproductive_corec_is_rejected_naming_the_call",
+          "status": "passed"
+        },
+        {
+          "name": "unrestricted_filter_loses_productivity",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "77414-0.json": "779b7e4c0a5b2c194eee06932b39b19f3ddd7be8ff9468cfc4a975658e2723aa",
+        "77414-1.json": "2a9a01b65dfbb6a57f6695755e198942b10c836735b967cb30e501e72fed49b2",
+        "77414-10.json": "1f4af47eb756b04c74dcbcb1d1c1ed03109a53dcf86b65c2f3bff59393dfd8fb",
+        "77414-11.json": "ba805d36992f531ab430169a66340176f031351937de0aa895cd03fb65d3a05e",
+        "77414-12.json": "e9cbda886ec0536c9bca592bd77c1ac44085d8e8cbae9584085f89a04ee6dd06",
+        "77414-13.json": "2e35fd317b40f2cb82ca33540b9d3b7b760fbed4f49d8575b9b35945a94b64f2",
+        "77414-14.json": "b999ce7fa93fc49089d68c49ccf697f5d9144f7016aedfb56d47e6e60a8fa63c",
+        "77414-15.json": "b363e5b315497e9b8a7f5ea898a28f5d69c59000e8f410a62cf2e03f9408c949",
+        "77414-16.json": "631fb1bedcaa57fcd6a9532026a5dd20b2def2e674f8be759198d8d0c2b899fc",
+        "77414-17.json": "4273e739fd5cb3da4ac48b25648b1e5475bdea2ae67748c189cc5a47054171b6",
+        "77414-18.json": "c5119bd75535bb523cdf995fa7a7309eafcf9c44a2e629f482d2e9e821b837fa",
+        "77414-19.json": "4e311d4a9d75084a5e3cdff6393f8e4b6f21925855a1975986ab7630d492d26a",
+        "77414-2.json": "48ac2f3d7524a0782767b97c60f480ee850e068f13c072b8c6ca3fc913efd5cd",
+        "77414-20.json": "e388c7aabb2cccb6baa6b3017136799830f5e611eeb7170652c801f01d179ec3",
+        "77414-21.json": "12068a97688c62c2f2da36d946d679c5b1f058038e977184082be39c2762bd68",
+        "77414-3.json": "8066b25f60a2faf17c4827b0e7ad1fed596f4b9fa6c45d35260d35884f054e9a",
+        "77414-4.json": "96dd3bbff1900fc23511a53719d3bc14b15603c73282292879d63c96d6ea0797",
+        "77414-5.json": "8943f3709db6e5322e0b199e7018658a897130dd9d2681ddfe19ba6574c20fa9",
+        "77414-6.json": "9ed62ae080f9a5947a1629862344ffe53d6590f8b34a8714c1b1318a5d5b2a1c",
+        "77414-7.json": "1079d9cd2f787d2c5997ebbffacfb4a8fcb782a1510de525a8c29d56da824061",
+        "77414-8.json": "1d06c0baafb6fb08a2d7debe3f66bcd4df3b5b4e861aa60c9df7b36e6f8ddce5",
+        "77414-9.json": "27189eb056e842569908ff49654834d1ec8527c48add5b3ebad510c7db271b8f"
+      },
+      "log_sha256": "901dbd16c021172823eee7353fc07ade67a2996a529168a5520861f587cba985",
+      "passed": 10,
+      "test_source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+      "total": 10
+    }
+  }
+}

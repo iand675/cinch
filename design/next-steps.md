@@ -129,6 +129,22 @@ See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-law
 [the Stage 3 agreement audit](../bootstrap/current-abi7-codata-index-stage3-agreement.json),
 and [the changed-source audit](../bootstrap/current-abi7-codata-index-fixed-point.json).
 
+All ten original codata source cases passed on the merged Stage 3.
+The audit records 22 selected-compiler invocations.
+See [the merged codata replay](../bootstrap/current-abi7-codata-index-stage3-codata.json).
+
+All three original byte-observation tests passed on the preceding
+combined Stage 3, including input scope, the declared primitive
+identity, and an imported observation renamed by a facade.
+See [the byte-observation audit](../bootstrap/current-abi7-combined-stage3-byte-observations.json).
+
+The open-effect-row candidate passed its six checks. Rust exported
+row-polymorphic sequencing methods. The Cinch-built object retained
+its row tail and a source-free client ran with zero leaks. A pure
+caller requiring `Blocking` was refused. The patch has been merged
+into a separate copy of the new fixed point for a matching replay.
+See [the open-effect-row audit](../bootstrap/current-abi7-open-effect-row-contracts.json).
+
 The coverage audit assigns 162 targets to the Stage 3 matrix, 41 to
 supplemental Stage 3 runs, one to the small-stack tail-call run,
 and two to reviewed Rust harness checks. The supplemental runs
