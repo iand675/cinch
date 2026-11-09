@@ -58,6 +58,12 @@ target API. The runtime checks include zero-leak array, tensor and
 columnar controls and three refusals for mismatched nominal layouts.
 See [the array replay audit](../bootstrap/current-abi7-combined-stage3-arrays.json).
 
+The original abstract `NonZero` method target passed. The combined Stage 3
+built the actual Cinch consumer of Rust-produced arithmetic interfaces.
+That consumer passed 17 controls for generic Div and Rem, their Nat
+specializations, effect and carrier boundaries, and zero divisors.
+See [the abstract method replay audit](../bootstrap/current-abi7-combined-stage3-abstract-nonzero-methods.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.

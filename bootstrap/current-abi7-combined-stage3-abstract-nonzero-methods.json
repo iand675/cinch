@@ -1,0 +1,49 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-abstract-nonzero-methods",
+  "targets": {
+    "bootstrap_abstract_nonzero_methods": {
+      "cases": [
+        {
+          "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
+          "status": "passed"
+        }
+      ],
+      "cinch_consumer_controls": [
+        "generic refined identity",
+        "generic Div given",
+        "generic Rem given",
+        "expected generic result checks first literal",
+        "expected generic curried result",
+        "expected higher order result",
+        "explicit Int argument cannot become Nat",
+        "expected result retains effects",
+        "expected result cannot erase effects",
+        "Nat Div specialization",
+        "Nat Rem specialization",
+        "Nat Div rejects zero",
+        "Nat Rem rejects zero",
+        "abstract carrier grants no Nat facts",
+        "abstract carrier identities stay distinct",
+        "float carrier remains refused",
+        "Bool carrier remains refused"
+      ],
+      "failed": 0,
+      "invocations": {
+        "19193-0.json": "9d57c8d305ad075690417468a28cfbd944edd5364bacb6e9358a79d5eab49499"
+      },
+      "log_sha256": "2be39abc4a748f73c03a59dded704e3f22b3379ee8a9887e4679d907122e7a78",
+      "passed": 1,
+      "test_source_sha256": "898e52403b8a5546ebb50c9dd15ad1e01ecbf0515b066021afba8e4e06b75f69",
+      "total": 1
+    }
+  }
+}
