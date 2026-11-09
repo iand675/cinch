@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
-  "activity": "The integrated candidate 3 passed the changed-source check. 15/110 Cinch Stage 3 targets passed and 27/236 Rust targets passed. Newer candidates have separate rebuilds.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 15/110 Cinch Stage 3 targets passed and 28/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17920,10 +17920,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 7,
-        "passed": 3,
+        "passed": 4,
         "failed": 0,
         "status": "running",
-        "phase": "Check default public exports for erased equality methods",
+        "phase": "Build combined Stage 2",
         "evidence": null
       },
       {
@@ -17952,11 +17952,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate 3",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 27,
+        "passed": 28,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_buffer_aliases",
+        "phase": "bootstrap_byte_observations",
         "evidence": null
       },
       {
@@ -21006,7 +21006,7 @@
         "total": 236,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-combined-law-gate",
+        "status": "waiting-worker",
         "phase": "Wait for the combined Stage 1 law and export checks",
         "evidence": null
       },
@@ -21178,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:41:04.084062+00:00"
+  "updatedAt": "2026-11-09T04:42:06.673175+00:00"
 }
