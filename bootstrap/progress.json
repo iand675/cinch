@@ -21533,9 +21533,9 @@
         "unit": "checks",
         "total": 3,
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Run the original hk target through the symbol-literal Stage 1",
+        "phase": "Run the original sym target through the symbol-literal Stage 1",
         "evidence": null
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:17:28.815299+00:00"
+  "updatedAt": "2026-11-09T08:18:32.078734+00:00"
 }
