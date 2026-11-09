@@ -15836,9 +15836,9 @@
         "unit": "gates",
         "total": 3,
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay the original letrec tests on Stage 1 and the current pinned provider",
+        "phase": "Replay the original concurrency tests on Stage 1 and the current pinned provider",
         "evidence": null
       },
       {
@@ -16064,5 +16064,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:57:27.104696+00:00"
+  "updatedAt": "2026-11-09T11:58:30.578255+00:00"
 }
