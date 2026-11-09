@@ -21082,9 +21082,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 8,
+        "failed": 9,
         "status": "running",
-        "phase": "Replay original safe_bytes target on Stage 3",
+        "phase": "Replay original safe_division target on Stage 3",
         "evidence": null
       },
       {
@@ -21310,5 +21310,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:14:28.796725+00:00"
+  "updatedAt": "2026-11-09T06:15:32.195365+00:00"
 }
