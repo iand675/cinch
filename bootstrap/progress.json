@@ -17920,10 +17920,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "gates",
         "total": 8,
-        "passed": 3,
+        "passed": 4,
         "failed": 0,
         "status": "running",
-        "phase": "Replay the eight original laws on Stage 1",
+        "phase": "Check default public exports for erased equality methods",
         "evidence": null
       },
       {
@@ -21213,10 +21213,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "status": "running",
-        "phase": "integration",
+        "phase": "ownership",
         "evidence": null
       },
       {
@@ -21541,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:51:35.982839+00:00"
+  "updatedAt": "2026-11-09T07:52:39.295748+00:00"
 }
