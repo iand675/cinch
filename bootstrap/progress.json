@@ -5076,6 +5076,22 @@
                 },
                 {
                   "name": "letrec_strict_forward_dependencies_run",
+                  "status": "failed"
+                },
+                {
+                  "name": "multi_binding_let_group",
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_let_depth_limit_is_a_named_diagnostic",
+                  "status": "passed"
+                },
+                {
+                  "name": "reading_a_knot_while_it_initializes_faults",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursive_value_cannot_escape_its_region",
                   "status": "running"
                 }
               ]
@@ -13510,8 +13526,8 @@
         "total": 5,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "superseded-before-build",
+        "phase": "The queued widening controls moved to the combined covariance run.",
         "evidence": null
       },
       {
@@ -13671,5 +13687,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:09:18.001044+00:00"
+  "updatedAt": "2026-11-09T09:10:21.294094+00:00"
 }
