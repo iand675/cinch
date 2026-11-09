@@ -627,9 +627,7 @@ module Main where
 fn conditional_only_prims_reject_naming_the_missing_platform() {
     // The reject-or-select rule (section 13): a conditional-only prim
     // whose conditions do not match rejects, naming the platform.
-    expect_err(
-        "pop-missing",
-        r#"
+    let source = r#"
 module Main where
   prim pop :: U32 -> U32 where
     unsafe asm {
@@ -638,7 +636,14 @@ module Main where
 
   main :: Int
   main = 0
-"#,
-        "arch x86_64",
-    );
+"#;
+    let mut profile = TargetProfile::native();
+    profile.triple = "aarch64-unknown-linux-gnu".to_string();
+    let diagnostic = check_sources_profile(source, "pop-missing", &profile)
+        .expect_err("the only primitive body requires x86_64");
+    assert!(diagnostic.to_string().contains("arch x86_64"), "{diagnostic}");
+
+    profile.triple = "x86_64-unknown-linux-gnu".to_string();
+    check_sources_profile(source, "pop-present", &profile)
+        .expect("the same primitive has a body on x86_64");
 }
