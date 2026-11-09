@@ -10070,6 +10070,26 @@
                 },
                 {
                   "name": "generated_data_headers_keep_portable_definition_site_owners",
+                  "status": "passed"
+                },
+                {
+                  "name": "generated_header_deferral_does_not_admit_missing_names_or_bad_bodies",
+                  "status": "failed"
+                },
+                {
+                  "name": "generated_header_deferral_keeps_private_names_and_validates_final_exports",
+                  "status": "failed"
+                },
+                {
+                  "name": "generated_nominal_headers_participate_in_staging_cycle_detection",
+                  "status": "failed"
+                },
+                {
+                  "name": "generated_nominal_names_and_constructors_reach_the_driver_manifest",
+                  "status": "failed"
+                },
+                {
+                  "name": "generated_types_keep_export_and_import_ownership",
                   "status": "running"
                 }
               ]
@@ -14472,5 +14492,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:00:36.026786+00:00"
+  "updatedAt": "2026-11-09T10:01:39.260768+00:00"
 }
