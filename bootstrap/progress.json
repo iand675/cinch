@@ -21060,9 +21060,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 6,
+        "failed": 7,
         "status": "running",
-        "phase": "Replay original proof_value_identity target on Stage 3",
+        "phase": "Replay original range_facts target on Stage 3",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:05:11.145842+00:00"
+  "updatedAt": "2026-11-09T06:06:56.464235+00:00"
 }
