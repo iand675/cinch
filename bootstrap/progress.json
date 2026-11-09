@@ -20892,8 +20892,8 @@
       {
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
-        "status": "waiting-worker",
-        "phase": "Queued for a shared worker to build Stage 1 with recursive local scope and guard checking.",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
         "passed": 1,
         "total": 7,
         "failed": 0,
@@ -20972,9 +20972,9 @@
         "unit": "targets",
         "total": 1,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build and run Rust letrec with leak checking",
+        "failed": 1,
+        "status": "failed",
+        "phase": "Rust scoped recursive value tests finished",
         "evidence": null
       },
       {
@@ -21024,5 +21024,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:47:47.209594+00:00"
+  "updatedAt": "2026-11-09T02:49:10.698185+00:00"
 }
