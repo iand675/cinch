@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | evolution",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10193,9 +10193,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 4,
+          "blocked": 5,
           "running": 1,
-          "pending": 39,
+          "pending": 38,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -10499,17 +10499,17 @@
           {
             "id": "additional:evolution",
             "title": "evolution",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "dfede7a57ad9f92d729efa8fdb3b8cb1352366067e0175d2ac58c9333c1e3b88",
               "cases": [
                 {
                   "name": "deopt_refuses_an_unbalanced_linear_transfer",
@@ -10557,7 +10557,7 @@
                 },
                 {
                   "name": "variants_install_retire_and_deopt_with_live_frames",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             }
@@ -10565,11 +10565,36 @@
           {
             "id": "additional:lattice",
             "title": "lattice",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "an_ordinary_source_length_cannot_replace_the_baked_measure",
+                  "status": "failed"
+                },
+                {
+                  "name": "ascription_weakens_implicitly_at_zero_cost",
+                  "status": "failed"
+                },
+                {
+                  "name": "baked_length_checks_polymorphic_list_operands_without_losing_the_carrier",
+                  "status": "failed"
+                },
+                {
+                  "name": "baked_length_keeps_list_and_byte_buffer_carriers_distinct",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:llvm_contract",
@@ -14554,9 +14579,9 @@
         "unit": "targets",
         "total": 3,
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay original evolution target on Stage 3",
+        "phase": "Replay original lattice target on Stage 3",
         "evidence": null
       },
       {
@@ -14903,9 +14928,9 @@
     ],
     "counts": {
       "verified": 307,
-      "blocked": 8,
+      "blocked": 9,
       "running": 4,
-      "pending": 466,
+      "pending": 465,
       "recheck": 21
     },
     "total": 806,
@@ -14914,5 +14939,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:44:17.405800+00:00"
+  "updatedAt": "2026-11-09T10:45:21.538101+00:00"
 }
