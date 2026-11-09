@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces",
+        "detail": "bootstrap_source_instances | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -9880,8 +9880,8 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 3,
-          "running": 1,
+          "blocked": 4,
+          "running": 0,
           "pending": 40,
           "recheck": 0
         },
@@ -10024,17 +10024,17 @@
           {
             "id": "additional:syntax_declarations",
             "title": "syntax_declarations",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "83fe36295dce393cfefe3d87005a63412fce18144fa3df69e7496960f9b66c1f",
               "cases": [
                 {
                   "name": "declaration_generation_keeps_stage_and_macro_phase_barriers_under_attributes",
@@ -10130,7 +10130,19 @@
                 },
                 {
                   "name": "native_record_fields_still_check_duplicates_and_requested_names",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "ordinary_headers_before_generators_can_name_generated_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "ordinary_headers_can_name_generated_record_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "unbound_native_field_types_stay_unbound_when_delivered",
+                  "status": "failed"
                 }
               ]
             }
@@ -14161,9 +14173,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 3,
-        "status": "running",
-        "phase": "Replay original syntax_declarations target on Stage 3",
+        "failed": 4,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 4 passed, 43 failed.",
         "evidence": null
       },
       {
@@ -14272,8 +14284,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build the Rust provider from the frozen dependency graph",
         "evidence": null
       },
       {
@@ -14380,10 +14392,10 @@
         "source": "0b0db91f5740af008abeeef7fecc97076ed74d3406177ace5cd922827db1abd4",
         "unit": "gates",
         "total": 6,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "phase": "Check scalar projection bounds and the private proof boundary",
         "evidence": null
       },
       {
@@ -14521,8 +14533,8 @@
     ],
     "counts": {
       "verified": 298,
-      "blocked": 6,
-      "running": 4,
+      "blocked": 7,
+      "running": 3,
       "pending": 477,
       "recheck": 21
     },
@@ -14532,5 +14544,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:03:46.644901+00:00"
+  "updatedAt": "2026-11-09T10:04:49.405968+00:00"
 }
