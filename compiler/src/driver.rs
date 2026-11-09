@@ -1732,6 +1732,14 @@ fn load_project_for(entry_path: &Path, facts: &TargetFacts) -> Result<Project> {
             owner.insert(m.name.clone(), package.name.clone());
             exposed.insert(m.name.clone(), m.exposed);
         }
+        if matches!(package.prelude, PreludeSpec::None) {
+            // `prelude: none` is a decision per module, not the absence of
+            // one: recording it keeps the interface from claiming the
+            // default facade was imported when it was not.
+            for m in &package.modules {
+                module_preludes.insert(m.name.clone(), String::new());
+            }
+        }
         if let PreludeSpec::Module(prelude) = &package.prelude {
             // The injected module has to exist somewhere in the closure:
             // a package naming a prelude nobody declares would otherwise
@@ -3373,7 +3381,27 @@ pub fn driver_with_profile_opts(
         let key = file.display().to_string();
         if !parsed_by_file.contains_key(&key) {
             let src = &project.sources[&key];
-            let parsed = parse_source(src, &key, &prelude_fixities, &exported_fixities)?;
+            // A package that sets `prelude: none` parses its modules
+            // without the prelude's operator table, so `1 + 2` is refused
+            // instead of resolving through a fixity the module never
+            // imported (design/base-as-a-package.md section 3).
+            let no_prelude = project
+                .module_file
+                .iter()
+                .filter(|(_, owner)| owner.display().to_string() == key)
+                .all(|(module, _)| {
+                    project
+                        .module_preludes
+                        .get(module)
+                        .is_some_and(|prelude| prelude.is_empty())
+                })
+                && project
+                    .module_file
+                    .iter()
+                    .any(|(_, owner)| owner.display().to_string() == key);
+            let empty = FixityTable::default();
+            let base = if no_prelude { &empty } else { &prelude_fixities };
+            let parsed = parse_source(src, &key, base, &exported_fixities)?;
             for (m, f) in &parsed.fixities {
                 module_fixities.insert(m.clone(), f.clone());
             }

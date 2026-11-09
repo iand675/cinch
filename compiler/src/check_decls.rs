@@ -18404,6 +18404,9 @@ impl Checker {
         // (design/base-as-a-package.md section 3): an explicit setting in
         // that package's manifest wins over the compilation default.
         self.prelude_module = match self.module_preludes.get(module) {
+            // An empty name is `prelude: none`: nothing is injected, and
+            // the preregistered type names are all the module gets.
+            Some(named) if named.is_empty() => String::new(),
             // A prelude does not import itself, and it is written against
             // the default prelude so an author does not lose `+` and
             // friends while defining one.

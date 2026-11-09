@@ -179,3 +179,46 @@ fn two_paths_to_one_declaration_are_one_name() {
         "the plain two-module message keeps its shape: {err}"
     );
 }
+
+fn none_manifest(module: &str, path: &str) -> String {
+    format!(
+        r#"{{
+  "schema": 2,
+  "name": "acme/bare",
+  "version": "0.1.0",
+  "prelude": "none",
+  "modules": [ {{ "name": "{module}", "path": "{path}" }} ],
+  "order": ["{module}"]
+}}"#
+    )
+}
+
+#[test]
+fn prelude_none_leaves_the_preregistered_types_and_nothing_else() {
+    let dir = scratch("pkg-no-prelude-bare");
+    write(
+        &dir,
+        &[
+            (".cinchpkg", none_manifest("Bare", "Bare.cinch").as_str()),
+            (
+                "Bare.cinch",
+                "module Bare where\n\n  answer :: Int\n  answer = 42\n",
+            ),
+        ],
+    );
+    check(&dir, "Bare.cinch").expect("a signature and a literal need nothing injected");
+
+    let math = scratch("pkg-no-prelude-math");
+    write(
+        &math,
+        &[
+            (".cinchpkg", none_manifest("Math", "Math.cinch").as_str()),
+            (
+                "Math.cinch",
+                "module Math where\n\n  total :: Int\n  total = 1 + 2\n",
+            ),
+        ],
+    );
+    let err = check(&math, "Math.cinch").expect_err("no prelude means no operators");
+    assert!(err.contains('+'), "the refusal names the operator: {err}");
+}
