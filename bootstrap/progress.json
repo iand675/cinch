@@ -21092,10 +21092,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 2,
+        "passed": 3,
         "failed": 4,
         "status": "running",
-        "phase": "Replay original lib_char_tuple target on Stage 3",
+        "phase": "Replay original lib_civil_time target on Stage 3",
         "evidence": null
       },
       {
@@ -21193,8 +21193,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "superseded-before-build",
+        "phase": "Replaced by the expanded do local-group candidate.",
         "evidence": null
       },
       {
@@ -21310,5 +21310,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:15:32.195365+00:00"
+  "updatedAt": "2026-11-09T06:16:35.535220+00:00"
 }
