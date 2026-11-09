@@ -327,7 +327,7 @@ What exists today, measured:
 | Compiler primitive operations | 132 variants, 113 name arms | `PrimOp` in `compiler/src/core.rs`, lowered in `compiler/src/codegen.rs` |
 | Runtime exports | 187 `#[no_mangle]` functions | `compiler/runtime/src/*.rs`, mostly `abi.rs` |
 | Runtime symbols the prelude declares | 87 | `cinch.runtime.*` in `compiler/prelude/*/*.cinch` |
-| Machine scalar and float symbols the prelude declares | 831 names (families over 13 widths) | `cinch.prim.*` |
+| Machine scalar and float symbols the prelude declares | 830 names in 117 families, most of them ten widths each | `cinch.prim.*` |
 
 The mechanism works: a `prim` with an `unsafe llvm { ... }` body can carry inline assembly or any IR fragment, and containment records the trust as an assumption. Verified on the current compiler with a body whose IR is `call i64 asm sideeffect "mov $0, $1", "=r,r"(i64 %0)`: it checked, emitted, linked and ran. Linux syscalls want exactly that shape, with one body per architecture guarded by `when`, because the register names differ between `x86_64` and `aarch64`.
 
@@ -338,6 +338,8 @@ Three constraints decide the order:
 - **`cinch.runtime.*` is the other half.** Bignum `Nat`/`Int`, bytes, arrays, tasks, I/O and the fault path are Rust functions that the prelude declares. Moving them into Cinch prims means writing limb loops, allocation calls and scheduling in Cinch, on top of prims that reach the allocator.
 
 Order that keeps each step verifiable:
+
+The 830 names are 117 families repeated across widths (`bitAnd`, `checkedAdd`, `leadingZeros`, `checkedI8To`, and so on), so the migration is generated rather than hand written: one IR body template per family, specialised per width, then the family's `PrimOp` arm deleted. That is also why step 1 is worth doing first: it converts the largest surface with the least checker risk.
 
 1. **Surface-only machine ops.** The float operations and the machine conversions that no checker pass constructs are the easy majority: each becomes a `prim` with an `llvm` body over the canonical width, and its `PrimOp` variant and codegen arm are deleted. Oracle: `compiler/tests/primitives.rs`, the machine conversion suites, and an IR assertion per family.
 2. **Ops the checker folds.** Bool and comparison ops move once the totality checker folds prim bodies rather than variants, or once the internal node is kept and only the surface declaration changes. Oracle: the `safety` and `total` suites, which already assert folded proofs.
