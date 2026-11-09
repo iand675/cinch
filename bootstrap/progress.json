@@ -5135,10 +5135,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 27,
+          "verified": 28,
           "blocked": 2,
           "running": 1,
-          "pending": 132,
+          "pending": 131,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -6344,6 +6344,28 @@
           {
             "id": "stage3:bootstrap_effects",
             "title": "bootstrap_effects",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "2c0ec5f1c4212b0681ff9b58b968989da5e81cde21010aab67d3b8316c7588fa",
+              "cases": [
+                {
+                  "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:bootstrap_eval",
+            "title": "bootstrap_eval",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -6357,20 +6379,11 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "source_effects_and_lexical_io_capabilities_are_checked_in_cinch",
+                  "name": "the_oracle_evaluates_fib_and_refuses_by_name",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "stage3:bootstrap_eval",
-            "title": "bootstrap_eval",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_export_interfaces",
@@ -15553,10 +15566,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 27,
+        "passed": 28,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_effects with the combined Stage 3",
+        "phase": "Replay bootstrap_eval with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -16177,10 +16190,10 @@
       }
     ],
     "counts": {
-      "verified": 323,
+      "verified": 324,
       "blocked": 28,
       "running": 3,
-      "pending": 431,
+      "pending": 430,
       "recheck": 21
     },
     "total": 806,
@@ -16189,5 +16202,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:30:07.699134+00:00"
+  "updatedAt": "2026-11-09T12:33:33.034095+00:00"
 }
