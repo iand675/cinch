@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | evolution | lattice | llvm_contract",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | evolution | lattice | llvm_contract",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10223,9 +10223,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 8,
+          "blocked": 9,
           "running": 1,
-          "pending": 35,
+          "pending": 34,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -10607,17 +10607,17 @@
           {
             "id": "additional:refinements",
             "title": "refinements",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "858e8907b13de82c7d2abf94ec8eea999dbd9bac9ecbfb7d29103175c45a1c95",
               "cases": [
                 {
                   "name": "anonymous_byte_refinement_keeps_outer_telescope_values",
@@ -10713,7 +10713,19 @@
                 },
                 {
                   "name": "the_four_refinements_exist_with_their_constructors",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "total_constructor_returns_option",
+                  "status": "passed"
+                },
+                {
+                  "name": "unprovable_discharge_rejects_naming_it",
+                  "status": "failed"
+                },
+                {
+                  "name": "unprovable_transfers_report_not_checked_honestly",
+                  "status": "failed"
                 }
               ]
             }
@@ -10721,11 +10733,36 @@
           {
             "id": "additional:stage_code_expectations",
             "title": "stage_code_expectations",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "code_application_preserves_its_function_operands_expectation",
+                  "status": "failed"
+                },
+                {
+                  "name": "direct_and_explicit_declaration_controls_reject_duplicate_use",
+                  "status": "failed"
+                },
+                {
+                  "name": "generic_declaration_producers_cannot_freshen_an_int_caller_to_bool",
+                  "status": "failed"
+                },
+                {
+                  "name": "generic_declaration_producers_keep_the_bool_callers_type",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:sym",
@@ -14927,9 +14964,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original refinements target on Stage 3",
+        "phase": "Replay original stage_code_expectations target on Stage 3",
         "evidence": null
       },
       {
@@ -15309,9 +15346,9 @@
     ],
     "counts": {
       "verified": 309,
-      "blocked": 12,
+      "blocked": 13,
       "running": 4,
-      "pending": 460,
+      "pending": 459,
       "recheck": 21
     },
     "total": 806,
@@ -15320,5 +15357,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:04:21.930123+00:00"
+  "updatedAt": "2026-11-09T11:05:24.673543+00:00"
 }
