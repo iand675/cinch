@@ -350,6 +350,70 @@ fn modifier_name(tok: &Tok) -> Option<&'static str> {
     }
 }
 
+/// The head of a target-vocabulary atom as a term: a bare name, so
+/// `os darwin` reads as the application `os darwin` and the checker's
+/// shared reading recognises the atom (`Available`, `arch`, `os`, `libc`,
+/// `endian`, `word-size`, `target`, `not`).
+fn atom_head(head: &str, span: Span) -> Term {
+    Term::Var(VarPath { quals: Vec::new(), name: Name::new(head.to_string(), span) })
+}
+
+/// The index of the token that ends the `when` clause starting at `from`:
+/// a terminator (`;`, `}`, `justify`), a further clause keyword (`when`,
+/// `uses`, `immarg`), or the end of the stream. A clause spelling inside
+/// a predicate, such as `arch immarg`, is still an ordinary name, so the
+/// scan is only a candidate boundary and [`clause_term`] decides.
+fn clause_end(toks: &[Token], from: usize) -> usize {
+    for (i, token) in toks.iter().enumerate().skip(from) {
+        let boundary = match &token.tok {
+            Tok::Semicolon | Tok::RBrace | Tok::Eof | Tok::Justify => true,
+            Tok::VarId(word) => matches!(word.as_str(), "when" | "uses" | "immarg"),
+            _ => false,
+        };
+        if boundary {
+            return i;
+        }
+    }
+    toks.len()
+}
+
+/// The clause running from `from` to `end` as one atom application
+/// (`os linux`, `not (os darwin)`), over a copy of its tokens. `target` is
+/// a declaration keyword (`target rewrite`) and also the
+/// `when target <triple>` atom, so the keyword is read as the atom name
+/// here.
+fn clause_term(toks: &[Token], from: usize, end: usize, span: Span) -> Option<Term> {
+    let mut clause = toks[from..end.min(toks.len())].to_vec();
+    clause.push(Token { tok: Tok::Eof, span, virtual_: false });
+    for token in &mut clause {
+        if matches!(token.tok, Tok::Target) {
+            token.tok = Tok::VarId("target".to_string());
+        }
+    }
+    let mut parser = Parser::new(&clause);
+    match parser.parse_term() {
+        Ok(term)
+            if parser.at(&Tok::Eof)
+                && matches!(&term, Term::App(_, arguments, _) if arguments.len() == 1) =>
+        {
+            Some(term)
+        }
+        _ => None,
+    }
+}
+
+/// One `when` clause read straight from a token stream, for the module
+/// scanner: a file's imports are known before it parses, so the condition
+/// on an import is read here (`at` is the index of the `when` keyword) and
+/// the answer is the clause with the index of the token that ends it.
+/// `None` when the tokens are not one atom application; the parser reports
+/// that in full when it reaches the declaration.
+pub fn parse_when_clause(toks: &[Token], at: usize) -> Option<(Term, usize)> {
+    let span = toks.get(at)?.span;
+    let end = clause_end(toks, at + 1);
+    clause_term(toks, at + 1, end, span).map(|term| (term, end))
+}
+
 struct Parser<'a> {
     toks: &'a [Token],
     pos: usize,
@@ -375,6 +439,24 @@ impl<'a> Parser<'a> {
 
     fn at(&self, t: &Tok) -> bool {
         self.peek_tok() == t
+    }
+
+    /// Is the cursor on a `when` clause that opens a conditional
+    /// declaration (`when <atom> ... <declaration>`, modules specification
+    /// section 11)? `when` is contextual, so a declaration may still be
+    /// named `when`; the token after it decides: a clause always names an
+    /// atom of the target vocabulary, and nothing else follows `when` in
+    /// a declaration position.
+    fn at_when_clause(&self) -> bool {
+        let clause_atom = |t: Option<&Tok>| match t {
+            Some(Tok::VarId(w)) => matches!(
+                w.as_str(),
+                "arch" | "os" | "libc" | "endian" | "word-size" | "target" | "not"
+            ),
+            Some(Tok::ConId(w)) => w == "Available",
+            _ => false,
+        };
+        matches!(self.peek_tok(), Tok::VarId(w) if w == "when") && clause_atom(self.peek_tok_at(1))
     }
 
     fn bump(&mut self) -> Token {
@@ -545,6 +627,25 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_declaration(&mut self) -> Result<Decl> {
+        // `when <clause> ...` prefixes a declaration the target selects
+        // (modules specification section 11), exactly as attributes prefix
+        // the declaration they annotate. The clause is read as the atom it
+        // is, not as "the rest of the line", so `when os darwin x :: T`
+        // needs no separator between the clause and the declaration.
+        if self.at_when_clause() {
+            let mut when = Vec::new();
+            while self.at_when_clause() {
+                when.push(self.parse_declaration_atom()?);
+            }
+            let inner = self.parse_declaration()?;
+            if matches!(inner, Decl::Import(_) | Decl::ImportData(_)) {
+                return Err(Error::at(
+                    when[0].span(),
+                    "an import carries its `when` clause after the module path: `import X when <clause>` (modules specification section 11)",
+                ));
+            }
+            return Ok(Decl::Conditional { when, inner: Box::new(inner) });
+        }
         // `#[...]` attributes prefix the annotated declaration (attribute
         // annotations specification section 1.1).
         if matches!(self.peek_tok(), Tok::Attr { .. })
@@ -844,6 +945,71 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// One `when` clause in the position that prefixes a declaration
+    /// (`when <atom> <declaration>`, modules specification section 11).
+    /// The atom is read as exactly the tokens it has, so the declaration
+    /// that follows needs no separator: `when os darwin x :: T` is the
+    /// clause `os darwin` and the declaration `x :: T`. The shapes are the
+    /// same ones a `prim` body's clause takes, and the checker's shared
+    /// reading validates them.
+    fn parse_declaration_atom(&mut self) -> Result<Term> {
+        // The clause keyword itself.
+        self.bump();
+        self.parse_atom_term()
+    }
+
+    /// One atom of the target vocabulary, as a term: `<head> <argument>`
+    /// for the named atoms, `not (<atom>)` for a negation.
+    fn parse_atom_term(&mut self) -> Result<Term> {
+        let span = self.peek().span;
+        if matches!(self.peek_tok(), Tok::VarId(w) if w == "not") {
+            self.bump();
+            self.expect(&Tok::LParen, "`(` opening the negated atom")?;
+            let inner = self.parse_atom_term()?;
+            self.expect(&Tok::RParen, "`)` closing the negated atom")?;
+            return Ok(Term::App(Box::new(atom_head("not", span)), vec![inner], span));
+        }
+        let head = match self.peek_tok().clone() {
+            Tok::VarId(w) | Tok::ConId(w) => {
+                self.bump();
+                w
+            }
+            Tok::Target => {
+                // `target` is a declaration keyword as well as an atom
+                // head, so the clause reads the keyword as its own name.
+                self.bump();
+                "target".to_string()
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected a `when` atom (`Available`, `arch`, `os`, `libc`, `endian`, `word-size` or `target`), found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        let argument = match self.peek_tok().clone() {
+            Tok::Int(digits) if head == "word-size" => {
+                self.bump();
+                Term::Int(digits, span)
+            }
+            Tok::ConId(_) => {
+                let path = self.parse_con_path()?;
+                Term::Con(path)
+            }
+            Tok::VarId(w) if w != "when" => {
+                self.bump();
+                Term::Var(VarPath { quals: Vec::new(), name: Name::new(w, span) })
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the atom's argument after `{head}`, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        Ok(Term::App(Box::new(atom_head(&head, span)), vec![argument], span))
+    }
+
     /// One `when` clause: one atom, or `not (<atom>)`. A clause can be
     /// followed by a further clause (`when os linux when arch x86_64`)
     /// or by a contextual body clause, so the scan stops at the next
@@ -860,7 +1026,7 @@ impl<'a> Parser<'a> {
             if !boundary {
                 continue;
             }
-            if let Some(term) = self.parse_prim_clause(end, token.span) {
+            if let Some(term) = clause_term(self.toks, self.pos, end, token.span) {
                 self.pos = end;
                 return Ok(term);
             }
@@ -872,30 +1038,6 @@ impl<'a> Parser<'a> {
             }
         }
         self.parse_term()
-    }
-
-    /// Parse the clause running from the cursor to `end`, over a copy of
-    /// its tokens. `target` is a declaration keyword (`target rewrite`)
-    /// and also the `when target <triple>` atom, so the keyword is read
-    /// as the atom name here.
-    fn parse_prim_clause(&self, end: usize, span: Span) -> Option<Term> {
-        let mut clause = self.toks[self.pos..end].to_vec();
-        clause.push(Token { tok: Tok::Eof, span, virtual_: false });
-        for token in &mut clause {
-            if matches!(token.tok, Tok::Target) {
-                token.tok = Tok::VarId("target".to_string());
-            }
-        }
-        let mut parser = Parser::new(&clause);
-        match parser.parse_term() {
-            Ok(term)
-                if parser.at(&Tok::Eof)
-                    && matches!(&term, Term::App(_, arguments, _) if arguments.len() == 1) =>
-            {
-                Some(term)
-            }
-            _ => None,
-        }
     }
 
     /// `upgrade Old to New where { migrate = e; [related = e] }` and its
@@ -1420,7 +1562,22 @@ impl<'a> Parser<'a> {
                 "a member selection and a module alias cannot combine: `import X (a as b)` selects members under their imported names",
             ));
         }
-        Ok(Import { path, alias, stage, args, members, span })
+        // `import X when <clause>` (modules specification section 11): the
+        // same atoms and the same conjunction a `prim` body uses, read off
+        // the compile target profile. The clauses come after everything
+        // else the import names, so the line still opens with `import`.
+        let mut when: Vec<Term> = Vec::new();
+        while self.at_when_clause() {
+            self.bump();
+            when.push(self.parse_prim_condition()?);
+        }
+        if !when.is_empty() && !args.is_empty() {
+            return Err(Error::at(
+                span,
+                "an applied import (`import M (args) as N`) takes no `when` clause in the bootstrap slice: the instantiation is selected by the module the condition names",
+            ));
+        }
+        Ok(Import { path, alias, stage, args, members, when, span })
     }
 
     /// `import data "config.json" as config` (surface grammar local
@@ -3736,6 +3893,7 @@ fn resolve_module(m: &mut Module, fix: &FixityTable) -> Result<()> {
 /// declaration resolution).
 fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
     match d {
+        Decl::Conditional { inner, .. } => resolve_module_decl(inner, fix)?,
         Decl::NameSpliced { name_tm, inner } => {
             resolve_term(name_tm, fix)?;
             resolve_module_decl(inner, fix)?;

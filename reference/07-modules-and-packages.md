@@ -100,8 +100,9 @@ module Tally (S :: Stepper) where
 | `import Mod as M` | Available qualified only, as `M.a` |
 | `import stage Mod` | Compile-time dependency; see [staging](14-staging-and-macros.md) |
 | `import data "path" as name` | Binds a converted non-source input |
+| `import Mod when <clause>` | Selected by the compile target; see [conditional surface](#conditional-imports-and-declarations) |
 
-An import statement always loads the module. What a selection list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below).
+An unconditional import statement always loads the module. What a selection list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below). An import with a `when` clause loads the module only where that clause holds, which the [conditional surface](#conditional-imports-and-declarations) section covers.
 
 <!-- cinch:project group=modules-two file=Main.cinch exit=0 stdout="hello, world" -->
 ```cinch
@@ -179,6 +180,108 @@ cinch: module Thing is imported, but several source files declare it (./B.cinch,
 ```
 
 The paths in the second diagnostic are the loader's own joined paths, which is why they carry the entry's directory prefix.
+
+# Conditional imports and declarations
+
+Two positions take a `when` clause: an import, and a declaration. Both read the compile target, both use the same vocabulary a `prim` body's `when` uses, and repeated clauses on one position are a conjunction. The vocabulary is one atom over the target profile (`Available <capability>`, `arch`, `os`, `libc`, `endian`, `word-size`, `target`), each atom also spellable negated as `not (<atom>)`; [the target vocabulary](15-ffi-layout-and-attributes.md#target-conditions) lists what each atom reads.
+
+An import carries its clause after everything else it names:
+
+```cinch
+import Prim.Sys.Darwin when os darwin
+import Prim.Sys.Linux when os linux
+import Data.Machine when arch aarch64 when not (os windows)
+```
+
+A declaration carries its clause as a prefix, and the clause is exactly the atom, so the declaration follows without a separator:
+
+```cinch
+when os darwin sys-errno :: I64
+when os darwin sys-errno = 2
+```
+
+## What a false condition means
+
+Where a clause does not hold in the target profile, the position contributes nothing at all:
+
+- An import brings no names into scope, is not a module dependency, does not appear in the checked interface's import list, and does not affect the check order or the set of files the compiler loads. A program naming one of its names fails with the ordinary unknown-name diagnostic, because there is no such name on this target.
+- A declaration is absent from the interface, from the module's exports and from code generation. Nothing downstream can see it.
+
+Where the clause holds, the position behaves exactly as the unconditional form does. Nothing in the checked interface records the condition: the interface records the target's view, so a Darwin build's interface names the modules Darwin selected and no others.
+
+## Re-exports follow their import
+
+`export module A` and `export A.name` are conditional with the import they re-export. Where the import does not hold there is nothing to re-export, so the item is dropped rather than reported as an unimported module, and the module's surface is exactly the selected module's surface. That is what makes a facade over per-platform modules work: `Platform` below imports and re-exports `Darwin` alone on a Darwin target, and `Linux` alone on a Linux target, so a caller writes `import Platform` once for every target. The prelude's `Prim.Sys` is this shape over `Prim.Sys.Darwin` and `Prim.Sys.Linux`, and `Effect.Fs` imports it and nothing platform specific.
+
+<!-- cinch:project group=modules-conditional file=Main.cinch exit=0 -->
+```cinch
+module Main where
+  import Platform (word)
+
+  main :: Int
+  main = if 0 < word then 0 else 1
+```
+
+<!-- cinch:project group=modules-conditional file=Platform.cinch -->
+```cinch
+module Platform where
+  import Darwin when os darwin
+  import Linux when os linux
+
+  export module Darwin
+  export module Linux
+```
+
+<!-- cinch:project group=modules-conditional file=Darwin.cinch -->
+```cinch
+module Darwin where
+  export word
+
+  word :: I64
+  word = 2
+```
+
+<!-- cinch:project group=modules-conditional file=Linux.cinch -->
+```cinch
+module Linux where
+  export word
+
+  word :: I64
+  word = 3
+```
+
+## Two definitions of one name
+
+One name may be defined twice, in the same module, only when no target profile can satisfy both conditions. Two clauses are disjoint when they fix one component of the profile two ways (`os darwin` against `os linux`, or `os darwin` against `not (os darwin)`); then exactly one definition applies per target, and the other is invisible as above. Two plain definitions, or two conditions that can hold together, are refused:
+
+```text
+cinch: 7:3: two definitions of `word` can apply to one target profile: `os darwin` and `os darwin and arch aarch64` overlap, because the atom `os darwin` holds under both. A name may be defined twice only when no target profile satisfies both conditions, so that exactly one definition applies per target (modules specification section 11)
+```
+
+The rule reads conditions, not the target being built, so the same source is accepted or refused identically for every `--target`. A conditional definition beside a plain one is always an overlap, because the plain definition holds everywhere.
+
+This example is one name defined twice with disjoint conditions, which is accepted and selects one definition per target:
+
+<!-- cinch:project group=modules-conditional-name file=Main.cinch exit=0 -->
+```cinch
+module Main where
+  import Word (word)
+
+  main :: Int
+  main = if 0 < word then 0 else 1
+```
+
+<!-- cinch:project group=modules-conditional-name file=Word.cinch -->
+```cinch
+module Word where
+  export word
+
+  when not (os windows) word :: I64
+  when not (os windows) word = 2
+
+  when os windows word :: I64
+  when os windows word = 3
+```
 
 # Export forms
 

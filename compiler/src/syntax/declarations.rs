@@ -602,6 +602,7 @@ fn term(body: &mut Term, visit: &mut impl FnMut(&mut Name, RefKind)) {
 fn declaration(decl: &mut Decl, visit: &mut impl FnMut(&mut Name, RefKind)) {
     match decl {
         Decl::Attributed { inner, .. } => declaration(inner, visit),
+        Decl::Conditional { inner, .. } => declaration(inner, visit),
         Decl::NameSpliced { name_tm, inner } => { term(name_tm, visit); declaration(inner, visit); }
         Decl::ValueSig { name, .. } => visit(name, RefKind::Value),
         Decl::Equation { eq, .. } => equation(eq, visit),

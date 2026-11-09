@@ -9,12 +9,15 @@
 -- failure is a NAMED `FsError` value in a `Result` (the house style:
 -- `Text.Parse`'s named vocabulary shape), never a fault.
 --
--- Read and write issue their calls in Cinch: `Prim.Sys.Darwin` binds
--- `open`/`creat`/`read`/`write`/`close`/`lseek` with `foreign import
--- ccall`, and `Prim.Sys.Linux` carries the same entry points as `prim`
--- bodies that issue `syscall`. Both answer the module's `SysError`
+-- Read and write issue their calls in Cinch through `Prim.Sys`, the
+-- facade over the platform layer: on a Darwin target it re-exports
+-- `Prim.Sys.Darwin`, which binds `open`/`creat`/`read`/`write`/`close`/
+-- `lseek` with `foreign import ccall`, and on a Linux target it
+-- re-exports `Prim.Sys.Linux`, which carries the same entry points as
+-- `prim` bodies that issue `syscall`. Both answer the same `SysError`
 -- constructors, which map one for one onto the named constructors below
--- (`NotFound` ... `IoError`).
+-- (`NotFound` ... `IoError`). The import line here is the same for every
+-- target: the selection is the compile target's, made in the facade.
 --
 -- The remaining operations (atomic rename, metadata, the directory
 -- listing) still cross through the runtime's `cinch_fs_*` word buffers
@@ -52,7 +55,7 @@ module Effect.Fs where
   import Data.Path
   import Data.Result
   import Data.String
-  import Prim.Sys.Darwin
+  import Prim.Sys
   import Relation.Eq
   import Relation.Ord
 
@@ -102,7 +105,7 @@ module Effect.Fs where
 
   -- The filesystem words still provided by the runtime: metadata, the
   -- directory listing and the atomic rename. Read and write go through
-  -- `Prim.Sys.Darwin`, which issues the calls themselves in Cinch.
+  -- `Prim.Sys`, which issues the calls themselves in Cinch.
   foreign import ccall "cinch_fs_rename" raw-fs-rename :: forall r. I64 -> I64 ->{IO r} I64
   foreign import ccall "cinch_fs_meta_kind" raw-fs-meta-kind :: forall r. I64 ->{IO r} I64
   foreign import ccall "cinch_fs_meta_size" raw-fs-meta-size :: forall r. I64 ->{IO r} I64

@@ -3998,6 +3998,354 @@ pub struct OptReport {
     pub unrecorded: usize,
 }
 
+// -------------------------------------------------- target conditions (`when`)
+
+/// The `when` vocabulary, spelled once for every error that names it
+/// (primitive operations and inline target IR specification sections 2
+/// and 13; modules specification section 11).
+pub(crate) const WHEN_VOCABULARY: &str = "A `when` clause is one atom over the compile target: `Available <capability>`, `arch <name>`, `os <name>`, `libc <name>`, `endian <little|big>`, `word-size <bits>`, or `target <triple>`, and a clause may negate its atom as `not (<atom>)`; repeated `when` clauses are a conjunction (primitive operations and inline target IR specification sections 2 and 13; modules specification section 11)";
+
+/// One atom of a `when` condition (primitive operations and inline target
+/// IR specification sections 2 and 13; modules specification section 11).
+/// Every atom reads one component of the compile target profile, never the
+/// build host, so a cross compile selects by the artifact's target.
+#[derive(Clone, Debug)]
+pub(crate) enum WhenKind {
+    /// `Available <capability>`: the profile's capability evidence (its
+    /// required set and its feature assumptions) names it.
+    Capability(String),
+    /// `arch <name>`: the profile's architecture.
+    Arch(String),
+    /// `os <name>`: the profile's operating system.
+    Os(String),
+    /// `libc <name>`: the C library the profile links.
+    Libc(String),
+    /// `endian <little|big>`.
+    Endian(String),
+    /// `word-size <bits>`: the `Usize`/`Isize` width.
+    WordSize(u32),
+    /// `target <triple>`: the whole triple.
+    Target(String),
+}
+
+impl WhenKind {
+    /// The atom as written, without its negation.
+    pub(crate) fn render(&self) -> String {
+        match self {
+            WhenKind::Capability(c) => format!("Available {c}"),
+            WhenKind::Arch(a) => format!("arch {a}"),
+            WhenKind::Os(o) => format!("os {o}"),
+            WhenKind::Libc(l) => format!("libc {l}"),
+            WhenKind::Endian(e) => format!("endian {e}"),
+            WhenKind::WordSize(b) => format!("word-size {b}"),
+            WhenKind::Target(t) => format!("target {t}"),
+        }
+    }
+
+    /// The target profile's value for this atom's component, spelled for
+    /// an error's account of why the atom failed.
+    pub(crate) fn actual(&self, target: &TargetProfile) -> String {
+        match self {
+            WhenKind::Capability(_) => {
+                let mut caps = target.required.clone();
+                for f in &target.features {
+                    if !caps.contains(f) {
+                        caps.push(f.clone());
+                    }
+                }
+                if caps.is_empty() {
+                    "the target profile carries no capability evidence".to_string()
+                } else {
+                    format!("the target profile carries {}", caps.join(", "))
+                }
+            }
+            WhenKind::Arch(_) => format!("the target's arch is `{}`", target.arch),
+            WhenKind::Os(_) => format!("the target's os is `{}`", target.os),
+            WhenKind::Libc(_) => format!("the target links `{}`", target.libc),
+            WhenKind::Endian(_) => format!("the target's endian is `{}`", target.endian),
+            WhenKind::WordSize(_) => format!("the target's word size is {} bits", target.word_size),
+            WhenKind::Target(_) => format!("the target's triple is `{}`", target.triple),
+        }
+    }
+
+    /// Does the atom name what the target profile is?
+    pub(crate) fn holds(&self, target: &TargetProfile) -> bool {
+        match self {
+            WhenKind::Capability(c) => target.required.iter().any(|x| x == c)
+                || target.features.iter().any(|x| x == c),
+            WhenKind::Arch(a) => *a == target.arch,
+            WhenKind::Os(o) => *o == target.os,
+            WhenKind::Libc(l) => *l == target.libc,
+            WhenKind::Endian(e) => *e == target.endian,
+            WhenKind::WordSize(b) => *b == target.word_size,
+            WhenKind::Target(t) => *t == target.triple,
+        }
+    }
+
+    /// Do these two atoms read the same component of the profile?
+    pub(crate) fn same_component(&self, other: &WhenKind) -> bool {
+        match (self, other) {
+            (WhenKind::Capability(a), WhenKind::Capability(b)) => a == b,
+            (WhenKind::Arch(_), WhenKind::Arch(_))
+            | (WhenKind::Os(_), WhenKind::Os(_))
+            | (WhenKind::Libc(_), WhenKind::Libc(_))
+            | (WhenKind::Endian(_), WhenKind::Endian(_))
+            | (WhenKind::WordSize(_), WhenKind::WordSize(_))
+            | (WhenKind::Target(_), WhenKind::Target(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// The value this atom fixes on its component (`None` for a
+    /// capability, whose component has no single value).
+    pub(crate) fn value(&self) -> Option<String> {
+        match self {
+            WhenKind::Capability(_) => None,
+            WhenKind::Arch(v)
+            | WhenKind::Os(v)
+            | WhenKind::Libc(v)
+            | WhenKind::Endian(v)
+            | WhenKind::Target(v) => Some(v.clone()),
+            WhenKind::WordSize(b) => Some(b.to_string()),
+        }
+    }
+}
+
+/// One `when` clause: an atom, or that atom negated (the `not (<atom>)`
+/// spelling).
+#[derive(Clone, Debug)]
+pub(crate) struct WhenAtom {
+    pub(crate) negated: bool,
+    pub(crate) kind: WhenKind,
+}
+
+impl WhenAtom {
+    /// One clause, read off its surface term: `<atom> <name>`, or
+    /// `not (<atom>)` for the negation.
+    pub(crate) fn lower(t: &crate::ast::Term) -> Result<WhenAtom> {
+        let bad = |span: crate::ast::Span| Error::at(span, WHEN_VOCABULARY.to_string());
+        let (head, args, span) = match t {
+            crate::ast::Term::App(f, args, span) => (f, args, *span),
+            other => return Err(bad(other.span())),
+        };
+        let head_last = match &**head {
+            crate::ast::Term::Var(p) => p.name.text.clone(),
+            crate::ast::Term::Con(p) => p.parts().last().copied().unwrap_or("").to_string(),
+            other => return Err(bad(other.span())),
+        };
+        // `not (<atom>)`: the atom in parentheses, negated.
+        if head_last == "not" {
+            let [inner] = args.as_slice() else {
+                return Err(Error::at(
+                    span,
+                    format!("a negated `when` atom is written `not (<atom>)`, with the atom in parentheses: {WHEN_VOCABULARY}"),
+                ));
+            };
+            let atom = WhenAtom::lower(inner)?;
+            if atom.negated {
+                return Err(Error::at(
+                    span,
+                    format!("a `when` clause is negated once: `not ({})` is the clause itself ({WHEN_VOCABULARY})", atom.kind.render()),
+                ));
+            }
+            return Ok(WhenAtom { negated: true, kind: atom.kind });
+        }
+        let [arg] = args.as_slice() else {
+            return Err(bad(span));
+        };
+        let name = || -> Result<String> {
+            match arg {
+                crate::ast::Term::Var(p) if p.quals.is_empty() => Ok(p.name.text.clone()),
+                crate::ast::Term::Con(p) => Ok(p.parts().join(".")),
+                other => Err(bad(other.span())),
+            }
+        };
+        let kind = match head_last.as_str() {
+            "Available" => WhenKind::Capability(name()?),
+            "arch" => WhenKind::Arch(name()?),
+            "os" => WhenKind::Os(name()?),
+            "libc" => WhenKind::Libc(name()?),
+            "endian" => {
+                let name = name()?;
+                if name != "little" && name != "big" {
+                    return Err(Error::at(
+                        span,
+                        format!("an `endian` atom is `little` or `big`, and `{name}` is neither (primitive operations and inline target IR specification section 13)"),
+                    ));
+                }
+                WhenKind::Endian(name)
+            }
+            "word-size" => match arg {
+                crate::ast::Term::Int(bits, _) => match bits.parse::<u32>() {
+                    Ok(bits) => WhenKind::WordSize(bits),
+                    Err(_) => return Err(bad(span)),
+                },
+                other => {
+                    return Err(Error::at(
+                        other.span(),
+                        "a `word-size` atom is a bit width as an integer, such as `word-size 32` or `word-size 64` (primitive operations and inline target IR specification section 13)".to_string(),
+                    ))
+                }
+            },
+            "target" => WhenKind::Target(name()?),
+            _ => return Err(bad(span)),
+        };
+        Ok(WhenAtom { negated: false, kind })
+    }
+
+    pub(crate) fn render(&self) -> String {
+        if self.negated {
+            format!("not ({})", self.kind.render())
+        } else {
+            self.kind.render()
+        }
+    }
+
+    pub(crate) fn holds(&self, target: &TargetProfile) -> bool {
+        self.kind.holds(target) != self.negated
+    }
+
+    /// Why this atom does not hold, in one account naming the atom and
+    /// what the target profile is instead. `None` when it holds. A
+    /// negated atom reports the same component, because the clause is
+    /// false exactly where that component is what it negates.
+    pub(crate) fn unmet(&self, target: &TargetProfile) -> Option<String> {
+        if self.holds(target) {
+            return None;
+        }
+        Some(format!("`{}` fails: {}", self.render(), self.kind.actual(target)))
+    }
+
+    /// Can no single target profile hold both atoms? Two atoms of one
+    /// component settle the question between them: the same value with
+    /// one negated, or two different values both asserted, are the
+    /// contradictions. A capability component has no value, so only its
+    /// own negation contradicts it.
+    pub(crate) fn contradicts(&self, other: &WhenAtom) -> bool {
+        if !self.kind.same_component(&other.kind) {
+            return false;
+        }
+        match (self.kind.value(), other.kind.value()) {
+            (Some(a), Some(b)) if a != b => !self.negated && !other.negated,
+            _ => self.negated != other.negated,
+        }
+    }
+}
+
+/// A `when` condition: the conjunction of its clauses (primitive
+/// operations and inline target IR specification sections 2 and 13;
+/// modules specification section 11). An empty condition holds
+/// everywhere.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct WhenCond {
+    pub(crate) atoms: Vec<WhenAtom>,
+}
+
+impl WhenCond {
+    /// The condition a clause list spells. Repeated clauses are a
+    /// conjunction, so one clause list is one condition.
+    pub(crate) fn lower(clauses: &[crate::ast::Term]) -> Result<WhenCond> {
+        let mut cond = WhenCond::default();
+        for clause in clauses {
+            cond.atoms.push(WhenAtom::lower(clause)?);
+        }
+        Ok(cond)
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.atoms.is_empty()
+    }
+
+    /// The condition as written, its clauses joined as the conjunction
+    /// they are: `os darwin and arch aarch64`.
+    pub(crate) fn render(&self) -> String {
+        self.atoms
+            .iter()
+            .map(WhenAtom::render)
+            .collect::<Vec<_>>()
+            .join(" and ")
+    }
+
+    /// The condition as an error names it: the clauses, or `no `when`
+    /// clause` for the unconditional case.
+    pub(crate) fn describe(&self) -> String {
+        if self.is_empty() {
+            "no `when` clause".to_string()
+        } else {
+            format!("`{}`", self.render())
+        }
+    }
+
+    /// Does every atom hold in the target profile?
+    pub(crate) fn holds(&self, target: &TargetProfile) -> bool {
+        self.atoms.iter().all(|a| a.holds(target))
+    }
+
+    /// Every atom with its outcome in the target profile, so a false
+    /// condition says which atom decided it as well as which atoms held:
+    /// `os darwin` holds, `arch aarch64` fails: the target's arch is
+    /// `x86_64`. The failing atoms carry what the profile is instead.
+    pub(crate) fn account(&self, target: &TargetProfile) -> String {
+        self.atoms
+            .iter()
+            .map(|a| match a.unmet(target) {
+                Some(why) => why,
+                None => format!("`{}` holds", a.render()),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Can one target profile satisfy both conditions? The disjointness
+    /// rule for a name two declarations define (modules specification
+    /// section 11): `None` when some atom of one contradicts some atom of
+    /// the other, otherwise the atom (or the pair of components) that
+    /// leaves them both possible.
+    pub(crate) fn overlap(&self, other: &WhenCond) -> Option<String> {
+        for a in &self.atoms {
+            for b in &other.atoms {
+                if a.contradicts(b) {
+                    return None;
+                }
+            }
+        }
+        Some(self.overlap_account(other))
+    }
+
+    /// The reason two conditions overlap, naming the atom that holds
+    /// under both when one does, and the absence of a contradicting atom
+    /// when none does.
+    fn overlap_account(&self, other: &WhenCond) -> String {
+        if self.is_empty() || other.is_empty() {
+            return "one of them is unconditional, so it holds on every target".to_string();
+        }
+        for a in &self.atoms {
+            for b in &other.atoms {
+                if a.kind.same_component(&b.kind) && a.kind.value() == b.kind.value() {
+                    return format!("the atom `{}` holds under both", a.render());
+                }
+            }
+        }
+        "no atom of one contradicts an atom of the other, so a target can satisfy both".to_string()
+    }
+}
+
+/// The profile a conditional import or declaration resolves against
+/// (modules specification section 11).
+///
+/// A build has two contexts: the artifact's target, which emitted code
+/// belongs to, and the build host, which is where anything that runs
+/// during the build runs. This slice has exactly one profile per build, so
+/// every conditional position resolves against it, and this function is
+/// the one place that decision lives: nothing else invents a profile or
+/// recovers a host, and the host/target split replaces this body with the
+/// choice per position (a staged module resolves against the host, an
+/// emitted one against the target) without touching a `when` atom. The
+/// label a diagnostic uses for the context belongs here with it.
+pub(crate) fn condition_context(target: &TargetProfile) -> &TargetProfile {
+    target
+}
+
 // ------------------------------------------------------------- core utilities
 
 /// Structural equality of core terms (pattern matching needs it for a

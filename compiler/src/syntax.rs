@@ -475,6 +475,7 @@ fn walk_equation(eq: &ast::Equation, visit: &mut impl FnMut(&Term) -> Result<()>
 fn walk_decl(decl: &Decl, visit: &mut impl FnMut(&Term) -> Result<()>) -> Result<()> {
     match decl {
         Decl::Attributed { inner, .. } => walk_decl(inner, visit)?,
+        Decl::Conditional { inner, .. } => walk_decl(inner, visit)?,
         Decl::NameSpliced { name_tm, inner } => {
             walk_term(name_tm, visit)?;
             walk_decl(inner, visit)?;

@@ -152,6 +152,14 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Prim/Sys/Linux.cinch"),
     ),
     (
+        "Prim/Sys/Portable.cinch",
+        include_str!("../prelude/Prim/Sys/Portable.cinch"),
+    ),
+    (
+        "Prim/Sys.cinch",
+        include_str!("../prelude/Prim/Sys.cinch"),
+    ),
+    (
         "Effect/Fs.cinch",
         include_str!("../prelude/Effect/Fs.cinch"),
     ),
@@ -1206,7 +1214,24 @@ pub struct ScannedFile {
 
 /// Scan a source's `module` and `import` declarations: the module graph
 /// must be known before parsing (imports need their modules' fixities).
+/// Conditions are read against the build host's target, which is what an
+/// editor asking about this source alone sees.
 pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
+    scan_file_for(src, file, &crate::core::TargetProfile::native())
+}
+
+/// [`scan_file`] for one compile target: an import whose `when` condition
+/// does not hold in the profile is not part of the graph, so it loads no
+/// module, contributes no dependency and cannot affect the check order
+/// (modules specification section 11). The condition is read here, before
+/// parsing, because the file set to load is what the graph decides; the
+/// parser reads the same clause into the import's abstract syntax, and the
+/// checker prunes from that syntax so names and interfaces agree.
+pub fn scan_file_for(
+    src: &str,
+    file: &str,
+    profile: &crate::core::TargetProfile,
+) -> Result<ScannedFile> {
     let ctx = |e: Error| Error::plain(format!("{file}: {e}"));
     let tokens = lexer::lex(src).map_err(ctx)?;
     let tokens = layout::layout(tokens).map_err(ctx)?;
@@ -1257,7 +1282,37 @@ pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
                 if stage {
                     i += 1;
                 }
-                if let Some(name) = path_at(&mut i) {
+                let Some(name) = path_at(&mut i) else { continue };
+                // The import's `when` clauses run to the end of the
+                // declaration. A clause the scan cannot read is treated as
+                // live: the parser reports it in full when it reaches the
+                // declaration, and the checker prunes from that syntax.
+                let mut clauses: Vec<crate::ast::Term> = Vec::new();
+                let mut j = i;
+                while j < tokens.len() {
+                    match &tokens[j].tok {
+                        lexer::Tok::Semicolon | lexer::Tok::Eof => break,
+                        lexer::Tok::VarId(w) if w == "when" => {
+                            match crate::parser::parse_when_clause(&tokens, j) {
+                                Some((term, end)) => {
+                                    clauses.push(term);
+                                    j = end;
+                                }
+                                None => {
+                                    clauses.clear();
+                                    break;
+                                }
+                            }
+                        }
+                        _ => j += 1,
+                    }
+                }
+                i = j;
+                let live = match crate::core::WhenCond::lower(&clauses) {
+                    Ok(cond) => cond.holds(profile),
+                    Err(_) => true,
+                };
+                if live {
                     if let Some((_, imps)) = modules.last_mut() {
                         if !imps.iter().any(|(n, _)| *n == name) {
                             imps.push((name, stage));
@@ -1710,13 +1765,22 @@ fn resolve_project_packages(
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
-    load_project_for(entry_path, &TargetFacts::of(&crate::core::TargetProfile::native()))
+    load_project_for(entry_path, &crate::core::TargetProfile::native())
 }
 
-/// [`load_project`] with the compile target's facts, so a package's
-/// `select` conditions resolve against the target being built rather than
-/// the host.
-fn load_project_for(entry_path: &Path, facts: &TargetFacts) -> Result<Project> {
+/// [`load_project`] for one compile target: a package's `select`
+/// conditions resolve against the target being built rather than the host,
+/// and so does every import's `when` clause, so a conditional import loads
+/// no module and adds no dependency where its condition does not hold
+/// (design/base-as-a-package.md sections 4.1 and 4.2; modules
+/// specification section 11).
+fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> Result<Project> {
+    let facts = TargetFacts::of(profile);
+    let facts = &facts;
+    // The context this project's conditional imports resolve in: one
+    // decision, in one place, so a host context can join the target
+    // context without moving the evaluation.
+    let resolve_profile = crate::core::condition_context(profile);
     let dir = entry_path
         .parent()
         .map(|p| p.to_path_buf())
@@ -1787,7 +1851,7 @@ fn load_project_for(entry_path: &Path, facts: &TargetFacts) -> Result<Project> {
         }
         let src = std::fs::read_to_string(&path)
             .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-        let scanned = scan_file(&src, &key)?;
+        let scanned = scan_file_for(&src, &key, resolve_profile)?;
         if scanned.modules.is_empty() {
             return Err(Error::plain(format!("{key}: no `module` declaration")));
         }
@@ -2842,6 +2906,29 @@ pub fn check_sources_ifaces(
     Ok((program, ifaces))
 }
 
+/// [`check_sources_ifaces`] for one compile target: the interfaces record
+/// the target's view of each module, so a conditional import that the
+/// profile does not select is absent from the import list rather than
+/// recorded as a dependency (modules specification section 11).
+pub fn check_sources_profile_ifaces(
+    user_src: &str,
+    user_file: &str,
+    profile: &crate::core::TargetProfile,
+) -> Result<(crate::core::Program, Vec<crate::interface::Iface>)> {
+    let adapters = wit_for_source(Path::new(user_file))?;
+    let mut scx = StagingCx::default();
+    let (prelude, user, hashes) = parse_family_and_user(&adapters, user_src, user_file, &mut scx)?;
+    let (program, ifaces, _report, _) = check::check_program_multi_full(
+        &prelude.modules,
+        &user.modules,
+        &hashes,
+        &scx,
+        &adapters,
+        profile,
+    )?;
+    Ok((program, ifaces))
+}
+
 fn clang() -> String {
     std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string())
 }
@@ -3562,7 +3649,7 @@ pub fn driver_with_profile_opts(
         )));
     }
     let mut emit_modules = opts.emit_modules.clone();
-    let project = load_project_for(path, &TargetFacts::of(profile))?;
+    let project = load_project_for(path, profile)?;
     // The final link is built from the closure, not from a string: every
     // contribution is tagged with the package that asked for it, raw
     // words need the root project's consent, and machine-local overrides

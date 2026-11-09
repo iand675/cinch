@@ -959,6 +959,10 @@ impl Decl {
             }
             Decl::Effect(effect) => for (_, ty) in &mut effect.ops { ty.visit_mut(visit); },
             Decl::Attributed { inner, .. } => inner.visit_types_mut(visit),
+            Decl::Conditional { when, inner } => {
+                for clause in when { clause.visit_types_mut(visit); }
+                inner.visit_types_mut(visit);
+            }
             Decl::Generate { stmts, .. } => for statement in stmts { statement.visit_types_mut(visit); },
             Decl::Rewrite(rewrite) => {
                 visit_binder_types(&mut rewrite.binders, visit);
@@ -1041,6 +1045,12 @@ pub struct Import {
     /// names; empty selects the whole surface under its own names
     /// (surface grammar local amendments section 11).
     pub members: Vec<ImportMember>,
+    /// `import X when <clause> ...`: the target conditions under which the
+    /// import contributes (modules specification section 11). Empty for an
+    /// unconditional import. Where a clause does not hold, the import
+    /// contributes nothing at all: no names, no module dependency, nothing
+    /// in the checked interface, and no effect on the check order.
+    pub when: Vec<Term>,
     pub span: Span,
 }
 
@@ -1491,6 +1501,14 @@ pub enum Decl {
     /// `#[...]`-prefixed declaration: the attributes annotate `inner`
     /// (attribute annotations specification section 1.1).
     Attributed { attrs: Vec<Attribute>, inner: Box<Decl> },
+    /// `when <clause> ... <declaration>`: the declaration exists only on
+    /// the targets its condition selects (modules specification section
+    /// 11). Where a clause does not hold the name is absent from the
+    /// interface, from the module's exports and from code generation;
+    /// where it holds the declaration is exactly the one it wraps. Two
+    /// declarations of one name are accepted only when no target profile
+    /// can satisfy both conditions.
+    Conditional { when: Vec<Term>, inner: Box<Decl> },
     /// `generate do { stmts }`: a compile-time generator (modules
     /// specification section 10).
     Generate { stmts: Vec<DoStmt>, span: Span },
@@ -1745,6 +1763,10 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Foreign(_)
         | Decl::Contract(_) => {}
         Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
+        Decl::Conditional { when, inner } => {
+            for clause in when { collect_term_refs(clause, out); }
+            collect_decl_refs(inner, out);
+        }
         Decl::NameSpliced { name_tm, inner } => {
             collect_term_refs(name_tm, out);
             collect_decl_refs(inner, out);
@@ -2995,6 +3017,12 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             attrs: attrs.clone(),
             inner: Box::new(hyg_decl(inner, cx, sc)?),
         },
+        // A condition names target atoms, never a bound name, so the
+        // clause list needs no renaming; the declaration it guards does.
+        Decl::Conditional { when, inner } => Decl::Conditional {
+            when: when.clone(),
+            inner: Box::new(hyg_decl(inner, cx, sc)?),
+        },
         Decl::Rewrite(r) => {
             let mut r = r.clone();
             for b in &mut r.binders {
@@ -3439,6 +3467,10 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             attrs: attrs.clone(),
             inner: Box::new(subst_holes_decl(inner, vals)),
         },
+        Decl::Conditional { when, inner } => Decl::Conditional {
+            when: when.iter().map(|clause| subst_holes(clause, vals)).collect(),
+            inner: Box::new(subst_holes_decl(inner, vals)),
+        },
         Decl::NameSpliced { name_tm, inner } => Decl::NameSpliced {
             name_tm: Box::new(subst_holes(name_tm, vals)),
             inner: Box::new(subst_holes_decl(inner, vals)),
@@ -3683,6 +3715,12 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Refine(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
+        Decl::Conditional { when, inner } => {
+            for clause in when {
+                collect_template_holes_with_macros(clause, holes, false);
+            }
+            collect_decl_holes(inner, holes);
+        }
         Decl::NameSpliced { name_tm, inner } => {
             // A name-position splice's body is a compile-time expression
             // like any splice body: it becomes one `Name` hole and the

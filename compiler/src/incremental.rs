@@ -383,6 +383,7 @@ fn hash_of(text: &str) -> String {
 /// a change there propagates through.
 fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
+        Decl::Conditional { inner, .. } => surface_refs(inner, out),
         Decl::ValueSig { ty, .. } => ast::collect_type_refs(ty, out),
         Decl::Equation { .. } => {}
         Decl::Data(data) => {
@@ -481,6 +482,7 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
 /// body depends on (calls, constructor uses, value references).
 fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
+        Decl::Conditional { inner, .. } => body_refs(inner, out),
         Decl::Equation { eq, .. } => {
             for term in eq.terms() { ast::collect_term_refs(term, out); }
             local_refs(&eq.locals, out);

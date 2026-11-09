@@ -10,6 +10,7 @@
 use crate::ast;
 use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
+use crate::core::{WHEN_VOCABULARY, WhenAtom, WhenCond, WhenKind};
 use crate::types::{BYTE_LENGTH_INDEX, ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, IndexHead, IndexInstantiation, IndexArgument, IndexEvidence, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};

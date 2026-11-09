@@ -308,6 +308,8 @@ module Main where
 
 Bodies take clauses after the fragment: `when <atom>` selects a body by the compile target, `justify <term>` records why a representation choice is sound, `uses (name :: type), ...` declares the callee vocabulary the fragment may use, `immarg 0, 1` marks immediate arguments, and a leading `unsafe` on one body marks that body unverified so its declared row is trusted instead of checked.
 
+## Target conditions
+
 A `when` clause is one atom read off the target profile, and every atom is also usable negated, with the atom in parentheses:
 
 | Atom | Holds when |
@@ -322,7 +324,11 @@ A `when` clause is one atom read off the target profile, and every atom is also 
 
 A body may carry several clauses, and they are a conjunction: `when os linux when arch aarch64` holds on Linux on aarch64 and nowhere else. `when not (os windows)` is the negation of `os windows`, so it holds on Darwin and Linux.
 
-Every atom reads the compile target profile and never the build host, so a cross compile selects by the artifact's own target. A conditional body wins over the baseline body (no `when`), and a prim whose conditions no body satisfies refuses by name:
+Every atom reads the compile target profile and never the build host, so a cross compile selects by the artifact's own target.
+
+The same vocabulary and the same conjunction are available in two further positions, both covered in [the module page](07-modules-and-packages.md#conditional-imports-and-declarations): `import Mod when <clause>` (where a false clause makes the import contribute nothing) and `when <atom> <declaration>` (where a false clause removes the name from the interface, the exports and code generation). The atoms mean the same thing in all three positions.
+
+A conditional body wins over the baseline body (no `when`), and a prim whose conditions no body satisfies refuses by name:
 
 ```
 cinch: 3:3: no body applies for the target profile `x86_64-unknown-linux-gnu` (`x86_64-unknown-linux-gnu`): the `asm` body's `when os windows` does not hold (`os windows` fails: the target's os is `linux`). A `when` clause is one atom over the compile target: ...

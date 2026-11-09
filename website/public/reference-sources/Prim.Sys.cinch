@@ -1,0 +1,38 @@
+-- Prim.Sys: the operating system's filesystem calls, whichever way this
+-- target makes them.
+--
+-- The syscall layer has one module per implementation kind, not one per
+-- concept: `Prim.Sys.Darwin` binds libSystem with `foreign import ccall`,
+-- and `Prim.Sys.Linux` issues the `syscall` instruction from `prim`
+-- bodies. Both export the same entry names and the same `SysError`
+-- constructors, so a caller needs one name and not two.
+--
+-- This module is that one name. Its imports are conditional on the
+-- compile target's operating system, and its re-exports are conditional
+-- with them, so the surface here is exactly the selected backend's
+-- surface: on a Darwin target `Prim.Sys` is `Prim.Sys.Darwin` name for
+-- name, on a Linux target it is `Prim.Sys.Linux` name for name, and a
+-- module importing `Prim.Sys` never has to know which one it got.
+--
+-- The selection is fixed at compile time against the artifact's target
+-- and never against the build host (primitive operations and inline
+-- target IR specification section 13; modules specification section 11),
+-- so one compiler binary cross compiling for `x86_64-unknown-linux-gnu`
+-- selects the Linux bodies while running on a Darwin machine.
+--
+-- A target with neither of those (wasm32, or a Windows profile) gets
+-- `Prim.Sys.Portable`: the same names, the same types and the same
+-- `SysError` constructors, with every entry point answering
+-- `Err SysIoError`. A real backend for such a target joins the other two
+-- and the facade selects it; the portable module stays the floor, so the
+-- facade's surface is never empty and the prelude family checks for every
+-- profile.
+module Prim.Sys where
+
+  import Prim.Sys.Darwin when os darwin
+  import Prim.Sys.Linux when os linux
+  import Prim.Sys.Portable when not (os darwin) when not (os linux)
+
+  export module Prim.Sys.Darwin
+  export module Prim.Sys.Linux
+  export module Prim.Sys.Portable

@@ -145,6 +145,16 @@
       "embedded": true
     },
     {
+      "name": "Prim.Sys.Portable",
+      "path": "Prim/Sys/Portable.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Prim.Sys",
+      "path": "Prim/Sys.cinch",
+      "embedded": true
+    },
+    {
       "name": "Effect.Fs",
       "path": "Effect/Fs.cinch",
       "embedded": true
@@ -320,6 +330,8 @@
     "Effect.Clock",
     "Prim.Sys.Darwin",
     "Prim.Sys.Linux",
+    "Prim.Sys.Portable",
+    "Prim.Sys",
     "Effect.Fs",
     "Effect.Process",
     "Effect.Io",

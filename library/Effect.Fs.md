@@ -10,7 +10,7 @@ Import with `import Effect.Fs`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Prim.Sys.Darwin](Prim.Sys.Darwin.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Prim.Sys](Prim.Sys.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -25,12 +25,15 @@ header). Paths are `Data.Path` values; content is `Bytes`; every
 failure is a NAMED `FsError` value in a `Result` (the house style:
 `Text.Parse`'s named vocabulary shape), never a fault.
 
-Read and write issue their calls in Cinch: `Prim.Sys.Darwin` binds
-`open`/`creat`/`read`/`write`/`close`/`lseek` with `foreign import
-ccall`, and `Prim.Sys.Linux` carries the same entry points as `prim`
-bodies that issue `syscall`. Both answer the module's `SysError`
+Read and write issue their calls in Cinch through `Prim.Sys`, the
+facade over the platform layer: on a Darwin target it re-exports
+`Prim.Sys.Darwin`, which binds `open`/`creat`/`read`/`write`/`close`/
+`lseek` with `foreign import ccall`, and on a Linux target it
+re-exports `Prim.Sys.Linux`, which carries the same entry points as
+`prim` bodies that issue `syscall`. Both answer the same `SysError`
 constructors, which map one for one onto the named constructors below
-(`NotFound` ... `IoError`).
+(`NotFound` ... `IoError`). The import line here is the same for every
+target: the selection is the compile target's, made in the facade.
 
 The remaining operations (atomic rename, metadata, the directory
 listing) still cross through the runtime's `cinch_fs_*` word buffers
@@ -70,7 +73,7 @@ system's vocabulary.
 
 What a path names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 77
+[Source](/reference-sources/Effect.Fs.cinch) · line 80
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">FileKind</span></code></pre>
 
@@ -86,7 +89,7 @@ What a path names.
 
 A file's metadata: its kind and its size in bytes.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 83
+[Source](/reference-sources/Effect.Fs.cinch) · line 86
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FileMeta</span>))</code></pre>
 
@@ -99,7 +102,7 @@ A file's metadata: its kind and its size in bytes.
 What went wrong, named (the `std::io::ErrorKind` vocabulary the
 runtime maps its codes from).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 67
+[Source](/reference-sources/Effect.Fs.cinch) · line 70
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
@@ -143,7 +146,7 @@ The names in the directory `p`, sorted ascending (the OS listing
 order is not specified; the sorted listing is this home's
 observable order).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 298
+[Source](/reference-sources/Effect.Fs.cinch) · line 301
 
 <a id="value-66732d6d65746164617461"></a>
 
@@ -153,7 +156,7 @@ observable order).
 
 The kind and size of what `p` names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 272
+[Source](/reference-sources/Effect.Fs.cinch) · line 275
 
 <a id="value-66732d72656164"></a>
 
@@ -171,7 +174,7 @@ while it is being read is read to that length; a file that shrank is
 read a second time at its new length, so the answer is exactly what
 the kernel produced either way.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 184
+[Source](/reference-sources/Effect.Fs.cinch) · line 187
 
 <a id="value-66732d72656e616d65"></a>
 
@@ -182,7 +185,7 @@ the kernel produced either way.
 Atomically rename `from` to `to` (POSIX `rename`: the target sees
 the whole old or the whole new content, never a partial).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 259
+[Source](/reference-sources/Effect.Fs.cinch) · line 262
 
 <a id="value-66732d7772697465"></a>
 
@@ -195,8 +198,8 @@ atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
 `creat` (the fixed argument form of the creating open), a write loop
 (a write may be short), then close.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 239
+[Source](/reference-sources/Effect.Fs.cinch) · line 242
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Fs.cinch`. Source SHA-256: `f88a14b2a4d45d04bac5eafcba1e060a7e39cfb87a7969aa7c66e4fad7b14488`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Fs.cinch`. Source SHA-256: `ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

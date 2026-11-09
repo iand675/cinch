@@ -1,0 +1,72 @@
+-- Prim.Sys.Portable: the filesystem entry points on a target that has no
+-- syscall backend of its own.
+--
+-- `Prim.Sys` selects `Prim.Sys.Darwin` on a Darwin target and
+-- `Prim.Sys.Linux` on a Linux target. Every other target reaches this
+-- module instead, and it answers the same names with the same types and
+-- the same `SysError` constructors, so the facade's surface is the same
+-- shape everywhere and `Effect.Fs` checks for every target.
+--
+-- Nothing here issues a call. Every entry point answers `Err SysIoError`,
+-- which is the honest report for "this target has no filesystem layer in
+-- this build": a program that asks for a file gets a named error, never a
+-- wrong answer and never a link failure. The bodies are pure Cinch with
+-- no `prim` and no `foreign import`, so this module needs no target
+-- support at all, and it stays checkable on every profile.
+--
+-- A target that grows a real backend gets its own module beside Darwin's
+-- and Linux's, and the facade selects it; this module stays the floor.
+module Prim.Sys.Portable where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export SysError, SysNotFound, SysPermissionDenied, SysAlreadyExists
+  export SysNotADirectory, SysIsADirectory, SysInvalidName, SysIoError
+  export sys-error-of
+  export sys-open-read, sys-create, sys-read, sys-write, sys-close
+  export sys-lseek, sys-seek-set, sys-seek-end
+
+  -- What the operating system said, named. The same constructors as the
+  -- Darwin and the Linux modules, so a caller's mapping is written once.
+  data SysError where
+    SysNotFound :: SysError
+    SysPermissionDenied :: SysError
+    SysAlreadyExists :: SysError
+    SysNotADirectory :: SysError
+    SysIsADirectory :: SysError
+    SysInvalidName :: SysError
+    SysIoError :: SysError
+
+  -- There is no error slot to read and no number to map: every call this
+  -- module answers already failed at the boundary.
+  sys-error-of :: I64 -> SysError
+  sys-error-of r = SysIoError
+
+  sys-seek-set :: I64
+  sys-seek-set = 0
+
+  sys-seek-end :: I64
+  sys-seek-end = 2
+
+  sys-open-read :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-open-read path = Err SysIoError
+
+  sys-create :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-create path = Err SysIoError
+
+  sys-read :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-read fd buf at count = Err SysIoError
+
+  sys-write :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-write fd buf at count = Err SysIoError
+
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
+  sys-close fd = Err SysIoError
+
+  sys-lseek :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-lseek fd off whence = Err SysIoError

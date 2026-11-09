@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "base_manifest_sha256": "7b366996a102f148d8ff0894a19e07c2cced142b66aba0a9f1567c8e8cc2232b",
+  "base_manifest_sha256": "858a9397041da955e405f28b4fcf7a7ce7953f817c6c3a7ad42216c6185fff2c",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -493,7 +493,7 @@
     {
       "module": "Effect.Fs",
       "path": "compiler/prelude/Effect/Fs.cinch",
-      "sha256": "f88a14b2a4d45d04bac5eafcba1e060a7e39cfb87a7969aa7c66e4fad7b14488",
+      "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f",
       "embedded": true,
       "values": 7,
       "public_methods": 0
@@ -624,6 +624,22 @@
       "sha256": "e30c5a9c0b5d8f6d5cf78953bf2bd6f7ce6e95f2fde5a4b355f9cfd7d5a9f5cb",
       "embedded": true,
       "values": 17,
+      "public_methods": 0
+    },
+    {
+      "module": "Prim.Sys.Portable",
+      "path": "compiler/prelude/Prim/Sys/Portable.cinch",
+      "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
+      "embedded": true,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
+      "module": "Prim.Sys",
+      "path": "compiler/prelude/Prim/Sys.cinch",
+      "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
+      "embedded": true,
+      "values": 18,
       "public_methods": 0
     },
     {

@@ -2927,6 +2927,15 @@ impl Checker {
                 self.interface_binders.insert((module.clone(), name.text.clone()), params.clone());
             }
             match d {
+                // A conditional declaration is decided before collection
+                // (the target's view of the module, `target_view`), so one
+                // reaching here is an internal error rather than a source
+                // error.
+                ast::Decl::Conditional { .. } => {
+                    return Err(Error::plain(
+                        "internal error: a conditional declaration survived the target's view of its module",
+                    ));
+                }
                 ast::Decl::NameSpliced { name_tm, .. } => {
                     return Err(Error::at(
                         name_tm.span(),
@@ -10487,87 +10496,25 @@ impl Checker {
     /// target IR specification sections 2 and 13): one atom over the
     /// compile target profile, or that atom negated. The clause list on a
     /// body is a conjunction; `when os linux when arch x86_64` holds on
-    /// Linux on x86_64 and nowhere else.
+    /// Linux on x86_64 and nowhere else. The atoms are shared with the two
+    /// other positions a clause can take (an import and a declaration,
+    /// modules specification section 11), so a body and an import spell the
+    /// same condition the same way; a capability atom additionally has to
+    /// name a declared signature here, because a body that selects nothing
+    /// is a code-generation hole and not merely an invisible import.
     fn lower_when(&self, t: &ast::Term) -> Result<WhenAtom> {
-        let bad = |span: ast::Span| Error::at(span, WHEN_VOCABULARY.to_string());
-        let (head, args, span) = match t {
-            ast::Term::App(f, args, span) => (f, args, *span),
-            other => return Err(bad(other.span())),
-        };
-        let head_last = match &**head {
-            ast::Term::Var(p) => p.name.text.clone(),
-            ast::Term::Con(p) => p.parts().last().copied().unwrap_or("").to_string(),
-            other => return Err(bad(other.span())),
-        };
-        // `not (<atom>)`: the atom in parentheses, negated.
-        if head_last == "not" {
-            let [inner] = args.as_slice() else {
+        let atom = WhenAtom::lower(t)?;
+        if let WhenKind::Capability(name) = &atom.kind {
+            if !self.sigs.contains_key(name) {
                 return Err(Error::at(
-                    span,
-                    format!("a negated `when` atom is written `not (<atom>)`, with the atom in parentheses: {WHEN_VOCABULARY}"),
-                ));
-            };
-            let atom = self.lower_when(inner)?;
-            if atom.negated {
-                return Err(Error::at(
-                    span,
-                    format!("a `when` clause is negated once: `not ({})` is the clause itself ({WHEN_VOCABULARY})", atom.kind.render()),
+                    t.span(),
+                    format!(
+                        "unknown capability `{name}`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)"
+                    ),
                 ));
             }
-            return Ok(WhenAtom { negated: true, kind: atom.kind });
         }
-        let [arg] = args.as_slice() else {
-            return Err(bad(span));
-        };
-        let name = || -> Result<String> {
-            match arg {
-                ast::Term::Var(p) if p.quals.is_empty() => Ok(p.name.text.clone()),
-                ast::Term::Con(p) => Ok(p.parts().join(".")),
-                other => Err(bad(other.span())),
-            }
-        };
-        let kind = match head_last.as_str() {
-            "Available" => {
-                let name = name()?;
-                if !self.sigs.contains_key(&name) {
-                    return Err(Error::at(
-                        span,
-                        format!(
-                            "unknown capability `{name}`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)"
-                        ),
-                    ));
-                }
-                WhenKind::Capability(name)
-            }
-            "arch" => WhenKind::Arch(name()?),
-            "os" => WhenKind::Os(name()?),
-            "libc" => WhenKind::Libc(name()?),
-            "endian" => {
-                let name = name()?;
-                if name != "little" && name != "big" {
-                    return Err(Error::at(
-                        span,
-                        format!("an `endian` atom is `little` or `big`, and `{name}` is neither (primitive operations and inline target IR specification section 13)"),
-                    ));
-                }
-                WhenKind::Endian(name)
-            }
-            "word-size" => match arg {
-                ast::Term::Int(bits, _) => match bits.parse::<u32>() {
-                    Ok(bits) => WhenKind::WordSize(bits),
-                    Err(_) => return Err(bad(span)),
-                },
-                other => {
-                    return Err(Error::at(
-                        other.span(),
-                        format!("a `word-size` atom is a bit width as an integer, such as `word-size 32` or `word-size 64` (primitive operations and inline target IR specification section 13)"),
-                    ))
-                }
-            },
-            "target" => WhenKind::Target(name()?),
-            _ => return Err(bad(span)),
-        };
-        Ok(WhenAtom { negated: false, kind })
+        Ok(atom)
     }
 
     /// Containment validation of an `llvm` fragment (primitive
@@ -16019,6 +15966,205 @@ fn imports_of(m: &ast::Module) -> Vec<String> {
         .collect()
 }
 
+// ------------------------------------------- the target's view of a module
+
+/// Does this module carry any `when` clause on an import or a declaration?
+/// The common program has none, and the target's view of it is itself.
+fn module_has_conditions(m: &ast::Module) -> bool {
+    fn decl_has(d: &ast::Decl) -> bool {
+        match d {
+            ast::Decl::Conditional { .. } => true,
+            ast::Decl::Attributed { inner, .. } => decl_has(inner),
+            ast::Decl::Import(i) => !i.when.is_empty(),
+            _ => false,
+        }
+    }
+    m.decls.iter().any(decl_has)
+}
+
+/// The target's view of one module (modules specification section 11):
+/// every import and declaration whose `when` condition does not hold in
+/// the profile is gone, so it contributes no name, no export, no code and
+/// no interface entry. What survives is exactly the module the source
+/// describes for this target, and everything downstream (scope, exports,
+/// interface, code generation) reads it without knowing conditions exist.
+///
+/// The duplicate-name rule is checked over the source, before anything is
+/// dropped: two definitions of one name are accepted only when no target
+/// profile can satisfy both conditions.
+fn target_view(m: &ast::Module, profile: &crate::core::TargetProfile) -> Result<ast::Module> {
+    check_definition_disjointness(m)?;
+    let mut dropped: Vec<String> = Vec::new();
+    let mut decls: Vec<ast::Decl> = Vec::new();
+    for d in &m.decls {
+        match d {
+            ast::Decl::Import(i) => {
+                let cond = WhenCond::lower(&i.when)?;
+                if cond.holds(profile) {
+                    decls.push(d.clone());
+                } else {
+                    // The import is invisible, and so is every re-export
+                    // that names it: the facade's surface is the selected
+                    // backend's surface (requirement of section 11's
+                    // re-export rule).
+                    dropped.push(i.path.parts().join("."));
+                    if let Some(alias) = &i.alias {
+                        dropped.push(alias.text.clone());
+                    }
+                }
+            }
+            ast::Decl::Export(export) => {
+                let mut kept = export.clone();
+                kept.items.retain(|item| match item {
+                    ast::ExportItem::Module(q) => !dropped.iter().any(|m| m == &q.text),
+                    ast::ExportItem::Member(path) => {
+                        let parts = path.parts();
+                        let qual = parts[..parts.len().saturating_sub(1)].join(".");
+                        !dropped.iter().any(|m| m == &qual)
+                    }
+                    ast::ExportItem::Name(_) => true,
+                });
+                if !kept.items.is_empty() {
+                    decls.push(ast::Decl::Export(kept));
+                }
+            }
+            other => {
+                if let Some(kept) = prune_decl(other, profile)? {
+                    decls.push(kept);
+                }
+            }
+        }
+    }
+    let mut view = m.clone();
+    view.decls = decls;
+    view.imports = view
+        .decls
+        .iter()
+        .filter_map(|d| match d {
+            ast::Decl::Import(i) => Some(i.clone()),
+            _ => None,
+        })
+        .collect();
+    Ok(view)
+}
+
+/// One declaration under the target: a false `when` drops it, a true one
+/// keeps the declaration it wraps, and an attribute list survives around
+/// whatever does.
+fn prune_decl(d: &ast::Decl, profile: &crate::core::TargetProfile) -> Result<Option<ast::Decl>> {
+    match d {
+        ast::Decl::Conditional { when, inner } => {
+            if WhenCond::lower(when)?.holds(profile) {
+                prune_decl(inner, profile)
+            } else {
+                Ok(None)
+            }
+        }
+        ast::Decl::Attributed { attrs, inner } => Ok(prune_decl(inner, profile)?.map(|inner| {
+            ast::Decl::Attributed { attrs: attrs.clone(), inner: Box::new(inner) }
+        })),
+        other => Ok(Some(other.clone())),
+    }
+}
+
+/// The name a declaration defines, and whether it defines one at all. A
+/// signature is not a definition: `f :: T` declares the name its equation
+/// defines, so the pair is one definition, not two.
+fn definition_name(d: &ast::Decl) -> Option<&ast::Name> {
+    match d {
+        ast::Decl::Equation { eq, .. } => Some(&eq.name),
+        // A `foreign export` is not a definition: it names the symbol a
+        // definition of the same name is published under, so counting it
+        // here made every export collide with its own equation.
+        ast::Decl::Foreign(f) if f.is_import => Some(&f.name),
+        ast::Decl::Foreign(_) => None,
+        ast::Decl::Prim(p) => Some(&p.name),
+        ast::Decl::Data(t) => Some(&t.name),
+        ast::Decl::Record(r) | ast::Decl::Codata(r) => Some(&r.name),
+        ast::Decl::OpaqueType(o) => Some(&o.name),
+        ast::Decl::Refine(r) => Some(&r.name),
+        _ => None,
+    }
+}
+
+/// The disjointness rule for a name two declarations define (modules
+/// specification section 11): one name may be defined twice only when no
+/// target profile can satisfy both conditions, so exactly one definition
+/// applies per target. Two plain definitions, or two conditions that can
+/// hold together, are refused with both conditions and the overlapping
+/// atom named.
+fn check_definition_disjointness(m: &ast::Module) -> Result<()> {
+    // A name's clauses are one definition when they carry the same
+    // condition, and separate definitions when they do not: `f 0 = ...`
+    // and `f n = ...` are one definition, while `when os darwin f = ...`
+    // and `when os linux f = ...` are two. Grouping by (name, condition)
+    // is what keeps the ordinary multi-clause function legal, which a
+    // clause-against-clause comparison refused.
+    let mut found: Vec<(String, Vec<ast::Term>, ast::Span)> = Vec::new();
+    fn walk(d: &ast::Decl, clauses: &mut Vec<ast::Term>, out: &mut Vec<(String, Vec<ast::Term>, ast::Span)>) {
+        match d {
+            ast::Decl::Conditional { when, inner } => {
+                let base = clauses.len();
+                clauses.extend(when.iter().cloned());
+                walk(inner, clauses, out);
+                clauses.truncate(base);
+            }
+            ast::Decl::Attributed { inner, .. } => walk(inner, clauses, out),
+            other => {
+                if let Some(name) = definition_name(other) {
+                    out.push((name.text.clone(), clauses.clone(), name.span));
+                }
+            }
+        }
+    }
+    let mut clauses: Vec<ast::Term> = Vec::new();
+    for d in &m.decls {
+        walk(d, &mut clauses, &mut found);
+    }
+    let mut groups: Vec<(String, String, WhenCond, ast::Span)> = Vec::new();
+    for (name, clauses, span) in found {
+        let cond = WhenCond::lower(&clauses)?;
+        let rendered = cond.render();
+        if !groups
+            .iter()
+            .any(|(n, r, _, _)| *n == name && *r == rendered)
+        {
+            groups.push((name, rendered, cond, span));
+        }
+    }
+    for i in 0..groups.len() {
+        for j in (i + 1)..groups.len() {
+            let (name, _, a, _) = &groups[i];
+            let (other, _, b, span) = &groups[j];
+            if name != other {
+                continue;
+            }
+            if let Some(why) = a.overlap(b) {
+                return Err(Error::at(
+                    *span,
+                    format!(
+                        "two definitions of `{name}` can apply to one target profile: {} and {} overlap, because {why}. A name may be defined twice only when no target profile satisfies both conditions, so that exactly one definition applies per target (modules specification section 11)",
+                        a.describe(),
+                        b.describe(),
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The target's view of every module in a check: the entry's modules and
+/// the embedded family alike, since a prelude family is handed to the
+/// checker whole and only the conditions say which of its modules the
+/// target selects.
+fn target_views(
+    modules: &[ast::Module],
+    profile: &crate::core::TargetProfile,
+) -> Result<Vec<ast::Module>> {
+    modules.iter().map(|m| target_view(m, profile)).collect()
+}
+
 /// One JSON document's compile-time shape (surface grammar local
 /// amendments section 11): the `json` converter's parsed form, before it
 /// becomes constant code.
@@ -17391,6 +17537,25 @@ fn check_program_multi_full_prepared_impl(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
+    // The target's view of the program (modules specification section 11):
+    // a conditional import or declaration that does not hold for this
+    // profile is gone before anything reads the syntax, so no scope, no
+    // export list, no interface and no code generation can see it. A
+    // program with no conditions keeps its own syntax.
+    let mut views: Option<(Vec<ast::Module>, Vec<ast::Module>)> = None;
+    if prelude.iter().chain(modules.iter()).any(module_has_conditions) {
+        // The same single context decision the module scanner uses, so a
+        // load-time view and a check-time view cannot diverge.
+        let resolve_profile = crate::core::condition_context(profile);
+        views = Some((
+            target_views(prelude, resolve_profile)?,
+            target_views(modules, resolve_profile)?,
+        ));
+    }
+    let (prelude, modules) = match &views {
+        Some((p, m)) => (p.as_slice(), m.as_slice()),
+        None => (prelude, modules),
+    };
     let Some(facade) = prelude.iter().find(|m| m.name.text == "Prelude") else {
         return Err(Error::plain("internal error: the prelude family has no facade"));
     };
@@ -22919,162 +23084,6 @@ const IO_SYMS: &[&str] = &[
     "printf", "fprintf", "sprintf", "snprintf", "puts", "putchar", "fwrite", "fread", "write",
     "read", "open", "close", "exit", "abort", "_exit", "perror", "scanf", "fscanf", "sscanf",
 ];
-
-/// The `when` vocabulary, spelled once for every error that names it
-/// (primitive operations and inline target IR specification sections 2
-/// and 13).
-const WHEN_VOCABULARY: &str = "A `when` clause is one atom over the compile target: `Available <capability>`, `arch <name>`, `os <name>`, `libc <name>`, `endian <little|big>`, `word-size <bits>`, or `target <triple>`, and a clause may negate its atom as `not (<atom>)`; repeated `when` clauses on one body are a conjunction (primitive operations and inline target IR specification sections 2 and 13)";
-
-/// One atom of a `prim` body's `when` condition (primitive operations
-/// and inline target IR specification sections 2 and 13). Every atom
-/// reads one component of the compile target profile, never the build
-/// host, so a cross compile selects by the artifact's target.
-#[derive(Clone, Debug)]
-enum WhenKind {
-    /// `Available <capability>`: the profile's capability evidence (its
-    /// required set and its feature assumptions) names it.
-    Capability(String),
-    /// `arch <name>`: the profile's architecture.
-    Arch(String),
-    /// `os <name>`: the profile's operating system.
-    Os(String),
-    /// `libc <name>`: the C library the profile links.
-    Libc(String),
-    /// `endian <little|big>`.
-    Endian(String),
-    /// `word-size <bits>`: the `Usize`/`Isize` width.
-    WordSize(u32),
-    /// `target <triple>`: the whole triple.
-    Target(String),
-}
-
-impl WhenKind {
-    /// The atom as written, without its negation.
-    fn render(&self) -> String {
-        match self {
-            WhenKind::Capability(c) => format!("Available {c}"),
-            WhenKind::Arch(a) => format!("arch {a}"),
-            WhenKind::Os(o) => format!("os {o}"),
-            WhenKind::Libc(l) => format!("libc {l}"),
-            WhenKind::Endian(e) => format!("endian {e}"),
-            WhenKind::WordSize(b) => format!("word-size {b}"),
-            WhenKind::Target(t) => format!("target {t}"),
-        }
-    }
-
-    /// The target profile's value for this atom's component, spelled for
-    /// an error's account of why the atom failed.
-    fn actual(&self, target: &crate::core::TargetProfile) -> String {
-        match self {
-            WhenKind::Capability(_) => {
-                let mut caps = target.required.clone();
-                for f in &target.features {
-                    if !caps.contains(f) {
-                        caps.push(f.clone());
-                    }
-                }
-                if caps.is_empty() {
-                    "the target profile carries no capability evidence".to_string()
-                } else {
-                    format!("the target profile carries {}", caps.join(", "))
-                }
-            }
-            WhenKind::Arch(_) => format!("the target's arch is `{}`", target.arch),
-            WhenKind::Os(_) => format!("the target's os is `{}`", target.os),
-            WhenKind::Libc(_) => format!("the target links `{}`", target.libc),
-            WhenKind::Endian(_) => format!("the target's endian is `{}`", target.endian),
-            WhenKind::WordSize(_) => format!("the target's word size is {} bits", target.word_size),
-            WhenKind::Target(_) => format!("the target's triple is `{}`", target.triple),
-        }
-    }
-
-    /// Does the atom name what the target profile is?
-    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
-        match self {
-            WhenKind::Capability(c) => target.required.iter().any(|x| x == c)
-                || target.features.iter().any(|x| x == c),
-            WhenKind::Arch(a) => *a == target.arch,
-            WhenKind::Os(o) => *o == target.os,
-            WhenKind::Libc(l) => *l == target.libc,
-            WhenKind::Endian(e) => *e == target.endian,
-            WhenKind::WordSize(b) => *b == target.word_size,
-            WhenKind::Target(t) => *t == target.triple,
-        }
-    }
-}
-
-/// One `when` clause: an atom, or that atom negated (the `not (<atom>)`
-/// spelling).
-#[derive(Clone, Debug)]
-struct WhenAtom {
-    negated: bool,
-    kind: WhenKind,
-}
-
-impl WhenAtom {
-    fn render(&self) -> String {
-        if self.negated {
-            format!("not ({})", self.kind.render())
-        } else {
-            self.kind.render()
-        }
-    }
-
-    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
-        self.kind.holds(target) != self.negated
-    }
-
-    /// Why this atom does not hold, in one account naming the atom and
-    /// what the target profile is instead. `None` when it holds. A
-    /// negated atom reports the same component, because the clause is
-    /// false exactly where that component is what it negates.
-    fn unmet(&self, target: &crate::core::TargetProfile) -> Option<String> {
-        if self.holds(target) {
-            return None;
-        }
-        Some(format!("`{}` fails: {}", self.render(), self.kind.actual(target)))
-    }
-}
-
-/// A `prim` body's `when` condition: the conjunction of its clauses
-/// (primitive operations and inline target IR specification sections 2
-/// and 13). An empty condition is the baseline body.
-#[derive(Clone, Debug, Default)]
-struct WhenCond {
-    atoms: Vec<WhenAtom>,
-}
-
-impl WhenCond {
-    /// The condition as written, its clauses joined as the conjunction
-    /// they are: `os darwin and arch aarch64`.
-    fn render(&self) -> String {
-        self.atoms
-            .iter()
-            .map(WhenAtom::render)
-            .collect::<Vec<_>>()
-            .join(" and ")
-    }
-
-    /// Does every atom hold in the target profile?
-    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
-        self.atoms.iter().all(|a| a.holds(target))
-    }
-
-    /// Every atom with its outcome in the target profile, so a false
-    /// condition says which atom decided it as well as which atoms held:
-    /// `os darwin` holds, `arch aarch64` fails: the target's arch is
-    /// `x86_64`. The failing atoms carry what the profile is instead.
-    fn account(&self, target: &crate::core::TargetProfile) -> String {
-        self.atoms
-            .iter()
-            .map(|a| match a.unmet(target) {
-                Some(why) => why,
-                None => format!("`{}` holds", a.render()),
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-}
 
 /// Is this type a prim ABI scalar (the declared ABI's widths)?
 fn is_prim_abi_ty(ty: &Ty) -> bool {
