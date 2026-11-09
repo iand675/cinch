@@ -10657,6 +10657,18 @@
                 },
                 {
                   "name": "logical_literal_preconditions_are_propositions_without_runtime_boolean_coercions",
+                  "status": "failed"
+                },
+                {
+                  "name": "monoid_over_nonempty_is_rejected_naming_the_preservation_law",
+                  "status": "failed"
+                },
+                {
+                  "name": "nonzero_multiplicative_transfer_checks",
+                  "status": "failed"
+                },
+                {
+                  "name": "numeric_literals_use_actual_scoped_refinement_facts",
                   "status": "running"
                 }
               ]
@@ -15264,5 +15276,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:01:13.435098+00:00"
+  "updatedAt": "2026-11-09T11:02:16.076881+00:00"
 }
