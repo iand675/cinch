@@ -11938,6 +11938,34 @@
                 },
                 {
                   "name": "native_type_constructor_clause_and_export_builders_form_a_private_family",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_function_code_keeps_source_signatures_and_refuses_discarded_attributes",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_function_code_localizes_clauses_recursion_and_generic_signatures",
+                  "status": "failed"
+                },
+                {
+                  "name": "packing_code_preserves_carrier_and_linear_expectations",
+                  "status": "failed"
+                },
+                {
+                  "name": "quantified_function_code_checks_recursive_bodies_before_instantiation",
+                  "status": "failed"
+                },
+                {
+                  "name": "quantified_function_code_retains_rows_regions_and_universal_effect_checks",
+                  "status": "failed"
+                },
+                {
+                  "name": "structural_metadata_cannot_escape_through_runtime_code",
+                  "status": "failed"
+                },
+                {
+                  "name": "structural_specialization_and_signature_readers_keep_internal_and_private_type_owners",
                   "status": "running"
                 }
               ]
@@ -15980,5 +16008,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:29:17.598551+00:00"
+  "updatedAt": "2026-11-09T11:30:20.322146+00:00"
 }
