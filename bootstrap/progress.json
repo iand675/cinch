@@ -5316,6 +5316,18 @@
                 },
                 {
                   "name": "literal_patterns_fall_through_in_source_order",
+                  "status": "passed"
+                },
+                {
+                  "name": "local_let_polymorphism",
+                  "status": "passed"
+                },
+                {
+                  "name": "memo_bindings_demand_on_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "memo_cells_with_signatures_and_shared_use",
                   "status": "running"
                 }
               ]
@@ -13735,9 +13747,9 @@
         "unit": "gates",
         "total": 7,
         "passed": 2,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay the original lib_bigdecimal tests Audited outcomes are 6/6 small-integer, 4/10 range, and 5/14 dependent cases.",
+        "phase": "Replay the original lib_base64 tests Audited outcomes are 6/6 small-integer, 4/10 range, and 5/14 dependent cases.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-small-nats-range-dependent.json"
       },
       {
@@ -13919,5 +13931,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:20:16.481794+00:00"
+  "updatedAt": "2026-11-09T09:21:20.174118+00:00"
 }
