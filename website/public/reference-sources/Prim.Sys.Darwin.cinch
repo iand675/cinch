@@ -1,0 +1,260 @@
+-- Prim.Sys.Darwin: the Darwin filesystem calls, in Cinch.
+--
+-- This module is the Darwin half of the syscall layer the design says
+-- belongs in the language (design/base-as-a-package.md section 5, and the
+-- user's direction that OS access becomes Cinch as the compiler is
+-- bootstrapped). Every entry point here is a `libSystem` symbol bound with
+-- `foreign import ccall`, so this OS needs no assembly at all: the
+-- references it emits resolve to libSystem and the call is the C call.
+--
+-- Verified on macOS arm64: a program that imports this module creates a
+-- file, writes eleven bytes, reads them back through lseek and read, and
+-- gets `SysNotFound` for a path that does not exist.
+--
+-- # The error vocabulary
+--
+-- A `libSystem` call answers `-1` and sets the calling thread's error
+-- slot. Every wrapper turns that into `Err` of `SysError`, whose
+-- constructors `Effect.Fs` maps one for one onto its own named
+-- vocabulary. The numbers are the POSIX six (2, 13, 17, 20, 21, 22) plus
+-- the fallback, so the same mapping serves the Linux module: the two
+-- modules name the same constructors and swap with one import line.
+--
+-- # What is deliberately not here, and why
+--
+-- * Variadic callees. Apple's arm64 ABI passes variadic arguments on the
+--   stack, and a `foreign import ccall` declaration has no `...`, so the
+--   third argument of `open` (the creation mode) or of `ioctl` (the
+--   winsize pointer) would land in a register the callee never reads.
+--   Creation therefore goes through `creat`, which is a fixed two
+--   argument call and is exactly `open` with
+--   `O_WRONLY | O_CREAT | O_TRUNC`, and the terminal control calls stay
+--   in the Rust runtime until a variadic import form exists.
+-- * Struct layouts. `struct stat`, `struct dirent` and `struct
+--   sigaction` are data, not entry points. `sys-fstat-into` fills a
+--   caller's buffer and the caller that owns the layout reads the
+--   fields, which is the rule `crate::stack` already follows for the
+--   signal structs.
+-- * Name resolution and process control. They are the next areas; this
+--   file is the filesystem's, and a module that declares only what one
+--   area needs keeps the audit local.
+module Prim.Sys.Darwin where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export SysError, SysNotFound, SysPermissionDenied, SysAlreadyExists
+  export SysNotADirectory, SysIsADirectory, SysInvalidName, SysIoError
+  export sys-error-of, sys-errno
+  export sys-cpath, sys-open-read, sys-create, sys-read, sys-write
+  export sys-close, sys-lseek, sys-seek-set, sys-seek-end, sys-o-rdonly
+  export sys-rename, sys-mkdir, sys-unlink, sys-fsync, sys-fstat-into
+  export sys-getpid
+
+  -- What the operating system said, named. The constructors are the
+  -- shared vocabulary `Effect.Fs` presents; its mapping is one for one.
+  data SysError where
+    SysNotFound :: SysError
+    SysPermissionDenied :: SysError
+    SysAlreadyExists :: SysError
+    SysNotADirectory :: SysError
+    SysIsADirectory :: SysError
+    SysInvalidName :: SysError
+    SysIoError :: SysError
+
+  -- The `libSystem` symbols. A pointer crosses as a word (the address
+  -- `bytes-data` answers), and a descriptor, a count and a return value
+  -- are words too, so the whole surface is `I64` and no C type is named.
+  -- The rows are `{IO r}` because that is what the callers hold; the
+  -- effects a C call can have are not this module's to describe.
+  foreign import ccall "open" c-open :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "creat" c-creat :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "read" c-read :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "write" c-write :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "close" c-close :: forall r. I64 ->{IO r} I64
+  foreign import ccall "lseek" c-lseek :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+  foreign import ccall "rename" c-rename :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "mkdir" c-mkdir :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "unlink" c-unlink :: forall r. I64 ->{IO r} I64
+  foreign import ccall "fsync" c-fsync :: forall r. I64 ->{IO r} I64
+  foreign import ccall "fstat" c-fstat :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "getpid" c-getpid :: forall r. Unit ->{IO r} I64
+  foreign import ccall "__error" c-errno-slot :: forall r. Unit ->{IO r} I64
+
+  -- A 32 bit load through an address. This is the one memory read the
+  -- error slot needs and the language has no other spelling for: the
+  -- address arrives as a word, the body converts it and loads. The body
+  -- is pure and cannot fail; a caller that supplies an address that is
+  -- not the error slot is the one that was wrong.
+  prim load-i32 :: I64 -> I32 where
+    unsafe llvm {
+      %p = inttoptr i64 %0 to ptr
+      %v = load i32, ptr %p, align 4
+      ret i32 %v
+    }
+
+  -- `O_RDONLY`: read only, fixed by the ABI.
+  sys-o-rdonly :: I64
+  sys-o-rdonly = 0
+
+  -- `SEEK_SET`: an offset from the start.
+  sys-seek-set :: I64
+  sys-seek-set = 0
+
+  -- `SEEK_END`: an offset from the end.
+  sys-seek-end :: I64
+  sys-seek-end = 2
+
+  -- The mode `creat` gives a fresh file: 0o666 (438). The process's umask
+  -- narrows it, which is the rule every creating call follows.
+  sys-create-mode :: I64
+  sys-create-mode = 438
+
+  -- The error number the last failed call left, read through the address
+  -- `__error` answers. It has to be read immediately after the call that
+  -- failed: nothing in this module calls another system function in
+  -- between.
+  sys-errno :: forall r. Unit ->{IO r} I32
+  sys-errno u = load-i32 (c-errno-slot ())
+
+  -- The error number as the named vocabulary. The six numbers are fixed
+  -- by POSIX and identical on Linux; anything else is `SysIoError`.
+  sys-error-of :: I32 -> SysError
+  sys-error-of e = case e == 2 of
+    True -> SysNotFound
+    False -> case e == 13 of
+      True -> SysPermissionDenied
+      False -> case e == 17 of
+        True -> SysAlreadyExists
+        False -> case e == 20 of
+          True -> SysNotADirectory
+          False -> case e == 21 of
+            True -> SysIsADirectory
+            False -> case e == 22 of
+              True -> SysInvalidName
+              False -> SysIoError
+
+  -- `s` as a C string: a fresh buffer one byte longer than the text, the
+  -- bytes copied in, the last byte zero. The buffer's address is what a
+  -- call takes, and it stays valid while the handle is live.
+  sys-cpath :: String -> Bytes
+  sys-cpath s =
+    let src = string-to-bytes s in
+    let out = bytes-new (bytes-len src + 1) in
+    let copied = bytes-copy-range out src 0 0 (bytes-len src) in
+    case bytes-set out (bytes-len src) 0 of
+      _ -> out
+
+  -- Open `path` for reading: the descriptor.
+  sys-open-read :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-open-read path =
+    let b = sys-cpath path in
+    let r = c-open (bytes-data b) sys-o-rdonly in
+    case 0 <= r of
+      True -> Ok r
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Create or truncate `path` for writing: the descriptor. This is
+  -- `creat`, the fixed argument form of the creating open.
+  sys-create :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-create path =
+    let b = sys-cpath path in
+    let r = c-creat (bytes-data b) sys-create-mode in
+    case 0 <= r of
+      True -> Ok r
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Read up to `count` bytes of `fd` into `buf` at `at`: the count read,
+  -- which is 0 at the end of the stream. The kernel writes the bytes; the
+  -- address it writes to is the buffer's own.
+  sys-read :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-read fd buf at count =
+    let addr = wrapping-add-i64 (bytes-data buf) at in
+    let r = c-read fd addr count in
+    case 0 <= r of
+      True -> Ok r
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Write up to `count` bytes of `buf` from `at` to `fd`: the count
+  -- written, which may be short (a caller that wants the whole buffer
+  -- written loops).
+  sys-write :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-write fd buf at count =
+    let addr = wrapping-add-i64 (bytes-data buf) at in
+    let r = c-write fd addr count in
+    case 0 <= r of
+      True -> Ok r
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Close `fd`.
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
+  sys-close fd =
+    let r = c-close fd in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Move `fd`'s offset: the new offset. `whence` is `sys-seek-set` or
+  -- `sys-seek-end`.
+  sys-lseek :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-lseek fd off whence =
+    let r = c-lseek fd off whence in
+    case 0 <= r of
+      True -> Ok r
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Rename `from` onto `dst`, atomically (POSIX `rename`: the target sees
+  -- the whole old or the whole new content, never a partial).
+  sys-rename :: forall r. using (io :: Io r) => String -> String ->{IO r} Result SysError Unit
+  sys-rename from dst =
+    let f = sys-cpath from in
+    let t = sys-cpath dst in
+    let r = c-rename (bytes-data f) (bytes-data t) in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Create the directory `path`. One level only: a missing parent is the
+  -- OS's own refusal, and `mkdir -p` is a caller's walk.
+  sys-mkdir :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
+  sys-mkdir path mode =
+    let b = sys-cpath path in
+    let r = c-mkdir (bytes-data b) mode in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Remove the name `path`. This is `unlink`, so a directory answers the
+  -- OS's refusal; removing one is the separate directory call.
+  sys-unlink :: forall r. using (io :: Io r) => String ->{IO r} Result SysError Unit
+  sys-unlink path =
+    let b = sys-cpath path in
+    let r = c-unlink (bytes-data b) in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Flush `fd` to the storage device.
+  sys-fsync :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
+  sys-fsync fd =
+    let r = c-fsync fd in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- Fill `buf` with the raw `struct stat` of `fd`. The layout belongs to
+  -- the caller that reads the fields out of it.
+  sys-fstat-into :: forall r. using (io :: Io r) => I64 -> Bytes ->{IO r} Result SysError Unit
+  sys-fstat-into fd buf =
+    let r = c-fstat fd (bytes-data buf) in
+    case 0 <= r of
+      True -> Ok ()
+      False -> Err (sys-error-of (sys-errno ()))
+
+  -- This process's own id.
+  sys-getpid :: forall r. using (io :: Io r) => Unit ->{IO r} I64
+  sys-getpid u = c-getpid ()

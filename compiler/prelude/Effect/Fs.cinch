@@ -9,12 +9,20 @@
 -- failure is a NAMED `FsError` value in a `Result` (the house style:
 -- `Text.Parse`'s named vocabulary shape), never a fault.
 --
--- The boundary words (`compiler/runtime/src/platform.rs`, the
--- `cinch_fs_*`/`cinch_buf_*` externs) are the plain `foreign import
--- ccall` machinery: machine scalars only, so paths and content cross
--- through runtime word buffers, filled and drained one byte at a time
--- below. The error codes those words return map one for one onto the
--- named constructors (`NotFound` ... `IoError`).
+-- Read and write issue their calls in Cinch: `Prim.Sys.Darwin` binds
+-- `open`/`creat`/`read`/`write`/`close`/`lseek` with `foreign import
+-- ccall`, and `Prim.Sys.Linux` carries the same entry points as `prim`
+-- bodies that issue `syscall`. Both answer the module's `SysError`
+-- constructors, which map one for one onto the named constructors below
+-- (`NotFound` ... `IoError`).
+--
+-- The remaining operations (atomic rename, metadata, the directory
+-- listing) still cross through the runtime's `cinch_fs_*` word buffers
+-- (`compiler/runtime/src/platform.rs`, the plain `foreign import ccall`
+-- machinery): machine scalars only, so paths and content cross through
+-- word buffers filled and drained one byte at a time below. The error
+-- codes those words return map onto the same named constructors, so the
+-- two routes present one vocabulary.
 --
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
@@ -44,6 +52,7 @@ module Effect.Fs where
   import Data.Path
   import Data.Result
   import Data.String
+  import Prim.Sys.Darwin
   import Relation.Eq
   import Relation.Ord
 
@@ -91,9 +100,9 @@ module Effect.Fs where
   foreign import ccall "cinch_buf_len" buf-len :: forall r. I64 ->{IO r} I64
   foreign import ccall "cinch_buf_get" buf-get :: forall r. I64 -> I64 ->{IO r} I64
 
-  -- The filesystem words.
-  foreign import ccall "cinch_fs_read" raw-fs-read :: forall r. I64 -> I64 ->{IO r} I64
-  foreign import ccall "cinch_fs_write" raw-fs-write :: forall r. I64 -> I64 ->{IO r} I64
+  -- The filesystem words still provided by the runtime: metadata, the
+  -- directory listing and the atomic rename. Read and write go through
+  -- `Prim.Sys.Darwin`, which issues the calls themselves in Cinch.
   foreign import ccall "cinch_fs_rename" raw-fs-rename :: forall r. I64 -> I64 ->{IO r} I64
   foreign import ccall "cinch_fs_meta_kind" raw-fs-meta-kind :: forall r. I64 ->{IO r} I64
   foreign import ccall "cinch_fs_meta_size" raw-fs-meta-size :: forall r. I64 ->{IO r} I64
@@ -150,36 +159,100 @@ module Effect.Fs where
     -6 -> InvalidName
     _ -> IoError
 
+  -- The syscall layer's vocabulary as this home's. The constructors are
+  -- the same in the Darwin and the Linux module, so the import above is
+  -- the only line that changes with the platform.
+  fs-error-of-sys :: SysError -> FsError
+  fs-error-of-sys e = case e of
+    SysNotFound -> NotFound
+    SysPermissionDenied -> PermissionDenied
+    SysAlreadyExists -> AlreadyExists
+    SysNotADirectory -> NotADirectory
+    SysIsADirectory -> IsADirectory
+    SysInvalidName -> InvalidName
+    SysIoError -> IoError
+
   -- The whole file at `p`, or the named error (missing paths report
   -- `NotFound`).
+  --
+  -- The calls are `Prim.Sys`'s: open, the size from `lseek`, one buffer
+  -- that large, then a read loop to the buffer's end, then close. The
+  -- size is the file's length when the read starts, so a file that grows
+  -- while it is being read is read to that length; a file that shrank is
+  -- read a second time at its new length, so the answer is exactly what
+  -- the kernel produced either way.
   fs-read :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError Bytes
   fs-read p =
-    let ph = path-buf p in
-    let out = buf-new () in
-    case raw-fs-read ph out of
-      0 -> case buf-to-bytes out of
-        r -> case buf-free ph of
-          _ -> case buf-free out of
-            _ -> case r of
-              Some bs -> Ok bs
-              None -> Err IoError
-      c -> case buf-free ph of
-        _ -> case buf-free out of
-          _ -> Err (fs-error-code c)
+    case sys-open-read (path-to-string p) of
+      Err e -> Err (fs-error-of-sys e)
+      Ok fd -> case file-bytes fd of
+        r -> case sys-close fd of
+          _ -> r
+
+  file-bytes :: forall r. using (io :: Io r) => I64 ->{IO r} Result FsError Bytes
+  file-bytes fd = case sys-lseek fd 0 sys-seek-end of
+    Err e -> Err (fs-error-of-sys e)
+    Ok size -> case bytes-of size of
+      None -> Err IoError
+      Some buf -> case rewind fd of
+        Err e -> Err e
+        Ok _ -> case read-fill fd buf 0 of
+          Err e -> Err e
+          Ok got -> case got == size of
+            True -> Ok buf
+            False -> case rewind fd of
+              Err e -> Err e
+              Ok _ -> case bytes-of got of
+                None -> Err IoError
+                Some smaller -> case read-fill fd smaller 0 of
+                  Err e -> Err e
+                  Ok _ -> Ok smaller
+
+  -- A fresh buffer of `n` bytes, or `None` for a negative length (which
+  -- is a descriptor answer this home reports as `IoError`).
+  bytes-of :: I64 -> Option Bytes
+  bytes-of n = case 0 <= n of
+    True -> Some (bytes-new (nat-from-i64 n))
+    False -> None
+
+  -- Back to the start of the file.
+  rewind :: forall r. using (io :: Io r) => I64 ->{IO r} Result FsError Unit
+  rewind fd = case sys-lseek fd 0 sys-seek-set of
+    Err e -> Err (fs-error-of-sys e)
+    Ok _ -> Ok ()
+
+  -- Fill `buf` from `i` to its end, answering how far the reads got.
+  read-fill :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 ->{IO r} Result FsError I64
+  read-fill fd buf i =
+    let len = nat-to-i64 (bytes-len buf) in
+    case i < len of
+      False -> Ok i
+      True -> case sys-read fd buf i (wrapping-sub-i64 len i) of
+        Err e -> Err (fs-error-of-sys e)
+        Ok 0 -> Ok i
+        Ok n -> read-fill fd buf (wrapping-add-i64 i n)
 
   -- Write `content` to `p`, creating or truncating it (NOT atomic;
-  -- atomic replacement is `fs-rename`).
+  -- atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
+  -- `creat` (the fixed argument form of the creating open), a write loop
+  -- (a write may be short), then close.
   fs-write :: forall r. using (io :: Io r) => Path -> Bytes ->{IO r} Result FsError Unit
   fs-write p content =
-    let ph = path-buf p in
-    let dh = buf-from-bytes content in
-    case raw-fs-write ph dh of
-      0 -> case buf-free ph of
-        _ -> case buf-free dh of
-          _ -> Ok ()
-      c -> case buf-free ph of
-        _ -> case buf-free dh of
-          _ -> Err (fs-error-code c)
+    case sys-create (path-to-string p) of
+      Err e -> Err (fs-error-of-sys e)
+      Ok fd -> case write-fill fd content 0 of
+        r -> case sys-close fd of
+          _ -> r
+
+  write-fill :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 ->{IO r} Result FsError Unit
+  write-fill fd buf i =
+    let len = nat-to-i64 (bytes-len buf) in
+    case i < len of
+      False -> Ok ()
+      True -> case sys-write fd buf i (wrapping-sub-i64 len i) of
+        Err e -> Err (fs-error-of-sys e)
+        Ok 0 -> Err IoError
+        Ok n -> write-fill fd buf (wrapping-add-i64 i n)
 
   -- Atomically rename `from` to `to` (POSIX `rename`: the target sees
   -- the whole old or the whole new content, never a partial).

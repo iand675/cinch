@@ -144,6 +144,14 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Effect/Clock.cinch"),
     ),
     (
+        "Prim/Sys/Darwin.cinch",
+        include_str!("../prelude/Prim/Sys/Darwin.cinch"),
+    ),
+    (
+        "Prim/Sys/Linux.cinch",
+        include_str!("../prelude/Prim/Sys/Linux.cinch"),
+    ),
+    (
         "Effect/Fs.cinch",
         include_str!("../prelude/Effect/Fs.cinch"),
     ),

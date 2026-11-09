@@ -95,6 +95,58 @@ Three facts make this safe to write:
 
 The address is a word, not a typed pointer, so the type checker cannot tell you what it points at. That is deliberate: the only thing to do with it is pass it to something that already knows, a declaration whose signature you wrote or a `prim` body.
 
+# The operating system as a library
+
+A `foreign import ccall` whose symbol is a `libSystem` name needs no runtime export and no Rust in the path: the declaration is the binding, and `open`, `read`, `write` and `close` resolve to the C library exactly as `strlen` does. The prelude packages that up as `Prim.Sys.Darwin`, whose wrappers turn a `-1` result into a named error read from the thread's error slot, and as `Prim.Sys.Linux`, whose entries are `prim` bodies that issue `syscall` with the number pinned in the body. The two modules name the same `SysError` constructors, so a module that uses one switches with a single import line.
+
+This program is the whole filesystem round trip on Darwin: `creat` (the fixed argument form of the creating open, since a variadic `open` cannot be declared), a write, `lseek` for the length, a read, and `unlink`.
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Prim.Sys.Darwin
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case sys-create "doc-fs-probe.txt" of
+      Err e -> 1
+      Ok fd -> case sys-write fd (string-to-bytes "hello") 0 5 of
+        Err e -> 2
+        Ok n -> case n == 5 of
+          False -> 3
+          True -> case sys-close fd of
+            Err e -> 4
+            Ok _ -> case sys-open-read "doc-fs-probe.txt" of
+              Err e -> 5
+              Ok rd -> case sys-lseek rd 0 sys-seek-end of
+                Err e -> 6
+                Ok size -> case size == 5 of
+                  False -> 7
+                  True -> case sys-lseek rd 0 sys-seek-set of
+                    Err e -> 8
+                    Ok _ ->
+                      let buf = bytes-new 5 in
+                      case sys-read rd buf 0 5 of
+                        Err e -> 9
+                        Ok got -> case got == 5 of
+                          False -> 10
+                          True -> case sys-close rd of
+                            Err e -> 11
+                            Ok _ -> case string-from-bytes buf of
+                              None -> 12
+                              Some text -> case text == "hello" of
+                                False -> 13
+                                True -> case sys-unlink "doc-fs-probe.txt" of
+                                  Err e -> 14
+                                  Ok _ -> 0
+```
+
+The path reaches C as an address: `sys-cpath` copies the text into a fresh buffer one byte longer and zeroes the last byte, because a `Bytes` value carries a length rather than a terminator. The buffer's handle is live for the whole call, which is what keeps its payload alive.
+
 # Linking an object of your own
 
 The CLI has no option that supplies an object or library. `--object`, `-l`, and `--lib` are not flags: a word after the entry file that is not one of the documented flags becomes a program argument, so the build succeeds and silently ignores it. The Rust API is the current route (`driver::run_source_objects` and `build_source_objects` link supplied object files, which is how the `ffi` and `llvm_contract` suites call real C fixtures).

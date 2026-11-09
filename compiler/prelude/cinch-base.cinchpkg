@@ -135,6 +135,16 @@
       "embedded": true
     },
     {
+      "name": "Prim.Sys.Darwin",
+      "path": "Prim/Sys/Darwin.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Prim.Sys.Linux",
+      "path": "Prim/Sys/Linux.cinch",
+      "embedded": true
+    },
+    {
       "name": "Effect.Fs",
       "path": "Effect/Fs.cinch",
       "embedded": true
@@ -308,6 +318,8 @@
     "Effect.Sequencing",
     "Effect.Concurrent",
     "Effect.Clock",
+    "Prim.Sys.Darwin",
+    "Prim.Sys.Linux",
     "Effect.Fs",
     "Effect.Process",
     "Effect.Io",

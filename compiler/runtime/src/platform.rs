@@ -31,12 +31,17 @@
 //! * `cinch_clock_monotonic_ns() -> i64`, `cinch_clock_wall_ns() ->
 //!   i64`: the clocks (nanoseconds; the monotonic one since an
 //!   arbitrary origin, the wall one since the Unix epoch).
-//! * `cinch_fs_read(path, out) -> i64`, `cinch_fs_write(path, data)
-//!   -> i64`, `cinch_fs_rename(from, to) -> i64`,
-//!   `cinch_fs_meta_kind(path) -> i64`, `cinch_fs_meta_size(path) ->
-//!   i64`, `cinch_fs_dir_open(path) -> i64`, `cinch_fs_dir_next(dir,
-//!   out) -> i64`, `cinch_fs_dir_close(dir) -> i64`: the filesystem
-//!   operations (`fs-rename` is the atomic one).
+//! * `cinch_fs_rename(from, to) -> i64`, `cinch_fs_meta_kind(path) ->
+//!   i64`, `cinch_fs_meta_size(path) -> i64`, `cinch_fs_dir_open(path)
+//!   -> i64`, `cinch_fs_dir_next(dir, out) -> i64`,
+//!   `cinch_fs_dir_close(dir) -> i64`: the filesystem operations
+//!   (`fs-rename` is the atomic one).
+//!
+//! File READS and WRITES are no longer here. They moved to the
+//! language: `compiler/prelude/Prim/Sys/Darwin.cinch` declares the
+//! `libSystem` calls with `foreign import ccall` and `Effect.Fs` composes
+//! them, so there is no Rust in that path at all. The exports below are
+//! the areas that have not moved yet.
 //! * `cinch_fs_mkdir(path, parents) -> i64` (one directory, or the
 //!   whole chain when `parents` is nonzero, matching `mkdir -p`),
 //!   `cinch_fs_remove(path, recursive) -> i64` (a file, a directory, or
@@ -247,73 +252,6 @@ pub extern "C" fn cinch_clock_wall_ns() -> i64 {
 // ---------------------------------------------------------------------------
 // Filesystem
 // ---------------------------------------------------------------------------
-
-/// Read the file at `path` into `out` (replacing its contents): 0, or
-/// the negated error code.
-///
-/// The read goes through [`crate::sys`]: `open`, then `read` until the
-/// kernel answers 0, then `close`. The content is what the reads
-/// returned, so no metadata call decides a buffer size (a file that
-/// changes while it is read is still read to its end).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_fs_read(path: i64, out: i64) -> i64 {
-    let (Some(p), Some(o)) = (unsafe { buf_path(path) }, unsafe { buf(out) }) else {
-        return -INVALID_ARGUMENT;
-    };
-    match read_file(&p) {
-        Ok(bytes) => {
-            *o = bytes;
-            0
-        }
-        Err(code) => -code,
-    }
-}
-
-/// The whole file at `path`, or the named error code.
-fn read_file(path: &std::path::Path) -> Result<Vec<u8>, i64> {
-    use std::os::unix::ffi::OsStrExt;
-
-    let (fd, err) = crate::sys::open_read(path.as_os_str().as_bytes());
-    if fd < 0 {
-        return Err(io_code_errno(err));
-    }
-    let mut out: Vec<u8> = Vec::new();
-    let mut chunk = [0u8; 16 << 10];
-    let result = loop {
-        let (n, err) = crate::sys::read(fd, &mut chunk);
-        if n == 0 {
-            break Ok(());
-        }
-        if n < 0 {
-            // A signal that arrived before any byte did: the read never
-            // happened, so it is retried rather than reported.
-            if err == crate::sys::EINTR {
-                continue;
-            }
-            break Err(io_code_errno(err));
-        }
-        out.extend_from_slice(&chunk[..n as usize]);
-    };
-    // The descriptor is closed whatever the reads did. A close that
-    // fails has nothing to report: the content is already decided, and
-    // retrying a close is the one thing that must not happen (the
-    // descriptor may be gone already).
-    crate::sys::close(fd);
-    result.map(|()| out)
-}
-
-/// Write `data` to the file at `path`, creating or truncating it: 0,
-/// or the negated error code. (Atomic replacement is `fs-rename`.)
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_fs_write(path: i64, data: i64) -> i64 {
-    let (Some(p), Some(d)) = (unsafe { buf_path(path) }, unsafe { buf_slice(data) }) else {
-        return -INVALID_ARGUMENT;
-    };
-    match std::fs::write(&p, d) {
-        Ok(()) => 0,
-        Err(e) => -io_code(&e),
-    }
-}
 
 /// Atomically rename `from` to `to` (POSIX `rename`: the target sees
 /// the whole old or the whole new content, never a partial): 0, or
@@ -1157,8 +1095,6 @@ mod tests {
             "cinch_buf_get",
             "cinch_clock_monotonic_ns",
             "cinch_clock_wall_ns",
-            "cinch_fs_read",
-            "cinch_fs_write",
             "cinch_fs_rename",
             "cinch_fs_meta_kind",
             "cinch_fs_meta_size",
@@ -1238,9 +1174,13 @@ mod tests {
         assert!(cinch_clock_wall_ns() > 0);
     }
 
-    /// The filesystem operations over a real scratch directory.
+    /// The filesystem operations still provided by the runtime, over a
+    /// real scratch directory. Read and write moved to the language
+    /// (`compiler/prelude/Prim/Sys/Darwin.cinch`), so this probe prepares
+    /// the file with the standard library and checks the words that are
+    /// still here.
     #[test]
-    fn fs_round_trip_rename_and_named_errors() {
+    fn fs_metadata_rename_and_named_errors() {
         let dir = std::env::temp_dir().join(format!("cinch_platform_fs_{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("scratch dir");
         let mk = |s: &str| -> i64 {
@@ -1260,19 +1200,17 @@ mod tests {
         };
         let a = mk(&format!("{}/a.txt", dir.display()));
         let b = mk(&format!("{}/b.txt", dir.display()));
-        let content = mk("hello");
         let out = cinch_buf_new();
-        assert_eq!(unsafe { cinch_fs_write(a, content) }, 0);
-        assert_eq!(unsafe { cinch_fs_read(a, out) }, 0);
-        assert_eq!(text(out), "hello");
+        std::fs::write(dir.join("a.txt"), b"hello").expect("the probe's file");
         assert_eq!(unsafe { cinch_fs_meta_kind(a) }, 0);
         assert_eq!(unsafe { cinch_fs_meta_size(a) }, 5);
         assert_eq!(unsafe { cinch_fs_rename(a, b) }, 0);
-        assert_eq!(unsafe { cinch_fs_read(b, out) }, 0);
-        assert_eq!(text(out), "hello");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("b.txt")).expect("the renamed file"),
+            "hello"
+        );
         assert_eq!(unsafe { cinch_fs_meta_kind(a) }, -NOT_FOUND);
         let missing = mk(&format!("{}/missing.txt", dir.display()));
-        assert_eq!(unsafe { cinch_fs_read(missing, out) }, -NOT_FOUND);
         assert_eq!(unsafe { cinch_fs_meta_kind(missing) }, -NOT_FOUND);
         // The listing sees both scratch names.
         let dirh = mk(&format!("{}", dir.display()));
@@ -1288,7 +1226,7 @@ mod tests {
         }
         assert_eq!(unsafe { cinch_fs_dir_close(dh) }, 0);
         assert!(names.contains(&"b.txt".to_string()), "listing {names:?}");
-        for h in [a, b, content, out, missing, dirh] {
+        for h in [a, b, out, missing, dirh] {
             assert_eq!(unsafe { cinch_buf_free(h) }, 0);
         }
         let _ = std::fs::remove_dir_all(&dir);

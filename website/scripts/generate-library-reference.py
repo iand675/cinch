@@ -85,6 +85,8 @@ DESCRIPTIONS = {
 'Effect.Concurrent':'Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations.',
 'Effect.Io':'A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration.',
 'Effect.Clock':'Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs.',
+'Prim.Sys.Darwin':'The Darwin half of the syscall layer: libSystem calls bound with foreign import ccall (open, read, write, close, lseek, fstat, mkdir, unlink, rename, fsync, getpid), with the -1 result mapped to a named error read from the thread error slot.',
+'Prim.Sys.Linux':'The Linux half of the syscall layer: prim bodies that issue syscall with the pinned number per architecture (x86_64 and aarch64), with the kernel negative result mapped to the same named errors as the Darwin module.',
 'Effect.Fs':'Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors.',
 'Effect.Process':'One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process\'s arguments.',
 'Effect.Net':'Socket operations with explicit handles, address values, errors, and runtime effects.',

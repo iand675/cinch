@@ -1,0 +1,397 @@
+-- Prim.Sys.Linux: the Linux filesystem calls, in Cinch, on the `syscall`
+-- instruction.
+--
+-- This module is the Linux half of the syscall layer the design says
+-- belongs in the language (design/base-as-a-package.md section 5). Unlike
+-- Darwin, Linux has a stable syscall ABI, so there is no C library in the
+-- path: every entry here is a `prim` whose `unsafe llvm` body issues
+-- `syscall` (x86_64) or `svc #0` (aarch64) with the number pinned in the
+-- body itself.
+--
+-- # NOT EXECUTED ON ANY MACHINE AS OF THIS WRITING
+--
+-- The development machine is macOS arm64, so this module has been
+-- checked, emitted, assembled and linked but never run: its bodies would
+-- issue Linux syscall numbers to the Darwin kernel and trap. Treat the
+-- numbers below as unverified until a Linux machine runs a program that
+-- imports this module. The arch that emitted here is aarch64
+-- (`cinch emit-ir` on a program that imports the module shows
+-- `call i64 asm sideeffect "mov x0, ... svc #0 ..."`).
+--
+-- # One file, two architectures
+--
+-- A prim body can be gated on the target architecture (`when arch
+-- aarch64`), and the checker selects the matching body per target, which
+-- is pinned by `compiler/tests/prim.rs`'s
+-- `platform_gated_asm_bodies_select_per_arch`. That is why the two
+-- architectures live in one module here: a body's `when` cannot test the
+-- operating system, so per-OS files are the split that matters, and
+-- within an OS the architecture is expressible in the body.
+--
+-- Every primitive also carries a portable baseline body (the `llvm` one
+-- after the two `when` bodies) that answers the kernel's `ENOSYS`, 38
+-- negated. On an architecture with no pinned numbers that is what a call
+-- reports: "this route is not implemented here", which is a named `Err`
+-- rather than a wrong number sent to a kernel. The baseline is also what
+-- keeps this module checkable, and therefore part of the prelude, on a
+-- target such as wasm32 that has neither body.
+--
+-- # The clobbers are the point
+--
+-- `syscall` destroys `rcx` and `r11` on x86_64 and the number register on
+-- aarch64, so every constraint string names them (`~{rcx}`, `~{r11}`,
+-- `~{x8}`) beside `~{memory}`. The `asm { ... }` body form takes its
+-- constraints from the parameter classes only and cannot name a clobber,
+-- which is why these bodies are written as `unsafe llvm` with the
+-- constraints spelled out. `\0A` is the newline separator inside a `llvm`
+-- body and survives the lexer because that body is verbatim text.
+--
+-- # The error convention
+--
+-- The kernel answers `-errno` in the return register, so the wrapper
+-- compares the raw value (there is no error slot to read on this path)
+-- and maps the six POSIX-fixed numbers onto `SysError`, whose
+-- constructors `Effect.Fs` maps onto its own named vocabulary. The
+-- constructor names are the same as `Prim.Sys.Darwin`'s, so the two
+-- modules swap with one import line.
+module Prim.Sys.Linux where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export SysError, SysNotFound, SysPermissionDenied, SysAlreadyExists
+  export SysNotADirectory, SysIsADirectory, SysInvalidName, SysIoError
+  export sys-error-of
+  export sys-cpath, sys-open-read, sys-create, sys-read, sys-write
+  export sys-close, sys-lseek, sys-seek-set, sys-seek-end, sys-o-rdonly
+  export sys-rename, sys-mkdir, sys-unlink, sys-fsync, sys-fstat-into
+  export sys-getpid
+
+  -- What the kernel said, named. The same constructors as the Darwin
+  -- module's, so a caller's mapping is written once.
+  data SysError where
+    SysNotFound :: SysError
+    SysPermissionDenied :: SysError
+    SysAlreadyExists :: SysError
+    SysNotADirectory :: SysError
+    SysIsADirectory :: SysError
+    SysInvalidName :: SysError
+    SysIoError :: SysError
+
+  -- `AT_FDCWD`: the "relative to the working directory" descriptor,
+  -- minus one hundred on Linux.
+  sys-at-fdcwd :: I64
+  sys-at-fdcwd = -100
+
+  -- `O_RDONLY`.
+  sys-o-rdonly :: I64
+  sys-o-rdonly = 0
+
+  -- `O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC` = 1 + 0o100 + 0o1000 +
+  -- 0o2000000.
+  sys-o-create :: I64
+  sys-o-create = 524865
+
+  -- The mode a fresh file gets: 0o666 (438), narrowed by the umask.
+  sys-create-mode :: I64
+  sys-create-mode = 438
+
+  -- `SEEK_SET`.
+  sys-seek-set :: I64
+  sys-seek-set = 0
+
+  -- `SEEK_END`.
+  sys-seek-end :: I64
+  sys-seek-end = 2
+
+  -- `AT_SYMLINK_NOFOLLOW`, for the metadata call.
+  sys-at-symlink-nofollow :: I64
+  sys-at-symlink-nofollow = 0x100
+
+  -- `AT_REMOVEDIR`, for the directory removal the caller spells itself.
+  sys-at-removedir :: I64
+  sys-at-removedir = 0x200
+
+  -- ------------------------------------------------------------------
+  -- The syscalls, one prim per call shape.
+  -- ------------------------------------------------------------------
+
+  -- `openat(dirfd, path, flags, mode)`: 257 on x86_64, 56 on aarch64.
+  prim linux-openat :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x3, $4\0A mov x8, #56\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 257\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `read(fd, buf, count)`: 0 on x86_64, 63 on aarch64.
+  prim linux-read :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x8, #63\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 0\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `write(fd, buf, count)`: 1 on x86_64, 64 on aarch64.
+  prim linux-write :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x8, #64\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 1\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `close(fd)`: 3 on x86_64, 57 on aarch64.
+  prim linux-close :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x8, #57\0A svc #0\0A mov $0, x0", "={x0},{x1},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 3\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `lseek(fd, offset, whence)`: 8 on x86_64, 62 on aarch64.
+  prim linux-lseek :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x8, #62\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 8\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `renameat(olddirfd, oldpath, newdirfd, newpath)`: 264 on x86_64, 38
+  -- on aarch64.
+  prim linux-renameat :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x3, $4\0A mov x8, #38\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 264\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `mkdirat(dirfd, path, mode)`: 258 on x86_64, 34 on aarch64.
+  prim linux-mkdirat :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x8, #34\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 258\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `unlinkat(dirfd, path, flags)`: 263 on x86_64, 35 on aarch64.
+  prim linux-unlinkat :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x8, #35\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 263\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `newfstatat(dirfd, path, buf, flags)`: 262 on x86_64, 79 on aarch64.
+  prim linux-newfstatat :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x1, $2\0A mov x2, $3\0A mov x3, $4\0A mov x8, #79\0A svc #0\0A mov $0, x0", "={x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 262\0A mov rdi, $1\0A mov rsi, $2\0A mov rdx, $3\0A mov r10, $4\0A syscall\0A mov $0, rax", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `fsync(fd)`: 74 on x86_64, 82 on aarch64.
+  prim linux-fsync :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x0, $1\0A mov x8, #82\0A svc #0\0A mov $0, x0", "={x0},{x1},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 74\0A mov rdi, $1\0A syscall\0A mov $0, rax", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `getpid()`: 39 on x86_64, 172 on aarch64. The argument is unused (a
+  -- prim body receives machine scalars, and `Unit` is not one).
+  prim linux-getpid :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #172\0A svc #0\0A mov $0, x0", "={x0},r,~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov rax, 39\0A syscall\0A mov $0, rax", "={rax},r,~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- ------------------------------------------------------------------
+  -- The wrappers, the same shape as Prim.Sys.Darwin's.
+  -- ------------------------------------------------------------------
+
+  -- The kernel's negative return as the named vocabulary. The six numbers
+  -- are fixed by POSIX; anything else is `SysIoError`.
+  sys-error-of :: I64 -> SysError
+  sys-error-of r = case r == -2 of
+    True -> SysNotFound
+    False -> case r == -13 of
+      True -> SysPermissionDenied
+      False -> case r == -17 of
+        True -> SysAlreadyExists
+        False -> case r == -20 of
+          True -> SysNotADirectory
+          False -> case r == -21 of
+            True -> SysIsADirectory
+            False -> case r == -22 of
+              True -> SysInvalidName
+              False -> SysIoError
+
+  -- A return value as a result: a negative answer is an error number and
+  -- anything else is the value.
+  linux-result :: I64 -> Result SysError I64
+  linux-result r = case 0 <= r of
+    True -> Ok r
+    False -> Err (sys-error-of r)
+
+  -- `s` as a C string, the same shape as the Darwin module's.
+  sys-cpath :: String -> Bytes
+  sys-cpath s =
+    let src = string-to-bytes s in
+    let out = bytes-new (bytes-len src + 1) in
+    let copied = bytes-copy-range out src 0 0 (bytes-len src) in
+    case bytes-set out (bytes-len src) 0 of
+      _ -> out
+
+  -- Open `path` for reading: the descriptor.
+  sys-open-read :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-open-read path =
+    let b = sys-cpath path in
+    linux-result (linux-openat sys-at-fdcwd (bytes-data b) sys-o-rdonly 0)
+
+  -- Create or truncate `path` for writing: the descriptor.
+  sys-create :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
+  sys-create path =
+    let b = sys-cpath path in
+    linux-result (linux-openat sys-at-fdcwd (bytes-data b) sys-o-create sys-create-mode)
+
+  -- Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
+  sys-read :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-read fd buf at count =
+    let addr = wrapping-add-i64 (bytes-data buf) at in
+    linux-result (linux-read fd addr count)
+
+  -- Write up to `count` bytes of `buf` from `at` to `fd`: the count
+  -- written.
+  sys-write :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-write fd buf at count =
+    let addr = wrapping-add-i64 (bytes-data buf) at in
+    linux-result (linux-write fd addr count)
+
+  -- Close `fd`.
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
+  sys-close fd = case linux-result (linux-close fd) of
+    Err e -> Err e
+    Ok _ -> Ok ()
+
+  -- Move `fd`'s offset.
+  sys-lseek :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} Result SysError I64
+  sys-lseek fd off whence = linux-result (linux-lseek fd off whence)
+
+  -- Rename `from` onto `dst`, atomically.
+  sys-rename :: forall r. using (io :: Io r) => String -> String ->{IO r} Result SysError Unit
+  sys-rename from dst =
+    let f = sys-cpath from in
+    let t = sys-cpath dst in
+    let r = linux-renameat sys-at-fdcwd (bytes-data f) sys-at-fdcwd (bytes-data t) in
+    case linux-result r of
+      Err e -> Err e
+      Ok _ -> Ok ()
+
+  -- Create the directory `path`, one level.
+  sys-mkdir :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
+  sys-mkdir path mode =
+    let b = sys-cpath path in
+    case linux-result (linux-mkdirat sys-at-fdcwd (bytes-data b) mode) of
+      Err e -> Err e
+      Ok _ -> Ok ()
+
+  -- Remove the name `path` with `unlinkat`'s flag word: 0 removes a file
+  -- or a link, `sys-at-removedir` (0x200) an empty directory. The flag is
+  -- spelled out so the caller owns the choice.
+  sys-unlink :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
+  sys-unlink path flags =
+    let b = sys-cpath path in
+    case linux-result (linux-unlinkat sys-at-fdcwd (bytes-data b) flags) of
+      Err e -> Err e
+      Ok _ -> Ok ()
+
+  -- Flush `fd` to the storage device.
+  sys-fsync :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
+  sys-fsync fd = case linux-result (linux-fsync fd) of
+    Err e -> Err e
+    Ok _ -> Ok ()
+
+  -- Fill `buf` with the raw `struct stat` of `path`. The layout belongs
+  -- to the caller that reads the fields out of it.
+  sys-fstat-into :: forall r. using (io :: Io r) => String -> Bytes -> I64 ->{IO r} Result SysError Unit
+  sys-fstat-into path buf flags =
+    let b = sys-cpath path in
+    let r = linux-newfstatat sys-at-fdcwd (bytes-data b) (bytes-data buf) flags in
+    case linux-result r of
+      Err e -> Err e
+      Ok _ -> Ok ()
+
+  -- This process's own id.
+  sys-getpid :: forall r. using (io :: Io r) => Unit ->{IO r} I64
+  sys-getpid u = linux-getpid 0

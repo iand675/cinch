@@ -10,7 +10,7 @@ Import with `import Effect.Fs`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Prim.Sys.Darwin](Prim.Sys.Darwin.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -25,12 +25,20 @@ header). Paths are `Data.Path` values; content is `Bytes`; every
 failure is a NAMED `FsError` value in a `Result` (the house style:
 `Text.Parse`'s named vocabulary shape), never a fault.
 
-The boundary words (`compiler/runtime/src/platform.rs`, the
-`cinch_fs_*`/`cinch_buf_*` externs) are the plain `foreign import
-ccall` machinery: machine scalars only, so paths and content cross
-through runtime word buffers, filled and drained one byte at a time
-below. The error codes those words return map one for one onto the
-named constructors (`NotFound` ... `IoError`).
+Read and write issue their calls in Cinch: `Prim.Sys.Darwin` binds
+`open`/`creat`/`read`/`write`/`close`/`lseek` with `foreign import
+ccall`, and `Prim.Sys.Linux` carries the same entry points as `prim`
+bodies that issue `syscall`. Both answer the module's `SysError`
+constructors, which map one for one onto the named constructors below
+(`NotFound` ... `IoError`).
+
+The remaining operations (atomic rename, metadata, the directory
+listing) still cross through the runtime's `cinch_fs_*` word buffers
+(`compiler/runtime/src/platform.rs`, the plain `foreign import ccall`
+machinery): machine scalars only, so paths and content cross through
+word buffers filled and drained one byte at a time below. The error
+codes those words return map onto the same named constructors, so the
+two routes present one vocabulary.
 
 Named refusals (boundaries this module deliberately does not
 cross):
@@ -62,7 +70,7 @@ system's vocabulary.
 
 What a path names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 68
+[Source](/reference-sources/Effect.Fs.cinch) · line 77
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">FileKind</span></code></pre>
 
@@ -78,7 +86,7 @@ What a path names.
 
 A file's metadata: its kind and its size in bytes.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 74
+[Source](/reference-sources/Effect.Fs.cinch) · line 83
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">FileMeta</span>))</code></pre>
 
@@ -91,7 +99,7 @@ A file's metadata: its kind and its size in bytes.
 What went wrong, named (the `std::io::ErrorKind` vocabulary the
 runtime maps its codes from).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 58
+[Source](/reference-sources/Effect.Fs.cinch) · line 67
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">FsError</span></code></pre>
 
@@ -135,7 +143,7 @@ The names in the directory `p`, sorted ascending (the OS listing
 order is not specified; the sorted listing is this home's
 observable order).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 225
+[Source](/reference-sources/Effect.Fs.cinch) · line 298
 
 <a id="value-66732d6d65746164617461"></a>
 
@@ -145,7 +153,7 @@ observable order).
 
 The kind and size of what `p` names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 199
+[Source](/reference-sources/Effect.Fs.cinch) · line 272
 
 <a id="value-66732d72656164"></a>
 
@@ -156,7 +164,14 @@ The kind and size of what `p` names.
 The whole file at `p`, or the named error (missing paths report
 `NotFound`).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 155
+The calls are `Prim.Sys`'s: open, the size from `lseek`, one buffer
+that large, then a read loop to the buffer's end, then close. The
+size is the file's length when the read starts, so a file that grows
+while it is being read is read to that length; a file that shrank is
+read a second time at its new length, so the answer is exactly what
+the kernel produced either way.
+
+[Source](/reference-sources/Effect.Fs.cinch) · line 184
 
 <a id="value-66732d72656e616d65"></a>
 
@@ -167,7 +182,7 @@ The whole file at `p`, or the named error (missing paths report
 Atomically rename `from` to `to` (POSIX `rename`: the target sees
 the whole old or the whole new content, never a partial).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 186
+[Source](/reference-sources/Effect.Fs.cinch) · line 259
 
 <a id="value-66732d7772697465"></a>
 
@@ -176,10 +191,12 @@ the whole old or the whole new content, never a partial).
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
 
 Write `content` to `p`, creating or truncating it (NOT atomic;
-atomic replacement is `fs-rename`).
+atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
+`creat` (the fixed argument form of the creating open), a write loop
+(a write may be short), then close.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 172
+[Source](/reference-sources/Effect.Fs.cinch) · line 239
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Fs.cinch`. Source SHA-256: `5d3634d76d38f248b1d2e97c51ff8b2b3cc20585723608c14a073e1ff7d7ebae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Effect/Fs.cinch`. Source SHA-256: `f88a14b2a4d45d04bac5eafcba1e060a7e39cfb87a7969aa7c66e4fad7b14488`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
