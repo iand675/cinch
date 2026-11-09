@@ -21400,10 +21400,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "gates",
         "total": 3,
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "status": "running",
-        "phase": "Replay the original prelude_lib failures on combined Stage 3",
+        "phase": "Replay the original lib_coverage failures on combined Stage 3",
         "evidence": null
       },
       {
@@ -21497,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:36:18.491104+00:00"
+  "updatedAt": "2026-11-09T07:37:22.276639+00:00"
 }
