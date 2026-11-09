@@ -20860,8 +20860,8 @@
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. run all twenty original concurrency cases",
+        "passed": 2,
         "total": 6,
         "failed": 0,
         "source": "760727efa97de529ab842ec53875f753443562b4a9910404cdebfbdb1d266c3a",
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:52:19.399857+00:00"
+  "updatedAt": "2026-11-09T00:59:06.180025+00:00"
 }
