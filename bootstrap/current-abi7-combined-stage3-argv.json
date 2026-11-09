@@ -1,0 +1,44 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-argv",
+  "targets": {
+    "argv": {
+      "cases": [
+        {
+          "name": "a_program_reads_its_own_command_line",
+          "status": "passed"
+        },
+        {
+          "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+          "status": "passed"
+        },
+        {
+          "name": "the_cli_forwards_arguments_after_the_entry_file",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "91694-0.json": "1354c9e47f7364b421d58d5a13418d98de080817c7f6e268921ec38b4857894d",
+        "91694-1.json": "bf1c18b82925be78337c27b8b52c2c9fecdc27aa30373f7cca6759fb5464e67f",
+        "91694-2.json": "4f0c7e77db0a9114e1656107b567efb2611d4e4e198fcc91dd5494048843551a",
+        "91694-3.json": "5eb8ca6f0c9de2c6cd31ece38e5fb6ca7e25d8e27ba5415e2d13af97f31dab87",
+        "91694-4.json": "54f7c755aff153d2f062f422cc716b62e4df5edda82392e6b398244665caac10",
+        "91694-5.json": "595c0c97f07b5f4f50f0b9718e01ee3018227f8aa4e813b698a5fdb2c53ef3d9",
+        "91694-6.json": "5811341d9d6f52c88158eb097f393063aef474897095fe72643669451da54596"
+      },
+      "log_sha256": "061e0235f22b4e04a30213a801bc8a008d8f59ce789f426b5e1f19a0a8b40325",
+      "passed": 3,
+      "test_source_sha256": "792be8a0640d7b11f80fd21bec34362707678a4f96680fa15235696d17692cae",
+      "total": 3
+    }
+  }
+}

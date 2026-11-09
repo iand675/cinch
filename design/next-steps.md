@@ -47,6 +47,11 @@ The same Stage 3 passed all five guard-coverage and eight allocation
 accounting cases, with 33 matching compiler invocation receipts.
 See [the guard and allocation audit](../bootstrap/current-abi7-combined-stage3-guards-allocation.json).
 
+The same Stage 3 passed all three original process-argument cases.
+The seven matching invocation receipts include CLI forwarding of space-containing
+and flag-like words. The built-program checks cover empty arguments.
+See [the process-argument audit](../bootstrap/current-abi7-combined-stage3-argv.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.
