@@ -87,6 +87,79 @@ module Main where
 }
 
 #[test]
+fn letrec_strict_forward_dependencies_run() {
+    expect_ok(
+        "letrec-forward-value",
+        r#"
+module Main where
+  main :: Int
+  main = letrec x :: Int; x = y + 1; y :: Int; y = 41 in x
+"#,
+        42,
+    );
+    expect_ok(
+        "letrec-forward-call",
+        r#"
+module Main where
+  main :: Int
+  main = letrec x :: Int; x = f (); f :: Unit -> Int; f u = y + 1; y :: Int; y = 41 in x
+"#,
+        42,
+    );
+    expect_ok(
+        "letrec-forward-partial",
+        r#"
+module Main where
+  main :: Int
+  main = letrec x :: Int; x = partial (); partial :: Unit -> Int; partial = f (); f :: Unit -> Unit -> Int; f u v = y + 1; y :: Int; y = 41 in x
+"#,
+        42,
+    );
+    expect_ok(
+        "letrec-forward-boxed-nat",
+        r#"
+module Main where
+  main :: Int
+  main = letrec bigger :: Nat; bigger = big + 1; big :: Nat; big = 18446744073709551617
+    in if bigger == 18446744073709551618 then 42 else 1
+"#,
+        42,
+    );
+}
+
+#[test]
+fn letrec_rejects_reordering_mutable_accesses() {
+    expect_err(
+        "letrec-forward-mutable-read",
+        r#"
+module Main where
+  inspect :: forall g. Mut g Nat -> Nat
+  inspect m = letrec write = refSet m later; later = copyOut m in later
+  main :: Int
+  main = 0
+"#,
+        "recursive initializers cannot satisfy their dependencies in source evaluation order",
+    );
+}
+
+#[test]
+fn letrec_can_store_a_closure_before_its_capture_is_initialized() {
+    check_sources(
+        r#"
+module Main where
+  inspect :: forall g. Mut g Nat -> Nat
+  inspect m =
+    letrec pair :: (Nat, Unit -> Nat); pair = (copyOut m, f); f :: Unit -> Nat; f u = later; later :: Nat; later = copyOut m
+    in case pair of (x, g) -> x + g ()
+  main :: Int
+  main = 0
+"#,
+        "letrec-store-closure",
+    )
+    .expect("constructing the closure does not read its captured box");
+}
+
+#[test]
 fn eager_cycle_is_rejected_naming_the_variable() {
     expect_err(
         "letrec-eager-self",

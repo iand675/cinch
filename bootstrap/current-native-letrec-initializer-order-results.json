@@ -1,0 +1,78 @@
+{
+  "checks": [
+    {
+      "name": "eager_call_cycle_is_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "eager_cycle_is_rejected_naming_the_variable",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_cycle_runs",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_delay_value_cycle_is_accepted",
+      "status": "passed"
+    },
+    {
+      "name": "guarded_lambda_cycle_is_accepted",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_can_store_a_closure_before_its_capture_is_initialized",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_group_of_functions_and_values",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_local_function_recurses",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_mutual_recursion",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_rejects_reordering_mutable_accesses",
+      "status": "passed"
+    },
+    {
+      "name": "letrec_strict_forward_dependencies_run",
+      "status": "passed"
+    },
+    {
+      "name": "multi_binding_let_group",
+      "status": "passed"
+    },
+    {
+      "name": "nested_let_depth_limit_is_a_named_diagnostic",
+      "status": "passed"
+    },
+    {
+      "name": "value_knot_read_under_a_lambda_yields_the_value",
+      "status": "passed"
+    }
+  ],
+  "existing_guarded_knot": {
+    "exit_code": 74,
+    "live": 3,
+    "log_sha256": "f4ebec47621a1a4aeed7acef072b051faee43c1b43535e562eae0318e01a1fd0"
+  },
+  "full_goal_complete": false,
+  "harness_sha256": "5673265cf89c26b665549388024db3f54c08af1cedb5692dbccf0a22f7623d2c",
+  "leak_checked_passed": 13,
+  "leak_free_forward_controls": 4,
+  "leak_log_sha256": "e7504aa9d6a09ecb87f32876fe8a6dbbabd30216dcd60d549a0efc5672e9d5b7",
+  "native_source_sha256": "4a412f8bdc8083da583161180710ea714c61910e63406693b1ec1ceb5795e9f3",
+  "ordinary_log_sha256": "f54e5e91913947d0ef3d46f7008b95f8eb5968b70c563bbd8534c8d43e1c756c",
+  "ordinary_passed": 14,
+  "preceding_forward_exit": 70,
+  "repaired_forward_exit": 42,
+  "schema": 1,
+  "status": "audited-rust-initializer-ordering",
+  "test_source_sha256": "6bd3811220579e9ba0cf2f5ea94fc0faa44c61d9f43e1993cb4319bf51fd34d2"
+}

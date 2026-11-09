@@ -174,6 +174,15 @@ component controls also passed. The candidate still needs early
 admission failure cleanup and a matching Stage 3 replay.
 See [the module and manifest audit](../bootstrap/current-abi7-module-manifest-results.json).
 
+Rust now initializes acyclic strict recursive bindings before their
+eager uses and preserves the order of observable initializers.
+Storing a closure can capture a slot before its value is ready.
+The four forward-read controls run without leaks, including partial
+application and a large Nat. All fourteen ordinary tests pass. The
+leak-checked run passes thirteen, with the existing three-block
+guarded value knot still requiring region-scoped teardown.
+See [the Rust ordering audit](../bootstrap/current-native-letrec-initializer-order-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent

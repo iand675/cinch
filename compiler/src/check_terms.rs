@@ -7356,18 +7356,11 @@ impl Checker {
             }
         }
 
-        // Elaborate the bodies. A value member of a cyclic group reads
-        // through a fixpoint box, so every value member gets one.
-        for m in &mut mems {
-            if !m.is_cell && !m.is_fun && !m.name.is_empty() {
-                let b = self.fresh_local();
-                // The fixpoint box is a block `{ state; value }`.
-                self.note_local_class(b, Class::Obj);
-                m.boxed = Some(b);
-            }
-        }
+        // Elaborate the bodies before deciding which members need boxes.
         let mut cores: Vec<ECore> = Vec::new();
+        let mut initializer_effects = Vec::with_capacity(mems.len());
         for m in &mems {
+            let mut effects = EffRow::pure();
             if m.is_cell {
                 let (eff, inner) = m.cell.clone().unwrap();
                 let g = group.as_ref().unwrap();
@@ -7402,24 +7395,38 @@ impl Checker {
                     ast::Term::Lam(m.pats.clone(), Box::new(m.body.clone()), m.span);
                 cores.push(self.check_lam(env, &lam, &m.ty)?);
             } else {
-                match sigs.get(&m.name).filter(|_| form != LocalForm::Proof) {
-                    Some(t) => cores.push(self.check(env, m.body, t)?),
+                let saved = std::mem::replace(&mut self.perf, EffRow::pure());
+                let checked = (|| match sigs.get(&m.name).filter(|_| form != LocalForm::Proof) {
+                    Some(t) => self.check(env, m.body, t),
                     None => {
                         let (c, t) = self.infer(env, m.body)?;
                         self.uni
                             .unify(&t, &m.ty)
                             .map_err(|e| Error::at(m.span, e))?;
-                        cores.push(c);
+                        Ok(c)
                     }
-                }
+                })();
+                effects = self.exit_perf(saved);
+                cores.push(checked?);
+                self.perform(&effects)?;
             }
+            initializer_effects.push(effects);
         }
 
-        // The guarded-letrec rule (section 9): a use that closes a cycle
-        // sits under a lambda, a `~` memo body, or a `delay`.
         let members: Vec<(LocalId, ast::Span, String)> =
             mems.iter().map(|m| (m.l, m.span, m.name.clone())).collect();
-        check_rec_guards(&members, &cores)?;
+        let effectful: Vec<_> = initializer_effects
+            .iter()
+            .map(|row| !self.uni.resolve_row(row).is_pure())
+            .collect();
+        let (initializer_order, guarded_targets) = order_rec_initializers(&members, &cores, &effectful)?;
+        for (m, captured) in mems.iter_mut().zip(guarded_targets) {
+            if captured && !m.is_cell && !m.is_fun {
+                let slot = self.fresh_local();
+                self.note_local_class(slot, Class::Obj);
+                m.boxed = Some(slot);
+            }
+        }
 
         // Do this after the eager-cycle check: erased proof cores contain
         // Unit and would otherwise hide `letrec p = p` from that check.
@@ -7510,9 +7517,8 @@ impl Checker {
             subst_rec_refs(core, &subs);
         }
 
-        // The bindings: memo cells first, then the fixpoint boxes, then
-        // the members (every reference is order-free: values go through
-        // boxes and functions through their units).
+        // Allocate cells and boxes before initializing members in dependency
+        // order. Suspended references can capture the uninitialized slots.
         let mut out: Vec<(LocalId, ECore)> = Vec::new();
         for m in &mems {
             if m.is_cell {
@@ -7524,7 +7530,8 @@ impl Checker {
                 out.push((b, ECore::BoxAlloc));
             }
         }
-        for (i, m) in mems.iter().enumerate() {
+        for i in initializer_order {
+            let m = &mems[i];
             let core = cores[i].clone();
             if m.is_cell {
                 let tmp = self.fresh_local();
@@ -11763,26 +11770,101 @@ enum RecSub {
     Val(LocalId, Ty),
 }
 
+/// Initializers with observable evaluation stay in source order. A closed
+/// effect row alone is insufficient: mutable projections, reference writes,
+/// and opaque calls can observe state independently of row effects.
+fn rec_initializer_stable(core: &ECore, partial: &impl Fn(LocalId, usize) -> bool) -> bool {
+    let stable = |node: &ECore| rec_initializer_stable(node, partial);
+    match core {
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_)
+        | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+        | ECore::Ctor(..) | ECore::Prim(_) | ECore::Lam { .. }
+        | ECore::LazyAlloc | ECore::BoxAlloc => true,
+        ECore::LitFold { body, .. } => stable(body),
+        ECore::Proj(value, field, _) => !field.mutable && stable(value),
+        ECore::App(head, args) => {
+            let known_stable = match &**head {
+                ECore::Ctor(..) => true,
+                ECore::Prim(op) => op.is_pure_arith(),
+                ECore::Var(id) => partial(*id, args.len()),
+                _ => false,
+            };
+            known_stable && args.iter().all(stable)
+        }
+        ECore::Let(_, value, body) => stable(value) && stable(body),
+        ECore::If(condition, yes, no) => {
+            stable(condition) && stable(&yes.body) && stable(&no.body)
+        }
+        ECore::Case { scrut, alts } => {
+            stable(scrut) && alts.iter().all(|alt| stable(&alt.body))
+        }
+        ECore::MkClos { env, .. } => env.iter().all(stable),
+        _ => false,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RecUse {
+    owner: usize,
+    target: usize,
+    guard_depth: usize,
+    applied_arguments: Option<usize>,
+}
+
+/// Follow a group alias when an initializer applies a local function.
+fn rec_callable_member(
+    mut member: usize,
+    cores: &[ECore],
+    members: &HashMap<LocalId, usize>,
+) -> Option<(usize, usize)> {
+    let mut arguments = 0usize;
+    for _ in 0..cores.len() {
+        match &cores[member] {
+            ECore::Var(alias) => member = *members.get(alias)?,
+            ECore::App(head, bound) => {
+                let ECore::Var(alias) = &**head else { return None };
+                member = *members.get(alias)?;
+                arguments = arguments.saturating_add(bound.len());
+            }
+            ECore::Lam { params, .. } if arguments < params.len() => {
+                return Some((member, params.len() - arguments));
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
 /// The guarded-letrec rule (surface grammar local amendments section 9):
 /// a use of a group name that closes a dependency cycle sits under a
 /// lambda, a `~` memo body, or a `delay`. An eager cycle is a compile
 /// error naming the variable and the missing guard.
-fn check_rec_guards(members: &[(LocalId, ast::Span, String)], cores: &[ECore]) -> Result<()> {
+fn order_rec_initializers(
+    members: &[(LocalId, ast::Span, String)],
+    cores: &[ECore],
+    effectful: &[bool],
+) -> Result<(Vec<usize>, Vec<bool>)> {
     let mut by_local: HashMap<LocalId, usize> = HashMap::new();
     for (i, (l, _, _)) in members.iter().enumerate() {
         by_local.insert(*l, i);
     }
-    // (owner, referenced, guarded)
-    let mut edges: Vec<(usize, usize, bool)> = Vec::new();
+    let partial = |id, arguments| {
+        by_local.get(&id)
+            .and_then(|&member| rec_callable_member(member, cores, &by_local))
+            .is_some_and(|(_, remaining)| arguments < remaining)
+    };
+    let ordered: Vec<_> = cores.iter().zip(effectful)
+        .map(|(core, has_effects)| *has_effects || !rec_initializer_stable(core, &partial))
+        .collect();
+    let mut edges = Vec::new();
     for (owner, core) in cores.iter().enumerate() {
         rec_walk(core, 0, owner, &by_local, &mut edges);
     }
     let n = members.len();
     let mut reach = vec![vec![false; n]; n];
-    for &(o, r, _) in &edges {
-        if o < n && r < n {
-            reach[o][r] = true;
-        }
+    for edge in &edges {
+        reach[edge.owner][edge.target] = true;
     }
     for k in 0..n {
         for i in 0..n {
@@ -11793,36 +11875,87 @@ fn check_rec_guards(members: &[(LocalId, ast::Span, String)], cores: &[ECore]) -
             }
         }
     }
-    for &(o, r, guarded) in &edges {
-        if !guarded && (o == r || reach[r][o]) {
-            let name = &members[r].2;
+    for edge in &edges {
+        if edge.guard_depth == 0 && (edge.owner == edge.target || reach[edge.target][edge.owner]) {
+            let name = &members[edge.target].2;
             return Err(Error::at(
-                members[o].1,
+                members[edge.owner].1,
                 format!(
                     "unguarded recursion; wrap the use in `delay` or a lambda (the use of `{name}` closes an eager cycle in the binding group)"
                 ),
             ));
         }
     }
-    Ok(())
-}
 
-/// Collect the group uses in one member's core as `(owner, referenced,
-/// guarded)` edges; `guard` counts the suspension positions entered.
-fn rec_walk(
-    e: &ECore,
-    guard: i32,
-    owner: usize,
-    by_local: &HashMap<LocalId, usize>,
-    edges: &mut Vec<(usize, usize, bool)>,
-) {
-    match e {
-        ECore::LitFold { body, .. } => rec_walk(body, guard, owner, by_local, edges),
-        ECore::Var(l) => {
-            if let Some(&r) = by_local.get(l) {
-                edges.push((owner, r, guard >= 1));
+    // A saturated call or memo demand enters its body during initialization.
+    // Merely storing a closure may capture a box whose value comes later.
+    let mut dependencies = vec![vec![false; n]; n];
+    for (owner, required) in dependencies.iter_mut().enumerate() {
+        let mut pending: Vec<_> = edges.iter().copied()
+            .filter(|edge| edge.owner == owner && edge.guard_depth == 0)
+            .collect();
+        let mut entered = HashSet::new();
+        while let Some(edge) = pending.pop() {
+            required[edge.target] = true;
+            if let Some(arguments) = edge.applied_arguments {
+                if let Some((callee, remaining)) = rec_callable_member(edge.target, cores, &by_local) {
+                    if arguments >= remaining && entered.insert(callee) {
+                        pending.extend(edges.iter().copied()
+                            .filter(|edge| edge.owner == callee && edge.guard_depth == 1));
+                    }
+                }
             }
         }
+    }
+    let mut initialized = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    while let Some(first) = initialized.iter().position(|done| !done) {
+        let next_ordered = (first..n).find(|&i| !initialized[i] && ordered[i]);
+        let ready = (first..n).find(|&i| {
+            !initialized[i]
+                && (!ordered[i] || next_ordered == Some(i))
+                && dependencies[i]
+                    .iter()
+                    .zip(&initialized)
+                    .all(|(needed, done)| !*needed || *done)
+        });
+        let Some(next) = ready else {
+            return Err(Error::at(
+                members[first].1,
+                "recursive initializers cannot satisfy their dependencies in source evaluation order",
+            ));
+        };
+        initialized[next] = true;
+        order.push(next);
+    }
+    // Eager reads now see an initialized local. Only a suspended use may
+    // capture the slot before the value is available.
+    let mut guarded_targets = vec![false; n];
+    for edge in &edges {
+        if edge.guard_depth > 0 {
+            guarded_targets[edge.target] = true;
+        }
+    }
+    Ok((order, guarded_targets))
+}
+
+/// Collect reads and applications of group members. Each lambda or delay
+/// records another suspension around the use.
+fn rec_walk(
+    e: &ECore,
+    guard: usize,
+    owner: usize,
+    by_local: &HashMap<LocalId, usize>,
+    edges: &mut Vec<RecUse>,
+) {
+    let mut record = |id, applied_arguments| {
+        if let Some(&target) = by_local.get(id) {
+            edges.push(RecUse { owner, target, guard_depth: guard, applied_arguments });
+        }
+    };
+    match e {
+        ECore::LitFold { body, .. } => rec_walk(body, guard, owner, by_local, edges),
+        ECore::Var(l) => record(l, None),
         ECore::Int(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
@@ -11851,11 +11984,18 @@ fn rec_walk(
                 rec_walk(h, guard, owner, by_local, edges);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
+        ECore::Demand(cell, _) => match &**cell {
+            ECore::Var(id) => record(id, Some(1)),
+            other => rec_walk(other, guard, owner, by_local, edges),
+        },
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::BoxGet(d, _) => {
             rec_walk(d, guard, owner, by_local, edges);
         }
         ECore::App(f, args) => {
-            rec_walk(f, guard, owner, by_local, edges);
+            match &**f {
+                ECore::Var(id) => record(id, Some(args.len())),
+                other => rec_walk(other, guard, owner, by_local, edges),
+            }
             // A `delay`'s argument is one of the suspension positions.
             let bump = if matches!(**f, ECore::Prim(PrimOp::Delay)) { 1 } else { 0 };
             for a in args {
