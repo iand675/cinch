@@ -164,8 +164,10 @@ The expanded object defines it and preserves all 55 base interfaces.
 Stage 2 then linked with the exact same Stage 1 executable and all 46
 compiler interfaces verified. Stage 3 reproduced the executable, LLVM IR
 and all 46 interfaces byte for byte. All twelve smoke tests and the
-separate interface consumer passed. The changed-source rebuild is
-running before the exact Stage 3 suite starts. The standard
+separate interface consumer passed. A changed compiler source rebuilt
+with Stage 2, and an independent replay confirmed the original and
+changed binaries produce their respective diagnostics. The exact Stage 3
+suite is running. The standard
 harness separately passed all 39 integration cases on the earlier
 combined Stage 1. See [the provider and integration audit](../bootstrap/current-abi7-stage2-drop-provider-results.json).
 
