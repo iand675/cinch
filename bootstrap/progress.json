@@ -14613,8 +14613,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "run all four original tail-call cases through the integrated Cinch Stage 3",
         "evidence": null
       },
       {
@@ -15093,5 +15093,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:51:45.339049+00:00"
+  "updatedAt": "2026-11-09T10:52:48.855689+00:00"
 }
