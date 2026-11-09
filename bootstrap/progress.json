@@ -21446,8 +21446,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "superseded-before-build",
+        "phase": "Replaced by the same diagnostics plus scalar projections, with 35 original tests and seven focused controls.",
         "evidence": null
       },
       {
@@ -21585,5 +21585,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:01:19.025867+00:00"
+  "updatedAt": "2026-11-09T08:08:46.370774+00:00"
 }
