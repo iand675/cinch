@@ -14344,8 +14344,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Check the 3 exact original Rust harnesses",
         "evidence": null
       },
       {
@@ -14703,5 +14703,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:37:35.442650+00:00"
+  "updatedAt": "2026-11-09T10:40:00.394768+00:00"
 }
