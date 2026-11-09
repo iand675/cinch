@@ -21169,10 +21169,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 10,
+        "passed": 11,
         "failed": 8,
         "status": "running",
-        "phase": "Replay original lib_list target on Stage 3",
+        "phase": "Replay original lib_map_set_ops target on Stage 3",
         "evidence": null
       },
       {
@@ -21420,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:55:31.494963+00:00"
+  "updatedAt": "2026-11-09T06:57:55.679005+00:00"
 }
