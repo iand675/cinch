@@ -17920,10 +17920,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 7,
-        "passed": 5,
+        "passed": 6,
         "failed": 0,
         "status": "running",
-        "phase": "Build combined Stage 3",
+        "phase": "Verify Stage 2 and Stage 3 agreement, smokes and changed-source rebuild",
         "evidence": null
       },
       {
@@ -17932,9 +17932,9 @@
         "unit": "checks",
         "total": 16,
         "passed": 10,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original codata target on Stage 3",
+        "phase": "Replay original guard_coverage target on Stage 3",
         "evidence": null
       },
       {
@@ -21222,5 +21222,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:24:18.547824+00:00"
+  "updatedAt": "2026-11-09T05:27:42.755213+00:00"
 }
