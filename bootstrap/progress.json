@@ -17932,9 +17932,9 @@
         "unit": "targets",
         "passed": 2,
         "total": 110,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "concurrency",
+        "phase": "integration",
         "evidence": null
       },
       {
@@ -20980,5 +20980,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:55:19.697897+00:00"
+  "updatedAt": "2026-11-09T01:57:02.514372+00:00"
 }
