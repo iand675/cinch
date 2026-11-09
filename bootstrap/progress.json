@@ -17943,9 +17943,9 @@
         "unit": "checks",
         "total": 12,
         "passed": 6,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original laws target on Stage 3",
+        "phase": "Replay original concurrency target on Stage 3",
         "evidence": null
       },
       {
@@ -21178,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:37:57.514005+00:00"
+  "updatedAt": "2026-11-09T04:39:00.832299+00:00"
 }
