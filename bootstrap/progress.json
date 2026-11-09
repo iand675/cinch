@@ -20893,8 +20893,8 @@
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. check forward acyclic dependencies and lexical shadowing",
-        "passed": 2,
+        "phase": "Isolated Stage 1 candidate. check all guarded value escapes, the black hole and leak-free scope teardown",
+        "passed": 3,
         "total": 7,
         "failed": 0,
         "source": "040dc6296a0e290e07d8583e0accb32c6c75188563f8329f1f12a4d74e4ab759",
@@ -21013,5 +21013,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:38:11.594553+00:00"
+  "updatedAt": "2026-11-09T02:40:35.662038+00:00"
 }
