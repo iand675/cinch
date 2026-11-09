@@ -1,0 +1,194 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-published-stage3-letrec-and-modules",
+  "targets": {
+    "letrec": {
+      "cases": [
+        {
+          "name": "eager_call_cycle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "eager_cycle_is_rejected_naming_the_variable",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_cycle_runs",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_value_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_lambda_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_value_scope_releases_every_iteration",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_can_store_a_closure_before_its_capture_is_initialized",
+          "status": "failed"
+        },
+        {
+          "name": "letrec_group_of_functions_and_values",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_local_function_recurses",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_mutual_recursion",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_rejects_reordering_mutable_accesses",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_strict_forward_dependencies_run",
+          "status": "failed"
+        },
+        {
+          "name": "multi_binding_let_group",
+          "status": "passed"
+        },
+        {
+          "name": "nested_let_depth_limit_is_a_named_diagnostic",
+          "status": "passed"
+        },
+        {
+          "name": "reading_a_knot_while_it_initializes_faults",
+          "status": "passed"
+        },
+        {
+          "name": "recursive_value_cannot_escape_its_region",
+          "status": "passed"
+        },
+        {
+          "name": "value_knot_read_under_a_lambda_yields_the_value",
+          "status": "passed"
+        },
+        {
+          "name": "values_independent_of_the_knot_can_escape",
+          "status": "passed"
+        }
+      ],
+      "failed": 2,
+      "failure_diagnostic": "recursive initializers cannot satisfy their dependencies in source evaluation order",
+      "invocations": {
+        "8179-0.json": "6d4321f3e547d8b98dc65c36e425f51979ee4ea77138eda09cd8ea964d7e5b02",
+        "8179-1.json": "428f9c9da4d02e7b9f85fee3478681a4c060bf70db941ed4ea5eb07fbfdc7cd8",
+        "8179-10.json": "f6678eb09e2b5c6d39f3bbb1db00da38f567d142d576c63e84f9c670d4dfae21",
+        "8179-11.json": "79bc9ce626df78fdc188579eed78696da9f5a1eee62bbc5844aed6adb9cef9c2",
+        "8179-12.json": "9bc77b8393766e3b6fbf95605e47aec3035258614979a90ce6febc98c450c7d0",
+        "8179-13.json": "4b16e4a7d83701b705d35453ce3c94cc8582e962b9160af799d7fa4e809b1c27",
+        "8179-14.json": "d1578dda6e253c7e3e06646a04f7315f5c581bc696285c1b55d522c8683b688a",
+        "8179-15.json": "a45cabbb007295e6235e2bba5788a091c7140b73b2e3413996f92cc3342a6efa",
+        "8179-16.json": "2eb7d1e9f54fde674872c57e5d7a80204b783a56774309b8e9b6bfbeee95ff6b",
+        "8179-17.json": "8933762105f3fd306f0f1091c195daa126908526a5e84423606ca1eea9202ddf",
+        "8179-18.json": "ffd394a95cab75daee2c7cacea5725f48b4f1b9ff2a6ec6e22b18a6148fc805b",
+        "8179-19.json": "e73e1aa995633ffe25e6d0af5cec5237aa1eda8bad9e205f37f93efc3bcdec04",
+        "8179-2.json": "fc95245d35dc5e043c03da4a7480473d86f0d9f5d69f26092550b235f12f47e4",
+        "8179-20.json": "8563951ef34e37ae523c9e4098500caa6c334f2cef3a2d33b675cbd2cff6232f",
+        "8179-21.json": "b8d45198316b03aaeec9766ba35ed2a288fb946c0492ec35412da45c2d2f621c",
+        "8179-22.json": "3e85a0225faeb6cc941aa5e447f1993fc1f100c1e534b14d964d614b9ddfcab0",
+        "8179-23.json": "6f1ba2d76dba964238b84e7b9f4383161f13d1048d0a525b9ccf43fbcaab2d76",
+        "8179-3.json": "554f3abfe761451aad0777081e6dc3f9d8034b9ae90b0f1e186a5d2a4bdceeb5",
+        "8179-4.json": "8cf97cc641e06d2a12790f39ae5b7387a0d4cb2566e51cc876d9d82b5dda8102",
+        "8179-5.json": "f16adfcbb5f15a839ff05cdbbe187bea31f346517534b796a888a3c0a0e0148c",
+        "8179-6.json": "a4094c89409aabe3d0f89be4fa738e975992f4baea6509fc7c9b7702a4cf5f9e",
+        "8179-7.json": "a27e6eff75923eaa1eb1ecad2c4036555b3dbf34590fd00ae1c06bc71ceffffe",
+        "8179-8.json": "d192170e31c2ecc036a37dd32ae61f0704880b89060a4be4bff22c5ea0c8df3f",
+        "8179-9.json": "8ed3a8a9dd5563719211f182988c4e2c408a7aaa3344e1112eb8bb16cb6a99f2"
+      },
+      "log_sha256": "ff92a80530fc6dfd41336e831beaae408e82f9534dad8f2d1e23c42c5c8d7250",
+      "passed": 16,
+      "test_source_sha256": "82e2cdf3e3f9a55a332ea25deb5a3163213735ce327e5a01ded29312182f8d96",
+      "total": 18
+    },
+    "modules": {
+      "cases": [
+        {
+          "name": "a_failure_in_a_sibling_module_names_its_file",
+          "status": "passed"
+        },
+        {
+          "name": "a_module_can_import_a_signature_declared_later_in_the_same_file",
+          "status": "passed"
+        },
+        {
+          "name": "entry_module_name_is_free",
+          "status": "passed"
+        },
+        {
+          "name": "import_cycle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "imported_fixity_is_visible",
+          "status": "passed"
+        },
+        {
+          "name": "imported_instance_is_used_by_the_importer",
+          "status": "passed"
+        },
+        {
+          "name": "imported_module_is_resolved_by_declaration",
+          "status": "passed"
+        },
+        {
+          "name": "instance_coherence_across_modules",
+          "status": "passed"
+        },
+        {
+          "name": "interface_round_trips_through_disk",
+          "status": "passed"
+        },
+        {
+          "name": "missing_import_file_is_named",
+          "status": "passed"
+        },
+        {
+          "name": "multi_file_module_links_and_runs",
+          "status": "passed"
+        },
+        {
+          "name": "multi_module_file_links_and_runs",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "14703-0.json": "027a1c5bfdded4375f420e45e0e763ff02d644ac58c20fdb45b819624dc776c7",
+        "14703-1.json": "89de911944784ba4e5f50db1cfccc99f093526f5083d76b81d141c6c320ae7c1",
+        "14703-10.json": "ff52ce8938dc9a375d9250d66dba6c6c3b471745cac2502696d34bdb5af90219",
+        "14703-11.json": "b674491228beb26a55ec05de70bc159c104ccbde4eac2cf8b13aa3428c951573",
+        "14703-12.json": "7d33dbe1b56d9fbae03a6f215db5c41dd9240029f0a55ff206a612c88f4521bb",
+        "14703-2.json": "af2fe5efd4bd584459166facd15b536ed5de6557af20c735d5de507c1aa8929c",
+        "14703-3.json": "ef6405ea1286867f56bc4ff746e0f50b6cd91daa5a47a83dd4bfa1c2fa775f0f",
+        "14703-4.json": "bdba3f3f7c362b623e1cf4bbd0fa6410d89ce9700e5c7227e1609d08562e6864",
+        "14703-5.json": "3360d656221c9833bb9db409d9dd0deeae99147287b0f422b7c9483d047d27d1",
+        "14703-6.json": "3e2b408573c2ee49ab156bc429971a8a4c486ad3a7157004ddc79bd94cf0da57",
+        "14703-7.json": "e6ca6696556b88f53825550f81bafb44e3d943bbd02f27273eb5eb7440f000ce",
+        "14703-8.json": "fc41ad3a43e96f38929238ece3eefc10d5aba3b89785ac856494fe668ec65a92",
+        "14703-9.json": "c07783fde18f6d483acfda1a8c1cdfa37599ce8ff2b1e769e34ac60fe7a260da"
+      },
+      "log_sha256": "d566752a1c2862bac173e802dd8c71488244a5deabc7bc5875d46454be538dc4",
+      "passed": 12,
+      "test_source_sha256": "3f8218916d1aa14529919e46aa5c74b7d2c2847ac52310b7322cc2500918db35",
+      "total": 12
+    }
+  }
+}

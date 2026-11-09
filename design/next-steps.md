@@ -148,6 +148,13 @@ including task-capture refusals and the runtime checks. The audit
 retains 42 matching compiler invocations.
 See [the published concurrency audit](../bootstrap/current-abi7-codata-index-stage3-concurrency.json).
 
+All twelve original module tests passed on the published Stage 3.
+Sixteen of eighteen recursive-binding tests passed. The remaining
+two refuse a stored closure before its capture initializes and
+a partial call through another initializer. Both original
+cases remain in the queued recursive-binding repair.
+See [the published module and recursive-binding audit](../bootstrap/current-abi7-codata-index-stage3-letrec-and-modules.json).
+
 A separate Stage 1 range candidate passed all six original small-integer
 cases. Four of ten range cases and five of fourteen dependent cases
 passed. A follow-up candidate shares comparison-result projection
