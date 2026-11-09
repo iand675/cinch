@@ -21248,8 +21248,8 @@
         "total": 5,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Replay original evidence_invalidation target on Stage 3",
         "evidence": null
       },
       {
@@ -21444,10 +21444,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
         "total": 12,
-        "passed": 0,
+        "passed": 12,
         "failed": 0,
-        "status": "running",
-        "phase": "Replay all 12 original module cases on Stage 3",
+        "status": "passed",
+        "phase": "Module replay finished",
         "evidence": null
       },
       {
@@ -21519,5 +21519,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:40:05.948174+00:00"
+  "updatedAt": "2026-11-09T07:41:09.721200+00:00"
 }
