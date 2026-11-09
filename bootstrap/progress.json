@@ -20838,10 +20838,10 @@
         "title": "Replay original defaults, modules and recursive binding targets",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run the selected Cinch modules target",
+        "phase": "Isolated Stage 1 candidate. run the selected Cinch letrec target",
         "passed": 4,
         "total": 6,
-        "failed": 0,
+        "failed": 1,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": null
       },
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:11:11.028660+00:00"
+  "updatedAt": "2026-11-09T00:15:16.308033+00:00"
 }
