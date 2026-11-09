@@ -5208,6 +5208,10 @@
                 },
                 {
                   "name": "annotations_keep_definition_and_default_parameter_identities",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
                   "status": "running"
                 }
               ]
@@ -13829,5 +13833,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:14:58.982729+00:00"
+  "updatedAt": "2026-11-09T09:16:01.855967+00:00"
 }
