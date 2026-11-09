@@ -6057,6 +6057,10 @@
                 },
                 {
                   "name": "imported_observation_identity_survives_a_renamed_facade",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
                   "status": "running"
                 }
               ]
@@ -15447,5 +15451,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:09:37.552262+00:00"
+  "updatedAt": "2026-11-09T11:11:21.768600+00:00"
 }
