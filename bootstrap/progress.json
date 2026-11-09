@@ -5392,6 +5392,26 @@
                 },
                 {
                   "name": "thunks_delay_and_force",
+                  "status": "passed"
+                },
+                {
+                  "name": "tuple_arity_mismatch_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "tuple_let_destructuring_and_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "tuples_through_functions",
+                  "status": "passed"
+                },
+                {
+                  "name": "where_clauses_in_equations",
+                  "status": "passed"
+                },
+                {
+                  "name": "wrong_main_type_still_rejected",
                   "status": "running"
                 }
               ]
@@ -13995,5 +14015,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:25:34.914407+00:00"
+  "updatedAt": "2026-11-09T09:26:38.958077+00:00"
 }
