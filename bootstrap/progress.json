@@ -10529,6 +10529,34 @@
                 },
                 {
                   "name": "live_frames_keep_old_code_and_never_resume_over_new_state",
+                  "status": "failed"
+                },
+                {
+                  "name": "migration_type_mismatch_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "record_view_admits_compatible_additive_evolution",
+                  "status": "failed"
+                },
+                {
+                  "name": "record_view_preserves_missing_vs_none",
+                  "status": "failed"
+                },
+                {
+                  "name": "repr_change_forces_dependent_replacement",
+                  "status": "failed"
+                },
+                {
+                  "name": "upgrade_evidence_records_the_migration_field_mapping",
+                  "status": "failed"
+                },
+                {
+                  "name": "upgrade_with_a_checked_migration_migrates_old_state",
+                  "status": "failed"
+                },
+                {
+                  "name": "variants_install_retire_and_deopt_with_live_frames",
                   "status": "running"
                 }
               ]
@@ -14886,5 +14914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:43:13.958733+00:00"
+  "updatedAt": "2026-11-09T10:44:17.405800+00:00"
 }
