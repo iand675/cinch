@@ -17905,6 +17905,17 @@
         "evidence": null
       },
       {
+        "title": "Expand the pinned library object for the checked Stage 2 request",
+        "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+        "unit": "variants",
+        "passed": 1,
+        "total": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "Data.List.drop@T available. All 55 base interface identities preserved.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage2-drop-provider-results.json"
+      },
+      {
         "title": "Run all 236 Rust targets on the preceding memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
@@ -20846,6 +20857,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-standard-stage1-portable-results.json"
       },
       {
+        "title": "Verify recursive local scope, eager cycle refusals and original letrec cases",
+        "unit": "controls",
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
+        "passed": 1,
+        "total": 5,
+        "failed": 0,
+        "source": "efeef7230ab7f4ac3efa43919de840b1d9a0baa49e8c75842d4b109c0d5efdbd",
+        "evidence": null
+      },
+      {
         "title": "Verify Rust primitive clause order and the checked law observation",
         "unit": "controls",
         "status": "passed",
@@ -20914,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:33:55.234837+00:00"
+  "updatedAt": "2026-11-09T00:37:20.765510+00:00"
 }
