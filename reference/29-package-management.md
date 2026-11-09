@@ -1,198 +1,415 @@
 # Packages, manifests, and the registry
 
-<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg` installs registry, path, and git packages, publishes, and verifies.** `cinch pkg add` fetches a release or reads a local directory or git checkout, writes its sources under `vendor/`, checks them into `.cinchif` interfaces, emits a native package object and ABI manifest, and updates `.cinchlock`. Registry dependencies use exact versions and semver ranges, with one version per name by fixed-point intersection. Path and git packages are identified by a content root over the canonical manifest and their source bytes, never by directory or revision. `cinch pkg publish` uploads a project `.cinchpkg` and its module files with the same bearer token; `cinch pkg verify` rechecks lock identity, object hash, and interface files locally. Provenance and SLSA verification are still not implemented.
+<span class="support-tag support-tag--planned">Partial</span> **`cinch pkg` installs registry, path, and git packages and verifies them locally; publishing works against the prototype registry; L2 builder-key trust and VSA issuance do not exist.** This page documents the commands as they run today, with their real output.
 
-This chapter separates three things that are easy to confuse:
+Three surfaces are easy to confuse, so keep them apart as you read:
 
-- what the Rust compiler and CLI do today;
-- what the runnable registry prototype in `registry/` does today;
-- what the package management design proposes for a future client.
+- the Rust compiler and its `pkg` subcommands, which resolve, vendor, check, and lock;
+- the runnable registry prototype in `registry/`, a Node process with SQLite and a blob store;
+- the [package management design](../design/package-management.md), which describes release identity, checked compatibility, withdrawal, and provenance policy that the code has not reached.
 
-The [package management design](../design/package-management.md) is the full design record for release identity, checked compatibility, resolution, lockfiles, private registries, withdrawal, and SLSA provenance.
+# The manifest
 
-# Current compiler behavior
-
-Packages are currently a source distribution plus a deterministic one-version-per-name install path. The client resolves exact versions and semver ranges from registry metadata by recomputing reachable requirements to a fixed point; adding a later constraint can lower the selected version before any package is installed. If no version satisfies all reachable constraints, resolution fails without writing a partial lock.
-
-- A project imports module names. The compiler resolves imports against already loaded modules, source files below the entry (including installed packages), and embedded prelude modules under the module rules in [modules and packages](07-modules-and-packages.md).
-- `cinch pkg add NAME@VERSION --registry URL` fetches one release from the registry prototype. It recursively installs registry dependencies using exact versions or semver ranges, writes each release under `vendor/<namespace>/<name>/<version>/`, verifies its identity, checks its sources, writes interfaces under that package's `build/`, emits `package.o` and `build/package.cinchif`, and records every release in `.cinchlock`.
-- `cinch pkg add PATH_DIR` (or `--path DIR`) installs the package whose `.cinchpkg` sits at that directory. Its own `source: "path"` dependencies resolve relative to its directory, and `source: "git"` dependencies are cloned at the named revision.
-- `cinch pkg add URL --git-rev REV` (or `--git URL --git-rev REV`) clones `URL` at `REV` and installs the package at the checkout root. `<path>`, `file://`, and https URLs work because the client shells out to `git`.
-- `cinch pkg install --project DIR` reads the project's `.cinchpkg` and installs its `path`, `git`, and `registry` dependencies without requiring the project to be published. `--locked` refuses to change any lock entry, which is how a dirty path dependency is reported.
-- Path and git identity is `sha256` over the canonical manifest and the sorted `path`, `hash` rows of the package's module files. The version string is a selection hint and only names the vendor directory. `.cinchlock` records the content root in `package_id` plus `source.kind` (`path` or `git`) with the authored `path` or the `url` and `rev`.
-- A registry release cannot disclose a usable local source. A `path` or `git` dependency in registry metadata is rejected with an error that names the package and asks for the dependency to be declared in the project manifest or installed from a local root.
-- `--token` or `CINCH_REGISTRY_TOKEN` authenticates metadata and bundle reads for private packages. The token is not written to `.cinchlock`.
-- `cinch pkg publish --registry URL --project DIR --token TOKEN [--visibility public|private]` reads `.cinchpkg` and the module files, computes the release identity, and uploads the bundle with an unsigned L1 in-toto SLSA provenance attestation. The registry still authorizes the namespace and visibility.
-- `cinch pkg verify --slsa --project DIR` checks the local provenance file against the lock identity, predicate type, Cinch build type, external package parameter, and builder id. It reports `SLSA_BUILD_LEVEL_1`; a trusted builder signature raises the registry's claim to L2, but this client does not hold builder keys.
-- `cinch pkg verify --project DIR` checks every lock entry against its installed `.cinchpkg`, source files, object hash, and interface files. It is a local integrity check, not provenance; add `--slsa` for the recorded L1 provenance check.
-- Package objects define their own modules and generated primitive helpers. Dependency modules are external declarations. The JIT loads dependency objects first and the root object registers the combined layout prefix. JIT and native object admission read `build/package.cinchif` for the modules, units, layout words, object hash, and interface hashes. The source loader indexes the vendor tree recursively so project code can import installed packages.
-- `cinch check`, `cinch build`, and `cinch run` use the verified package store as a cache for checked interfaces and artifacts. The store is not a resolver and does not choose versions.
-- The compiler embeds a base package manifest, `compiler/prelude/cinch-base.cinchpkg`, which names the embedded modules and their check order. The manifest is data, so the module list is not duplicated in driver code.
-- Path, git, and registry packages share one closure. Cycles, two contents under one package name, two packages declaring one module name, and mixed local/registry name collisions are named errors before anything is written.
-- Native `build` and `run` consume installed package objects with `--package-object`; project IR keeps only project modules and declares object symbols. Client-side L2 builder-key verification and VSA issuance remain absent. An unsupported command prints usage and exits 2.
-
-| Surface | Current status |
-| --- | --- |
-| Source modules beside an entry file | Available |
-| Embedded `cinch-base` package manifest | Available |
-| Verified local interface/artifact store | Available |
-| `CINCH_STORE` and `--rebuild` | Available |
-| Project `.cinchpkg` dependency install with `cinch pkg install` | Available |
-| Public and private registry install with `cinch pkg add` | Available for one resolved release |
-| Vendored source install and package object/interface generation | Available |
-| Package-level execution `.cinchif` for JIT/native object admission | Available |
-| Registry dependency closure with exact and semver ranges | Available with fixed-point intersection |
-| Path dependency sources | Available |
-| Git dependency sources | Available for `<path>`, `file://`, and https URLs |
-| Mixed registry, path, and git closure | Available |
-| Local lock and artifact verification with `cinch pkg verify` | Available |
-| Publishing with `cinch pkg publish` | Available for authorized namespaces |
-| L1 provenance on publish and local `verify --slsa` | Available |
-| L2 builder-key verification and VSA issuance | Not implemented |
-| Registry HTTP prototype | Runnable in `registry/` |
-
-# Local source limits
-
-- `pkg add` records an install in `.cinchlock` and does not edit `.cinchpkg`, so a later `pkg install` sees only the dependencies the project manifest declares. Add the row to the manifest yourself when the project should resolve it.
-- Git authentication belongs to the `git` binary: a credential helper or an SSH agent. The lock records the URL as authored, so do not embed a secret in it.
-- A path dependency is read from its directory at install time. Nothing watches it; re-run `cinch pkg install` after editing it, and use `--locked` to detect the change instead.
-- There is no source replacement, override map, workspace, `--frozen`, or offline mode yet. A git checkout cache is local to `CINCH_STORE` and can always be removed.
-
-# Manifest format
-
-The compiler's manifest reader accepts the canonical JSON form used by the base package. Schema 1 is the current form for the base package and for publish; the installer also reads the schema 2 dependency list described below.
+A package manifest is a file named `.cinchpkg`: canonical JSON with the package name and version, a module list with source paths, and an explicit check order. The embedded base library ships one, and it is the reference example:
 
 ```json
 {
   "schema": 1,
   "name": "cinch-base",
   "version": "0.1.0",
+  "source_manifest": "the embedded prelude family (compiler/prelude/Prelude.cinch is the facade)",
   "modules": [
-    {
-      "name": "Data.Core",
-      "path": "Data/Core.cinch"
-    },
-    {
-      "name": "Prelude",
-      "path": "Prelude.cinch",
-      "facade": true
-    }
+    { "name": "Data.Core", "path": "Data/Core.cinch", "embedded": true },
+    { "name": "Prelude", "path": "Prelude.cinch", "embedded": true, "facade": true }
   ],
   "order": ["Data.Core", "Prelude"]
 }
 ```
 
-`name` and `version` identify the package in the manifest. `modules` lists each module name, its source path, and optional facade metadata. `order` is the check order and must name every module exactly once. Imports are intentionally read from source, not copied into the manifest, so an added import cannot drift from a stale manifest copy.
+That excerpt is two of its 55 module rows, one of which carries `"facade": true`. The real file lists every module, and `order` names each of them exactly once.
 
-The `embedded` field in the shipped base manifest is informational. The embedded source table decides whether a path has bytes. A manifest with an unknown schema currently is not rejected by `Package::parse`; schema validation belongs to the proposed package manager, not to the current CLI.
+| Field | Read by | Meaning |
+| --- | --- | --- |
+| `name` | Compiler and registry | `namespace/name`, exactly one `/`, both segments non-empty |
+| `version` | Compiler and registry | Selection hint and vendor directory name, not identity |
+| `modules[].name` | Compiler and registry | The module's identity, dotted |
+| `modules[].path` | Compiler and registry | Relative path to the source inside the package |
+| `modules[].facade` | Compiler | Marks the re-export facade, which fixes the check-order split |
+| `modules[].embedded` | Nobody | Informational; the embedded source table decides whether a path has bytes |
+| `order` | Compiler | Check order; `Package::parse` reads it, the installer does not |
+| `schema` | Registry | `1` or `2` are accepted; the compiler does not validate it |
+| `source_manifest` | Nobody | A human note in the base manifest |
+| `dependencies` | Installer | Package dependencies; see below |
 
-The installer reads `dependencies` from a schema 1 or schema 2 manifest. The design's schema 2 also adds stage policy, target requirements, and the `namespace/name` spelling; those fields are ignored by the current installer, and dependency entries are the only schema 2 addition it acts on.
+Two behaviours follow from that table and surprise people. A manifest with `"schema": 9` installs without complaint, because the compiler's reader does not check the field; the registry does check it, and rejects anything other than 1 or 2. And a manifest with no `order` installs locally, because the installer derives its module list from `modules` and only `Package::parse` reads `order`. Write both fields anyway; the [design](../design/package-management.md) makes `order` part of the format.
+
+Manifest faults are named at the source:
+
+```text
+cinch pkg: path ../b4: package name must be namespace/name
+cinch pkg: path ../b5: module M: /tmp/b5/Missing.cinch: No such file or directory (os error 2)
+```
+
+A version is parsed leniently: `1.0` is accepted and padded, and the vendor directory is `vendor/<namespace>/<name>/1.0`. The registry requires `major.minor.patch` with an optional prerelease and rejects the publish instead.
+
+## Dependencies
+
+`dependencies` is an array of rows, and the `source` field selects the kind. Imports are deliberately not copied into the manifest; they are read from source, so a stale manifest copy cannot disagree with the code.
 
 ```json
 {
   "schema": 2,
-  "name": "acme/text",
-  "version": "0.2.0",
-  "modules": [{ "name": "Text", "path": "Text.cinch" }],
-  "order": ["Text"],
+  "name": "acme/app",
+  "version": "0.1.0",
+  "modules": [{ "name": "Main", "path": "Main.cinch" }],
+  "order": ["Main"],
   "dependencies": [
-    { "name": "cinch/base", "range": "^0.1.0", "source": "registry" },
-    { "name": "acme/bytes", "source": "path", "path": "../bytes" },
-    {
-      "name": "acme/schema",
-      "source": "git",
-      "url": "https://example/acme-schema",
-      "rev": "abc123"
-    }
+    { "name": "alice/greet2", "version": "0.2.0", "source": "registry" },
+    { "name": "acme/greet", "source": "path", "path": "../greet" },
+    { "name": "acme/schema", "source": "git", "url": "https://example/acme-schema", "rev": "abc123" }
   ]
 }
 ```
 
-`source` defaults to `registry`, where `range` or `version` selects a release. A `path` dependency resolves relative to the directory of the manifest that declares it, so sibling packages need no absolute paths. A `git` dependency needs `url` and `rev`. Both local kinds may carry `version` or `range` as a hint; a mismatch with the target manifest's version is a named error, because the version is not the identity. `cinch/base` and `cinch-base` are skipped everywhere because the base package is embedded.
-
-# Local package store
-
-The store caches checked interfaces and build artifacts. It is keyed by content, compiler, runtime, target profile, and other build inputs. A malformed or mismatched entry is a diagnostic; `--rebuild` recomputes the entry instead of trusting or silently deleting it.
-
-`CINCH_STORE` overrides the store root. On macOS the default is `~/Library/Caches/cinch/store`; other platforms use `XDG_CACHE_HOME/cinch/store` when set, otherwise `~/.cache/cinch/store`. The store is advisory: it cannot change program semantics or substitute an unchecked interface. See [artifacts and incremental compilation](18-artifacts-and-incremental.md).
-
-Git dependencies use a checkout cache beside the store: `CINCH_STORE/git-packages/<hash of url and rev>`. The cache is keyed by the requested URL and revision only for reuse. The package it contains is still identified by its content root, and a cache checkout with local changes is a named error rather than a rebuild. Removing the cache directory is always safe.
-
-The registry prototype is independent of this store. Publishing a package does not write the compiler's cache, and downloading a blob does not make it a resolved dependency.
-
-# Registry prototype
-
-`registry/` contains a runnable v0 server for the design's public and private package paths. It is a single Node process using Node 24's built-in SQLite and HTTP support, with no third-party runtime dependencies. It is not npmjs, Hackage, or the future Cinch client.
-
-```sh
-cd registry
-CINCH_REGISTRY_ADMIN_TOKEN=change-me node server.mjs
-# Cinch registry listening on http://127.0.0.1:8787
-```
-
-| Variable | Default | Meaning |
+| `source` | Required fields | Resolution |
 | --- | --- | --- |
-| `PORT` | `8787` | HTTP port |
-| `CINCH_REGISTRY_DATA` | `registry/data` | SQLite database, blob store, and signing key |
-| `CINCH_REGISTRY_ADMIN_TOKEN` | generated and printed | Bootstrap admin token with `read`, `publish`, and `admin` scopes for `*` |
+| `registry` (default) | `version` or `range`, optional | Highest version satisfying every reachable constraint |
+| `path` | `path` | Read from that directory, resolved against the directory of the manifest that declares it |
+| `git` | `url` and `rev` | Cloned at `rev` into a cache under the store, then read |
 
-The admin token is rotated into the database on every start. In a real deployment, store it outside the data directory.
+A `path` or `git` row may also carry `version` or `range` as a hint. A hint that does not match the target manifest's version is a named error, because the version is not the identity. `cinch/base` and `cinch-base` are skipped everywhere; the base package is embedded.
 
-Run the registry suite with:
+Registry constraints are recomputed to a fixed point by `resolve_constraints`, so adding a later constraint can lower an already-chosen version, and one package name resolves to one version or the install fails without writing a partial lock.
 
-```sh
-cd registry
-npm test
+# A two-module project, packaged
+
+Create a library package, then a project that depends on it. The library is one module and a manifest:
+
+```text
+greet/
+  .cinchpkg          name acme/greet, version 0.1.0, module Greet
+  Greet.cinch        module Greet exporting greeting
 ```
 
-The tests cover public publish/download, private namespaces, token scoping, duplicate and path-traversal rejection, yank, takedown, restore, DSSE signature verification, and revocation.
+The project has its own manifest and one source file that imports the library by module name:
 
-# Registry API
+<!-- cinch:project group=pkg-two-module file=Main.cinch exit=0 stdout="hello, world" -->
+```cinch
+module Main where
+  import Greet (greeting)
 
-The API base path is `/api/v1`. Package names contain `/`; encode it as `%2F` in a path.
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let written = ioWrite (string-to-bytes (greeting "world"))
+    in 0
+```
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/health` | none | Liveness |
-| `POST` | `/principals` | none | Create a user and its namespace; returns a token |
-| `POST` | `/namespaces` | token | Create an organization namespace |
-| `POST` | `/namespaces/:namespace/members` | owner or admin | Add or update a member |
-| `POST` | `/tokens` | token | Mint a scoped token |
-| `DELETE` | `/tokens/:id` | owner or admin | Revoke a token |
-| `POST` | `/packages` | `publish` | Publish a release |
-| `GET` | `/packages/:name` | optional | List versions visible to the caller |
-| `GET` | `/packages/:name/:version` | optional | Metadata, manifest, files, and attestations |
-| `GET` | `/download/:sha256` | optional | Download the package bundle |
-| `GET` | `/index` | none | Public index snapshot |
-| `GET` | `/index/private` | token | Public plus authorized private entries |
-| `GET` | `/search?q=` | optional | Public search, or authorized private results |
-| `GET` | `/statements?since=` | optional | Signed yank, takedown, and restore events |
-| `GET` | `/audit?since=` | admin | All registry events |
-| `GET` | `/registry-key` | none | ECDSA public key for statement verification |
-| `POST` | `/packages/:name/:version/yank` | `publish` | Mark a release yanked |
-| `POST` | `/packages/:name/:version/takedown` | admin | Block a release |
-| `POST` | `/packages/:name/:version/restore` | admin | Unblock a release |
+<!-- cinch:project group=pkg-two-module file=Greet.cinch -->
+```cinch
+module Greet where
+  export greeting
 
-An anonymous request sees public packages. A token request can additionally see private packages authorized by its scopes, namespace allowlist, and namespace membership. Unauthorized private releases return `404`, not `403`, so the registry does not leak their existence. A blocked release returns `410` on download.
+  greeting :: String -> String
+  greeting name = string-concat "hello, " name
+```
 
-# Identity and authentication
+That pair compiles as soon as `Greet.cinch` sits beside `Main.cinch`. To make it a dependency instead, install it:
 
-The registry computes a release identity from the uploaded bytes:
+```sh
+cd app
+cinch pkg install
+```
+
+```text
+installed acme/greet 0.1.0
+  identity: sha256:94762afc77ea6ece4f40e193a2c9dad1166966113598b6d76134f3276da1af0d
+  source: /private/tmp/cinch-docs/modpackages/pkgwork/app/vendor/acme/greet/0.1.0
+  object: /private/tmp/cinch-docs/modpackages/pkgwork/app/vendor/acme/greet/0.1.0/package.o
+  abi: /private/tmp/cinch-docs/modpackages/pkgwork/app/vendor/acme/greet/0.1.0/package.abi.json
+  interfaces: /private/tmp/cinch-docs/modpackages/pkgwork/app/vendor/acme/greet/0.1.0/build
+```
+
+The install wrote a vendor tree, a lock, and a package object:
+
+```text
+app/
+  .cinchlock
+  .cinchpkg
+  Main.cinch
+  build/                       the project's own interfaces and manifest
+  vendor/acme/greet/0.1.0/
+    .cinchpkg                  the manifest, copied
+    Greet.cinch                the source, copied
+    package.o                  the native object
+    package.ll                 its LLVM text
+    package.abi.json           the physical manifest
+    provenance.jsonl           an in-toto SLSA statement, one line
+    build/
+      Greet.cinchif
+      CinchPackageRoot.cinchif
+      package.cinchif          the ABI manifest plus kind, modules, object
+```
+
+`build/package.cinchif` is `package.abi.json` with three fields added, so a consumer needs one artifact:
+
+```json
+{"kind": "package-execution", "modules": ["Greet"], "object": "package.o", "object_content_hash": "15519496164294781924"}
+```
+
+Then compile the project against it:
+
+```sh
+cinch run ./Main.cinch
+```
+
+```text
+hello, world
+```
+
+The `./` matters. `import Greet` resolves by looking for a module of that name in the loaded set, then for `Greet.cinch` beside the entry, then by scanning the entry's directory recursively for a `module Greet` declaration. The vendor tree is only reachable through the scan, and the scan reads the entry path's directory, which is empty when the entry is written as a bare `Main.cinch`. With the bare form the program is refused:
+
+```text
+cinch: module Greet is imported, but Greet.cinch does not exist and no other source file beside the entry declares `module Greet`
+```
+
+## Identity and the lock
+
+The install identity is a SHA-256 over a domain-separated text form: the canonical manifest, then the sorted `path` and `sha256` rows of the package's source files.
 
 ```text
 sha256("package\n" + canonicalJson(manifest) + "\n" +
        sorted(path + "\t" + sha256(fileBytes)).join("\n"))
 ```
 
-The manifest is excluded from the file list, so the digest has no self-reference. If a client supplies `packageId`, the server rejects a mismatch.
+Recomputing it for the library above reproduces the reported identity byte for byte. The version string only names the vendor directory; two directories with different bytes and the same version are two different packages.
 
-A **principal** is a user or an organization. A **namespace** is owned by a principal. A user gets a namespace equal to its handle; an organization is an explicit namespace. **Memberships** are `owner`, `publisher`, or `reader`.
+`.cinchlock` records one row per installed name:
 
-A **token** has scopes (`read`, `publish`, `admin`) and a namespace allowlist (`*` for admin). Tokens are random 32-byte values stored only as SHA-256 hashes, and they can be revoked. Private access requires all three: a `read` scope, the package namespace in the token allowlist, and membership in that namespace.
+```json
+{
+  "schema": 1,
+  "packages": [
+    {
+      "name": "acme/greet",
+      "version": "0.1.0",
+      "package_id": "sha256:94762afc77ea6ece4f40e193a2c9dad1166966113598b6d76134f3276da1af0d",
+      "source": {"kind": "path", "path": "../greet"},
+      "source_dir": "vendor/acme/greet/0.1.0",
+      "object": "vendor/acme/greet/0.1.0/package.o",
+      "interfaces": "vendor/acme/greet/0.1.0/build",
+      "provenance": {"digest": "sha256:e49042046e72b66a3a1cfa98d42680fee9cd9da809c8457662ce946124f79ab8", "path": "vendor/acme/greet/0.1.0/provenance.jsonl"}
+    }
+  ]
+}
+```
 
-# Publish and download
+`source` keeps the authored spelling, not the resolved absolute path: a `path` row holds the `path` as written, a `git` row holds the `url` and `rev`. A token is never written here.
 
-Create a user and capture its token:
+# Installing sources
+
+| Command | What it installs |
+| --- | --- |
+| `cinch pkg add NAME@VERSION --registry URL` | That registry release and its registry dependencies |
+| `cinch pkg add PATH_DIR` or `--path DIR` | The package whose `.cinchpkg` is at that directory |
+| `cinch pkg add URL --git-rev REV` or `--git URL --git-rev REV` | The package at the checkout root of `URL` at `REV` |
+| `cinch pkg install [--locked]` | Every dependency the project manifest declares |
+
+`add` always needs an explicit source; `install` with no argument reads the project manifest. A bare positional that is an existing directory is treated as a path source; a bare URL is a git source only when `--git-rev` is present; anything else must be `NAME@VERSION`. `--path` and `--git` are mutually exclusive. A CLI path argument resolves against the current directory, while a `path` row inside a manifest resolves against that manifest's directory. Adding the project directory itself is refused:
+
+```text
+cinch pkg: path . names the project directory; a project is not its own dependency
+```
+
+## Git sources
+
+A git dependency shells out to `git`, so `<path>`, `file://`, and https URLs all work and authentication belongs to your credential helper or SSH agent. The checkout is cached under `<store>/git-packages/<key>/`, where `<key>` is the first 32 hex characters of `sha256("<url>\n<rev>")`, with `<key>.identity` beside it holding the content root recorded when it was fetched.
+
+```sh
+cinch pkg add --git /tmp/pkgs/gitpkg --git-rev f773c1bdbc6f6213b878a3174e87a9c5b59e6f66
+```
+
+```text
+installed acme/greet2 0.2.0
+  identity: sha256:a458080b098e5f4ba73d9b5cc4f23dba35d94f81961682ae1570e29318c565ac
+  source: …/app/vendor/acme/greet2/0.2.0
+  object: …/app/vendor/acme/greet2/0.2.0/package.o
+  abi: …/app/vendor/acme/greet2/0.2.0/package.abi.json
+  interfaces: …/app/vendor/acme/greet2/0.2.0/build
+```
+
+A cached checkout with local changes is a named error rather than a rebuild, and the cache is keyed by URL and revision only for reuse: the package is still identified by its content root. Removing the cache directory is always safe.
+
+## Locked installs
+
+`--locked` refuses to change any lock entry, which is how a dirty path dependency is reported:
+
+```text
+cinch pkg: --locked: path dependency is dirty: .cinchlock records sha256:94762afc… for acme/greet 0.1.0, but path ../greet now has content root sha256:9b9cb772…; run `cinch pkg install` without --locked to update the lock
+```
+
+The unlocked form reinstalls from the edited directory and rewrites the lock. Nothing watches a path dependency, so re-run `install` after editing it.
+
+# Closures and conflicts
+
+Path, git, and registry packages share one closure, and the errors below are all raised before anything is written.
+
+| Situation | Diagnostic |
+| --- | --- |
+| Two packages declare one module | `cinch pkg: module Shared is declared by both acme/x and acme/y; a build selects one package per module name` |
+| One name, two contents | `cinch pkg: one version per package name: acme/x resolves to two different contents (path ../X and path ../../X2); keep one release of a package name in a closure` |
+| A cycle | `cinch pkg: dependency cycle: acme/a -> acme/b -> acme/a` |
+| A registry release carrying a local source | see below |
+| An unsatisfiable range | `cinch pkg: no version of alice/greet2 satisfies ^0.9.0; available 0.3.0, 0.2.0` |
+
+The registry case deserves its own paragraph. A registry release cannot disclose a usable local source, so a `path` or `git` row in registry metadata is rejected with an instruction rather than a guess:
+
+```text
+cinch pkg: dependency resolution for alice/localdep@0.1.0: registry package alice/localdep declares a path dependency on acme/greet. A registry release cannot carry a usable local source; add acme/greet to the project manifest as a path dependency (or install it with `cinch pkg add --path` or `cinch pkg add --git URL --git-rev REV`) and run `cinch pkg install` from the project root
+```
+
+A mixed closure is ordinary: a project manifest declaring one registry row and one `path` row installs both, and the project then imports both modules.
+
+One limit is worth stating because it costs an afternoon. `pkg add` records an install in `.cinchlock` and does not edit `.cinchpkg`, so a later `pkg install` sees only the dependencies the manifest declares. Installing a second version of a name leaves the first version's directory under `vendor/`, and the next compile then sees two files declaring one module:
+
+```text
+cinch pkg: build package object: module Greet2 is imported, but several source files declare it (…/vendor/alice/greet2/0.2.0/Greet2.cinch, …/vendor/alice/greet2/0.3.0/Greet2.cinch); imports resolve to a unique module
+```
+
+Remove `vendor/<namespace>/<name>` before installing a different version of one package.
+
+# Verifying an install
+
+`cinch pkg verify` is a local integrity check: every lock entry against its installed `.cinchpkg`, source files, object hash, and interface files.
+
+```sh
+cinch pkg verify
+```
+
+```text
+verified 1 package(s)
+```
+
+Add `--slsa` to also check the recorded provenance against the lock identity, the predicate type, the Cinch build type, the external package parameter, and the builder id:
+
+```sh
+cinch pkg verify --slsa
+```
+
+```text
+verified 1 package(s)
+  provenance: acme/greet@0.1.0 SLSA_BUILD_LEVEL_1
+```
+
+That is the honest level. The provenance the compiler writes is an unsigned in-toto statement and the builder id is `local:cinch/0.1.0`, so the claim is that a local build happened, not that a trusted builder performed it.
+
+# Publishing
+
+```sh
+cinch pkg publish --registry http://127.0.0.1:8787 --project DIR --token TOKEN [--visibility public|private]
+```
+
+The command reads the project's `.cinchpkg` and its module files, computes the release identity, and posts the bundle with the same bearer token used for private reads.
+
+```text
+published alice/greet2 0.2.0
+  package: sha256:899ae7de7ffc5bb9b3e3bb97d289a68577e9ba19d15c3c4acb65c8db7fd38dd6
+```
+
+<span class="support-tag support-tag--partial">Partial</span> **publish diagnostics.** The client invokes `curl -fsSL`, and `-f` discards the response body on an error status, so a rejected publish reports only the HTTP status:
+
+```text
+cinch pkg: POST http://127.0.0.1:8899/api/v1/packages: curl: (22) The requested URL returned error: 400
+```
+
+To find out why, query the same endpoint with `curl -s` yourself or read the registry log. A version that is not `major.minor.patch`, a duplicate release, a missing namespace, and a namespace you do not own all arrive this way.
+
+`--token` or `CINCH_REGISTRY_TOKEN` supplies the credential and `CINCH_REGISTRY` the default URL. Tokens are sent only in the `authorization: Bearer` header and are never written to `.cinchlock` or printed.
+
+# The local store
+
+The compiler caches the embedded base package's checked interfaces in a per-user store keyed by content, compiler version, target profile, and the base package's own bytes. `CINCH_STORE` overrides the root; the platform defaults and the entry layout are documented on [artifacts and incremental compilation](18-artifacts-and-incremental.md).
+
+The store is not a resolver and does not choose versions. It caches one package, `cinch-base`. An installed package's artifacts live under `vendor/` in the shape shown above, not in the store.
+
+Git checkouts share that root, under `git-packages/`. That directory is the only part of the store a package install writes, and deleting it is always safe.
+
+# The registry prototype
+
+`registry/` is a runnable v0 service: one Node process using Node 24's built-in SQLite and HTTP support, with no third-party runtime dependencies.
+
+```sh
+cd registry
+CINCH_REGISTRY_ADMIN_TOKEN=change-me node server.mjs
+```
+
+```text
+Cinch registry listening on http://127.0.0.1:8787
+Data directory: /tmp/cinch-reg-exp
+Registry key: 820eabd5c9a6d156a899fde7b5fae26305d96b807d959ad3280c3dc28d311a01
+```
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | `8787` | HTTP port |
+| `CINCH_REGISTRY_DATA` | `registry/data` | SQLite database, blob store, and signing key |
+| `CINCH_REGISTRY_ADMIN_TOKEN` | a random 24-byte value, printed at startup | Bootstrap admin token with `read`, `publish`, and `admin` scopes for `*` |
+
+The admin token is rotated into the database on every start, and the startup line `Admin token (store it now): ...` appears only when the variable was unset. In a real deployment it belongs outside the data directory. `CINCH_PROVENANCE_KEYS` takes a JSON map of trusted signing keys; envelopes it can verify are reported at L2.
+
+## State on disk
+
+```text
+data/
+  registry.db          SQLite
+  registry.db-shm      SQLite WAL sidecar
+  registry.db-wal      SQLite WAL sidecar
+  registry-key.json    ECDSA P-256 private key, mode 0600
+  blobs/<aa>/<rest>    canonical package bundles, keyed by the bundle digest
+```
+
+The tables are `principals`, `namespaces`, `memberships`, `tokens`, `packages`, `attestations`, `statements`, `meta`, and `sqlite_sequence`. The blob path uses the first two hex characters of the bundle digest as a directory and the remaining 62 as the file name. That digest covers the canonical bundle `{schema, manifest, files, visibility, readme}`, which is a different value from the release identity: the release identity covers the manifest and source bytes, the bundle digest covers the uploaded envelope too.
+
+## Routes
+
+Every route below is registered in `server.mjs`; the ones marked ran were exercised against a local instance.
+
+| Method | Path | Auth | Purpose | Ran |
+| --- | --- | --- | --- | --- |
+| `GET` | `/health` | none | Liveness | yes |
+| `GET` | `/api/v1` | none | Service description and endpoint list | yes |
+| `POST` | `/api/v1/principals` | none | Create a user and its namespace, return a token | yes |
+| `POST` | `/api/v1/namespaces` | token | Create an organization namespace | yes |
+| `POST` | `/api/v1/namespaces/:namespace/members` | owner or admin | Add or update a member | no |
+| `POST` | `/api/v1/tokens` | token | Mint a scoped token | yes |
+| `DELETE` | `/api/v1/tokens/:id` | owner or admin | Revoke a token | no |
+| `POST` | `/api/v1/packages` | `publish` | Publish a release | yes |
+| `GET` | `/api/v1/packages/:name` | optional | List versions visible to the caller | yes |
+| `GET` | `/api/v1/packages/:name/:version` | optional | Metadata, manifest, files, attestations | yes |
+| `GET` | `/api/v1/download/:id` | optional | Download the bundle by release identity | yes |
+| `GET` | `/api/v1/index` | none | Public index snapshot | yes |
+| `GET` | `/api/v1/index/private` | token | Public plus authorized private entries | no |
+| `GET` | `/api/v1/search?q=` | optional | Public search, or authorized private results | yes |
+| `GET` | `/api/v1/statements?since=` | optional | Signed yank, takedown, and restore events | yes |
+| `GET` | `/api/v1/audit?since=` | admin | All registry events | no |
+| `GET` | `/api/v1/registry-key` | none | ECDSA public key for statement verification | no |
+| `POST` | `/api/v1/packages/:name/:version/yank` | `publish` | Mark a release yanked | yes |
+| `POST` | `/api/v1/packages/:name/:version/takedown` | admin | Block a release | yes |
+| `POST` | `/api/v1/packages/:name/:version/restore` | admin | Unblock a release | yes |
+
+Package names contain `/`; encode it as `%2F` in the path. Two HTML pages exist for browsers: `/` lists public packages and `/packages/:name` shows one.
+
+## Identity and access
+
+The registry computes the release identity with the same formula the compiler uses, and refuses a client-supplied `packageId` that disagrees:
+
+```text
+sha256("package\n" + canonicalJson(manifest) + "\n" +
+       sorted(path + "\t" + sha256(fileBytes)).join("\n"))
+```
+
+A **principal** is a user or an organization. A **namespace** is owned by a principal; a user's namespace equals its handle, and an organization's is explicit. **Memberships** are `owner`, `publisher`, or `reader`. A **token** carries scopes (`read`, `publish`, `admin`) and a namespace allowlist (`*` for admin), is stored only as a SHA-256 hash, and can be revoked.
+
+Create a user and capture the token:
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/api/v1/principals \
@@ -200,129 +417,44 @@ curl -s -X POST http://127.0.0.1:8787/api/v1/principals \
   -d '{"handle":"alice"}'
 ```
 
-The response names the principal, its namespace, and a token. Publish a public release with that token:
+```json
+{"principal": {"id": "p_9190be806f177361ee704171", "handle": "alice", "kind": "user"},
+ "namespace": "alice",
+ "token": "8bd37b54861a5f896e57dfb7d9e17dddab771e8a0016eb8511af336503fa4a44"}
+```
+
+Private access requires all three of a `read` scope, the package's namespace in the token allowlist, and membership in that namespace. Any one missing yields `404`, not `403`, so the registry does not disclose that a private release exists.
+
+## Publishing, downloading, and withdrawal
+
+`POST /api/v1/packages` takes the manifest, the files as a base64 map, a visibility, an optional readme, and optional attestations. The response `entry` carries `packageId` and `bundle`; download with the 64 hex characters of the release identity:
 
 ```sh
-MAIN=$(printf 'module Main where\n' | base64)
-curl -s -X POST http://127.0.0.1:8787/api/v1/packages \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d "{
-    \"manifest\": {
-      \"schema\": 2,
-      \"name\": \"alice/hello\",
-      \"version\": \"0.1.0\",
-      \"modules\": [{ \"name\": \"Main\", \"path\": \"Main.cinch\" }],
-      \"order\": [\"Main\"]
-    },
-    \"files\": { \"Main.cinch\": \"$MAIN\" },
-    \"visibility\": \"public\",
-    \"readme\": \"Hello from Alice.\"
-  }"
+curl -s http://127.0.0.1:8787/api/v1/download/899ae7de7ffc5bb9b3e3bb97d289a68577e9ba19d15c3c4acb65c8db7fd38dd6
 ```
 
-The response includes `entry.packageId` and `entry.bundle`. Download the bundle with the hex part of the package ID:
+A publisher can yank a version with `POST /api/v1/packages/:name/:version/yank`. The row keeps its bytes, gains a signed withdrawal statement, and stays in the index with `"yanked": true`; only blocked releases leave the index. An administrator can take a release down, which sets `blocked`, removes it from the index, and makes download return `410` while keeping the blob for audit and restoration. `restore` reverses it.
+
+Each event is a signed in-toto statement in a DSSE envelope with predicate type `https://cinch.systems/attestation/withdrawal/v1`. `GET /api/v1/statements?since=` returns them and `GET /api/v1/registry-key` returns the ECDSA P-256 public key; the signature covers the DSSE pre-authentication encoding with SHA-256. Deleting a blob is not a takedown mechanism, because mirrors, caches, locks, and vendor trees can retain copies.
+
+The client's own yank handling is narrower than that: an explicit `cinch pkg add NAME@VERSION` installs a yanked release, because only the range-resolution path filters yanked and blocked versions out of the candidate list.
+
+## Attestations
+
+The registry checks the structure of SLSA provenance against the release identity. An unsigned envelope is `SLSA_BUILD_LEVEL_1` with `"verified": false` and `"verification": "unsigned-l1"`. An envelope signed by a configured trusted key is `SLSA_BUILD_LEVEL_2` with `"verified": true`. VSA issuance is not implemented, and the client holds no builder keys, so `cinch pkg verify --slsa` can never report more than L1.
+
+## Test suites
 
 ```sh
-curl -s http://127.0.0.1:8787/api/v1/download/<hex>
+cd registry
+npm test
 ```
 
-The uploaded bundle is canonical JSON containing the manifest, base64 source files, visibility, and readme. The registry checks SLSA provenance structure against the release identity: unsigned envelopes are `SLSA_BUILD_LEVEL_1` with `verified: false`, and envelopes signed by a key in `CINCH_PROVENANCE_KEYS` are `SLSA_BUILD_LEVEL_2` with `verified: true`. VSA issuance is not implemented.
-
-# Private packages and organizations
-
-Create an organization namespace with an existing token, then mint a token scoped to it:
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/api/v1/namespaces \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"name":"acme","kind":"org"}'
-
-curl -s -X POST http://127.0.0.1:8787/api/v1/tokens \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"scopes":["read","publish"],"namespaces":["acme"]}'
-```
-
-Publish with `"visibility":"private"` and the organization token. The anonymous index, search, and download endpoints will not reveal or serve the release. The public HTML site lists public packages only; private access is through the API.
-
-Default visibility is `public` for a user namespace and `private` for an organization namespace. Send `visibility` explicitly when you want to override that default.
-
-# Withdrawal, takedown, and restore
-
-A publisher can yank a version:
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/api/v1/packages/alice%2Fhello/0.1.0/yank \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"reason":"superseded"}'
-```
-
-An administrator can take a release down and later restore it:
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/api/v1/packages/alice%2Fhello/0.1.0/takedown \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"reason":"copyright"}'
-
-curl -s -X POST http://127.0.0.1:8787/api/v1/packages/alice%2Fhello/0.1.0/restore \
-  -H "authorization: Bearer $ADMIN_TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"reason":"dispute resolved"}'
-```
-
-A takedown sets `blocked`, removes the release from the index, and makes download return `410`. The bytes remain in the blob store for audit and restoration.
-
-Each event is a signed in-toto Statement in a DSSE envelope. `GET /api/v1/statements` returns the statements; `GET /api/v1/registry-key` returns the ECDSA P-256 public key. The signature covers the DSSE pre-authentication encoding with SHA-256. Deleting a blob is not a takedown mechanism, because mirrors, caches, locks, and vendor trees can retain copies.
-
-# Storage
-
-The prototype keeps all state under `CINCH_REGISTRY_DATA`:
-
-```text
-data/
-  registry.db          SQLite: principals, namespaces, members, tokens,
-                       packages, attestations, statements
-  registry-key.json    ECDSA P-256 private key (mode 0600)
-  blobs/<aa>/<rest>    canonical package bundles keyed by sha256
-```
-
-The key file is a development convenience. A production registry needs role-separated keys, threshold signing, rotation, and an audited signing service.
-
-# Production gaps
-
-The prototype is deliberately small. A public or organizational registry still needs:
-
-- OIDC/SSO, email verification, password reset, and organization invitations.
-- Rate limits, quotas, abuse reporting, malware scanning, and retention policy.
-- Object storage, a production database, backups, and multi-node consistency.
-- Per-namespace signed private indexes instead of a filtered view.
-- VSA issuance and client-side trust in L2 builder keys; the registry currently performs structural L1 and optional trusted-key L2 verification.
-- Search indexing, a private package UI, and package documentation rendering.
-- CDN distribution for public blobs, mirroring, and anti-rollback snapshots.
-- Billing for private packages, a legal takedown workflow, and audit retention.
-- Namespace disputes, publisher verification, and typosquat detection.
-
-# Design boundary
-
-The design addresses the hard semantic questions the prototype does not:
-
-- **Release identity** is a digest over canonical metadata and source bytes.
-- **Compatibility** is a checked relation over module contracts, not a version-string promise.
-- **One version per package name** follows from global module identity and global instance coherence.
-- **Resolution is client-side and deterministic.** The registry serves immutable metadata and blobs; it does not choose versions for the build.
-- **The lockfile records exact identities**, sources, policy, evidence, and artifacts. It never records a range as if it were a resolved version.
-- **Withdrawal and takedown are signed statements**, not mutable flags or deleted bytes.
-- **SLSA describes supply-chain integrity**, not semantic correctness, and the compiler emits only the provenance level it can actually observe.
-
-Read the [package management design](../design/package-management.md) for the object model, schema 2, the one-version rule, lock format, registry protocol, private package policy, signing, SLSA mapping, rollout, and open decisions.
+The suite covers public publish and download, private namespaces, token scoping, duplicate and path-traversal rejection, yank, takedown, restore, DSSE signature verification, and revocation.
 
 # Command surface
 
-These commands are implemented by the current CLI:
+Implemented:
 
 ```text
 cinch pkg add NAME@VERSION [--registry URL] [--project DIR] [--token TOKEN]
@@ -335,11 +467,9 @@ cinch pkg publish [--registry URL] [--project DIR] [--token TOKEN] [--visibility
 cinch pkg verify [--slsa] [--project DIR]
 ```
 
-`install` is the long form of `add` for a registry spec. With no package argument it reads the project `.cinchpkg` and installs its declared dependencies; `add` always needs an explicit source. `--path` and `--git` are mutually exclusive, and `--git` needs `--git-rev`. A bare positional that is an existing directory is treated as a path source, and a bare URL is treated as a git source only when `--git-rev` is present; otherwise the argument must be `NAME@VERSION`. CLI path arguments resolve against the current directory, while a `path` entry inside a manifest resolves against the directory of that manifest. Adding the project directory itself is rejected with a named error; use `cinch pkg install` for the project's own dependencies. `--locked` applies to `add` and `install` and refuses any lock rewrite.
+An unsupported command prints this usage and exits 2.
 
-`CINCH_REGISTRY` sets the default registry URL and `CINCH_REGISTRY_TOKEN` supplies the default token. Tokens are sent only in the `authorization: Bearer` header; they are never written to `.cinchlock` or printed.
-
-The design still proposes these commands; they are **not implemented**:
+Not implemented, and proposed by the design:
 
 ```text
 cinch pkg init
@@ -355,20 +485,25 @@ cinch pkg purge NAME
 cinch pkg yank VERSION
 ```
 
-`cinch pkg verify` is local; `--slsa` verifies the recorded unsigned L1 provenance. The design's `--online` mode, client-side L2 builder roots, the producer flag `cinch build --emit-provenance`, and a remote audit command remain future work. Do not write those into build scripts yet. The current CLI's supported commands are in [using the Rust compiler](01-using-the-compiler.md).
+There is no source replacement, override map, workspace, `--frozen`, or offline mode. `cinch build --emit-provenance`, an online `verify`, client-side L2 builder roots, and a remote audit command are future work; do not write them into build scripts. The supported compiler commands are on [using the Rust compiler](01-using-the-compiler.md).
 
-# Verification
+# Status
 
-The current package surfaces are exercised by:
+| Surface | Status |
+| --- | --- |
+| Source modules beside an entry file | Available |
+| Embedded `cinch-base` package manifest | Available |
+| Project `.cinchpkg` install with `pkg install` | Available |
+| Registry install with `pkg add` | Available for one resolved release |
+| Path dependency sources | Available |
+| Git dependency sources | Available for `<path>`, `file://`, and https URLs |
+| Mixed registry, path, and git closure | Available |
+| Vendored sources plus object, ABI, and interface generation | Available |
+| Package-level execution `.cinchif` | Available |
+| Registry dependencies with exact versions and semver ranges | Available, fixed-point intersection |
+| Local integrity and L1 provenance verification | Available |
+| Publishing to an authorized namespace | Available |
+| L2 builder-key verification and VSA issuance | Not implemented |
+| Registry HTTP prototype | Runnable in `registry/` |
 
-- `compiler/tests/package_manifest.rs` for the embedded manifest and check order;
-- `compiler/tests/package_store.rs` for store keys, verification, and `--rebuild`;
-- `compiler/tests/canonical_artifacts.rs` for canonical artifact identity;
-- `compiler/src/pkg.rs` tests for semver range intersection, bundle identity, vendoring, object emission, lock updates, and verification;
-- `compiler/src/pkg.rs` tests for a two-package path dependency graph, path lock entries, a cycle, a one-name conflict, a missing path, a dirty path under `--locked`, a git dependency from a local `git init` repository, a mixed registry and path closure against an in-process HTTP fixture, and rejection of a path source disclosed by registry metadata;
-- `compiler/src/provenance.rs` tests for L1 subject and build-field verification;
-- `registry/test/registry.test.mjs` for unsigned L1, trusted-key L2, and mismatched-subject rejection;
-- manual registry checks for private publish, authenticated install, rejection of an unauthenticated private read, and local `verify --slsa`;
-- `registry/test/` for the registry HTTP and signing behavior.
-
-Implementation: `compiler/src/pkg.rs`, `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, and `registry/lib/`. The registry source and its full request examples are in [`registry/README.md`](https://github.com/iand675/cinch/blob/main/registry/README.md).
+Implementation: `compiler/src/pkg.rs`, `compiler/src/driver.rs`, `compiler/src/store.rs`, `compiler/prelude/cinch-base.cinchpkg`, `registry/server.mjs`, `registry/lib/store.mjs`, `registry/lib/canonical.mjs`, `registry/lib/provenance.mjs`, `registry/lib/signer.mjs`. Suites: `compiler/tests/package_manifest.rs`, `compiler/tests/package_store.rs`, `compiler/tests/canonical_artifacts.rs`, the `pkg.rs` unit tests, and `registry/test/registry.test.mjs`.

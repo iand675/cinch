@@ -1,10 +1,42 @@
 # Built-in and shipped libraries
 
-The actual library source distributed with the **Rust compiler**, documented from checked compiler interfaces. This directory is separate from the website's [sample package catalogue](/packages/).
+The actual library source distributed with the **Rust compiler**, documented from checked compiler interfaces. This directory is separate from the website's [package catalogue](/packages/), which lists published releases from a registry or the last cached snapshot of one.
 
 # Choose a module
 
 Use site search to find a declaration by name or signature. The groups below distinguish embedded modules from source-distributed modules. Public types, constructors, values, methods, fixities, and instance entries come from `.cinchif` exports; source comments explain behaviour and named limits. Private class closure in an interface is not presented as a public method API.
+
+# Find a function by job
+
+The middle column opens the module page; the right-hand column names an exported declaration on that page, spelled as the page spells it. The page carries the full scheme, its constraints, its effect row, and the admitted behaviour.
+
+| Job | Module | Start with |
+| --- | --- | --- |
+| Add, subtract, multiply, or divide numbers | [Algebra.Arithmetic](Algebra.Arithmetic.md) | `Add.+`, `Sub.-`, `Mul.*`, `Div./` (the second argument of `Div./` has type `NonZero a`) |
+| Sort a list or look up a key in pairs | [Data.List](Data.List.md) | `sort` (requires `using (ord :: Relation.Ord.Ord a)`), `sort-by`, `lookup` |
+| Handle a value that may be absent | [Data.Option](Data.Option.md) | `map-option`, `from-option`, `is-none` |
+| Transform, inspect, or partition a failure | [Data.Result](Data.Result.md) | `map-result`, `map-err`, `partition-results` |
+| Store and look up values by key in order | [Data.Map](Data.Map.md) | `map-lookup`, `map-insert`, `map-from-pairs` |
+| Store and look up values by key in any order | [Data.HashMap](Data.HashMap.md) | `hash-map-lookup`, `hash-map-insert` |
+| Index an immutable array | [Data.Array](Data.Array.md) | `array-get` (returns `Option a`), `array-from-list`, `array-slice` |
+| Read, write, or inspect a buffer | [Data.Bytes](Data.Bytes.md) | `bytes-len`, `bytes-get`, `bytes-set`, `sha256-bytes` |
+| Compare, join, or slice text | [Data.String](Data.String.md) | `string-compare`, `string-concat`, `string-slice`, `string-length` |
+| Render a value as text | [Text.Show](Text.Show.md) | `Show.show`, `int-to-string`, `nat-to-string` |
+| Convert between integer families with a check | [Data.Nat](Data.Nat.md), [Data.Int](Data.Int.md) | `checked-nat-from-i64`, `checked-int-to-i64` (each returns `Option`) |
+| Parse or render JSON | [Text.Json](Text.Json.md) | `parse-json`, `print-json` |
+| Parse or render CSV fields | [Text.Csv](Text.Csv.md) | `csv-parse`, `csv-print` |
+| Match or replace with a regular expression | [Text.Regex](Text.Regex.md) | `parse-regex`, `regex-match`, `regex-replace-all` |
+| Hash bytes or sign with HMAC | [Text.Digest](Text.Digest.md) | `digest-hex`, `hmac-sha256-hex` |
+| Encode or decode base64 | [Text.Base64](Text.Base64.md) | `base64-encode`, `base64-decode` |
+| Read or write a file | [Effect.Fs](Effect.Fs.md) | `fs-read`, `fs-write`, `fs-list` (sorted directory names), each requiring an `Io r` capability |
+| Run a command and read its output | [Effect.Process](Effect.Process.md) | `command`, `process-run` (takes the child's stdin, returns the exit code and captured stdout), `process-args` |
+| Read a clock or bound work by a timeout | [Effect.Clock](Effect.Clock.md) | `clock-wall-ns`, `monotonic-elapsed`, `timeout` |
+| Get random bytes or a bounded number | [Effect.Random](Effect.Random.md) | `random-bytes`, `random-nat-below` |
+| Parse command-line options | [Text.Args](Text.Args.md) | `parse-args`, `render-args-error` |
+| Send an HTTP request over plain TCP | [Effect.Http](Effect.Http.md) | `http-get`, `http-request`, `http-status` (no TLS in this module) |
+| Convert an epoch count to a time value | [Data.Time](Data.Time.md) | `from-epoch-nanos`, `to-string`, `diff` |
+
+Read the scheme before writing the call. `parse-json` is the case worth knowing: its first argument is a name used in error bundles and its second is the input `Bytes`, so `parse-json "input" (string-to-bytes "1")` returns `Parsed value soft-errors` or `Failed bundle`, with those constructors documented on [Text.Parse](Text.Parse.md).
 
 # Load embedded modules
 
@@ -23,9 +55,19 @@ cp compiler/prelude/Text/Parse.cinch /tmp/cinch-json-example/Text.Parse.cinch
 cp compiler/prelude/Text/Json.cinch /tmp/cinch-json-example/Text.Json.cinch
 ```
 
-Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its actual imports and the complete non-embedded source closure. The module declaration determines identity; the dotted filenames above make the sibling-directory arrangement unambiguous. These copy commands do not install a remote package.
+Those five files are the whole import closure of `Text.Json`. For another ship-source module, copy its own closure, which its page lists under Non-embedded source closure. The module declaration decides identity, so the dotted filenames above keep a flat directory unambiguous. This entry file in the same directory prints nothing and exits `0` (`cinch run Main.cinch`):
 
-<span class="support-tag support-tag--planned">Coming soon</span> a complete remote package-install/publish workflow and real binary release bundles. The current local package manifest/store is described in [modules](../reference/07-modules-and-packages.md) and [artifacts](../reference/18-artifacts-and-incremental.md).
+```cinch
+module Main where
+  import Text.Json
+
+  main :: Int
+  main = if print-json JNull == "null" then 0 else 1
+```
+
+A page names its imports under Dependencies when the module declares any, and a module with no imports has no such section.
+
+Installing a package from a registry is a different mechanism from copying source. `cinch pkg add NAME@VERSION`, `cinch pkg install`, `cinch pkg publish`, and `cinch pkg verify` exist in the current CLI and are documented, with the prototype's production gaps, in [packages, manifests, and the registry](../reference/29-package-management.md). <span class="support-tag support-tag--planned">Coming soon</span> packaged binary release bundles; the website [downloads page](/downloads/) currently serves labelled sample bundles that do not install a compiler.
 
 # Module directory
 

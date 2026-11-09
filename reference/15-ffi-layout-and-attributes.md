@@ -1,42 +1,218 @@
 # Foreign code, representation attributes, and inline primitives
 
-A foreign or inline-IR declaration crosses a trust boundary. The compiler checks containment, ABI representation, effects, and resource roles; these checks do not prove arbitrary external code's semantic truth.
+A `foreign` declaration or a `prim` body crosses a trust boundary. The compiler checks the parts it can see: the calling convention, the layouts of the values that cross, the declared effect row, the ownership roles, and (for `prim`) the containment grammar of the inline code. It does not prove the external implementation correct. The artifact manifest states the boundary explicitly, listing LLVM code generation and the runtime as `trusted` and the source-level phases as `checked`.
 
-# C imports and exports
+# The foreign declaration form
 
-`foreign import ccall "symbol" local-name :: Type` binds an external C symbol. `foreign export ccall "symbol" local-name :: Type` exposes a checked definition. The contract includes convention, widths, signedness, layouts, ownership roles, and effect row. `opaque type` and `RawPtr` represent admitted opaque boundaries with explicit lifetime/deallocation obligations.
+```text
+foreign import ccall "symbol" local-name :: Type
+foreign export ccall "symbol" local-name :: Type
+```
 
-Do not use bignum-capable `Int`/`Nat` as though they were C machine integers. Use the admitted machine scalar or C vocabulary and checked conversions. Integer-to-pointer ownership roles are rejected; an owned foreign allocation needs its required deallocator contract. Panics/exceptions must not unwind across the boundary. Blocking work retains its blocking/effect policy.
+The convention is `ccall` or `component`; any other word is refused by the parser with `expected `ccall` or `component`, found ...`. Only `ccall` is implemented:
 
-The Rust compiler APIs can link supplied objects (as in `run_source_objects`). The public CLI does not currently offer an arbitrary object/library option. A `foreign import` declaration can check and still fail at link time if the symbol is absent; document that dependency rather than presenting it as a standalone runnable program.
+```
+cinch: 2:3: only the ccall ABI is supported; the component ABI needs the WIT adapter (P14)
+```
 
-# Attributes
+A component boundary is entered through a WIT file, whose adapter generates the bindings ([targets and components](19-targets-and-components.md)).
 
-The [complete attribute and pragma index](23-attributes-and-pragmas.md) lists every accepted name, spelling, argument, placement, and conflict. [Type layout](24-type-layout.md) gives worked offsets, alignment, packing, wrappers, and current versus planned representation behaviour.
+A `foreign` declaration is not pure by default. The result arrow must carry an effect row naming at least one of the foreign vocabulary:
 
-`#[...]` attaches to supported declarations, fields, constructors, clauses, alternatives, guards, and `if` positions. Duplicate/conflicting attributes and invalid placements are rejected. Semantic attributes affect contracts where required; optimization hints are representation-only.
+<!-- cinch:reject contains="a foreign import must declare its effects" -->
+```cinch
+module Main where
+  foreign import ccall "cinch_clock_wall_ns" wall-ns :: () -> U64
 
-| Family | Current meaning |
+  main :: Int
+  main = 0
+```
+
+```
+cinch: 2:3: a foreign import must declare its effects: the result arrow's row names at least one of `Foreign <boundary>`, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`, `Reentrant`, `ThreadAffine` (foreign function interface specification section 4: an external function is not pure merely because its C signature has no explicit state parameter) (in Pure.cinch)
+```
+
+The boundary name after `Foreign` is yours to choose (`Lib`, `Codec`, `Fix`, `Component` in the specifications and the prelude; a new name is accepted and recorded). An entry point that performs the call declares the matching row, and the CLI accepts `main :: Unit ->{e} Int` for exactly this purpose; a nullary `main` must be pure.
+
+`Int` and `Nat` are not C integers. Reaching for one is refused by name:
+
+```
+cinch: 5:3: Int has no C representation: language-native closures, dictionaries, vectors, dependent pairs and proofs have no implicit C representation (foreign function interface specification section 2)
+```
+
+Use the machine scalars (`I8`..`I64`, `U8`..`U64`, `Isize`, `Usize`, `F32`, `F64`), `Bytes`, `RawPtr t`, or an `opaque type`.
+
+# A binding that links and runs
+
+`cinch build` and `cinch run` link the program against the runtime library, so a symbol the runtime exports resolves without any extra flag. The runtime exports `cinch_clock_wall_ns`, which makes a complete linkable example possible:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  foreign import ccall "cinch_clock_wall_ns" wall-ns :: () ->{Foreign Lib, Diverge} U64
+
+  main :: Unit ->{Foreign Lib, Diverge} Int
+  main u = if eq-u64 (wall-ns ()) 0 then 1 else 0
+```
+
+`cinch emit-ir Main.cinch -o Main.ll` shows the declaration the backend wrote and the stub it generated. The symbol is declared with the C signature; the cinch-side unit takes the call's argument word even for a unit argument and forces the result through `freeze` so a hostile callee cannot poison later optimization.
+
+```
+declare i64 @"cinch_clock_wall_ns"()
+
+define i64 @"Main.wall-ns"(i64 %p0) #0 {
+entry:
+  %t0 = call i64 @"cinch_clock_wall_ns"()
+  %t1 = freeze i64 %t0
+  ret i64 %t1
+}
+```
+
+# Linking an object of your own
+
+The CLI has no option that supplies an object or library. `--object`, `-l`, and `--lib` are not flags: a word after the entry file that is not one of the documented flags becomes a program argument, so the build succeeds and silently ignores it. The Rust API is the current route (`driver::run_source_objects` and `build_source_objects` link supplied object files, which is how the `ffi` and `llvm_contract` suites call real C fixtures).
+
+A symbol that the linker cannot resolve fails the build, after the program has checked:
+
+```
+$ cinch check Main.cinch
+$ cinch build Main.cinch -o prog
+cinch: clang failed to link prog.ll: warning: overriding the module target triple with arm64-apple-macosx27.0.0 [-Woverride-module]
+1 warning generated.
+Undefined symbols for architecture arm64:
+  "_docs_no_such_symbol", referenced from:
+      _Main.absent in prog-c275ee.o
+ld: symbol(s) not found for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+```
+
+State that dependency in your build instructions. A `foreign import` is a link-time obligation, so a program that reaches one is not standalone.
+
+# Exports
+
+`foreign export` wraps a definition that already exists. It needs the signature first:
+
+```
+cinch: 2:44: a foreign export wraps a defined function: declare `answer :: ...` before exporting it
+```
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  answer :: I64 -> I64
+  answer x = wrapping-add-i64 x 1
+
+  foreign export ccall "cinch_docs_answer" answer :: I64 -> I64
+
+  main :: Int
+  main = if answer 41 == 42 then 0 else 1
+```
+
+The emitted symbol is the C name, with a wrapper that freezes the incoming word:
+
+```
+define i64 @"cinch_docs_answer"(i64 %c0) {
+entry:
+  %t0 = freeze i64 %c0
+  %t1 = call i64 @"Main.answer"(i64 %t0)
+  ret i64 %t1
+}
+```
+
+# Aggregate crossings: `#[byval]` and `#[sret]`
+
+An aggregate needs an explicit layout before it can cross. `#[repr(C)]` is that declaration; a record with no representation attribute is refused with the layout it computed instead:
+
+```
+cinch: 7:3: the recorded layout of Main.Big is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)
+```
+
+The default crossing for an aggregate parameter is a pointer to a call-scoped copy, not a by-value C argument. `#[byval]` and `#[sret]` spell the by-value forms. Both attach to the `foreign` declaration itself, and both are checked against the types they claim:
+
+<!-- cinch:check -->
+```cinch
+module Main where
+  #[repr(C)]
+  record Big where
+    a :: I64
+    b :: I64
+    c :: I64
+
+  #[byval]
+  foreign import ccall "sum_big" sumBig :: Big ->{Foreign Lib, Diverge} I64
+
+  #[sret]
+  foreign import ccall "mk_big" mkBig :: I64 ->{Foreign Lib, Diverge} Big
+
+  main :: Unit ->{Foreign Lib, Diverge} Int
+  main u = if sumBig (mkBig 5) == 18 then 0 else 1
+```
+
+This program checks but cannot link from the CLI, because `sum_big` and `mk_big` have no implementation in this repository. The declarations it emits are the point:
+
+```
+%"__sl_layout_0" = type [24 x i8]
+declare void @"mk_big"(ptr sret(%__sl_layout_0) align 8, ptr noundef)
+declare i64 @"sum_big"(ptr byref(%__sl_layout_0) align 8 nonnull align 8)
+```
+
+`sret` makes the result an explicit out-buffer and the LLVM result `void`. The parameter spelling is `byref(%layout)` rather than LLVM's `byval` keyword, because `byval` has a different machine meaning on some targets; the pointee type states the layout without changing the convention. Each attribute is refused where its claim is false:
+
+| Claim | Refusal |
 | --- | --- |
-| `#[inline]`, `#[inline(always)]`, `#[inline(never)]`, `#[noinline]` | LLVM inlining hints/constraints. |
-| `#[cold]` | Function cold hint or admitted branch-weight wrapper, depending on placement. |
-| `#[weight(n)]`, `#[likely]`, `#[unlikely]` | Branch likelihood metadata with validated all-or-nothing decision weights. |
-| `#[repr(C)]` | Source-order non-erased fields with C layout/padding facts. |
-| `#[repr(transparent)]` | Admitted single-representation-field layout. |
-| `#[repr(align(N))]` | Raise alignment to a valid power of two. |
-| `#[repr(packed(N))]` | Packed layout; aligned borrows of unaligned fields are refused. |
-| Discriminant representations | Recorded admitted integer tag representation. |
-| Safety/LLVM contract attributes | Require proved facts or explicit admitted unsafe assumptions; see below. |
+| `#[byval]` with no aggregate parameter | `cinch: 3:3: `#[byval]` spells aggregate parameters crossing by value; this binding marshals no aggregate parameter` |
+| `#[sret]` with a non-aggregate result | `cinch: 9:3: `#[sret]` spells an aggregate result crossing by value; this binding's result is not an aggregate` |
+| An aggregate result with neither | `cinch: 8:3: a foreign result cannot be an aggregate: `Main.Big` follows the platform's by-value struct ABI, which this slice does not guess ... return through an `Out` cell or an `Owned` pointer, or spell the by-value crossing `#[sret]` |
+| Either attribute on a definition | `cinch: 2:3: `#[byval]` and `#[sret]` attach to a `foreign` import or export declaration ...` |
 
-Partial decision weights are dropped with `incomplete-branch-weights`; incoherent transformed weights are reported. An unlikely branch still needs correct types, ownership, and coverage. Unknown attribute names outside the metadata/registered macro vocabulary are rejected.
+There is no `#[extern]` attribute. A foreign boundary is declared by the `foreign` keyword, and the only attributes that change its ABI are `#[byval]` and `#[sret]`. Any other name must be compiler-known or declared by a macro, and the rejection names both routes:
 
-# Safety and LLVM contracts
+```
+cinch: 2:3: unknown attribute `reader-note`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro (`macro name attributes (reader-note) :: ...`)
+```
 
-The backend derives LLVM range, nonnull, alignment, capture, memory-effect, and return/argument facts from established analyses. These LLVM names are generated output, not a general source attribute syntax. User safety assertions have their own compiler-owned vocabulary; [the complete assertion and LLVM reference](22-safety-assertions-and-llvm.md) lists it. Inline opaque code records the explicit assumptions admitted by its grammar. A requested assertion that cannot be proved is not silently upgraded into a theorem. [Safety attributes](../design/safety-assertion-attributes.md) and [LLVM contracts](../design/llvm-contract-attributes.md) give the complete design vocabulary and placement rules; current tests observe their presence and absence in actual emitted IR.
+# Representation attributes
+
+`#[repr(...)]` is the layout vocabulary a boundary reads. It attaches to a type or to a field of a `repr(C)` record. Learn the byte offsets and packing rules from [type layout](24-type-layout.md); the boundary-relevant rejections are these:
+
+| Written | Refusal |
+| --- | --- |
+| `#[repr(transparent)]` on two represented fields | `needs exactly one represented field, found 2` |
+| `#[repr(C, align(3))]` | `repr(align(N))` takes a non-zero power of two |
+| `#[repr(C, packed, align(8))]` | `repr(packed)` removes padding and `repr(align(N))` raises alignment; they conflict |
+| `#[repr(Rust)]` | `Rust` is not a representation (expects `C`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`) |
+| `#[repr(C)]` on multi-constructor `data` | use `#[repr(u8\|u16\|u32\|u64)]` for a fixed discriminant |
+
+The layout a type gets is part of its interface. Changing a `#[repr]` changes the recorded layout and the interface identity, which makes dependents built against the old identity stale (see [upgrades](17-upgrades-and-temporal-contracts.md)).
+
+# Function attributes
+
+| Attribute | Placement | Meaning |
+| --- | --- | --- |
+| `#[inline]`, `#[inline(always)]`, `#[inline(never)]`, `#[noinline]` | function declaration | Inlining hint. One hint per function. Refused on a `foreign` declaration: `` `#[inline]` is a hint on a function declaration `` |
+| `#[cold]` | function declaration | Cold-function hint |
+| `#[weight(n)]`, `#[likely]`, `#[unlikely]` | clause, alternative, guard, `if` | Decision-point weight; one weight per alternative |
+| `#[meta(key = "value")]` | any supported position | Nonsemantic metadata, recorded and otherwise ignored |
+| `#[profile "jpl"]`, `#[deny-warnings]` | module header | Module policy |
+
+`#[meta]` is the one attribute a program can attach freely, and it does not change behavior:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  #[meta(owner = "docs")]
+  answer :: Int
+  answer = 1
+
+  main :: Int
+  main = if answer == 1 then 0 else 1
+```
+
+The complete list of names, arguments, placements, and conflicts is the [attribute index](23-attributes-and-pragmas.md).
 
 # Inline primitives
 
-A primitive has an ordinary type and per-family bodies:
+A primitive has an ordinary type and one body per target-IR family. The family names are `llvm`, `wasm`, `asm`, `clr`, and `jvm`; only `llvm` and admitted `asm` have lowering paths today.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -51,8 +227,23 @@ module Main where
   main = if add-word 40 2 == 42 then 0 else 1
 ```
 
-Bodies can carry `when` feature conditions, `justify`, immediate-argument annotations, and explicit `uses` contracts in admitted forms. Containment rejects undeclared escape/calls, extra ABI parameters, unwinding, and hidden effects. `unsafe` bodies record assumptions. The selected body is an artifact fact; justified representation selection does not unnecessarily change contract identity.
+Bodies take clauses after the fragment: `when <capability>` selects a body by target capability, `justify <term>` records why a representation choice is sound, `uses (name :: type), ...` declares the callee vocabulary the fragment may use, `immarg 0, 1` marks immediate arguments, and a leading `unsafe` on one body marks that body unverified so its declared row is trusted instead of checked.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **additional backend families.** LLVM and admitted native assembly have current lowering paths. CLR/JVM families are reserved, and registering their names does not provide executable CLR/JVM backends. See [target profiles](19-targets-and-components.md) for the Wasm subset and CLI limits.
+Containment parses the fragment before emission and refuses what an inline body may not do:
 
-Implementation: `repr.rs`, `check_decls.rs`, `codegen.rs`, `interface.rs`; suites: `ffi.rs`, `attributes.rs`, `prim.rs`, `safety.rs`, `llvm_contract.rs`, `repr_classes.rs`.
+| Fragment | Refusal |
+| --- | --- |
+| `%out = call i32 @puts(ptr null)` | `containment (no I/O): `@puts` is I/O (a body performs no I/O)` |
+| `unreachable` | `containment (no fault paths): `unreachable` is a fault path beyond a declared failure mode` |
+| `invoke`, `resume`, `landingpad`, `catchswitch` | `containment (no-unwind): ... may raise or unwind out of the body` |
+| `br`, `switch`, `indirectbr` | `containment (no-escape): ... is a jump` |
+
+A reserved family is refused by name rather than half-supported:
+
+```
+cinch: 3:5: the `clr` target-IR family is reserved: its fragment grammar lands with its backend (primitive operations and inline target IR specification section 3)
+```
+
+A `wasm` or `asm` body that names a capability the profile cannot assume is not selected; the selection and the assumptions land in the manifest. Registering a family name is not backend support.
+
+Implementation: `repr.rs` (layout admission), `check_decls.rs` (binding contracts, containment), `codegen.rs` (declarations, stubs, freeze), `interface.rs` (the recorded contract); suites `ffi.rs`, `attributes.rs`, `prim.rs`, `llvm_contract.rs`, `repr_classes.rs`, `safety.rs`. Intended semantics: [foreign function interface specification](../specifications/foreign-function-interface-specification.md) sections 1 to 4, [attribute annotations specification](../specifications/attribute-annotations-specification.md) sections 1 and 4, [inline target IR](../specifications/primitive-operations-and-inline-target-ir-specification.md). Design notes: [LLVM contract attributes](../design/llvm-contract-attributes.md), [runtime object linkage](../design/runtime-object-linkage.md).

@@ -1,173 +1,330 @@
 # Language server and editor integration
 
-<span class="support-tag support-tag--planned">Coming soon</span> **This chapter describes the intended complete editor experience.** Cinch's Rust compiler already includes a stdio language server and several useful requests. Packaged editor setup, comprehensive project handling, and the richer assistance described below remain work in progress. The [current implementation table](#current-implementation) distinguishes working protocol handlers from the idealized workflow.
+<span class="support-tag support-tag--planned">Coming soon</span> **The packaged editor experience is work in progress.** A stdio language server exists in the compiler and answers six request types over the project's open documents. This page documents what runs today from a real protocol session, then describes the intended experience and marks it as intended.
 
-The language server connects an editor to Cinch's compiler analysis. It should check unsaved source, explain types and diagnostics, navigate between declarations, and help make checked edits across a project. Its answers must follow the same language rules as the command-line compiler, including module visibility, instances, effects, refinements, ownership, and dependent indices.
+The server shares `compiler/src/analysis.rs` with the REPL, so its answers follow the same module visibility, instance, effect, refinement, and ownership rules as the command line.
 
-Syntax highlighting and language-server analysis are separate facilities. An editor grammar can colour a file without checking it. A running language server adds compiler-backed information; the presence of coloured tokens alone does not establish that it is connected.
+Syntax highlighting and language-server analysis are separate facilities. An editor grammar colours a file without checking it; a running server adds compiler-backed answers. Coloured tokens alone do not show that a server is connected.
 
-# Intended setup
-
-The intended setup is to install a matching compiler and editor integration, open the directory containing your Cinch project, and open a `.cinch` file. The editor starts one server for the project and connects its diagnostics, hover, completion, navigation, and semantic highlighting to the normal editor controls.
-
-The server command is:
+# Launch and transport
 
 ```sh
 cinch lsp
 ```
 
-**This command already exists.** It is a protocol process, not an interactive terminal program. Standard input and standard output carry Content-Length-framed JSON-RPC messages. The editor supplies requests; a terminal running the process directly will normally appear to wait for input. Launchers must send any human-readable logging to standard error.
+`cinch lsp` exists and is a protocol process, not a terminal program. Standard input and standard output carry JSON-RPC 2.0 messages framed with `Content-Length`, and nothing else. A terminal that runs it directly appears to wait, because it is waiting for a frame. Standard error is free for logging.
 
-Use these settings when configuring a generic LSP client:
-
-| Setting | Value |
-| --- | --- |
-| Executable | `cinch`, or the absolute path to the compiler binary. |
-| Arguments | `lsp` as a separate argument. |
-| Transport | Standard input/output. |
-| Language identifier | `cinch`. |
-| Source file extension | `.cinch`. |
-| Workspace root | The source project's directory, supplied as `rootUri`. |
-
-These describe the existing launch protocol. Automatic project discovery, installation, version matching, and a polished first-run setup belong to the **Coming soon** editor experience. There is no published extension or downloadable compiler bundle implied by this chapter; the site's [downloads](/downloads/) are still labelled samples.
-
-## VS Code and Cursor
-
-The repository contains an extension under `tooling/editors/vscode/`. It registers `.cinch`, provides a TextMate grammar, and starts a language client for file-backed Cinch documents. It is source tooling, rather than a claim of marketplace distribution.
-
-The existing `cinch.lsp.command` setting is a single executable path. It is **not** a shell command string split into an executable and arguments. If overriding it, point it to a small executable launcher that runs the compiler with `lsp`:
-
-```sh
-#!/bin/sh
-exec /absolute/path/to/cinch/compiler/target/release/cinch lsp
-```
-
-Save the launcher at a path appropriate to your machine, make it executable, and set `cinch.lsp.command` to that launcher's absolute path. The path in the example is a placeholder. Use an actual compiler built from the checkout you are editing. Do not set the current field to the literal string `cinch lsp`.
-
-The extension also contains a default launcher intended to prefer `cinch` on `PATH` and fall back to the standalone Rust driver. Automatic source-checkout discovery and fallback setup need validation before being treated as a supported installation path. The direct launcher above makes the selected compiler explicit.
-
-**Coming soon:** packaged installation, separate executable/argument configuration, useful startup failures, server restart controls, and connected protocol tracing. The manifest currently declares `cinch.lsp.trace`, but the extension does not wire that setting into the client; changing it should not be described as a working tracing procedure.
-
-## Other editors
-
-The repository also contains Vim, Emacs, Sublime Text, and Zed syntax integrations under `tooling/editors/`. These files identify or highlight Cinch source; their presence does not imply that each editor already has a complete language-client installation.
-
-For an editor with an LSP client, configure the executable, arguments, language identifier, and project root listed above. Prefer a direct compiler invocation while developing the integration. `tooling/lsp-driver/` is a standalone Rust executable for the same server:
+`tooling/lsp-driver/` is a standalone Rust binary that runs the same `LspServer::run` over stdio, for editors that prefer a dedicated executable:
 
 ```sh
 cargo run --quiet --manifest-path tooling/lsp-driver/Cargo.toml --release
 ```
 
-Run this from the repository root, or supply an absolute manifest path. Cargo's build messages must remain off the protocol output stream. The driver is an alternative stdio launcher, not an additional server with different language semantics.
+Neither launcher changes the language rules; they differ only in which process hosts the server.
 
-# Project and document model
+For a generic client:
 
-The intended server maintains a checked view of the workspace together with unsaved editor buffers. An open buffer takes precedence over the saved file for that document. Changes propagate to affected dependents; unrelated modules should not need a fresh full check after every keystroke.
+| Setting | Value |
+| --- | --- |
+| Executable | `cinch`, or the absolute path to the compiler |
+| Arguments | `lsp` as a separate argument |
+| Transport | standard input and output |
+| Language identifier | `cinch` |
+| File extension | `.cinch` |
+| Workspace root | the project directory, sent as `rootUri` |
 
-On closing a file, the intended project model resumes its saved source if that file still belongs to the project. Renames, deletions, new modules, and external changes should update the dependency graph and clear stale diagnostics. Broken source should leave enough information for useful completion and navigation while the user repairs it.
+# Implemented protocol methods
 
-**Coming soon: complete workspace lifecycle.** The current protocol handles document open, full-text change, and close. It does not provide the whole discovery, disk watching, closed-file restoration, versioned asynchronous analysis, or multi-root workspace experience described here. Open the correct project root, and use `cinch check` on saved source to distinguish integration gaps from compiler errors.
+The dispatch in `compiler/src/lsp.rs` is the complete list. Anything absent from it gets a `-32601` error, not a partial answer.
 
-The completed implementation should associate answers with the document revision that produced them. A slow check of an older buffer must not overwrite newer diagnostics or supply refactoring edits at stale positions. Cancellation should discard obsolete editor work without changing checked source semantics.
-
-# Diagnostics
-
-The editor should underline the relevant source range and show the compiler's explanation, including the originating contract when available. Errors and warnings keep their distinct severity. When a problem is fixed, the previous diagnostic must be cleared rather than accumulating in the Problems view.
-
-Useful diagnostics include syntax/layout errors, unknown names, module/import failures, mismatched types, unresolved instances, effect/capability errors, ownership escapes, and unsatisfied refinement or dependent-proof obligations. An editor can help locate these conditions; it cannot make an invalid program acceptable by hiding a message.
-
-The current server publishes source diagnostics after opening or changing a document, and clears that document's diagnostics on close. Richer related locations, stable diagnostic codes, explanations for generated expansions, and quick fixes are part of the intended completion of the experience. Do not assume every CLI diagnostic already has a dedicated editor action.
-
-For a proof error, inspect the required predicate and the facts available at that point. For an ownership error, inspect the value's uses, captures, and lifetime. The [diagnostics guide](21-editors-and-diagnostics.md) maps common symptoms to the relevant language rules.
-
-# Hover and signature help
-
-Hover should answer what the selected name means in this scope: its type or kind, relevant constraints, and useful declaration documentation. Effects and dependent indices belong in the displayed signature; omitting them can hide the actual calling contract.
-
-The existing server supplies Markdown hover information through the analysis layer. The idealized interface extends that foundation with linked documentation, clear origins for imported names, and explanations of relevant evidence where available.
-
-**Coming soon: signature help.** While applying a function, the editor should display its signature and identify the active argument, including explicit dictionary or capability requirements. It must respect Cinch's curried applications and operators. The current server does not advertise a signature-help handler.
-
-# Completion
-
-Completion should offer names that are meaningful at the cursor, including local bindings, visible declarations, imported exports, prelude names, and relevant qualified members. Entries should show enough type information to distinguish similar names and should preserve dash-style identifiers.
-
-Basic analysis-backed name completion is implemented. The current server advertises `.` as a completion trigger and returns completion entries; it does not advertise a completion-resolve request.
-
-**Coming soon:** richer context filtering, documentation on selection, and explicit import edits for names outside the current import scope. A completion that adds an import must present or apply a real source edit, honour export visibility, and handle conflicting names. Merely suggesting a name does not satisfy its instance, effect, or proof requirements.
-
-# Navigation and refactoring
-
-Go to Definition should take a use to the declaration it resolves to, including across source modules. It should use declaration identity, so two equally spelled names in different scopes do not become interchangeable. Definition lookup across files is already implemented.
-
-The following complete the intended navigation and refactoring surface:
-
-| Feature | Intended behaviour | Status |
+| Method | Kind | What it does |
 | --- | --- | --- |
-| Find References | Find uses of the selected declaration across the checked project, respecting shadowing and import aliases. | **Coming soon** |
-| Rename | Preview consistent edits to a declaration and its uses; check name collisions and import/export consequences. | **Coming soon** |
-| Document/workspace symbols | Navigate declarations by name and kind without searching raw source text. | **Coming soon** |
-| Code actions | Offer justified source edits for supported diagnostics, with explicit imports and reviewable changes. | **Coming soon** |
-| Formatting | Preserve parsing, layout, comments, and attribute attachment while applying consistent source formatting. | **Coming soon** |
+| `initialize` | request | Sets `rootUri` and `root_path`, creates the analysis rooted there, returns the capabilities |
+| `initialized` | notification | Ignored |
+| `workspace/didChangeConfiguration` | notification | Ignored; no configuration schema is read |
+| `textDocument/didOpen` | notification | Stores the buffer as an open document, updates, and publishes diagnostics for every open document |
+| `textDocument/didChange` | notification | Takes the last entry of `contentChanges` as the whole document, updates, and publishes for every open document |
+| `textDocument/didClose` | notification | Drops the buffer and publishes an empty diagnostic list for that document |
+| `textDocument/hover` | request | Markdown code block with `name :: scheme`, or `null` |
+| `textDocument/definition` | request | One `Location` with a one-character range on the declaration's signature line, or `null` |
+| `textDocument/completion` | request | `{isIncomplete, items}` for the word at the cursor |
+| `textDocument/semanticTokens/full` | request | One full-document token array, delta encoded |
+| `shutdown` | request | Sets the shutdown flag and answers `null` |
+| `exit` | notification | Ends the read loop |
 
-These are target capabilities, not existing protocol promises. Their detailed UI and configuration are not yet finalized. Refactoring must preserve meaning; text replacement is insufficient for a rename, and a formatter must not move a `#[...]` attribute onto a different declaration or branch. A suggested fix must not silently weaken a refinement, discard an effect, or insert an unsafe escape to remove a diagnostic.
+Two of these acknowledge a parameter they do not use. `didChange` reads the final `text` and ignores any range, which matches the advertised full synchronization; a client configured for incremental ranges will lose text. `didOpen` reads `uri` and `text` and ignores `languageId` and `version`.
 
-# Semantic highlighting
+# A recorded protocol session
 
-Semantic tokens distinguish names using compiler analysis rather than spelling alone. The current server advertises a full-document token response with these token types:
+The session below ran against a project with `Main.cinch` and `Util.cinch` side by side. Requests and responses are copied from the wire, with `-->` for a message sent to the server and `<--` for a message received. The message bodies are shown without their `Content-Length` frames.
+
+The project:
+
+<!-- cinch:project group=27-language-server-session file=Util.cinch -->
+```cinch
+module Util where
+
+double :: Int -> Int
+double n = n + n
+
+quad :: Int -> Int
+quad n = double (double n)
+```
+
+<!-- cinch:project group=27-language-server-session file=Main.cinch exit=84 -->
+```cinch
+module Main where
+
+import Util
+
+main :: Int
+main = quad 21
+```
+
+`cinch run Main.cinch` accepts the pair and exits 0, so the diagnostics in the session below are the server's own answers about a program the checker accepts.
+
+## initialize
+
+```text
+--> {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj", "capabilities": {}}}
+<-- {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"completionProvider": {"resolveProvider": false, "triggerCharacters": ["."]}, "definitionProvider": true, "hoverProvider": true, "semanticTokensProvider": {"full": true, "legend": {"tokenModifiers": [], "tokenTypes": ["keyword", "variable", "function", "type", "class", "enumMember", "method", "property", "namespace", "number", "string", "operator"]}}, "textDocumentSync": 1}, "serverInfo": {"name": "cinch", "version": "0.1.0"}}}
+```
+
+`textDocumentSync: 1` is full synchronization. `resolveProvider: false` means the server does not hold back completion details for a second request. There is no `renameProvider`, no `documentFormattingProvider`, and no `signatureHelpProvider`, so a client should not offer those actions for a Cinch buffer.
+
+## didOpen
+
+The client opened `Util.cinch` first, then `Main.cinch`. Each open published diagnostics for every open document, which is why the second open produced two notifications.
+
+```text
+--> {"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch", "languageId": "cinch", "version": 1, "text": "module Util where\n\ndouble :: Int -> Int\ndouble n = n + n\n\nquad :: Int -> Int\nquad n = double (double n)\n"}}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}}
+--> {"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch", "languageId": "cinch", "version": 1, "text": "module Main where\n\nimport Util\n\nmain :: Int\nmain = quad 21\n"}}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}}
+```
+
+The order matters in practice. The server analyses open documents only: it does not read sibling files from disk. Opening `Main.cinch` alone reports `unknown name quad (in Main.cinch)`, because `Util` is not in the analysis yet. Open the imported files, which an editor does as you browse the project, before trusting a cross-module diagnostic.
+
+## hover
+
+Position `{line: 5, character: 7}` is the `q` of `quad` in `main = quad 21`, using zero-based lines and characters.
+
+```text
+--> {"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}, "position": {"line": 5, "character": 7}}}
+<-- {"id": 2, "jsonrpc": "2.0", "result": {"contents": {"kind": "markdown", "value": "```cinch\nquad :: (Int -> Int)\n```"}}}
+```
+
+The scheme comes from `Util`'s checked interface, which renders arrows in parentheses. `null` is the answer for a position that is not a recorded declaration or reference, including a literal:
+
+```text
+--> {"jsonrpc": "2.0", "id": 6, "method": "textDocument/hover", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}, "position": {"line": 5, "character": 12}}}
+<-- {"id": 6, "jsonrpc": "2.0", "result": null}
+```
+
+Character 12 is the `2` of `21`.
+
+## completion
+
+```text
+--> {"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}, "position": {"line": 5, "character": 10}}}
+<-- {"id": 3, "jsonrpc": "2.0", "result": {"isIncomplete": false, "items": [{"detail": "(Int -> Int)", "kind": 3, "label": "quad"}]}}
+```
+
+The server takes the identifier ending at the cursor, `qua`, and filters session, imported, and prelude names by that prefix. With an empty prefix it returns the whole visible set, which is large: the first request in this session, at character 7 before any name was typed, returned a list beginning `%`, `%`, `&`, `&&`, `*`, `*`, `+`, so a client should do its own filtering as the user types.
+
+`kind: 3` is a function, which is why `detail` carries the scheme. The mapping from declaration kind to LSP completion kind is in `completion_json`: value, law, instance, and effect operation `3`, method `2`, type and effect `25`, constructor `4`, field `5`, class `7`.
+
+## definition
+
+A use inside `Util.cinch`, at the first `double` of `quad n = double (double n)`:
+
+```text
+--> {"jsonrpc": "2.0", "id": 4, "method": "textDocument/definition", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}, "position": {"line": 6, "character": 9}}}
+<-- {"id": 4, "jsonrpc": "2.0", "result": {"range": {"end": {"character": 1, "line": 2}, "start": {"character": 0, "line": 2}}, "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}}
+```
+
+Line 2 is `double :: Int -> Int`, the signature line, and the range covers its first character. The answer points at the signature, not at the equation.
+
+A use in another module resolves across files:
+
+```text
+--> {"jsonrpc": "2.0", "id": 5, "method": "textDocument/definition", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}, "position": {"line": 5, "character": 7}}}
+<-- {"id": 5, "jsonrpc": "2.0", "result": {"range": {"end": {"character": 1, "line": 5}, "start": {"character": 0, "line": 5}}, "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}}
+```
+
+Its `uri` is built from the client's own `rootUri` plus the workspace-relative key, so the server never invents an absolute path.
+
+## diagnostics
+
+The client replaced the document with one whose argument type is wrong:
+
+```text
+--> {"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch", "version": 2}, "contentChanges": [{"text": "module Main where\n\nimport Util\n\nmain :: Int\nmain = quad \"x\"\n"}]}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [{"message": "type mismatch: expected String, got Int (in Main.cinch)", "range": {"end": {"character": 13, "line": 5}, "start": {"character": 12, "line": 5}}, "severity": 1, "source": "cinch"}], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Util.cinch"}}
+```
+
+The publish covers every open document, so `Util.cinch` is republished even though nothing in it changed.
+
+Four properties of these diagnostics follow from the shape:
+
+- `severity` is `1` for an error, `2` for a warning, `3` for information.
+- `source` is always `cinch`.
+- The range is one character wide, at the diagnostic's position. A client that underlines the range shows a single-character mark rather than the offending expression.
+- The message keeps the command-line suffix `(in Main.cinch)`, so the file is named twice: once by `uri`, once in the text.
+
+## close
+
+```text
+--> {"jsonrpc": "2.0", "method": "textDocument/didClose", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}}}
+<-- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [], "uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}}
+```
+
+Closing clears the document's diagnostics and drops its buffer. The server does not fall back to the file's saved contents, so close a buffer only when you are done with it.
+
+## An unimplemented method
+
+```text
+--> {"jsonrpc": "2.0", "id": 7, "method": "textDocument/rename", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}, "position": {"line": 5, "character": 7}, "newName": "twice"}}
+<-- {"error": {"code": -32601, "message": "method not found: textDocument/rename"}, "id": 7, "jsonrpc": "2.0"}
+```
+
+## shutdown and exit
+
+```text
+--> {"jsonrpc": "2.0", "id": 8, "method": "shutdown", "params": null}
+<-- {"id": 8, "jsonrpc": "2.0", "result": null}
+--> {"jsonrpc": "2.0", "method": "exit", "params": null}
+```
+
+`exit` produces no response; the process leaves its read loop.
+
+# Positions and ranges
+
+Two conventions differ from what a first client expects.
+
+| Direction | Convention |
+| --- | --- |
+| Request positions | Zero-based `line` and `character`, as LSP specifies |
+| Recorded sites | The analysis stores one-based line and column, so the server adds one on the way out and subtracts one on the way in |
+| Matching | A request must name the exact recorded start column, not any column inside the name |
+| Answers | A `null` for any position that is not exactly a recorded declaration or reference site |
+
+Because matching is exact, a hover request one character into a name returns `null`. Ask at the first character of the identifier.
+
+Unicode: the `initialize` result carries no `positionEncoding`, so nothing is negotiated, and the checker's columns count Unicode scalar values (`Lexer::advance` increments the column once per `char`). A client that measures columns in UTF-16 code units, which is the LSP default, will disagree on any line containing a character outside the Basic Multilingual Plane. There are no Unicode tests for the protocol yet, so keep editor documents to the Basic Multilingual Plane until that is closed.
+
+# Semantic tokens
+
+The server advertises one full-document request with a fixed legend:
 
 ```text
 keyword, variable, function, type, class, enumMember,
 method, property, namespace, number, string, operator
 ```
 
-The token legend determines how the editor maps these categories to its theme. Grammar highlighting remains useful before analysis succeeds. Semantic highlighting does not execute the program or constitute proof that every part of a broken buffer has checked.
+For `Main.cinch` with both files open:
 
-Full responses encode token positions relative to preceding tokens within that response. That encoding is different from a semantic-token delta-update endpoint; the current server advertises full responses only.
+```text
+--> {"jsonrpc": "2.0", "id": 2, "method": "textDocument/semanticTokens/full", "params": {"textDocument": {"uri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj/Main.cinch"}}}
+<-- {"id": 2, "jsonrpc": "2.0", "result": {"data": [0, 0, 6, 0, 0, 0, 7, 4, 3, 0, 0, 5, 5, 0, 0, 2, 0, 6, 0, 0, 0, 7, 4, 3, 0, 2, 0, 4, 2, 0, 0, 8, 3, 3, 0, 1, 0, 4, 2, 0, 0, 7, 4, 2, 0, 0, 5, 2, 9, 0]}}
+```
 
-# Protocol contract for client authors
+Each group of five numbers is `deltaLine, deltaStart, length, tokenType, tokenModifiers`. Decoded:
 
-The existing server accepts standard Content-Length-framed messages over stdio. Initialize it with the project root, observe its advertised capabilities, then send document lifecycle notifications and supported requests. Finish with `shutdown`, followed by `exit`.
+| Line | Columns | Text | Token type |
+| --- | --- | --- | --- |
+| 0 | 0 to 6 | `module` | keyword |
+| 0 | 7 to 11 | `Main` | type |
+| 0 | 12 to 17 | `where` | keyword |
+| 2 | 0 to 6 | `import` | keyword |
+| 2 | 7 to 11 | `Util` | type |
+| 4 | 0 to 4 | `main` | function |
+| 4 | 8 to 11 | `Int` | type |
+| 5 | 0 to 4 | `main` | function |
+| 5 | 7 to 11 | `quad` | function |
+| 5 | 12 to 14 | `21` | number |
 
-| Area | Current protocol surface |
+`deltaStart` is relative to the previous token's start only when `deltaLine` is zero, and absolute otherwise. Every response is a full document; the server does not implement the delta request, so a client must not advertise or request `semanticTokens/full/delta`.
+
+A reference is classified `function` only when its declaration is in the analysis. With `Util.cinch` closed, the same request classifies `quad` as `variable`, because the reference is unresolved. Grammar highlighting is unaffected either way, and neither classification claims that the buffer checks.
+
+# What the server does not do
+
+These are current boundaries, not configuration problems. Each one is visible from the capability set the server returns.
+
+| Missing | Consequence |
 | --- | --- |
-| Initialization | `initialize`, `initialized`. |
-| Document synchronization | `textDocument/didOpen`, `didChange`, `didClose`; full-text synchronization (`textDocumentSync: 1`). |
-| Diagnostics | Server notifications through `textDocument/publishDiagnostics`. |
-| Queries | `textDocument/hover`, `definition`, `completion`. |
-| Semantic tokens | `textDocument/semanticTokens/full`. |
-| Termination | `shutdown`, `exit`. |
+| Disk discovery and file watching | A module that is not open is invisible, so imports it defines report as unknown names |
+| Closed-buffer restoration | Closing a file removes its definitions from the analysis instead of reverting to the saved text |
+| Incremental text changes | Only the final `text` of a change is used |
+| Diagnostic codes and related locations | A diagnostic carries a message, a one-character range, a severity, and the source `cinch` |
+| Quick fixes, code actions, rename, references, formatting, signature help | The method is absent and answers `-32601` |
+| Cancellation and revision tracking | A slow update is not cancelled; answers carry no version |
+| Multi-root workspaces | One `rootUri` per process |
 
-For each `didChange`, send the complete new document as the text change, rather than a range edit. The current implementation takes the final change's `text` as the whole document. Advertising full synchronization is not support for applying incremental range patches, even though the analysis underneath can reuse unchanged work.
+For a program that does not check, `cinch check` on the saved source is the reliable authority while these gaps remain.
 
-`workspace/didChangeConfiguration` is accepted without implementing a configuration schema. Rename, references, formatting, code actions, signature help, and semantic-token delta requests are not current handlers. Clients must not infer them from the idealized feature descriptions in this chapter.
+# The intended experience
 
-**Coming soon: protocol hardening.** Complete client compatibility includes robust URI/path handling, negotiated position encodings and Unicode tests, revision tracking, cancellation, and lifecycle recovery. The current handler set is a useful foundation, rather than a blanket claim of conformance to every optional LSP capability.
+Everything in this section is a design target. Nothing in it has a handler today.
+
+The finished integration would check unsaved source, explain types and diagnostics where the cursor is, navigate between declarations, and help make checked edits across a project. Diagnostics would carry stable codes, related locations, and quick fixes that present a reviewable source edit rather than hiding a message. Completion would filter by context, show documentation on selection, and offer a real import edit for a name outside the current scope, honouring export visibility and name collisions. Rename would preview consistent edits by declaration identity. Formatting would preserve layout, comments, and attribute attachment. Answers would be associated with the document version that produced them, so a slow check of an old buffer could not overwrite newer diagnostics.
+
+Refactoring must preserve meaning. A suggested fix must not weaken a refinement, discard an effect row, or insert an `unsafe` escape to remove a diagnostic.
+
+# Editor configuration
+
+The repository carries syntax files and one language-client scaffold. Nothing is published.
+
+| Editor | Path | What it provides |
+| --- | --- | --- |
+| VS Code, Cursor | `tooling/editors/vscode/` | language id `cinch`, `source.cinch` grammar, `cinch.lsp.command`, and a language client |
+| Vim | `tooling/editors/vim/` | `ftdetect` for `.cinch` and a syntax file |
+| Emacs | `tooling/editors/emacs/cinch-mode.el` | `cinch-mode` with font-lock rules |
+| Sublime Text | `tooling/editors/sublime/Cinch.sublime-syntax` | a syntax definition |
+| Zed | `tooling/editors/zed/` | an extension manifest over `tooling/tree-sitter-cinch` |
+
+For editors with a built-in LSP client, set the executable to the compiler and the arguments to `lsp`, and give the client the project directory as the root.
+
+The VS Code extension reads one setting, `cinch.lsp.command`, and falls back to `bin/cinch-lsp`. That launcher execs `cinch lsp` when `cinch` is on `PATH` and otherwise runs the driver crate from a source checkout. The setting is a single executable path, so a value such as `cinch lsp` is a path with a space in it and will not start. Use a launcher script if you need arguments:
+
+```sh
+#!/bin/sh
+exec /absolute/path/to/compiler/target/debug/cinch lsp
+```
+
+The `cinch.lsp.command` description inside `package.json` still claims the compiler has no `lsp` subcommand. It does; the description is stale. The extension also declares `cinch.lsp.trace`, and `extension.js` never reads it, so changing that setting enables no tracing.
 
 # Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
-| Highlighting works, but no type information appears. | Confirm the language client started, the file is recognized as `cinch`, and the selected executable launches the server. |
-| The server waits in a terminal. | Connect an LSP client; the process expects framed protocol messages. |
-| The client cannot find an executable. | Use an absolute compiler or launcher path; check the environment inherited by the editor. |
-| A command override fails despite working in a shell. | The current VS Code setting takes one executable path, not `cinch lsp` as a shell string. |
-| Protocol parsing fails on startup. | Remove shell banners or other text from standard output. |
-| Edits produce nonsensical parse errors. | Confirm the client honours full-text synchronization. |
-| Imports resolve differently from the CLI. | Check the workspace root, module names, source availability, compiler revision, and unsaved buffers. |
-| A menu action reports an unsupported request. | Compare the request with the running server's capabilities; several intended features are coming soon. |
-| A diagnostic persists after an external file change. | Reopen/restart analysis and check saved source with `cinch check`; complete file watching is coming soon. |
+| Highlighting works and there is no analysis | The client started the server, the buffer's language is `cinch`, and the executable is the compiler or a working launcher |
+| The process sits in a terminal | It is waiting for frames; connect a client |
+| The client cannot find the executable | Use an absolute path and check the `PATH` the editor inherits |
+| An override setting does nothing | It takes one executable path, not a shell command line |
+| Startup parsing fails | Something wrote a banner to standard output; move it to standard error |
+| Edits produce nonsense parse errors | The client sent range edits; send the whole document as `text` |
+| An import reports as an unknown name | The defining document is not open |
+| A rename or format action reports an unsupported request | The capability is absent by design today |
+| A diagnostic survives an external file change | Reopen the document; there is no file watching |
 
-A useful bug report includes the compiler revision, editor/client, root selection, minimal source files, whether buffers were saved, the request or action, and its response/diagnostic. Reproduce the saved program with `cinch check` where possible. Protocol traces may contain full source text; include only what is needed to reproduce the issue.
+A useful bug report contains the compiler revision, the client and its version, the root you selected, the minimal sources, whether buffers were saved, the exact request and response, and the result of `cinch check` on the same saved files. Protocol traces contain full document text, so remove anything sensitive before posting.
 
 # Current implementation
 
 | Surface | Present boundary |
 | --- | --- |
-| `cinch lsp` | Implemented stdio server in the Rust executable. |
-| Shared analysis | Implemented diagnostics, hover, definition, completion, semantic tokens, and incremental analysis reports. |
-| Editor integrations | Repository syntax integrations and a VS Code/Cursor language-client scaffold; packaged setup is **Coming soon**. |
-| Complete workspace experience | **Coming soon**, including robust disk/buffer lifecycle and stale-result handling. |
-| Rich assistance and refactoring | **Coming soon**, as identified in the feature sections above. |
+| `cinch lsp` | **Available.** Stdio server in the compiler binary, also reachable through `tooling/lsp-driver/`. |
+| Document synchronization | **Available for open documents.** Full text only; no disk discovery, watching, or closed-buffer restoration. |
+| Diagnostics | **Available.** Published for open documents as `(range, severity, message, source)` with one-character ranges. |
+| Hover | **Available.** A `name :: scheme` code block for an exact declaration or reference position. |
+| Definition | **Available across open files.** Points at the signature line with a one-character range. |
+| Completion | **Available.** Prefix filtered over session, imported, and prelude names; no resolve step. |
+| Semantic tokens | **Available, full document only.** No delta request and no position-encoding negotiation. |
+| Rename, references, formatting, code actions, signature help | **Not implemented.** The server answers `-32601`. |
+| Packaged editor installation | **Coming soon.** No marketplace release and no version matching. |
 
-Implementation: `compiler/src/lsp.rs`, `compiler/src/analysis.rs`, `compiler/src/main.rs`, `tooling/lsp-driver/`, and `tooling/editors/`; behaviour suite: `compiler/tests/lsp.rs`. See the [REPL guide](26-repl.md) for interactive programming through the same analysis layer, and [the support matrix](16-support-and-roadmap.md) for the wider compiler boundary.
+Implementation: `compiler/src/lsp.rs`, `compiler/src/analysis.rs`, and `compiler/src/main.rs`; suites: `compiler/tests/lsp.rs`. The [diagnostics guide](21-editors-and-diagnostics.md) maps message text to the rule that failed, and the [REPL guide](26-repl.md) covers the other front end over the same analysis layer.

@@ -1,36 +1,444 @@
 # Modules, signatures, instances, and packages
 
-Module identities determine ownership of names, operator fixities, type definitions, dictionaries, and contracts. A short identifier is not a globally unique identity.
+A module is a unit of naming, not a file. One file may declare several modules, a module may be declared in a file whose name differs from it, and a project may put several files beside its entry. What the compiler guarantees is that every imported name resolves to exactly one declaration, and that the record of that decision is a checked interface.
 
-# Modules and visibility
+This page covers the declaration and resolution rules you type. The artifact the compiler writes for each module is on [artifacts and incremental compilation](18-artifacts-and-incremental.md); installing packages is on [packages, manifests, and the registry](29-package-management.md).
 
-`module A.B where` declares a module. A file can contain several modules. Imports resolve by declarations, first against already loaded modules, then the matching sibling file, then a unique sibling declaration found by scanning. Missing or ambiguous modules produce named diagnostics. Runtime and stage dependency cycles are rejected according to their graph.
+# Module headers
 
-Without explicit exports a module exports its declarations. With `export ...` declarations, the listed surface is public. Imports are private until re-exported. Supported forms include `export name`, qualified member export, and `export module Other`. Selection/renaming uses `import Other (x as y, z)`; `import Other as O` supplies a module alias. Unqualified import conflicts are errors rather than import-order choices.
+A module starts with `module NAME where` and its declarations form the indented block that follows. Names may contain dots:
 
-The implicit `Prelude` is a facade, not every module in the repository. It curates exports from defining homes. See [the library index](../library/00-index.md) for embedded/source distribution and exact APIs. Source modules can override embedded copies, and checked metadata preserves the defining identity rather than silently confusing the two.
+```text
+module Data.Core where
+  export List, Nil, Cons
+```
 
-# Signatures and instance resolution
+Every module declared in the file you compile belongs to that compile, and the program entry is the module that declares `main`. A file with no `module` declaration is refused before anything else:
 
-A `signature` declares method types, optional defaults, and law vocabulary. An `instance` implements the dictionary. `implicit instance` makes it available to resolution, which requires a unique applicable instance. A `using (dict :: Signature arguments)` binder is an explicit required dictionary; calls elaborate to dictionary passing.
+```text
+Main.cinch: no `module` declaration
+```
 
-Signature blocks currently admit `opaque type` and `record` members, which the parser splices ahead of the signature so method types can name them. This is an implemented associated-member facility; it is distinct from per-instance associated result families such as the planned `Output` example below.
+Several modules in one file are legal and are how a generator is kept beside its consumer:
 
-Default methods can call other methods through the selected dictionary, so omission is permitted only when a checked default supplies the method. Contracts and method visibility survive interfaces. Re-exporting a class name does not necessarily export every private method; the emitted public method names are listed in the library reference.
+<!-- cinch:run exit=0 -->
+```cinch
+module Macros where
+  macro double-it :: Syntax -> Declarations
+  macro double-it arg = quoteDecls where
+    doubled :: Int
+    doubled = 2 * $(arg)
 
-Superclass entailment is not implemented: state every class your body needs. `Copy`/`Share` is compiler-controlled and not user-extensible. Do not create competing implicit instances to simulate lexical policy selection.
+module Main where
+  import stage Macros
 
-# Module parameters
+  generate do
+    emit (double-it!(21))
 
-`module Tally (S :: Stepper) where` takes a signature dictionary. `import Tally (StepUp) as Up` instantiates it. Value-typed parameters are admitted too. Parameter identities and supplied arguments participate in metadata and coherence.
+  main :: Int
+  main = if doubled == 42 then 0 else 1
+```
 
-<span class="support-tag support-tag--planned">Coming soon</span> **general parameterized-module composition.** The broader composition forms described by the module design are not all admitted. The current implementation covers the dictionary/value parameterization exercised by `params.rs`; unsupported composition forms are named refusals rather than an inference feature.
+## Module parameters
 
-# Intended dependent modules and associated types
+A module may take parameters in its header. A signature-typed parameter is a dictionary the instantiating import supplies; a value-typed parameter is an ordinary binding:
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Richer dependent module interfaces.** The module specification requires modules that package abstract/concrete types, associated type families, semantic models, laws, and staged generators, with later fields depending on earlier fields. Current signatures/dictionaries and value/module parameters implement only part of that model.
+```text
+module Tally (S :: Stepper) where
+  import Api
 
-This **specified schematic fragment** is not accepted as a runnable declaration by today's Rust compiler:
+  bump :: Int -> Int
+  bump x = step x
+```
+
+Instantiation happens at the import, and the argument is written in the same position as an imported member:
+
+<!-- cinch:project group=modules-params file=Main.cinch exit=0 stdout="20" -->
+```cinch
+module Main where
+  import Api
+  import Tally (StepUp) as Up
+  import Tally (StepDown) as Down
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let written = ioWrite (string-to-bytes (string-concat (int-to-string (Up.bump 1)) (int-to-string (Down.bump 1))))
+    in 0
+```
+
+<!-- cinch:project group=modules-params file=Api.cinch -->
+```cinch
+module Api where
+  signature Stepper where
+    step :: Int -> Int
+
+  instance StepUp :: Stepper where
+    step x = x + 1
+
+  instance StepDown :: Stepper where
+    step x = x - 1
+```
+
+<!-- cinch:project group=modules-params file=Tally.cinch -->
+```cinch
+module Tally (S :: Stepper) where
+  import Api
+
+  bump :: Int -> Int
+  bump x = step x
+```
+
+`Up.bump 1` and `Down.bump 1` are two copies of one module, each closed over a different dictionary. A value parameter works the same way: `module AddK (k :: Int) where` instantiates with `import AddK (1) as ByLit` or with any name in scope, `import AddK (base) as ByName`. The parameter and its argument are recorded in the interface: `Tally.cinchif` carries `"params": ["S :: Api.Stepper"]`.
+
+# Import forms
+
+| Form | Effect |
+| --- | --- |
+| `import Mod` | Brings `Mod` into the project and makes its exported names available unqualified |
+| `import Mod (a, b)` | Brings `Mod` in and makes only `a` and `b` available unqualified |
+| `import Mod (a as b)` | Same, renamed at the use site |
+| `import Mod as M` | Available qualified only, as `M.a` |
+| `import stage Mod` | Compile-time dependency; see [staging](14-staging-and-macros.md) |
+| `import data "path" as name` | Binds a converted non-source input |
+
+An import statement always loads the module. What a selection list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below).
+
+<!-- cinch:project group=modules-two file=Main.cinch exit=0 stdout="hello, world" -->
+```cinch
+module Main where
+  import Greeting (greet)
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let written = ioWrite (string-to-bytes (greet "world"))
+    in 0
+```
+
+<!-- cinch:project group=modules-two file=Greeting.cinch -->
+```cinch
+module Greeting where
+  export greet
+
+  greet :: String -> String
+  greet name = string-concat "hello, " name
+```
+
+The qualified and renaming forms are ordinary:
+
+<!-- cinch:project group=modules-qualified file=Main.cinch exit=0 -->
+```cinch
+module Main where
+  import Greeting as G
+
+  main :: Int
+  main = if G.greet "x" == "hello, x" then 0 else 1
+```
+
+<!-- cinch:project group=modules-qualified file=Greeting.cinch -->
+```cinch
+module Greeting where
+  export greet
+
+  greet :: String -> String
+  greet name = string-concat "hello, " name
+```
+
+<!-- cinch:project group=modules-rename file=Main.cinch exit=0 -->
+```cinch
+module Main where
+  import Greeting (greet as hail)
+
+  main :: Int
+  main = if hail "x" == "hello, x" then 0 else 1
+```
+
+<!-- cinch:project group=modules-rename file=Greeting.cinch -->
+```cinch
+module Greeting where
+  export greet
+
+  greet :: String -> String
+  greet name = string-concat "hello, " name
+```
+
+## How `import Mod` finds a module
+
+The loader tries three sources in order, and the first hit wins:
+
+1. A module already loaded, including one declared earlier in the same file.
+2. A file named `Mod.cinch` beside the entry.
+3. A unique `module Mod` declaration in any `.cinch` file under the entry's directory, searched recursively. `.git`, `target`, `build`, and `node_modules` are skipped.
+
+Step 3 is what makes a `vendor/` tree importable, and it reads the entry path's directory. Compile `Main.cinch` and the directory to search is empty, so a module declared in a differently named file is invisible; compile `./Main.cinch` or an absolute path and the search runs. This is the decision D42 rule in `driver.rs` and the one resolution behaviour worth remembering, because the failure looks like a missing file.
+
+Missing and ambiguous modules are separate diagnostics:
+
+```text
+cinch: module Thing is imported, but Thing.cinch does not exist and no other source file beside the entry declares `module Thing`
+cinch: module Thing is imported, but several source files declare it (./B.cinch, ./A.cinch); imports resolve to a unique module
+```
+
+The paths in the second diagnostic are the loader's own joined paths, which is why they carry the entry's directory prefix.
+
+# Export forms
+
+A module without an `export` declaration exports the declarations it defines. An `export` declaration replaces that with exactly the listed surface.
+
+| Item | Meaning |
+| --- | --- |
+| `export name` | Export a declaration of this module or an imported name |
+| `export A.name` | Export one member of an imported module (exactly two segments) |
+| `export module A` | Re-export an imported module's surface |
+
+An import is private unless re-exported. Both re-export forms can appear together:
+
+<!-- cinch:project group=modules-reexport file=Main.cinch exit=0 -->
+```cinch
+module Main where
+  import Facade (value, other)
+
+  main :: Int
+  main = if value + other == 16 then 0 else 1
+```
+
+<!-- cinch:project group=modules-reexport file=Facade.cinch -->
+```cinch
+module Facade where
+  import Inner
+
+  export module Inner
+  export Inner.other
+```
+
+<!-- cinch:project group=modules-reexport file=Inner.cinch -->
+```cinch
+module Inner where
+  export value, other
+
+  value :: Int
+  value = 7
+
+  other :: Int
+  other = 9
+```
+
+There is no renaming form in an `export` item. `export Inner.other as renamed` is rejected by the parser with `expected `;` or `}` in the declaration block, found As`.
+
+An export list naming something that is not in scope is a diagnostic at parse of the block:
+
+```text
+cinch: 2:10: `nothing-here` is not a name in scope to export (in Bad.cinch)
+```
+
+# Diagnostics for broken surfaces
+
+Four failures account for most module-level mistakes. Each is real compiler output.
+
+A name that exists but is not exported is reported by the importer, not the definer. Given `Lib` exporting only `public-one` and a `Main` that imports `helper`:
+
+```text
+cinch: `Lib` has no member `helper` to import (as `helper`) (in Main.cinch)
+```
+
+Requesting a member that does not exist produces the same shape:
+
+<!-- cinch:reject contains="has no member `farewell` to import" -->
+```cinch
+module Greeting where
+  export greet
+
+  greet :: String -> String
+  greet name = string-concat "hello, " name
+
+module Main where
+  import Greeting (greet, farewell)
+
+  main :: Int
+  main = if greet "x" == farewell "x" then 0 else 1
+```
+
+Two modules exporting one name, both imported unqualified, is not resolved by import order:
+
+<!-- cinch:reject contains="is imported from both A and B" -->
+```cinch
+module A where
+  export shared
+  shared :: Int
+  shared = 1
+
+module B where
+  export shared
+  shared :: Int
+  shared = 2
+
+module Main where
+  import A (shared)
+  import B (shared)
+  main :: Int
+  main = shared
+```
+
+```text
+cinch: the name `shared` is imported from both A and B: rename one (a selection like `import B (shared as ...)`) (in R3.cinch)
+```
+
+An import cycle is reported against the modules, after the per-module checks:
+
+<!-- cinch:reject contains="interface coherence error: import cycle through A" -->
+```cinch
+module A where
+  import B (b-value)
+  export a-value
+  a-value :: Int
+  a-value = b-value
+
+module B where
+  import A (a-value)
+  export b-value
+  b-value :: Int
+  b-value = a-value
+
+module Main where
+  import A (a-value)
+  main :: Int
+  main = a-value
+```
+
+```text
+cinch: interface coherence error: import cycle through A
+```
+
+A repeated signature in one module is reported with its span:
+
+```text
+cinch: 4:3: duplicate signature for twice (in Main.cinch)
+```
+
+Two files each declaring the same module name reach the ambiguous-module diagnostic above. A module declared twice inside one file is not rejected today; keep one declaration per module name per file.
+
+# Signatures and instances
+
+A `signature` declares a class: the methods, their types, and optionally a default body for a method. An `instance` supplies the dictionary. `implicit instance` makes it usable by default resolution.
+
+```cinch
+  signature Label a where
+    label :: a -> Nat
+    level :: a -> Nat
+    level x = label x + label x
+```
+
+That block sits inside `module Api where` (shown in full in the verified project below), with `import Data.Nat` and `export Label, label, level` at the top of the module.
+
+An equation beneath a method's signature is that method's default. An instance that omits the method takes the default, checked at the instance's types; an instance that defines it overrides it:
+
+<!-- cinch:project group=modules-default file=Main.cinch exit=0 stdout="10" -->
+```cinch
+module Main where
+  import Api (Label, label, level)
+  import Inst (Label_Box, Box)
+  import Data.Nat
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let written = ioWrite (string-to-bytes (nat-to-string (level (Box 5))))
+    in 0
+```
+
+<!-- cinch:project group=modules-default file=Api.cinch -->
+```cinch
+module Api where
+  import Data.Nat
+
+  export Label, label, level
+
+  signature Label a where
+    label :: a -> Nat
+    level :: a -> Nat
+    level x = label x + label x
+```
+
+<!-- cinch:project group=modules-default file=Inst.cinch -->
+```cinch
+module Inst where
+  import Api (Label, label, level)
+  import Data.Nat
+
+  export Label_Box, Box
+
+  data Box where
+    Box :: Nat -> Box
+
+  implicit instance Label_Box :: Label Box where
+    label b = case b of
+      Box n -> n
+```
+
+`level` is never defined at `Box`; the instance supplies `label` and the class default supplies `level`, so `level (Box 5)` is 10.
+
+## Resolution rules
+
+A default body is checked once at the class, before any instance takes it, so a broken default is reported against the class. A default must also be expressible in the closed first-order body tier the interface can carry; a default that calls an allocating function is refused:
+
+```text
+cinch: 9:5: class default `shout3` uses unsupported interface syntax (in Api3.cinch)
+```
+
+Omitting a method that has no default is an error at the instance:
+
+```text
+cinch: 10:3: instance Twice_Box2 does not define method twice2 (in Inst2.cinch)
+```
+
+Implicit instances are collected over the loaded import closure, not only over the importer's own selections. Importing a module with any selection makes its exported implicit instances reachable, and so does importing a module that imports it. Using a method with no reachable instance names the class and the target:
+
+```text
+cinch: 5:13: no instance for Tone.Tone Tone.Shade (in Main.cinch)
+```
+
+Two reachable implicit instances for the same class and target are ambiguous, and the diagnostic is at the use, not at either declaration:
+
+```text
+cinch: 7:13: ambiguous instances for Tone.Tone Tone.Shade (in Main.cinch)
+```
+
+That is why several implementations of one class are written as plain `instance`, which resolution never selects by accident, and chosen explicitly by name at a module argument (`import Tally (StepUp) as Up`).
+
+There are no superclasses. A body that needs two classes states both constraints, and a `using` binder makes the requirement explicit:
+
+```cinch
+explicit :: forall a. using (d :: Label a) => a -> Nat
+explicit x = level x
+```
+
+The binder is discharged automatically when an instance is reachable; `explicit (Box 5)` typechecks and evaluates through `Label_Box`. It is not a way to pass a dictionary at a call site: `explicit @{d = Label_Box}` is refused with `explicit has no capability parameter d`, because `@{...}` supplies capabilities, not dictionaries.
+
+# Data and stage imports
+
+`import stage Other` records a compile-time dependency on `Other`. The imported module is compiled before the importer, and its macros and generators run during that stage. `CINCH_STAGE_MODE` selects how external reads are observed: `refresh` (default) executes them and records the snapshots, `replay` uses the recorded ones, `live` performs current reads. A replay with no captured input is a build diagnostic.
+
+`import data "path" as name` converts a non-source input at check time. Three converters are built in and are selected by extension: text, bytes, and JSON.
+
+```cinch
+  import data "config.json" as config
+  import data "note.txt" as note
+  import data "blob.bytes" as blob
+```
+
+A JSON input may decode directly into a declared `record` type. The converter, the file, and the content hash are recorded in the build manifest, never the file's contents:
+
+```text
+"data_imports": {"bindings": [{"converter": "txt", "file": "note.txt", "hash": "11831194018420276491", "module": "Main", "name": "note"}]}
+```
+
+The hash is a 64-bit FNV-1a digest of the input bytes, rendered as a decimal string. Changing the file changes the recorded hash and the artifact identity; the file itself stays out of the manifest.
+
+# What is not implemented
+
+<span class="support-tag support-tag--planned">Coming soon</span> **general parameterized-module composition.** The admitted forms are the ones exercised above: a signature-typed parameter and a value-typed parameter. Parameterized instances as module arguments, nested unit instantiation, and index references through parameterized functions are named refusals rather than inference features. `Io` capabilities stay lexical and `Copy` is structural; neither is an arbitrary module parameter.
+
+<span class="support-tag support-tag--planned">Coming soon</span> **richer dependent module interfaces.** The [modules specification](../specifications/modules-and-compilation-specification.md) section 1 requires modules that package abstract and concrete types, associated type families, semantic models, laws, and staged generators, with later fields depending on earlier ones. What runs today is signatures, dictionaries, and the two parameter kinds above.
+
+This schematic fragment from the specification is not accepted by the compiler; it is a design target, not syntax you can write:
 
 ```text
 signature Filtering (c :: Type -> Type) where
@@ -38,22 +446,12 @@ signature Filtering (c :: Type -> Type) where
   filter :: forall a. (p :: a -> Bool) -> (xs :: c a) -> Output p xs
 ```
 
-The result family lets each implementation express its guarantee: filtering a finite list returns a list in input order; filtering a vector returns an existential length plus bounds/content evidence; unrestricted filtering of a productive stream returns a possibly searching producer unless progress evidence exists. Associated types alone supply no shared law about those results. A client needs a law/observation interface stating the common semantics, and an owning implementation needs a stable ghost model rather than a result type depending on invalidated resources.
+Signature blocks do admit `opaque type` and `record` members today, which the parser splices ahead of the signature so method types can name them. Exact applicative and generative functor identity rules remain open design decisions, so no syntax or type-equality rule for them is presented here as settled.
 
-Structural record/row composition and the full abstract-module/reflection restrictions are also specified beyond the current nominal-record surface. Exact applicative/generative functor identity rules remain open design choices. Do not present a chosen syntax or type-equality rule for those unresolved cases as already settled.
+# Packages
 
-Current parameterized modules also refuse stage/macro/generate/rewrite/upgrade declarations that would need their parameters, nested unit instantiation/forwarding, parameterized instances as module arguments, and index references through parameterized functions. `Io` capabilities remain lexical and `Copy` remains structural; neither is an arbitrary module parameter. Value parameters need copy evidence because definitions share them.
+A package is a manifest plus module sources. The embedded base library ships as `compiler/prelude/cinch-base.cinchpkg`, a manifest naming its modules and their check order; a project package is a `.cinchpkg` beside its sources, installed into `vendor/` by `cinch pkg`. Manifests, the `pkg` subcommands, the local store, and the registry protocol are on [packages, manifests, and the registry](29-package-management.md). The implicit `Prelude` is a facade that re-exports curated surfaces from the defining homes, not every module in the repository; a source module beside the entry shadows the embedded copy of the same name.
 
-# Data imports and staging imports
+Installation is a separate step from compilation. `cinch pkg install` writes `vendor/` and a lock; `cinch check`, `build`, and `run` then resolve imports against the resulting source tree through rule 3 above.
 
-`import stage Other` establishes a compile-time dependency. `import data "path" as value` invokes a converter for a non-source input. Built-in text, bytes, and JSON conversion retain input/converter provenance. Registered stage converters follow staging capability and budget restrictions; conversion failure is a build diagnostic. A file extension does not authorize arbitrary ambient process execution.
-
-# Package manifests and stores
-
-The `.cinchpkg` format is canonical JSON with package name/version, module entries, and an explicit check order. A module entry names the module and source path, with facade metadata where relevant. Imports are read from source rather than duplicated in the manifest. `cinch-base.cinchpkg` defines the embedded family.
-
-`cinch pkg add` installs a registry release, a local path, or a git checkout into `vendor/`, resolves exact and semver registry dependencies to one version per name, and emits objects and interfaces. `--token` authenticates private releases; `cinch pkg publish` uploads a project package with unsigned L1 provenance and `cinch pkg verify --slsa` checks the installed lock, source identity, object hash, interfaces, and provenance locally. Client-side L2 builder trust and native dependency-object consumption are still absent. Shipping source modules beside the entry remains a supported development pattern. The package store is a verified local content-addressed artifact mechanism, described in [artifacts](18-artifacts-and-incremental.md).
-
-The current manifest, local store, and registry prototype are covered in [packages, manifests, and the registry](29-package-management.md). The proposed dependency graph, lockfile, client resolution, and supply-chain policy are in [package management](../design/package-management.md). The design is not the current behaviour: `pkg add` resolves one version per package name and supports path/git sources, but client-side L2 builder trust and VSA issuance are still absent.
-
-Implementation: `driver.rs`, `interface.rs`, `check_interface.rs`; suites: `modules.rs`, `params.rs`, `surface.rs`, `fixity_interfaces.rs`, `class_defaults.rs`, `package_manifest.rs`, `package_store.rs`.
+Implementation: `driver.rs` (loader and `Package::parse`), `check_decls.rs` (imports, exports, instance resolution), `interface.rs` (coherence and the import-cycle check); suites: `modules.rs`, `params.rs`, `surface.rs`, `class_defaults.rs`, `fixity_interfaces.rs`, `package_manifest.rs`.

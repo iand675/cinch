@@ -3,11 +3,15 @@
 <span class="support-tag support-tag--planned">Coming soon</span> **This is a design record, not the current package manager.** For the compiler's present manifest, local store, and registry prototype, read [packages, manifests, and the registry](../reference/29-package-management.md).
 
 Status: design proposal, 2026-11-06. The compiler has a package manifest, a
-content-addressed local artifact store, and a checked interface per module. It
-has no dependency graph, no registry, and no install or publish command. This
-note fixes the object model, the resolution rules, and the supply-chain policy
-those commands must implement, and names the first slice that can be built
-without a network.
+content-addressed local artifact store, and a checked interface per module.
+Since this note was written, `cinch pkg add`, `install`, `publish`, and `verify`
+have landed, with semver requirements resolved over a dependency closure,
+conflict checks when two dependencies disagree, and a lockfile that `--locked`
+verifies. Those commands are the present state of the toolchain, and
+[the packages reference](../reference/29-package-management.md) documents them.
+This note fixes the object model, the resolution rules, and the supply-chain
+policy that a design review still has to settle, and names the first slice that
+can be built without a network.
 
 The short version: a package release is identified by a strong hash of its
 source tree and canonical manifest. Compatibility is a checked relation between

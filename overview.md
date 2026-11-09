@@ -13,65 +13,92 @@ Libraries can package types, operations, semantic models, proofs, code generator
 
 This is a design specification, not documentation for an implemented compiler. The feature requirements below are established by the design conversation. Syntax, APIs, and selected mechanisms are proposals that make those requirements concrete. Examples use the draft 0.2 Haskell-like notation; their acceptance and rejection outcomes are intended conformance requirements, not reported compiler results.
 
+# How this archive relates to the compiler
+
+The Rust compiler in `compiler/` implements part of this draft. The [language tutorial](learn/00-tutorial.md) and the [compiler guide](reference/00-guide.md) document what it accepts today, and the [support matrix](reference/16-support-and-roadmap.md) records which parts of the draft are available, partial, reachable only through compiler APIs, or still planned. The pages in this archive are not updated to match the implementation: where one of them and a compiler diagnostic disagree, the diagnostic describes the behaviour you can run, and the page keeps the semantics the draft requires. Read the archive for intended meaning and for the reasoning behind a decision, not for current syntax.
+
 # Documentation contents
 
 ## Specifications
 
-- [Core language specification](specifications/core-language-specification.md)
-
-- [Modules and compilation specification](specifications/modules-and-compilation-specification.md)
-
-- [Runtime evolution specification](specifications/runtime-evolution-specification.md)
-
-- [Platform proofs and SIMD specification](specifications/platform-proofs-and-simd-specification.md)
-
-- [Foreign function interface specification](specifications/foreign-function-interface-specification.md)
-
-- [WebAssembly and WASI specification](specifications/webassembly-and-wasi-specification.md)
-
+- [Attribute annotations, representations, and branch weights](specifications/attribute-annotations-specification.md)
 - [Concurrency specification](specifications/concurrency-specification.md)
-
-- [Surface syntax and grammar](specifications/surface-syntax-and-grammar.md)
-
+- [Core language specification](specifications/core-language-specification.md)
+- [Documentation comments specification](specifications/documentation-comments-specification.md)
+- [Foreign function interface specification](specifications/foreign-function-interface-specification.md)
+- [Lazy computation and reclamation specification](specifications/lazy-computation-and-reclamation-specification.md)
+- [Modules and compilation specification](specifications/modules-and-compilation-specification.md)
+- [Platform proofs and SIMD specification](specifications/platform-proofs-and-simd-specification.md)
+- [Primitive operations and inline target IR specification](specifications/primitive-operations-and-inline-target-ir-specification.md)
+- [Primitive types specification](specifications/primitive-types-specification.md)
 - [Runtime capabilities, effects and sequencing](specifications/runtime-capabilities-effects-and-sequencing.md)
+- [Runtime evolution specification](specifications/runtime-evolution-specification.md)
+- [Supercompilation and JIT specification](specifications/supercompilation-and-jit-specification.md)
+- [Surface grammar local amendments](specifications/surface-grammar-local-amendments.md)
+- [Surface syntax and grammar](specifications/surface-syntax-and-grammar.md)
+- [WebAssembly and WASI specification](specifications/webassembly-and-wasi-specification.md)
 
 ## Tutorials
 
 - [Tutorial 1 Values and dependent types](tutorials/01-values-and-dependent-types.md)
-
 - [Tutorial 2 Proofs and runtime checks](tutorials/02-proofs-and-runtime-checks.md)
-
 - [Tutorial 3 Ownership and effects](tutorials/03-ownership-and-effects.md)
-
 - [Tutorial 4 Modules and laws](tutorials/04-modules-and-laws.md)
-
 - [Tutorial 5 Streams and coinduction](tutorials/05-streams-and-coinduction.md)
-
 - [Tutorial 6 Processes and temporal contracts](tutorials/06-processes-and-temporal-contracts.md)
-
 - [Tutorial 7 Rewrites and stream fusion](tutorials/07-rewrites-and-stream-fusion.md)
-
 - [Tutorial 8 Staging and schema generation](tutorials/08-staging-and-schema-generation.md)
-
 - [Tutorial 9 Compatible hot upgrades](tutorials/09-compatible-hot-upgrades.md)
-
 - [Tutorial 10 Platform specific SIMD](tutorials/10-platform-specific-simd.md)
-
 - [Tutorial 11 Foreign libraries](tutorials/11-foreign-libraries.md)
-
 - [Tutorial 12 WebAssembly components](tutorials/12-webassembly-components.md)
-
 - [Tutorial 13 Structured concurrency](tutorials/13-structured-concurrency.md)
-
 - [Tutorial 14 Haskell-like syntax, effects and runtime selection](tutorials/14-haskell-like-syntax-effects-and-runtime-selection.md)
 
-## Examples and design decisions
+## Design records
+
+Each page records a decision, its evidence, or the work remaining for one part of the design. Titles are the pages' own; several carry dated notes and open questions rather than settled rules.
+
+- [Allocators: a replaceable default, an allocation capability, proven budgets](design/allocators.md)
+- [Array primitives](design/arrays.md)
+- [Attribute annotations on the AST](design/attribute-annotations.md)
+- [Base library: module scheme and buildout plan](design/base-library.md)
+- [Checked bootstrap handlers](design/bootstrap-handlers.md)
+- [The bootstrap ladder: implementation decisions](design/bootstrap-ladder.md)
+- [Codata and guardedness design](design/codata-guardedness.md)
+- [The value-level computation type former (`Comp {e} a`)](design/comp-computation-type.md)
+- [Compiled interface metadata](design/compiled-interface-metadata.md)
+- [Dependent core kernel design](design/dependent-core-kernel.md)
+- [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md)
+- [Float refinements: NaN, infinities and the other IEEE hazards in the types](design/float-refinements.md)
+- [Roadmap: Blaze-style uber-fast recompilation (P29)](design/incremental-recompilation.md)
+- [Inline target IR and `prim` declarations](design/inline-target-ir.md)
+- [Layouts, representation and specialization](design/layouts-and-specialization.md)
+- [LLVM contract attributes: adopting the rest of the vocabulary](design/llvm-contract-attributes.md)
+- [Next steps (as of 2026-11-07)](design/next-steps.md)
+- [Bulletproof programs: a well-typed program does not fault](design/no-faults.md)
+- [Evidence Map: Refinement/Dependent Machinery for Proven-Total Operations](design/no-faults-evidence-map.md)
+- [Cinch runtime-fault inventory](design/no-faults-inventory.md)
+- [Open decisions and implementation plan](design/open-decisions-and-implementation-plan.md)
+- [Ownership, usage and regions design](design/ownership-and-usage.md)
+- [Package management](design/package-management.md)
+- [Proof automation: decision procedures and tactics](design/proof-automation.md)
+- [Reclamation: precise reference counting (Perceus) for Cinch](design/reclamation.md)
+- [Recursive bindings, tail calls, and surface ergonomics](design/recursive-bindings-and-tail-calls.md)
+- [References and related work](design/references-and-related-work.md)
+- [Refinement types: sub-kinds are refinements, not wrappers](design/refinement-types.md)
+- [Executable library objects](design/runtime-object-linkage.md)
+- [Safety assertion attributes (the JPL rules at compile time)](design/safety-assertion-attributes.md)
+- [Self-hosting](design/self-hosting.md)
+- [Standard library expansion and the bootstrap program (P30-P35)](design/stdlib-and-bootstrap.md)
+- [Standard library parity: the Ruby catalog as checklist (P36-P40)](design/stdlib-parity-ruby.md)
+- [Supercompilation and JIT systems](design/supercompilation-and-jit.md)
+- [Verified primitives: a smaller trusted base than Lean](design/verified-primitives.md)
+
+## Examples and context
 
 - [Example catalogue](examples/catalogue.md)
-
-- [Open decisions and implementation plan](design/open-decisions-and-implementation-plan.md)
-
-- [References and related work](design/references-and-related-work.md)
+- [Design conversation context](context/design-conversation.md)
 
 # Goals
 
@@ -162,22 +189,21 @@ Structured scopes bound task lifetimes. Bounded channels transfer ownership and 
 
 | Reader goal | Start here |
 | --- | --- |
-| Understand the whole design | This overview, then Open decisions |
-| Review language semantics | Core language specification |
-| Review abstraction and compilation | Modules and compilation specification |
-| Review hot swapping | Runtime evolution specification |
-| Learn the proposed notation | Tutorials 1 through 14 in order |
-| Review concrete acceptance cases | Example catalogue and the accompanying `.cinch` files |
-| Review external libraries | Foreign function interface specification |
-| Review Wasm deployment | WebAssembly and WASI specification |
-| Review concurrent execution | Concurrency specification |
+| Understand the whole design | This overview, then [Open decisions and implementation plan](design/open-decisions-and-implementation-plan.md) |
+| Review language semantics | [Core language specification](specifications/core-language-specification.md) |
+| Review abstraction and compilation | [Modules and compilation specification](specifications/modules-and-compilation-specification.md) |
+| Review hot swapping | [Runtime evolution specification](specifications/runtime-evolution-specification.md) |
+| Learn the proposed notation | [Tutorial 1 Values and dependent types](tutorials/01-values-and-dependent-types.md) through Tutorial 14, in order |
+| Review concrete acceptance cases | [Example catalogue](examples/catalogue.md) and the accompanying `.cinch` files |
+| Review external libraries | [Foreign function interface specification](specifications/foreign-function-interface-specification.md) |
+| Review Wasm deployment | [WebAssembly and WASI specification](specifications/webassembly-and-wasi-specification.md) |
+| Review concurrent execution | [Concurrency specification](specifications/concurrency-specification.md) |
 
 # Scope and trust
 
 The draft specifies desired guarantees and obligations; it does not claim a completed soundness proof. A small proof kernel is the target for logical evidence. The elaborator, semantic encoding, erasure, optimizer, code generator, runtime, FFI, and deployment coordinator each need a stated trust or verification story.
 
 The specification cannot establish that a user-written contract captures the intended product behavior. It can establish that accepted code meets that contract within its explicit assumptions. Environment failures, hardware faults, timing leakage, and external services require their own models and policies.
-
 
 
 # Syntax and runtime decision

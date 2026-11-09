@@ -1,231 +1,231 @@
 # Allocators and heap customization
 
-Cinch's allocator design gives programs control over where memory comes from while preserving functional programming, ownership checking, and deterministic reclamation. It has three layers: a replaceable program allocator, scoped heaps supplied as capabilities, and proven allocation budgets.
+A compiled Cinch program allocates every value block through one accounting layer that wraps the system allocator. That layer is what exists today: it counts live bytes, enforces the heap cap, reports allocation totals, and reports leaks. Program allocators, scoped heaps, arenas, pools and proven allocation budgets are a design decision with no shipped API, and this page keeps them behind that boundary.
 
-This chapter describes the intended design. Example spellings illustrate the model; unresolved syntax is identified where it matters. The underlying decisions are recorded in [the allocator design notes](../design/allocators.md) and [the resource-exhaustion design](../design/no-faults.md).
+[Ownership and reclamation](10-ownership-and-memory.md) governs how values may be used and when their storage is released. This page governs where the storage comes from, and how to observe it.
 
-# Choose the right level of customization
+# What exists today
 
-| Need | Mechanism |
+| Fact | Today |
 | --- | --- |
-| Ordinary application allocation | Use the default small-object allocator. |
-| Change allocation policy for the whole program | Supply a program allocator. |
-| Allocate temporary data for one computation | Supply a scoped arena through `Heap r`. |
-| Recycle individually reclaimed blocks from reserved storage | Use a counted pool. |
-| Recover when a computation exceeds its memory allowance | Run it inside a typed budget boundary. |
-| Guarantee sufficient memory after startup | Prove allocation bounds and reserve a startup pool. |
+| Where blocks come from | The runtime installs `Counting`, a `GlobalAlloc` over `System`, as `#[global_allocator]` (`compiler/runtime/src/heap.rs`). Every allocation in the process passes through it, including the runtime's own limbs, byte buffers and handle tables. |
+| What is counted | Cumulative blocks and bytes, live bytes with a high-water mark, and Cinch value blocks separated from the runtime's own allocations. |
+| Reclamation | Reference counting with reuse (`compiler/runtime/src/rc.rs`), inserted by `compiler/src/rc.rs` during code generation. |
+| Cap | 8 GiB live bytes by default, adjustable with `CINCH_HEAP_LIMIT`. |
+| Selection of a different allocator | Not available. There is no `#[global-allocator]` attribute and no `Heap` capability in the type checker. |
 
-These choices compose. A program can use a custom default, give a parser a temporary arena, and give an untrusted workload a recoverable budget. Allocator selection determines where storage comes from; [ownership and reclamation](10-ownership-and-memory.md) determine how values may be used and when their storage can be released.
+Allocation for a generated program is therefore uniform, and every measurement below is available without opting into anything: the counters exist whether or not you print them.
 
-# The program allocator
+# Environment variables
 
-The program allocator supplies storage when no scoped heap has been selected. Ordinary functions can construct lists, trees, closures, and other values without passing an allocator explicitly.
+Each variable is read by a **generated program at startup**, except `CINCH_RECLAIM`, which the **compiler** reads while generating code, and `CINCH_RC_TRACE`, which a debug build of the compiler reads when the ownership verifier rejects a function. The runtime variables belong to a linked executable, and none of the seven is a `cinch` subcommand flag.
 
-The default is an in-house small-object allocator designed around the blocks produced by reference-counted functional programs:
+| Variable | Format accepted | Read by | Effect |
+| --- | --- | --- | --- |
+| `CINCH_ALLOC_STATS` | exactly `1` | Generated program, at first allocation | Register an `atexit` handler that writes `cinch-alloc: ...` to stderr. |
+| `CINCH_LEAK_CHECK` | exactly `1` | Generated program, at first allocation | After `main` returns, write `cinch-leak: ...` and return exit code 74 when mortal blocks are still live. |
+| `CINCH_RC_DEBUG` | exactly `1` | Generated program, at first allocation | Poison and quarantine freed blocks, and validate headers on every count operation. |
+| `CINCH_HEAP_LIMIT` | `<digits>` or `<digits>` with `K`, `M` or `G` | Generated program, at first allocation | Cap live bytes. Unset means 8 GiB, `0` disables the cap, an unparsable value falls back to 8 GiB. |
+| `CINCH_STACK_SIZE` | `<digits>` or `<digits>` with `K`, `M` or `G` | Generated program, before the program thread starts | Reserved stack for the program thread. Unset means 1 GiB; zero or unparsable keeps the default; a value below 256 KiB is raised to 256 KiB. |
+| `CINCH_RECLAIM` | `0` disables, anything else enables | The compiler, while generating code | Stop inserting `cinch_dup` and `cinch_drop`. Intended for comparisons and baselines. |
+| `CINCH_RC_TRACE` | any value | The compiler, only in a debug build and only when the ownership verifier rejects a function | Write `cinch-rc: <function>` with the verifier's input and output to standard error before the `compiler bug: ownership verifier rejected ...` message. It changes nothing about the program; it is how to report that failure with a reproducer inside it. |
 
-- Size classes group small allocations into fixed-size blocks.
-- Per-thread heaps and free lists sharded by page organize allocation and recycling.
-- Pages live in aligned segments. A block's address identifies its page and owning heap, so allocator identity does not consume bits in each value's header.
-- Reclamation returns dead blocks to the appropriate free lists; reuse can avoid requesting fresh storage altogether.
+Suffixes use binary multiples. The truth of each variable is the presence of the exact byte `1` for the three diagnostic switches: `CINCH_LEAK_CHECK=on` does nothing.
 
-System allocation remains an option for debugging and comparison. A statically reserved pool serves programs with proven bounds. A user-supplied allocator can provide a policy suited to a particular target or workload.
+Two related compiler-level attributes are implemented and enforced at the definition: `#[no-alloc]` refuses any admitted allocation site in the definition, and `#[alloc("once")]` bounds it to one allocation site per call. See [safety assertions](22-safety-assertions-and-llvm.md).
 
-Accounting and heap limits wrap the selected allocator. Choosing a different backend preserves measurement and budget enforcement rather than requiring each allocator to implement a separate reporting system. Live-byte limits concern storage still held, rather than the cumulative amount allocated and released over a program's lifetime.
+# Allocation totals
 
-# Supply a custom program allocator
+`CINCH_ALLOC_STATS=1` writes one line at process exit:
 
-A custom allocator implements a runtime interface with explicit sizes and alignments:
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  import Data.List
 
-| Operation | Responsibility |
+  build :: Int -> List Int -> List Int
+  build n acc = case n == 0 of
+    True -> acc
+    False -> build (n - 1) (Cons n acc)
+
+  main :: Unit -> Int
+  main u = case length (build 1000 Nil) == 1000 of
+    True -> 0
+    False -> 1
+```
+
+A program built and run without a variable prints nothing and exits 0. With statistics on, the same binary prints:
+
+```text
+$ CINCH_ALLOC_STATS=1 ./example
+cinch-alloc: blocks=1922 bytes=48862 peak=24126 header-blocks=1916 header-bytes=48648 immortal=0 freed=1916 live=0
+```
+
+The fields mean:
+
+| Field | Meaning |
 | --- | --- |
-| Allocate | Provide storage meeting the requested size and alignment. |
-| Free | Return a block to the allocator that owns it. |
-| Resize, optional | Resize an allocation while preserving the retained contents. |
+| `blocks`, `bytes` | Cumulative allocations and bytes over the whole run. |
+| `peak` | Highest live byte count reached. |
+| `header-blocks`, `header-bytes` | Cinch value blocks, and their bytes including the 8-byte header. These are a subset of `blocks`. |
+| `immortal` | Blocks born uncounted: interned `Sym` cells. Static blocks live in the data section and are never allocated. |
+| `freed` | Header blocks released by reclamation. |
+| `live` | `header-blocks - freed`. |
 
-The design provides two integration routes: an allocator written in Cinch and selected by a `#[global-allocator]`-style declaration, or a C-ABI allocator object supplied at link time. The exact declaration spelling and ABI details remain to be specified; the attribute name describes the intended selection point.
+`blocks - header-blocks` is the runtime's own allocation (bignum limbs, buffer data, handle tables). The list above is 1000 `Cons` cells, which are a subset of those 1916 header blocks; the rest are the other value blocks the run allocated. `freed` equals `header-blocks` because everything the run allocated has died by the time `main` returns.
 
-A Cinch-written allocator must itself satisfy `#[no-alloc]`: implementing allocation cannot recursively request storage from the allocator being implemented. Allocator state and bookkeeping therefore need storage that does not depend on that recursive path.
+The line is written by an `atexit` handler registered on the first allocation, so it also appears after a normal exit, after a heap exhaustion, and after a panic fault. It does not appear after stack exhaustion, which leaves through `_exit`.
 
-Every free must return to the originating allocator. Changing the ambient heap changes subsequent allocation sites; it does not transfer ownership of blocks already allocated elsewhere. The default allocator and pools recover ownership from the address. Foreign allocations retain their matching deallocator under the [foreign resource protocol](../specifications/foreign-function-interface-specification.md#3-ownership-and-allocation).
+# Leak checking
 
-Task sharing also preserves allocator ownership. A counted value can be released by whichever task drops its last reference, so an allocator's release policy must account for that lifetime rather than assume release always happens in the allocating task.
-
-## Worked example: define and select a zeroing allocator
-
-Suppose a program wants every fresh allocation zero-filled. Define a custom allocator that requests storage directly from the system backend, clears it, and returns it. Its free callback delegates to that same backend with the original size and alignment.
-
-This is a **design sketch** of the intended callback interface and selection declaration. `Allocator`, its field names, and the backend primitive names are illustrative. `ByteSize` and `Alignment` represent checked machine-sized values; `Block` is an owned raw storage handle; `Allocation` is an unboxed `Granted`/`Refused` status. Constructing these callback results does not allocate Cinch value blocks. `Allocator` itself is a static table of function pointers.
+`CINCH_LEAK_CHECK=1` writes one line after `main` returns:
 
 ```text
-#[no-alloc]
-zeroed-allocate :: ByteSize -> Alignment -> Allocation
-zeroed-allocate size alignment =
-  case system-allocate size alignment of
-    Refused -> Refused
-    Granted block ->
-      let () = zero-memory (borrow block) size in
-      Granted block
-
-#[no-alloc]
-zeroed-free :: Block -> ByteSize -> Alignment -> Unit
-zeroed-free block size alignment =
-  system-free block size alignment
-
-#[global-allocator]
-program-allocator :: Allocator
-program-allocator = Allocator
-  { allocate = zeroed-allocate
-  , free = zeroed-free
-  , resize = None
-  }
+$ CINCH_LEAK_CHECK=1 ./example
+cinch-leak: live=0 immortal=0 leaked=0
 ```
 
-The low-level primitive contracts are part of the sketch: `system-allocate` satisfies the requested layout or returns `Refused`; `zero-memory` borrows valid storage and clears exactly `size` bytes without allocating; `system-free` consumes the allocation handle. Their eventual signatures must carry those storage, ownership, and foreign-effect obligations.
-
-The selection declaration installs `program-allocator` as the ambient program allocator. For an ordinary allocation, the sequence is:
-
-1. The runtime's accounting and limit layer admits the request.
-2. `zeroed-allocate` obtains storage from the system backend and clears it.
-3. The runtime initializes the Cinch header and payload in that storage.
-4. On final release, `zeroed-free` returns the original allocation base to the system backend with its matching layout.
-
-`system-allocate` is the underlying backend operation, not a call back through the selected program allocator. That distinction prevents recursion. No logging, temporary collections, or heap-allocated error values are created inside the callbacks. A `Refused` result follows the enclosing budget's exhaustion protocol rather than becoming a usable pointer.
-
-Resize is omitted because it is optional. An allocation layer needing to grow a block can obtain a fresh block, copy the retained bytes, and free the old one after successful allocation; if allocation is refused, the old block must remain intact. The fresh block is zeroed before the copy, so bytes beyond the copied prefix remain zero. Zero-filling has a cost proportional to the requested size; this example demonstrates a custom policy rather than a faster default.
-
-# Scoped heaps are capabilities
-
-`Heap r` makes an allocation context available to a computation, using the same capability-binding model as I/O:
+`live` counts blocks still allocated, `immortal` counts the uncounted ones, and `leaked` is `live - immortal`. A nonzero `leaked` turns the process exit code into 74:
 
 ```text
-parse-all :: forall r. using (heap :: Heap r) => Bytes -> Result ParseError Summary
+$ CINCH_RECLAIM=0 cinch build Main.cinch -o example-no-reclaim
+$ CINCH_LEAK_CHECK=1 ./example-no-reclaim
+cinch-leak: live=1916 immortal=0 leaked=1916
+$ echo $?
+74
 ```
 
-A caller supplies the context with `with`:
+That is the practical difference between the checker and the runtime. `CINCH_RECLAIM=0` does not change what the usage checker accepts: the program still checks, and it still must not duplicate a `%1` value. What changes is code generation, which stops inserting the retains and releases, so every block the program builds stays live. The same binary under `CINCH_ALLOC_STATS=1` shows the difference in the counters:
+
+| Build | `peak` | `freed` | `live` |
+| --- | --- | --- | --- |
+| Default | 24126 | 1916 | 0 |
+| `CINCH_RECLAIM=0` | 48795 | 0 | 1916 |
+
+74 is a diagnostic code for a failed leak check, not a program fault. The program fault codes are 70 for `BlackHole`, 71 for the generic fault path, and 73 for `Exhausted`.
+
+# Reference-count debugging
+
+`CINCH_RC_DEBUG=1` makes `cinch_free` poison and quarantine each freed block and makes every count operation validate the header it reads. A correct program prints nothing and exits 0. Because quarantined blocks are never returned to the allocator, the counters show the retained memory:
 
 ```text
-with (heap = arena) in computation
+$ CINCH_RC_DEBUG=1 CINCH_ALLOC_STATS=1 ./example
+cinch-alloc: blocks=1922 bytes=48862 peak=48790 header-blocks=1916 header-bytes=48648 immortal=0 freed=1916 live=0
 ```
 
-Allocation sites requiring that capability draw from the supplied heap. The program allocator is the ambient default when a scoped allocator has not been supplied. The precise rules for inferring, displaying, and defaulting `Heap` requirements in signatures remain an open design choice.
+`peak` is 48790 instead of 24126 for the same allocation totals: the same bytes stayed held. The traps this mode adds fire only on a compiler or runtime bug, such as a use after free or a corrupt header, and they take the fault exit paths rather than becoming program errors.
 
-To customize one computation:
+Compare performance and memory with `CINCH_RC_DEBUG` and `CINCH_LEAK_CHECK` unset. Neither changes the program's result; both change what the process holds.
 
-1. Choose an arena, counted pool, or budget suited to its lifetime and capacity requirements.
-2. Bind it as the computation's `heap` capability.
-3. Keep scoped allocations inside their permitted lifetime, copying a result into an outer heap explicitly when necessary.
+# The heap cap
 
-This keeps allocator policy at the caller's boundary while allocation-aware library functions work against the capability.
+`CINCH_HEAP_LIMIT` bounds **live** bytes, the bytes allocated and not yet freed. A program that frees what it is done with runs to completion however much it allocates over its life; a program that keeps every allocation live stops at the cap. This recursion allocates a 1 MiB buffer per step and keeps every one:
 
-# Arenas and escape checking
+<!-- cinch:run exit=73 -->
+```cinch
+module Main where
+  import Data.List
 
-An arena is useful when many temporary values share one lifetime, such as a parser's intermediate tree. A bump arena advances through reserved storage and releases it together when the scope ends.
+  grow :: Int -> List Bytes -> Int
+  grow n acc = grow (n + 1) (Cons (bytes-new 1048576) acc)
 
-The following sketch allocates parser temporaries within a 64 MiB arena and summarizes them before leaving it. It assumes the returned summary contains only scalar data with no pointers into the arena. `bump-arena` and `mebibytes` illustrate the proposed library interface:
+  main :: Unit -> Int
+  main u = grow 0 Nil
+```
+
+The documentation checker runs each example with `CINCH_HEAP_LIMIT=512M` in the environment, which is why the marker above expects exit 73. Built and run by hand under an 8 MiB cap, the same program prints:
 
 ```text
-with (heap = bump-arena (mebibytes 64)) in
-  summarize (parse-all input)
+$ CINCH_HEAP_LIMIT=8M ./example
+cinch: exhausted: heap (8389071 bytes)
+$ echo $?
+73
 ```
 
-Arena blocks use the header's uncounted/immortal representation. Retaining or dropping a reference to one does not perform per-block reference counting; the arena owns the storage until teardown. Here, “immortal” means the count machinery does not reclaim the individual block, not that its storage survives the arena.
+8389071 is the live heap the refused allocation would have produced, so it sits one buffer past the cap. `Exhausted` is a declared outcome of every program at `main`, and 73 is one code for every resource: the stderr line names which resource ran out.
 
-The compiler must prove that arena pointers cannot outlive the scope:
-
-- A returned value must contain no pointer into the arena. Scalar results can leave directly; an arena-backed structure requires an explicit deep copy into the outer heap.
-- An arena-backed value cannot be stored in outer mutable state or captured by a closure or task that escapes the scope.
-- Existing region escape checking extends to these allocation lifetimes.
-
-Copying out is explicit because a deep copy can be expensive. The design notes call that operation `evacuate`, but its final name and signature remain open.
-
-Static escape checking is the lifetime guarantee. Debug and `jpl` teardown checks are defenses against compiler mistakes, not a recoverable way to permit escaping pointers. Whether arenas should also support a mixture of counted and uncounted blocks remains open.
-
-## Worked example: copy an arena result into the outer heap
-
-Reverse a list using temporary arena storage, then return an independently owned list to the caller. Capture the caller's heap **before** rebinding `heap`; pass that saved capability explicitly to the copy-out operation while the arena is still alive.
-
-This **design sketch** uses the provisional spelling `evacuate destination value`. It means a deep copy into the explicitly named destination heap, including ownership/provenance information that lets the copy leave the arena scope. The final copy-out signature and capability-binding details remain open.
+With statistics enabled, the `atexit` line still appears after the exhaustion line, which is what makes a cap failure inspectable:
 
 ```text
-reverse-into :: forall r. using (heap :: Heap r) =>
-  List U64 -> List U64 -> List U64
-reverse-into xs acc = case xs of
-  Nil -> acc
-  Cons x rest -> reverse-into rest (Cons x acc)
-
-reverse-copy :: forall outer. using (heap :: Heap outer) =>
-  List U64 -> List U64
-reverse-copy input =
-  let outer-heap = heap in
-  with (heap = bump-arena (mebibytes 1)) in
-    let temporary = reverse-into input Nil in
-    evacuate outer-heap temporary
+$ CINCH_HEAP_LIMIT=8M CINCH_ALLOC_STATS=1 ./example
+cinch: exhausted: heap (8389071 bytes)
+cinch-alloc: blocks=30 bytes=8389207 peak=8389135 header-blocks=16 header-bytes=384 immortal=0 freed=2 live=14
 ```
 
-Called with a `List U64` containing `[10, 20, 30]`, `reverse-copy` returns `[30, 20, 10]` in the caller's heap:
+Sixteen `Cons` cells are live at the cap, `freed=2` records the blocks reclamation already released along the way, and `bytes` exceeds `peak` because the run allocated and freed repeatedly on its way to the limit.
 
-| Step | Arena storage | Outer-heap storage |
+`CINCH_HEAP_LIMIT=0` removes the cap, so the same program keeps running past the point where 8 MiB stopped it and never reaches a defined outcome. An unparsable value falls back to the 8 GiB default rather than disabling the cap.
+
+A failed system allocation, and an allocation request too large to represent as a size, take the same exit with the same message. The process never aborts through the Rust allocator's failure path.
+
+# Stack size
+
+Every generated program runs its code on a thread with a large reserved stack, 1 GiB by default, so deep recursion has room. `CINCH_STACK_SIZE` changes the reservation.
+
+The stack's low end is made an inaccessible guard band, and a fault inside it becomes the defined `Exhausted` outcome for the stack rather than a crash. A non-tail recursion that needs more stack than the reservation gets:
+
+```text
+$ CINCH_STACK_SIZE=256K ./deep
+cinch: exhausted: stack
+$ echo $?
+73
+```
+
+The same binary with the default reservation exits 0. `CINCH_STACK_SIZE=64K` also prints `cinch: exhausted: stack`: values below 256 KiB are raised to 256 KiB, because the guard band alone is 64 KiB and the runtime's own frames need the rest. `CINCH_STACK_SIZE=banana` keeps the 1 GiB default, and the run completes.
+
+Stack exhaustion leaves through `_exit`, so the `CINCH_ALLOC_STATS` line does not follow it. A fault outside the guard band is not treated as exhaustion at all: the handler restores the previous disposition and the process ends as it otherwise would.
+
+# Where the header widths live
+
+Block bookkeeping is one header word at byte offset -8: a 40-bit signed count in the low bits, an 8-bit kind, and a 16-bit layout id. A negative count marks a block shared across tasks, and its increments and decrements are atomic. A count of zero marks an immortal block.
+
+Those widths are named constants in `compiler/runtime/src/block_kinds.rs`, which the runtime and the code generator both include, so every shift and mask derives from them. The same file states the cap relation: the heap cannot hold `RC_MAX` words, so a count never saturates and needs no overflow check. A build that traded count width for a wider layout id would change the runtime ABI and its cap together. Selecting a different allocation policy alone would not.
+
+# Planned: replaceable program allocators
+
+<span class="support-tag support-tag--planned">Coming soon</span> The [allocator design](../design/allocators.md) selects a replaceable program allocator with an in-house small-object allocator as the default. Nothing in the following list is callable today.
+
+| Planned facility | Intended behaviour | Current boundary |
 | --- | --- | --- |
-| Save `outer-heap` | No temporary list yet. | The input list belongs to the caller's heap. |
-| Build `temporary` | Three new `Cons` cells contain `30`, `20`, `10`. | No result cells have been allocated here yet. |
-| Evacuate | The temporary cells remain valid during copying. | Three new `Cons` cells form the independent result. |
-| Leave the scope | Arena storage is released together. | The result survives and uses ordinary counted reclamation. |
+| In-house small-object default allocator | Size classes for small blocks, per-thread heaps, free lists sharded per page, allocator identity recovered from the address. | The runtime wraps `System`. |
+| `#[global-allocator]`-style selection | Install a Cinch-written or C-ABI allocator as the ambient program allocator. | Unknown attribute: `` unknown attribute `global-allocator`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro ``. |
+| Allocator callbacks | Allocate, free, and optional resize, with explicit size and alignment. | No runtime allocator interface and no ABI for one. |
+| System backend as a choice | Keep `malloc` for debugging and comparison. | This is the only backend. |
+| Static startup pool | Claim all memory before `main`, sized from a proven bound. | Needs the proof machinery below and is not implemented. |
 
-The `U64` elements are scalars, so copying the list requires copying its cells and their scalar fields. For nested arena-backed data, copy-out must also copy reachable arena-backed children; copying only the outer record or list spine could leave dangling pointers. The destination argument makes allocation go to `outer-heap` even though `heap` is still bound to the arena.
+Accounting and the cap are designed to wrap whichever allocator is installed, so a replacement keeps the measurements and the failure mode rather than each allocator implementing its own reporting.
 
-Returning `temporary` directly instead of calling `evacuate` would be rejected: its cells belong to the arena. Merely rebinding the heap or retaining the temporary value cannot move those cells to the outer heap.
+Integrity rules the design states for a future implementation: a Cinch-written allocator must itself satisfy `#[no-alloc]`, because implementing allocation cannot allocate through the allocator being implemented; every free must return to the originating allocator; and a block shared across tasks can be released by whichever task drops the last reference, so release policy cannot assume release happens in the allocating task.
 
-Copying takes linear time in the copied structure, and source and destination storage coexist until the copy finishes. The arena and outer budget must have room for that overlap. If destination allocation exhausts its budget, the exhaustion protocol cleans up the partial destination copy and tears down the arena while returning to the enclosing boundary; no partial or arena-backed result escapes.
+# Planned: scoped heaps, arenas, pools and budgets
 
-# Counted pools
+<span class="support-tag support-tag--planned">Coming soon</span> The design describes four layers above the program allocator. Each is a proposal, with no accepted spelling in the language today.
 
-A counted pool reserves fixed-capacity storage for blocks of a particular size. Its blocks participate in reference counting and return individually to the pool's free list when their last owner releases them.
+| Planned facility | Intended behaviour | Current boundary |
+| --- | --- | --- |
+| `Heap r` capability | Allocation context supplied like I/O: `using (heap :: Heap r) =>` in a signature, `with (heap = arena) in e` at a call site. | `Heap` is not a known signature: `` cinch: unknown signature Heap ``. |
+| Arena via capability | Bump allocation in one scope, released together at the end. | Not implemented; needs the capability. |
+| Arena escape checking | No arena pointer may outlive its scope; a returned value must contain no arena pointer, and copy-out is explicit. | Region escape checking exists for borrows, cells and `Eval` labels; it does not yet see allocation lifetimes. |
+| Counted pool | Reserved blocks for one size, returned individually to the pool's free list when their last owner releases them. | Not implemented. |
+| Budget boundary | A typed allowance that turns exhaustion into a declared outcome inside a larger service. | The only boundary today is the process itself, which exits 73. |
+| `evacuate`-style copy-out | Deep copy a value from an inner heap into a named destination heap. | Provisional name and signature; the design notes call it `evacuate`. |
 
-Choose a counted pool when values have different lifetimes and released capacity should be reused while the pool remains active. Choose an arena when all temporary storage can be discarded together. A pool must not be torn down while any of its blocks remain live.
+The name `bump-arena`, the `mebibytes` helper, and the exact inference and display rules for `Heap` requirements are all open in the design notes. Use the design page as the source for these sketches, not as a description of the current compiler.
 
-Both mechanisms preserve allocation ownership. Releasing a pooled block returns capacity to that pool; it does not send the block to the ambient program allocator.
+# Planned: proven allocation bounds
 
-# Recoverable memory budgets
+<span class="support-tag support-tag--planned">Coming soon</span> The `jpl` profile already enforces recursion restrictions, and two allocation assertions are implemented. The rest of the intended bound discipline is not.
 
-A computation without a static allocation bound can run inside a typed budget boundary. Exceeding the allowance returns `Exhausted` at that boundary. The proposed shape is:
-
-```text
-with (heap = budget (mebibytes 256)) in parse-all input
-  :: Result Exhausted Summary
-```
-
-This sketch illustrates the exhaustion outcome; a parser's own error type must also be composed into the computation's result. The exact budget-boundary syntax remains open.
-
-On exhaustion, the computation returns to the nearest enclosing budget boundary. Reference counting releases allocations inside the abandoned computation that are not reachable from outside. The caller can then handle the declared failure, for example by rejecting an oversized request.
-
-Budgeting and arena lifetimes answer different questions: the budget controls how much storage a computation can hold; the arena controls how long its storage remains valid. A memory allowance does not authorize a scoped pointer to escape.
-
-At the program boundary, exhaustion is an implicit declared outcome. Programs that need to recover within a larger service use explicit inner boundaries. The design treats resource exhaustion as a declared outcome or proves it impossible, rather than allowing an undeclared memory fault.
-
-# Proven bounds and startup pools
-
-For programs that must guarantee sufficient memory after initialization, the compiler proves allocation requirements and reserves storage before user code begins. The intended `jpl` discipline combines three forms of evidence:
-
-| Assertion | Intended guarantee |
+| Assertion | Status |
 | --- | --- |
-| `#[no-alloc]` | The computation requires no allocation capability. |
-| `#[fip]` | Fully-in-place execution reuses uniquely owned cells without requesting fresh storage. |
-| `#[alloc("bounded(n)")]` | Allocation stays within a statically proved bound. |
+| `#[no-alloc]` | Implemented and enforced: `` `#[no-alloc]` on Main.build asserts the no-allocation rule (JPL rule 3): the constructor `Cons` is constructed here ``. |
+| `#[alloc("once")]` | Implemented and enforced: one allocation site per call. |
+| `#[fip]` | Not implemented: `` unknown attribute `fip` ``. |
+| `#[alloc("bounded(n)")]` | Not implemented: `` `#[alloc]` takes `"once"` ``. |
+| Startup pool sized from proven bounds | Not implemented; needs the bound machinery. |
 
-The bounded-allocation spelling is illustrative. Bounds are established through the recursion and arithmetic proof machinery, not accepted as unchecked programmer claims.
+Fully-in-place execution is intended to connect the allocation guarantee to reuse analysis: a function that consumes uniquely owned cells reuses their storage for compatible replacements, so a functional transformation can run inside reserved storage without a fresh allocation per value. Functional syntax alone does not establish that guarantee, and the current checker does not accept `#[fip]` at all.
 
-Fully-in-place checking connects allocation guarantees to the reclamation pass's reuse analysis. A function consumes uniquely owned cells and reuses their storage for compatible replacements. Functional transformations can therefore run within reserved storage without requiring a fresh allocation for every newly described value. An owned-list transformation is a candidate when its ownership and cell-reuse obligations can be proved; functional syntax alone does not establish the guarantee.
+# Source authority
 
-The startup pool is sized from the program's proven component bounds. Definitions reachable after initialization must satisfy the no-allocation, fully-in-place, or bounded-allocation discipline against that pool. Reserving storage can fail before the program starts; after successful reservation, the proven workload cannot exhaust it.
-
-This is stronger than measuring a typical run or selecting a fixed pool and hoping it is large enough. The capacity is justified by the program's proof obligations.
-
-# Headers, heap caps, and compatibility
-
-Allocator customization preserves the shared value representation: a header carries reference-count, kind, and layout information, while allocator ownership is recovered separately.
-
-The design's default header assigns 40 bits to the count, 8 to the kind, and 16 to the layout identifier. A compiler build can trade count width for a wider layout identifier. The heap cap is tied to that choice: it stays below `8 * 2^count_bits` bytes so the number of pointer words cannot overflow the count field.
-
-Changing those widths changes the runtime ABI. Compiled objects record the choice, and objects with incompatible header formats must not link together. Selecting a different allocation policy alone does not change the header format.
-
-See [the allocator design notes](../design/allocators.md) for the underlying decisions, [reclamation](../design/reclamation.md) for block ownership and reuse, and [proof automation](../design/proof-automation.md) for the machinery used to establish bounds.
+Implemented behaviour: `compiler/runtime/src/heap.rs` (accounting, cap, stats line), `rc.rs` (counts, leak check, debug poisoning), `block.rs` and `block_kinds.rs` (headers, allocation, free), `abi.rs` (exit codes 70, 71, 73, 74 and the `Exhausted` message), `platform.rs` and `stack.rs` (program thread and stack size), `compiler/src/rc.rs` and `core.rs` (`CINCH_RECLAIM`). Behaviour suites: `compiler/tests/alloc_accounting.rs`, `exhaustion.rs`, `reclamation.rs`, `reclamation_tasks.rs`. Planned direction: [allocator design notes](../design/allocators.md), [reclamation](../design/reclamation.md), [resource exhaustion](../design/no-faults.md), [proof automation](../design/proof-automation.md).

@@ -1,209 +1,510 @@
 # Interactive programming with the REPL
 
-<span class="support-tag support-tag--current">Available</span> **`cinch repl` starts an interactive session.** In a terminal it provides a full-screen frontend; when input or output is redirected it uses a plain line loop. Both use the compiler's shared analysis layer, keep declarations across inputs, and run expressions through the D92 evaluator. Foreign and IO expressions fall back to a temporary native probe; reload rolls back broken revisions. [Current implementation](#current-implementation) records the remaining limits.
+<span class="support-tag support-tag--current">Current</span> **`cinch repl` starts an interactive session.** In a terminal it runs a full-screen frontend; with standard input or standard output redirected it runs a plain line loop. Both drive the same session object, keep declarations across inputs, and check expressions with the compiler's own rules.
 
-The REPL is an interactive Cinch session. Enter an expression to inspect its value and type, add declarations to use in later inputs, or load a project and explore its exported functions. It uses the compiler's analysis layer, so signatures, instances, effects, refinements, and ownership follow the same rules as source files.
-
-# Start a session
-
-Start from the directory containing your project:
+Use a session to try an expression, to find out what a function's signature actually is, or to check a declaration before committing it to a file. Start it from the directory that holds the project:
 
 ```sh
 cinch repl
 ```
 
-The working directory establishes the session's project root. Source files and their imports are resolved using the compiler's module rules. Starting a REPL does not install dependencies or download packages.
+The working directory is the session's project root. Sources and imports resolve with the same module rules the command-line compiler uses. A session does not install packages or download anything.
 
-# Terminal and piped sessions
+# Which frontend you get
 
-When both standard input and standard output are terminals, `cinch repl` starts the full-screen frontend. It uses raw mode, the alternate screen, and bracketed paste, and restores the terminal on exit or panic. The terminal must support those controls; the frontend is not a fallback for a line-only console.
-
-When either stream is redirected, `cinch repl` keeps the same session loop but prints no prompts and uses no alternate screen. This mode is useful for scripted transcripts and tests:
+`cinch::repl::run` chooses once, at startup:
 
 ```sh
-printf '1 + 2\n:quit\n' | cinch repl
+if stdin.is_terminal() && stdout.is_terminal() {
+    repl_tui::run()   // full-screen
+} else {
+    run_with_root(current_dir, stdin, stdout, false)   // plain line loop
+}
 ```
 
-```text
-3 :: Int
+Two consequences are worth knowing before you pipe anything:
+
+- The plain loop is chosen when either stream is redirected, not only when input is. `cinch repl > log.txt` gives the line loop.
+- The loop runs with `interactive: false`, so it prints no banner and no prompts. The prompt strings `cinch> ` and `...> ` exist in the source only for the `interactive: true` path, which `cinch repl` never selects. A piped transcript is bare output.
+
+The plain loop reads one line per call, evaluates it, writes any output, and continues. End of input ends the session. A normal session exits 0; a startup failure exits 1.
+
+# A recorded session
+
+Definitions, expressions, multi-line input, and the query commands, in one run:
+
+```sh
+printf 'x :: Int\nx = 5\nx + 2\ndouble :: Int -> Int\ndouble n = n + n\ndouble 21\nresult = if True then\n  10 else 20\nresult\ntotal = (1 +\n  2) * 3\ntotal\ndata Colour where { Red :: Colour; Green :: Colour }\n:type double\n:type x + 2\n:kind Colour\n:browse\n:history\n:help\n1 + True\n:quit\n' | cinch repl
 ```
 
-Piped input has no line editing or completion popup. Each line is submitted as it arrives, and an unfinished block continues on later lines exactly as in the terminal. End-of-input ends the session. The process exits 0 after a normal session; a startup failure exits 1.
-
-In the following **illustrative transcript**, `cinch>` is the input prompt and `...>` is a continuation prompt. Neither is part of Cinch source. Output wording and prompt spelling may change.
+The process printed exactly this, with no prompts:
 
 ```text
-cinch> 1 + 2
-3 :: Int
-cinch> x :: Int
 noted x (add its definition)
-cinch> x = 5
 defined x :: Int
-cinch> x + 2
 7 :: Int
-cinch> :type x + 2
-Int
-cinch> :quit
-```
-
-Evaluation shows a value and its type when the evaluator can produce a printable result. Type checking and evaluation are distinct outcomes: an accepted type does not guarantee that the interactive evaluator supports the expression's runtime operations. A refusal should explain that limit without presenting a type as a computed value.
-
-# Expressions and declarations
-
-An expression evaluates against the accepted declarations and imports in the current session. An expression result does not implicitly introduce a reusable name; give a result an explicit binding if you need it later.
-
-Declarations extend the session. A signature can be entered before its defining equation, or both can be submitted as one block. The signature is pending until its definition arrives. Prefer explicit signatures for polymorphic functions, constrained definitions, effects, and dependent types; the REPL is not an alternative set of inference rules.
-
-```text
-cinch> double :: Int -> Int
 noted double (add its definition)
-cinch> double n = n + n
-defined double :: Int -> Int
-cinch> double 21
+defined double :: (Int -> Int)
 42 :: Int
+defined result :: Int
+10 :: Int
+defined total :: Int
+9 :: Int
+defined Colour :: Type
+defined Green :: Colour
+defined Red :: Colour
+(Int -> Int)
+Int
+Colour :: Type
+Colour :: type Colour :: data
+Green :: Colour
+Red :: Colour
+double :: (Int -> Int)
+result :: Int
+total :: Int
+x :: Int
+1: x :: Int
+2: x = 5
+3: x + 2
+4: double :: Int -> Int
+5: double n = n + n
+6: double 21
+7: result = if True then
+8:   10 else 20
+9: result
+10: total = (1 +
+11:   2) * 3
+12: total
+13: data Colour where { Red :: Colour; Green :: Colour }
+14: :type double
+15: :type x + 2
+16: :kind Colour
+17: :browse
+18: :history
+:type <expr>, :kind <type>, :browse [module], :load <file>, :reload, :history, :quit
+error: no instance for Add Bool
+  at 1:3
+  1 + True
+    ^
 ```
 
-Convenient inference for simple bare equations is intended to remain available. Where the checker cannot synthesize a stable surface signature, supply one rather than relying on a hidden metavariable or an ambiguous constraint.
-
-Ordinary duplicate-definition and scope rules still apply. A fresh session is the reliable way to discard exploratory declarations. Rebinding a name must not silently change the meaning of earlier checked declarations or leave their dependent evidence stale.
-
-# Multiline input and terminal editing
-
-An unfinished expression continues at the next prompt. Indentation within the input remains meaningful.
+Here is the same run with each input above its output. The `>` markers are this page's convention for an input line; the REPL printed none of them. The `:history` listing is shortened to its first and last entry here, and appears in full in the block above.
 
 ```text
-cinch> result = if True then
-...>   10 else 20
+> x :: Int
+noted x (add its definition)
+> x = 5
+defined x :: Int
+> x + 2
+7 :: Int
+> double :: Int -> Int
+noted double (add its definition)
+> double n = n + n
+defined double :: (Int -> Int)
+> double 21
+42 :: Int
+> result = if True then
+>   10 else 20
 defined result :: Int
-cinch> result
+> result
 10 :: Int
-cinch> total = (1 +
-...>   2) * 3
+> total = (1 +
+>   2) * 3
 defined total :: Int
-cinch> total
+> total
+9 :: Int
+> data Colour where { Red :: Colour; Green :: Colour }
+defined Colour :: Type
+defined Green :: Colour
+defined Red :: Colour
+> :type double
+(Int -> Int)
+> :type x + 2
+Int
+> :kind Colour
+Colour :: Type
+> :browse
+Colour :: type Colour :: data
+Green :: Colour
+Red :: Colour
+double :: (Int -> Int)
+result :: Int
+total :: Int
+x :: Int
+> :history
+1: x :: Int
+...
+18: :history
+> :help
+:type <expr>, :kind <type>, :browse [module], :load <file>, :reload, :history, :quit
+> 1 + True
+error: no instance for Add Bool
+  at 1:3
+  1 + True
+    ^
+```
+
+# Definitions and expressions
+
+Three outcomes, and the first word tells you which one happened:
+
+| Output | Meaning |
+| --- | --- |
+| `defined NAME :: TYPE` | The declaration was accepted and is now part of the session. |
+| `noted NAME (add its definition)` | A signature was recorded and is waiting for its equation. |
+| `VALUE :: TYPE` | An expression was evaluated. Nothing was bound. |
+| `error: ...` | The input was rejected. Nothing was bound. |
+
+A signature may lead its equation or arrive with it. A lone signature stays pending; the equation completes it. Give an explicit signature when the definition is polymorphic, constrained, effectful, or dependent, since the session has the same signature discipline as a file rather than a weaker one.
+
+Rendered schemes appear in parentheses: `defined double :: (Int -> Int)`, where a file's own signature would read `double :: Int -> Int`. A monomorphic binding renders without them (`defined x :: Int`). The parentheses come from the rendered scheme form, so do not copy them into a declaration.
+
+An expression does not create a reusable name. `x + 2` prints `7 :: Int`; to keep the result, bind it.
+
+The same declarations as a file, which is where they belong once they matter beyond one session:
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+
+double :: Int -> Int
+double n = n + n
+
+main :: Int
+main = double 21 - 42
+```
+
+`cinch run Main.cinch` accepts it and exits 0. Nothing in the session is required for the file form, and the file form is what `cinch check` and `cinch run` can reproduce later.
+
+# Multi-line input
+
+A block continues while it is unfinished. The test is lexical: an unclosed `(` `[` `{` `|]` or `"`, or a last significant token that cannot end a declaration, such as `where`, `of`, `do`, `then`, `else`, `in`, `=`, `->`, `=>`, `<-`, `,`, `|`, a type or term operator, `forall`, `using`, `let`, `letrec`, or `if`.
+
+Two continuations from the recorded session:
+
+```text
+result = if True then
+  10 else 20
+```
+
+```text
+total = (1 +
+  2) * 3
+```
+
+Indentation inside the block keeps its meaning. The continuation decision is made after each line, so a block that becomes complete early commits early. A `data` declaration with several constructors is the case to watch:
+
+```text
+data Colour where
+  Red :: Colour
+  Green :: Colour
+```
+
+```text
+defined Colour :: Type
+defined Red :: Colour
+error: unknown name Green
+  at 1:1
+  Green :: Colour
+  ^
+```
+
+The first two lines form a complete declaration, so the third arrives as a new input. Write the declaration on one line with explicit blocks, which is what the recorded session does:
+
+```text
+data Colour where { Red :: Colour; Green :: Colour }
+```
+
+In the full-screen frontend, a paste inserts the newlines into the input buffer and `Enter` submits the whole buffer, so a multi-constructor block pasted from a file submits as one input.
+
+# Commands
+
+A command starts with `:` at a fresh prompt. Its argument is Cinch source or a module name, not a shell command.
+
+| Command | Aliases | Meaning |
+| --- | --- | --- |
+| `:type EXPR` | `:t` | Elaborate an expression and print its type scheme, or its diagnostic. |
+| `:kind NAME` | `:k` | Print the kind of a type constructor or class. |
+| `:browse` | `:b` | List names and schemes from the session and the loaded modules. |
+| `:browse MODULE` | `:b MODULE` | Restrict the listing to one module. |
+| `:load FILE` | `:l FILE` | Load a source project into the session. |
+| `:reload` | `:r` | Read the loaded sources again and recheck them. |
+| `:history` | `:hist` | List this session's inputs with entry numbers. |
+| `:help` | `:h` | Print the command line. |
+| `:quit` | `:q` | End the session. |
+
+The alias list is read from the dispatch in `compiler/src/repl.rs`. An unknown command prints `error: unknown command :frobnicate` and leaves the session usable:
+
+```text
+:frobnicate
+3 + 3
+```
+
+```text
+error: unknown command :frobnicate
+6 :: Int
+```
+
+A required argument that is missing prints a usage line rather than an error:
+
+```text
+:type
+:kind
+```
+
+```text
+usage: :type <expression>
+usage: :kind <type>
+```
+
+`:type` elaborates in the session's scope and does not start a native runtime probe, so asking for a type never executes a foreign call or an I/O action. `:type 1 + True` reports the same instance failure the expression would:
+
+```text
+error: no instance for Add Bool
+  at 1:3
+  1 + True
+    ^
+```
+
+`:kind` answers for a type declared in the session or in a loaded module, and the answer for a type constructor includes its declaration keyword:
+
+```text
+:kind Colour
+Colour :: Type
+```
+
+The listing for a polymorphic constructor keeps its arity. With `data Shape a where ...` in a loaded module, `:kind Shape` prints `Shape :: Type -> Type`. A prelude type name currently answers with a refusal rather than a kind:
+
+```text
+:kind List
+```
+
+```text
+error: no type or class named List
+```
+
+`:browse` collects the session's own definitions and every loaded module. After the project in the next section is loaded, `:browse Util` restricts the listing, and `:browse` of a module that is not loaded prints nothing:
+
+```text
+:browse Util
+```
+
+```text
+double :: (Int -> Int)
+```
+
+`:browse` is a type index, not a substitute for the [library reference](../library/00-index.md). A name appearing in a listing does not bypass the export and import rules of its module, because the listing only shows modules the session already loaded.
+
+# Loading and reloading a project
+
+With `Util.cinch` declaring `double :: Int -> Int` and `Main.cinch` importing it and declaring `quad n = double (double n)`:
+
+```text
+:load Main.cinch
+quad 21
+```
+
+```text
+loaded Main.cinch
+rechecked Main
+rechecked Util
+84 :: Int
+```
+
+The `rechecked` lines name what the update re-ran. After a load, expression probes reuse the checked closure, so a repeat expression does not recheck the project.
+
+Reload is transactional. Breaking `Util.cinch` and sending `:reload` in the same live session, then repeating the expression:
+
+```text
+:reload
+quad 21
+```
+
+```text
+error: reload failed; kept the previous checked session
+Util.cinch:4: type mismatch: expected String, got Int (in Util.cinch)
+84 :: Int
+```
+
+The evaluation after the failed reload still runs against the last checked revision. Repair the file and reload again:
+
+```text
+:reload
+```
+
+```text
+rechecked Main
+rechecked ReplSession
+rechecked Util
+```
+
+`ReplSession` is the session's own module, which is rechecked with the project because loaded entries are part of one source set. A load failure has the same shape:
+
+```text
+:load Missing.cinch
+```
+
+```text
+error: Missing.cinch: No such file or directory (os error 2); kept the previous checked session
+```
+
+When the previous session also fails to check, a third line says so. The run below loaded nothing first and then loaded a broken project:
+
+```text
+:load Main.cinch
+:reload
+quad 21
+```
+
+```text
+error: load failed; kept the previous checked session
+Util.cinch:4: type mismatch: expected String, got Int (in Util.cinch)
+error: reload failed; kept the previous checked session
+Util.cinch:4: type mismatch: expected String, got Int (in Util.cinch)
+error: previous session also fails: Util.cinch:4: type mismatch: expected String, got Int (in Util.cinch)
+error: unknown name quad
+  at 1:1
+  quad 21
+  ^
+```
+
+`:load` and `:reload` read source files. A library that only exists as a package still has to be materialized as source or as checked interfaces first; loading a module is not a remote install.
+
+# History and help
+
+`:history` numbers every input, including commands and rejected inputs, so it is a record of what you typed rather than of what succeeded. The numbers match the recorded session above: entry 17 is `:browse` and entry 18 is `:history` itself.
+
+`:help` prints one line, and it does not list itself:
+
+```text
+:type <expr>, :kind <type>, :browse [module], :load <file>, :reload, :history, :quit
+```
+
+History is in memory for one process. There is no on-disk history file and no replay command.
+
+# Failures and recovery
+
+A rejected input prints the message, the position, the offending source line, and a caret:
+
+```text
+error: integer literal cannot have type Bool
+  at 1:1
+  9
+  ^
+```
+
+The position is relative to the submitted block, not to the session as a whole.
+
+One behaviour to know before you spend time on a confusing second error: after a failed input, the session's literal defaulting state can keep a constraint the failure introduced. The run below sends only two lines:
+
+```text
+1 + True
+9
+```
+
+```text
+error: no instance for Add Bool
+  at 1:3
+  1 + True
+    ^
+error: integer literal cannot have type Bool
+  at 1:1
+  9
+  ^
+```
+
+`9` is valid on its own. Start a fresh session after a failure of that shape while the session is under development; the failure does not otherwise corrupt accepted declarations, and an unrelated name error leaves later inputs working:
+
+```text
+nope
+9
+```
+
+```text
+error: unknown name nope
+  at 1:1
+  nope
+  ^
 9 :: Int
 ```
 
-The terminal frontend accepts a pasted declaration block as one submission, including signatures, equations, and local `where` declarations. A data declaration with several constructors must be checked as a complete block, rather than committing after the first constructor and treating the rest as unrelated input. Explicit block delimiters and indentation retain their normal language meanings.
+# The full-screen frontend
 
-At a fresh prompt, completion includes visible session, imported, and prelude names; after `:`, it offers session commands. Completion helps enter a name and does not make an otherwise out-of-scope name available.
+Everything in this section is read from `compiler/src/repl_tui.rs`. The recorded sessions above exercised the line loop, not the terminal frontend, so treat the layout and key table as a description of the code rather than as output you have seen on this page.
 
-The full-screen frontend provides line editing, history, paste, Tab completion, and syntax highlighting. Its key bindings are:
+Startup takes the terminal: raw mode, the alternate screen, and bracketed paste. All three are undone on exit and after a panic.
+
+The screen is five vertical bands:
+
+| Band | Height | Contents |
+| --- | --- | --- |
+| header | 3 rows | `cinch / interactive`, the session root path, and a status dot with `ready` or `error` plus a definition count |
+| body | fills | transcript on the left, `Session` sidebar 34 columns wide on the right |
+| input | 3 to 8 rows | the editor, titled `Input`, with `cinch> ` or `...> ` in the first line |
+| completion | 0 or 2 to 8 rows | the `Complete` popup, one row per candidate up to 6, shown only while completing |
+| status | 1 row | the key hint line |
+
+The transcript colours its own output by prefix: a line starting with `error` is red, `defined`, `loaded`, and `rechecked` are green, `noted` is yellow. Input lines and their results are syntax coloured with the tree-sitter token classes from `compiler/src/highlight.rs`, the same classification the generated documentation uses.
+
+The sidebar lists accepted bindings with their schemes, or `No definitions yet.`, then a `Commands` list naming `:type expr`, `:kind Type`, `:browse [module]`, `:load file`, `:reload`, `:history`, `:help`, and `:quit`.
+
+The status line reads:
+
+```text
+ Enter run · Tab complete · ↑↓ history · Ctrl+J newline · Ctrl+C clear · Ctrl+D quit
+```
+
+Key bindings, from the handler:
 
 | Key | Action |
 | --- | --- |
-| `Enter` | Submit the input, or accept the highlighted completion |
-| `Ctrl+J`, `Alt+Enter` | Insert a newline |
-| `Tab`, `Shift+Tab` | Complete; cycle completion candidates |
-| `Up`, `Down` | History, or cycle completion candidates |
+| `Enter` | Submit the buffer, or accept the highlighted completion |
+| `Alt+Enter`, `Ctrl+J` | Insert a newline |
+| `Tab`, `Shift+Tab` | Start completion, or cycle candidates forward and backward |
+| `Up`, `Down` | History when no completion popup is open; otherwise cycle candidates |
+| `Esc` | Close the completion popup |
 | `Left`, `Right`, `Home`, `End` | Move the input cursor |
-| `PageUp`, `PageDown` | Scroll the transcript |
-| `Ctrl+L` | Clear the transcript |
-| `Ctrl+C` | Discard pending input and any unfinished block; at an empty prompt, quit |
+| `Ctrl+A`, `Ctrl+E` | Move to the start or the end of the input |
+| `Ctrl+U` | Clear the input |
+| `Backspace`, `Delete` | Delete before or at the cursor |
+| `PageUp`, `PageDown` | Scroll the transcript by 8 lines |
+| `Ctrl+L` | Clear the transcript and reset the scroll |
+| `Ctrl+C` | With empty input and no continuation, quit; otherwise discard the pending input and any unfinished block |
 | `Ctrl+D` | Quit |
 
-Evaluation is synchronous. `Ctrl+C` cancels pending input, not a check or evaluation already running.
+Completion replaces the current word from `Repl::complete`. One candidate is inserted directly; several open the popup, which shows at most 6 at a time and applies the selected candidate to the input as you cycle. After `:` the candidates are the command names; otherwise they are session, imported, and prelude names.
 
-# Command reference
+Evaluation is synchronous. The event loop polls for 250 ms, then handles one event, and an evaluation runs to completion before the next draw. `Ctrl+C` therefore discards pending input rather than interrupting a check or a native probe already running.
 
-Commands start with `:` at a fresh prompt. Their arguments are not shell commands. Enter `:help` to inspect the commands supported by the running version.
+# The session behind the frontend
 
-| Command | Alias | Meaning |
-| --- | --- | --- |
-| `:type expression` | `:t` | Elaborate an expression in the session and display its type scheme, or its diagnostic. |
-| `:kind name` | `:k` | Display the kind of a named type constructor or class, such as `List`. |
-| `:browse` | `:b` | List names and their type schemes from the session and known modules. |
-| `:browse Module` | `:b Module` | Restrict the listing to a named module. |
-| `:load file.cinch` | `:l file.cinch` | Load a source project and make the loaded modules available to the session. |
-| `:reload` | `:r` | Read loaded sources again and recheck the affected project. |
-| `:history` | `:hist` | Display this session's submitted inputs with entry numbers. |
-| `:help` | `:h` | Display command help. |
-| `:quit` | `:q` | End the session. |
+`cinch::repl::Repl` is the session object both frontends use:
 
-An omitted required argument should produce usage information. An unknown command produces a diagnostic and leaves the session usable. These commands and aliases are available in the terminal frontend.
-
-## Inspect types and kinds
-
-```text
-cinch> :type double
-Int -> Int
-cinch> :kind List
-List :: Type -> Type
-```
-
-Type queries use the session's imports and instance environment. An unresolved name, ambiguous instance, or unmet proof obligation remains an error. `:kind` takes a type or class name; arbitrary type-expression queries are not part of this command's current API contract.
-
-`:type` uses the shared probe and does not start a native runtime probe, so asking for a type never executes a foreign or IO action. The D92 probe may reduce pure expressions while elaborating them; that is checking work, not an effectful run.
-
-## Browse names
-
-Use `:browse` to discover a loaded function's actual signature before calling it. A module listing is a type-oriented index, not a replacement for the [library reference](../library/00-index.md), which also explains declarations and dependencies. Seeing a name in a known module's listing does not bypass that module's export/import rules.
-
-## Load and reload a project
-
-Suppose `Util.cinch` contains a module `Util` exporting `double :: Int -> Int`, and `Main.cinch` imports it and exports `quad :: Int -> Int`, where `quad n = double (double n)`.
-
-```text
-cinch> :load Main.cinch
-loaded Main.cinch
-rechecked Util
-rechecked Main
-cinch> quad 21
-84 :: Int
-cinch> :reload
-rechecked Util
-rechecked Main
-```
-
-The transcript illustrates the workflow; the actual affected set depends on the files and dependency changes. Loading follows source module identities and imports. A source-distributed library still needs its files available locally; loading a module is not a remote package installation operation. `:load` is transactional too: a missing import, parse error, or check error restores the previous workspace instead of leaving a partial project loaded. The prepared session covers the loaded project's whole checked closure, not only the prelude. After a successful load, expression probes reuse those modules without rechecking them. A package from the registry still has to be materialized as source or checked interfaces first; the current CLI does not fetch remote packages.
-
-Reload is transactional. If the new revision has a type error, a broken import edge, or a missing loaded source, `:reload` reports the failure and restores the previous in-memory revision instead of leaving the session on a half-replaced interface chain. Evaluation continues against the last coherent project until the source is repaired and reloaded.
-
-For larger experiments, move declarations into a source module and reload it. That makes imports, signatures, and dependencies reproducible outside the session. Use [`cinch check`](01-using-the-compiler.md) to check the saved program and `cinch run` to exercise its native runtime path.
-
-## History
-
-History records submitted inputs, including commands and unsuccessful submissions. It is useful for retrieving an expression, not evidence that every entry checked or ran successfully. History is separate from the accepted declaration environment.
-
-The current API keeps history in memory. Cross-session persistence, replay commands, and an on-disk history location are not established interfaces. A future persistent history facility needs explicit treatment of sensitive input; this guide does not invent a storage path or promise automatic persistence.
-
-# Effects, ownership, and evaluation
-
-The REPL must retain normal Cinch checking rules. An effectful expression needs its effect row, capability supply, and permitted execution context. A linear resource cannot become reusable just because it was entered at a prompt. Refinement evidence must remain attached to the values and assumptions that justified it, and must be invalidated when those assumptions change.
-
-Evaluation starts with the compiler's D92 evaluator. When that evaluator cannot run a construct because it needs target code (a foreign import, an I/O operation, or a runtime-only value), the REPL writes a temporary `ReplProbe` program, copies the loaded project sources, and runs the project through the same native compiler. The native probe has a 60 second timeout and does not inherit the terminal's stdin, so a probe that needs input sees end-of-input. It runs with the project root as its working directory, so a relative filesystem path in a probe means the project, not the temporary probe directory. Imports accepted in the session are imported into the probe as well.
-
-The probe prints the result when the type has an obvious printer: `Int`, `Nat`, `Bool`, `Char`, `String`, `Unit`, and `Bytes`. Other result types report `<value>` after running, because the REPL will not invent a `Show` instance; a must-use result is discarded with `ignore`. An effectful action still needs its capability, exactly as in a compiled program; supply it lexically with `with (io = ...) in ...`. Asking for a type with `:type` does not execute the expression.
-
-Runtime-backed evaluation is deliberately bounded. It does not yet cover arbitrary effect capabilities, interactive stdin, or interruption of a running probe; use `cinch run` for a broader runtime workflow. Support for a construct in the compiler does not by itself establish support for evaluating it interactively.
-
-# Errors and recovery
-
-A failed input should show its source location, the relevant input, and the checker or evaluator's explanation. A rejected declaration does not become an accepted session binding. After a pending signature and an invalid equation, a corrected equation can still complete the definition.
-
-When diagnosing a failure, separate three cases:
-
-| Failure | Next step |
+| Call | Effect |
 | --- | --- |
-| The input has a syntax, type, effect, ownership, or proof error. | Correct the input using the same rules as a source file. |
-| A loaded module fails. | Fix the named file or import, then reload. |
-| The expression checks but the native probe also fails. | Read the probe diagnostic; save a small program and use `cinch run` for a broader runtime workflow. |
+| `Repl::with_root(path)` | A session rooted at a directory |
+| `Repl::with_compiler(root, binary)` | The same, with an explicit executable for native probes |
+| `eval(&str)` | Submit one input; returns `ReplOutcome` |
+| `complete(partial)` | Completion candidates for a prefix |
+| `history()` | The inputs submitted so far |
+| `session_source()` | The accumulated session module as source text |
+| `abort_pending()` | Drop an unfinished block |
+| `analysis()` | The shared analysis layer |
 
-Include the compiler revision, minimal sequence of inputs, required source files, and complete diagnostic when reporting a session bug. See [diagnostics](21-editors-and-diagnostics.md) for phase-specific checks.
+`ReplOutcome` is `Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input and is not a successful declaration. A frontend that ignores it will report a half-typed block as an error.
 
 # Current implementation
 
 | Surface | Present boundary |
 | --- | --- |
-| `cinch repl` and terminal UI | **Available.** Full-screen ratatui frontend with transcript, session sidebar, input editor, completion popup, history, and tree-sitter token colours. Piped stdin uses a plain line loop. |
-| Stateful session | **Available.** `cinch::repl::Repl` retains declarations, pending input, imports, and in-memory history. |
-| Commands | The command table above is available in the terminal frontend. |
-| Checking and pure expression evaluation | Implemented through shared analysis and the D92 evaluator, within that evaluator's admitted subset. |
-| Completion | `Tab` cycles session, imported, prelude, and `:` command names. |
-| Runtime-backed evaluation | **Available for target-code probes.** D92 is the fast path; foreign/IO/runtime-only expressions fall back to a temporary native `ReplProbe` with a 60 second timeout and project source copy. |
-| Project reload | **Transactional.** A broken or missing revision is rejected and the previous checked revision is restored. |
-| Complete project/runtime session | **Partial.** Arbitrary effect capabilities, interactive stdin, full value printers for every ADT, and interruption of a running probe remain ahead. |
+| `cinch repl` and the terminal frontend | **Available.** Full-screen frontend with transcript, session sidebar, input editor, completion popup, history, and token colours. Redirected streams use the plain line loop. |
+| Session state | **Available.** Declarations, pending signatures, imports, and in-memory history persist for the process. |
+| Queries | **Available.** `:type`, `:kind`, `:browse`, `:history`, `:help` behave as recorded above; `:kind` refuses prelude type names. |
+| Project load and reload | **Available and transactional.** A broken, missing, or failing revision is rejected and the previous checked revision stays live. |
+| Expression evaluation | **Available** through the compiler's evaluator, with a native probe for constructs that need target code. |
+| Completion | **Available** over session, imported, prelude, and command names. |
+| Literal defaulting after a failure | **Partial.** A failed input can leave a constraint that rejects later numeric literals; start a fresh session. |
+| Cross-session history and replay | **Not implemented.** History is in memory for one process. |
+| Interrupting a running probe | **Not implemented.** `Ctrl+C` cancels pending input only. |
 
-`cinch repl` is the terminal adapter. Frontend authors can also create `Repl::with_root(path)` and feed submissions to `eval(&str)`; `Repl::with_compiler(root, cinch_binary)` selects the executable used by runtime probes. Its result is `ReplOutcome::Output(String)`, `Incomplete`, or `Quit`. `Incomplete` requests more input; it is not a successful declaration. The API also exposes `complete`, `history`, `session_source`, `abort_pending`, and `analysis`.
-
-Implementation: `compiler/src/repl.rs`, `compiler/src/analysis.rs`; behaviour suite: `compiler/tests/repl.rs`. The [language server guide](27-language-server.md) describes the other frontend sharing this analysis layer.
+Implementation: `compiler/src/repl.rs` and `compiler/src/repl_tui.rs`; behaviour suite: `compiler/tests/repl.rs`. The [language server guide](27-language-server.md) covers the other frontend that shares the same analysis layer, and [the compiler guide](01-using-the-compiler.md) covers saving a session's declarations to a file where `cinch check` and `cinch run` take over.
