@@ -52,6 +52,12 @@ The seven matching invocation receipts include CLI forwarding of space-containin
 and flag-like words. The built-program checks cover empty arguments.
 See [the process-argument audit](../bootstrap/current-abi7-combined-stage3-argv.json).
 
+The same run passed all 15 original array cases. Fourteen exercised the
+combined Stage 3, and the packed-word-width case used the reviewed Rust
+target API. The runtime checks include zero-leak array, tensor and
+columnar controls and three refusals for mismatched nominal layouts.
+See [the array replay audit](../bootstrap/current-abi7-combined-stage3-arrays.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.

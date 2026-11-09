@@ -1,0 +1,115 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-arrays",
+  "targets": {
+    "arrays": {
+      "cases": [
+        {
+          "name": "array_copy_evidence_depends_on_the_element_type",
+          "status": "passed"
+        },
+        {
+          "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+          "status": "passed"
+        },
+        {
+          "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+          "status": "passed"
+        },
+        {
+          "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+          "status": "passed"
+        },
+        {
+          "name": "arrays_keep_record_and_string_elements_alive",
+          "status": "passed"
+        },
+        {
+          "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
+          "status": "passed"
+        },
+        {
+          "name": "column_projection_returns_the_original_typed_buffers",
+          "status": "passed"
+        },
+        {
+          "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+          "status": "passed"
+        },
+        {
+          "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+          "status": "passed"
+        },
+        {
+          "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+          "status": "passed"
+        },
+        {
+          "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+          "status": "passed"
+        },
+        {
+          "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+          "status": "passed"
+        },
+        {
+          "name": "packed_scalars_roundtrip_through_generic_operations",
+          "status": "passed"
+        },
+        {
+          "name": "packed_word_storage_resolves_width_from_the_target",
+          "status": "passed"
+        },
+        {
+          "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "93779-0.json": "c9ed6e66a67769eb0b693d3c0cfc767f2daf827705ad98f1a1311ca4c49b42a8",
+        "93779-1.json": "3a90423f6d33c38bf32aa5fc6f80e8430bf526cf7f1419b1031ab61a6557205f",
+        "93779-10.json": "4e1cb8d07e968a968dd0ee110c2b656ed143a1b6805acad4ef6ab0864259fa43",
+        "93779-11.json": "3bdf00b065426b6322fd14bc689d89b27138c069df0b688d1c4f25097fc02909",
+        "93779-12.json": "14189ebf989871d690f1393c5d565d8c8e14cdb1af3be1e454d721e209c760e7",
+        "93779-13.json": "8ec587771dc696ab96aec5ebb28f1f4b8e5dfda4d3858e692ad5385c71a62a74",
+        "93779-14.json": "d97a130a73ac34b59cffc840391ab059711b63c0b3cb3136d693a7319e2f4f90",
+        "93779-15.json": "57b3d34a36560c662c5c765eae09b2ccb5a154d6791a4b83e5b3b5584d40e030",
+        "93779-16.json": "934fe804ae81968fb275641d002d906e2efe4e488db4148cbdad81a2f31fd8e0",
+        "93779-17.json": "af225e7e2ffabf1a0f2c8ed8e22d92df4d9ebf1a79c508f3158f6f29a522ebbd",
+        "93779-18.json": "fe81f0a7a07def0cb6f529ec97d98bd4a34a904d87b9614322e4658bf1769b44",
+        "93779-19.json": "abe61743bff6f7b5edabba8968256c5df8f238e38359f7ad2ca880523afc3ab1",
+        "93779-2.json": "2f1ec72bcd58c391a5681bb244fd5c54828a101b8c91e3fdf8af3aeea3f89eca",
+        "93779-20.json": "b0f62ad6e923cb01cac688904e5dd198d958536eb16491d66cd7128fb1b79f14",
+        "93779-21.json": "029c5676bd9c47e3930c05ebbd6e7671056fbca00978a4999f3540983b9e19b3",
+        "93779-22.json": "8ae29d25fd8d4b381a4dbd9f40a25e0dafacb1079dab9322a1c387c9ab35e990",
+        "93779-23.json": "0c2a495c4544a40348feea587267e27c6ae402bf36d04b18899e1bc464ef7eb9",
+        "93779-24.json": "46bc35a6acaf2cf870411596db220f9ab5ecf2946b14baa286e7641900e6ad7e",
+        "93779-25.json": "79db726ad815910d23315d23043a264954673cd79ba254efdecc84cd30547aa1",
+        "93779-3.json": "af33aac8d3fd5666b27026d653583819e5a7627d673d68831a67b2d603376e1c",
+        "93779-4.json": "90e522af08e1913455fe972aed60fa173d365873b504084bae742c2fb63b39ae",
+        "93779-5.json": "c26cbbcda562b8a82e012c4ea14ec36a65f41aa6a1ccf0bedb1f5b41a16182f1",
+        "93779-6.json": "52a89b331f5666236a2ecc4e5c416839e3a8993b8eca90a8b66ee1a4a0badcdc",
+        "93779-7.json": "bd37239bd1d807af10cc671e1cc81b1b43a0a1e1d9da9a7c26984aa1d33c8c7b",
+        "93779-8.json": "e7c21ba52e87efeecde81e5565edef8de446ba641c4f363a3bd4981159d82f39",
+        "93779-9.json": "3a60f76f5deb2e92d165b10fcb1e25a62162f02ccadcb0e198abf7a1c2e1837b"
+      },
+      "log_sha256": "153258058be25f15f8d8cfb9c6ae62c9ce5e0c8aea15c5253ac97cdb8a4f042b",
+      "native_assertions": {
+        "packed_word_storage_resolves_width_from_the_target": "Calls the Rust PrimOp width resolver with a synthetic 32-bit target. This case compiles no Cinch source."
+      },
+      "passed": 15,
+      "self_built_cases": 14,
+      "test_source_sha256": "ab015bfe0b53e2097a23b11b96dd51947bf9f9e54854b3ea83ca12203162a72c",
+      "total": 15
+    }
+  }
+}
