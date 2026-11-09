@@ -17906,24 +17906,24 @@
       },
       {
         "title": "Verify build manifests and original module tests in Rust and Cinch",
-        "source": "583d5159fe93d33d81ed7b3353830cbb066a97de873312ee87ba43a3ddce67f2",
+        "source": "833a0fdb8ff590cbd6857c93f459549479493c65331fd5bb398317d00ed4aa05",
         "unit": "checks",
         "passed": 4,
-        "failed": 1,
+        "failed": 0,
         "total": 7,
-        "status": "failed",
-        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 169:86: cannot determine the type of the scrutinee; add a type annotation (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-4/build/stage1/sources/Bootstrap.Pipeline.cinch)\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-4/build/stage1/build.log')",
+        "status": "running",
+        "phase": "build Cinch Stage 1 with the checked build manifest",
         "evidence": null
       },
       {
         "title": "Run all 236 Rust targets on the integrated candidate",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 8,
+        "passed": 10,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_nominals",
+        "phase": "evidence_invalidation",
         "evidence": null
       },
       {
@@ -20969,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:31:47.693472+00:00"
+  "updatedAt": "2026-11-09T01:32:50.420490+00:00"
 }
