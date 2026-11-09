@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations | syntax_index_evidence",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10253,9 +10253,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 14,
+          "blocked": 15,
           "running": 1,
-          "pending": 29,
+          "pending": 28,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11493,17 +11493,17 @@
           {
             "id": "additional:syntax_index_evidence",
             "title": "syntax_index_evidence",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "b2c19943d1e6b7ed18b8c2e5f540e186a1603e07a745e3b2238a8762b885039e",
               "cases": [
                 {
                   "name": "captured_index_applications_accept_available_dictionary_evidence",
@@ -11559,7 +11559,7 @@
                 },
                 {
                   "name": "index_applications_require_their_dictionary_even_outside_macros",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             }
@@ -11567,11 +11567,48 @@
           {
             "id": "additional:syntax_index_lambdas",
             "title": "syntax_index_lambdas",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "an_index_lambda_cannot_capture_an_existing_outer_subject_by_spelling",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_introduced_index_binder_cannot_retarget_an_outer_proof_goal",
+                  "status": "failed"
+                },
+                {
+                  "name": "index_lambda_annotations_are_checked_in_the_binders_scope",
+                  "status": "failed"
+                },
+                {
+                  "name": "index_lambda_binders_work_in_raw_and_captured_induction",
+                  "status": "failed"
+                },
+                {
+                  "name": "index_lambdas_cannot_discard_a_wrong_carrier_annotation",
+                  "status": "failed"
+                },
+                {
+                  "name": "index_lambdas_in_captured_type_annotations_retain_their_handles",
+                  "status": "failed"
+                },
+                {
+                  "name": "nested_captured_index_lambdas_keep_distinct_same_spelled_binders",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:syntax_lambdas",
@@ -15282,9 +15319,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 3,
+        "failed": 4,
         "status": "running",
-        "phase": "Replay original syntax_index_evidence target on Stage 3",
+        "phase": "Replay original syntax_index_lambdas target on Stage 3",
         "evidence": null
       },
       {
@@ -15653,9 +15690,9 @@
     ],
     "counts": {
       "verified": 311,
-      "blocked": 18,
+      "blocked": 19,
       "running": 4,
-      "pending": 452,
+      "pending": 451,
       "recheck": 21
     },
     "total": 806,
@@ -15664,5 +15701,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:19:48.118913+00:00"
+  "updatedAt": "2026-11-09T11:20:50.920736+00:00"
 }
