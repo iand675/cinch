@@ -17920,10 +17920,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 7,
-        "passed": 6,
+        "passed": 7,
         "failed": 0,
         "status": "running",
-        "phase": "Verify Stage 2 and Stage 3 agreement, smokes and changed-source rebuild",
+        "phase": "Replay laws with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-agreement.json"
       },
       {
@@ -21017,7 +21017,7 @@
         "total": 14,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
+        "status": "waiting-worker",
         "phase": "Await the combined Stage 3 fixed point.",
         "evidence": null
       },
@@ -21028,7 +21028,7 @@
         "total": 34,
         "passed": 0,
         "failed": 0,
-        "status": "checking-stage3-agreement",
+        "status": "waiting-shared-worker",
         "phase": "Await the combined Stage 3 fixed point.",
         "evidence": null
       },
@@ -21039,8 +21039,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21083,8 +21083,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21094,8 +21094,8 @@
         "total": 5,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21105,8 +21105,8 @@
         "total": 5,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21129,6 +21129,28 @@
         "failed": 1,
         "status": "failed",
         "phase": "AssertionError(\"AssertionError(('specific-llvm', 5, 'bootstrap.export: Main: public inline primitive needs a checked uniform-word object entry'))\")",
+        "evidence": null
+      },
+      {
+        "title": "Verify callable primitive objects and checked Rust and Cinch interfaces",
+        "source": "783fdb70d9515740c360e62f1c60b7be6c2943ecf6e024106c8750d140555e39",
+        "unit": "checks",
+        "total": 16,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for the codata validation to obtain a worker",
+        "evidence": null
+      },
+      {
+        "title": "Replay the original type-syntax component as one bundled project",
+        "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
+        "unit": "component",
+        "total": 1,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21233,5 +21255,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:43:42.545736+00:00"
+  "updatedAt": "2026-11-09T05:44:32.803651+00:00"
 }
