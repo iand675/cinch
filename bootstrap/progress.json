@@ -5300,6 +5300,22 @@
                 },
                 {
                   "name": "integer_match_without_catch_all_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "lambdas_capture_and_prelude_folds",
+                  "status": "passed"
+                },
+                {
+                  "name": "library_modules_check_without_an_entry_point",
+                  "status": "passed"
+                },
+                {
+                  "name": "list_literals_and_list_patterns",
+                  "status": "passed"
+                },
+                {
+                  "name": "literal_patterns_fall_through_in_source_order",
                   "status": "running"
                 }
               ]
@@ -13903,5 +13919,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:19:12.375761+00:00"
+  "updatedAt": "2026-11-09T09:20:16.481794+00:00"
 }
