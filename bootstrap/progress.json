@@ -14087,9 +14087,9 @@
         "unit": "checks and targets",
         "total": 9,
         "passed": 7,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay all original range_facts cases",
+        "phase": "Replay all original small_nats cases",
         "evidence": null
       },
       {
@@ -14271,5 +14271,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:40:02.911879+00:00"
+  "updatedAt": "2026-11-09T09:43:50.978874+00:00"
 }
