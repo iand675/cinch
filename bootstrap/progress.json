@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 24,
+          "verified": 25,
           "blocked": 2,
           "running": 1,
-          "pending": 209,
+          "pending": 208,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -3158,21 +3158,21 @@
           {
             "id": "native:bootstrap_abstract_nonzero_types",
             "title": "bootstrap_abstract_nonzero_types",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T11:09:25.644188+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T11:13:50.036342+00:00",
+              "exitCode": 0,
+              "logSha256": "a9c0db84decbcfce74cf02c88715c82d8c14acb2133815956503330a407c7727",
               "cases": [
                 {
                   "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -3180,11 +3180,24 @@
           {
             "id": "native:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T11:13:50.060238+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_argument_scopes",
@@ -11336,6 +11349,26 @@
                 },
                 {
                   "name": "direct_native_calls_validate_roles_messages_and_branch_shapes",
+                  "status": "failed"
+                },
+                {
+                  "name": "four_roles_three_branches_preserve_flat_order_and_zero_local_counters",
+                  "status": "failed"
+                },
+                {
+                  "name": "original_three_role_checkout_runs_both_branches_with_native_declarations",
+                  "status": "failed"
+                },
+                {
+                  "name": "self_messages_project_once_and_an_inactive_peer_keeps_zero_state",
+                  "status": "failed"
+                },
+                {
+                  "name": "tuple_constructors_first_used_during_staging_are_registered_again_for_runtime",
+                  "status": "failed"
+                },
+                {
+                  "name": "two_role_projection_choice_offer_and_private_constructor_control_execute",
                   "status": "running"
                 }
               ]
@@ -14942,10 +14975,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 24,
+        "passed": 25,
         "failed": 2,
         "status": "running",
-        "phase": "bootstrap_abstract_nonzero_types Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "bootstrap_anonymous_contracts Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -15351,7 +15384,7 @@
         "total": 10,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
+        "status": "running",
         "phase": "Build the exact Rust compiler and exercise the entropy success and fault paths",
         "evidence": null
       },
@@ -15456,10 +15489,10 @@
       }
     ],
     "counts": {
-      "verified": 310,
+      "verified": 311,
       "blocked": 15,
       "running": 4,
-      "pending": 456,
+      "pending": 455,
       "recheck": 21
     },
     "total": 806,
@@ -15468,5 +15501,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:13:28.435372+00:00"
+  "updatedAt": "2026-11-09T11:14:31.679833+00:00"
 }
