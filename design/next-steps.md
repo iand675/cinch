@@ -76,6 +76,13 @@ built a Cinch consumer for Rust-produced interfaces and passed all 18 original
 result, argument, projection, and refusal controls.
 See [the refinement consumer audit](../bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json).
 
+The merged codata and checked-import-index candidate cleared the clean Rust
+build and passed all 171 runtime and 52 tooling tests on its frozen inputs.
+The matching Rust compiler passed the original 18 recursive-binding and four
+tail-call tests. The full matching Rust inventory and Cinch bootstrap chain
+are still running.
+See [the matching Rust audit](../bootstrap/current-abi7-codata-index-opening-native-results.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.

@@ -1,0 +1,331 @@
+{
+  "acceptance_identity_sha256": "8fdee4afc9cb8878cbf6e96a6c4b5be1a5f8a56e9f6518923b2057d5267ff65c",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "native_compiler_sha256": "db8b598f52bd06ceb79011c2bec7d8205cf1fc2ad71d9d557628225ec7f828e3",
+  "native_inventory_total": 236,
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "native_targets": {
+    "letrec": {
+      "cases": [
+        {
+          "name": "eager_call_cycle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "eager_cycle_is_rejected_naming_the_variable",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_cycle_runs",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_value_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_lambda_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_value_scope_releases_every_iteration",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_can_store_a_closure_before_its_capture_is_initialized",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_group_of_functions_and_values",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_local_function_recurses",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_mutual_recursion",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_rejects_reordering_mutable_accesses",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_strict_forward_dependencies_run",
+          "status": "passed"
+        },
+        {
+          "name": "multi_binding_let_group",
+          "status": "passed"
+        },
+        {
+          "name": "nested_let_depth_limit_is_a_named_diagnostic",
+          "status": "passed"
+        },
+        {
+          "name": "reading_a_knot_while_it_initializes_faults",
+          "status": "passed"
+        },
+        {
+          "name": "recursive_value_cannot_escape_its_region",
+          "status": "passed"
+        },
+        {
+          "name": "value_knot_read_under_a_lambda_yields_the_value",
+          "status": "passed"
+        },
+        {
+          "name": "values_independent_of_the_knot_can_escape",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "461458d33bee55567c3bb2ecc5e46bb3b9edd19e97acc7601e5674e2dc2e76a3",
+      "source_sha256": "82e2cdf3e3f9a55a332ea25deb5a3163213735ce327e5a01ded29312182f8d96"
+    },
+    "tail_calls": {
+      "cases": [
+        {
+          "name": "deep_recursion_without_a_tail_call_exhausts_the_stack",
+          "status": "passed"
+        },
+        {
+          "name": "mixed_arity_mutual_tail_recursion_runs_a_million_deep_in_constant_stack",
+          "status": "passed"
+        },
+        {
+          "name": "mutual_tail_recursion_runs_a_million_deep_in_constant_stack",
+          "status": "passed"
+        },
+        {
+          "name": "self_tail_recursion_runs_a_million_deep_in_constant_stack",
+          "status": "passed"
+        }
+      ],
+      "log_sha256": "036e220bb7c8e469cdfa971feb3f09e4f77c51aa59f81e81082187566ed90801",
+      "source_sha256": "674d927322c2aee1b3e8f36efc5a766154fe9a8cf6a604a6177139399a13ce81"
+    }
+  },
+  "prerequisite_log_sha256": {
+    "clean-native-build": "885700b9d5623bbb33e2c1a8a112c5c4202d957d8d76263078fa3f9c445809c4",
+    "complete-runtime-suite": "d0f5d3d66c686debb19c4cac8f08b52a4dcc4cbdd54ecf153e12bbcef1d888f8",
+    "complete-tooling-suite": "73d6d7c65a9786b06fd941acd0dee8aa19b080f27769f84d8ed22358c2744d65",
+    "runtime-debug-archive": "2b0f2cc66ab796292651ca143c60ec411055f49258d880d3199380481a11a5b3",
+    "runtime-release-archive": "ebfb06e4b440dc1c7015818c9d2aa710dc9e7e3e8236ec6a1e372ff7db3e0ff4"
+  },
+  "runtime_tests": 171,
+  "source_snapshot_sha256": "2a918d41f8db15a08ce310f389c11b3c98c3fa59588e14345e98ed4d988131d9",
+  "status": "audited-opening-matching-native-results",
+  "target_inventory_sha256": "139b83cb2a55c1ab4b31c6814311888f4e32b9dde7526349d0bdea5f88fc0eb5",
+  "tooling_tests": [
+    {
+      "name": "test_base_interfaces_cannot_stand_in_for_compiler_fixed_point_contracts (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_base_manifest_excludes_compiler_sources_and_verifies_artifacts (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_cache_rechecks_outputs_and_inputs (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_exit_zero_without_compiler_is_not_a_successful_stage (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_fixed_point_requires_matching_executables (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_heap_caps_are_preserved_and_never_disabled_or_raised (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_link_failure_is_visible_even_when_frontend_diagnostics_are_empty (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_linker_success_without_a_runnable_compiler_is_a_failed_stage (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_runtime_abi_preparation_is_exact_and_part_of_source_identity (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_seed_archive_cannot_escape_snapshot_or_add_links (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_seed_built_compiler_also_requires_its_frozen_source_bundle (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_seed_runtime_failure_cannot_fall_back_to_a_debug_archive (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_seed_stage_imports_every_bundled_compiler_module (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_self_build_requires_ir_and_report_as_well_as_executable (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_source_identity_includes_names_and_bytes (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage1_cache_is_invalidated_when_its_seed_runtime_changes (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage1_releases_seed_ir_after_a_verified_link (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage_commands_keep_build_and_test_workers_serial (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_successful_link_with_a_broken_compiler_entry_is_not_built (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_typed_refusal_never_calls_a_linker_or_falls_back_to_native (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_typed_self_build_uses_only_cinch_then_links_and_checks_the_compiler_entry (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_unchanged_compiler_behavior_cannot_pass_the_changed_source_gate (test_bootstrap.BootstrapContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_actual_writer_contract_and_closed_chain_pass (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_dependency_changes_cannot_be_hidden_by_stable_output (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_final_consumer_uses_self_built_compiler_and_emitted_contracts (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_instance_metadata_uses_the_writer_encoding (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_noncanonical_and_duplicate_key_documents_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_placeholder_and_malformed_contracts_are_rejected (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_record_field_labels_match_constructor_contract (test_bootstrap_interfaces.CompilerInterfaceGate)",
+      "status": "passed"
+    },
+    {
+      "name": "test_actual_generated_primitive_and_tuple_units_are_library_dependencies (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_compiler_contract_or_unit_cannot_hide_in_the_library_closure (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_demands_are_actual_concrete_vectors_and_defining_identities (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_old_provider_cannot_change_the_compiler_target_abi (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_source_pin_is_checked_even_for_an_existing_snapshot (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_unsupported_library_abi_is_rejected_before_a_native_command (test_bootstrap_objects.LibraryProviderContract)",
+      "status": "passed"
+    },
+    {
+      "name": "test_audit_rejects_mutation_and_new_source_files (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_build_caches_and_brand_assets_are_not_source_inputs (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_compiler_and_runtime_use_distinct_private_cargo_targets (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_copied_inputs_do_not_follow_live_file_links (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_directory_link_cycles_are_rejected (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_directory_links_cannot_capture_outside_the_source_tree (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_existing_cache_directory_cannot_be_reused_as_fresh_evidence (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_internal_directory_links_are_copied_as_frozen_directories (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage3_adapter_links_the_library_and_runtime_from_its_paths (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage3_counts_reviewed_rust_assertions_only_on_the_exact_test_source (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage3_gate_requires_a_selected_invocation_in_every_portable_target (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_stage3_preflights_the_source_of_reviewed_rust_assertions (test_verify_bootstrap.FrozenVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_empty_skipped_and_failed_runs_cannot_report_complete_success (test_verify_malleable.CompleteExperimentVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_frozen_experiment_inputs_detect_later_changes (test_verify_malleable.CompleteExperimentVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_generated_experiment_files_do_not_change_input_identity (test_verify_malleable.CompleteExperimentVerification)",
+      "status": "passed"
+    },
+    {
+      "name": "test_syntax_gate_uses_the_preceding_frozen_compiler_build (test_verify_malleable.CompleteExperimentVerification)",
+      "status": "passed"
+    }
+  ]
+}
