@@ -4779,10 +4779,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 5,
+          "verified": 7,
           "blocked": 1,
           "running": 1,
-          "pending": 155,
+          "pending": 153,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5174,17 +5174,17 @@
           {
             "id": "stage3:class_defaults",
             "title": "class_defaults",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "9e5e91bee8d568843091469d9152c8d2a3bfb8dbc2acb30a4ba8f0f7e42a96d8",
               "cases": [
                 {
                   "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
@@ -5212,7 +5212,7 @@
                 },
                 {
                   "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -5220,20 +5220,58 @@
           {
             "id": "stage3:fixity_interfaces",
             "title": "fixity_interfaces",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "f57f21640e428acdc2d1245f7df83645a9ce62d8a6f8cad1d71d90368a26954a",
+              "cases": [
+                {
+                  "name": "imported_fixity_parses_in_a_single_source_program",
+                  "status": "passed"
+                },
+                {
+                  "name": "project_consumer_parses_imported_operator_and_iface_records_it",
+                  "status": "passed"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:integration",
             "title": "integration",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "arithmetic_through_class_methods",
+                  "status": "passed"
+                },
+                {
+                  "name": "case_guards_fall_through_to_later_rows",
+                  "status": "passed"
+                },
+                {
+                  "name": "constructor_from_another_type_is_rejected",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:guard_coverage",
@@ -13285,10 +13323,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 5,
+        "passed": 7,
         "failed": 1,
         "status": "running",
-        "phase": "Replay class_defaults with the combined Stage 3",
+        "phase": "Replay integration with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13821,10 +13859,10 @@
       }
     ],
     "counts": {
-      "verified": 291,
+      "verified": 293,
       "blocked": 2,
       "running": 3,
-      "pending": 486,
+      "pending": 484,
       "recheck": 21
     },
     "total": 803,
@@ -13833,5 +13871,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:16:01.855967+00:00"
+  "updatedAt": "2026-11-09T09:17:05.237801+00:00"
 }
