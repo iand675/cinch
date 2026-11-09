@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 4,
+        "passed": 5,
         "failed": 3,
         "status": "running",
-        "phase": "Replay codata with the combined Stage 3",
+        "phase": "Replay guard_coverage with the combined Stage 3",
         "evidence": null
       },
       {
@@ -21343,5 +21343,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:26:44.066039+00:00"
+  "updatedAt": "2026-11-09T06:28:48.369316+00:00"
 }
