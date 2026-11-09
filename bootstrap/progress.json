@@ -17872,6 +17872,17 @@
     ],
     "active": [
       {
+        "title": "Verify build manifests and original module tests in Rust and Cinch",
+        "source": "1cbacbe6143d54e082954a47f191158f53e9b305da43ef39fd945513c27cb615",
+        "unit": "checks",
+        "passed": 0,
+        "failed": 0,
+        "total": 5,
+        "status": "waiting-worker",
+        "phase": "reproduce the Rust ABI mismatch and run the original module tests",
+        "evidence": null
+      },
+      {
         "title": "Run all 236 Rust targets on the integrated candidate",
         "source": "e91197eb5f3d8fc8f680fb375675fd3268b469ebe7e1bec785633dce66d30d43",
         "unit": "targets",
@@ -20827,8 +20838,8 @@
         "title": "Replay original defaults, modules and recursive binding targets",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run the selected Cinch class_defaults target",
-        "passed": 3,
+        "phase": "Isolated Stage 1 candidate. run the selected Cinch modules target",
+        "passed": 4,
         "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20903,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:05:40.735252+00:00"
+  "updatedAt": "2026-11-09T00:11:11.028660+00:00"
 }
