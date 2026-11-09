@@ -6421,7 +6421,12 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "checked_schemes_have_portable_definition_owned_syntax",
+                  "status": "running"
+                }
+              ]
             }
           },
           {
@@ -16223,5 +16228,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:43:45.004546+00:00"
+  "updatedAt": "2026-11-09T12:44:48.162851+00:00"
 }
