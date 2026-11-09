@@ -17890,7 +17890,7 @@
         "total": 110,
         "failed": 0,
         "status": "waiting-stage3",
-        "phase": "build Stage 1 with the preceding compiler",
+        "phase": "build Stage 2 with the preceding compiler",
         "evidence": null
       },
       {
@@ -20827,8 +20827,8 @@
         "title": "Replay original defaults, modules and recursive binding targets",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run the whole Rust class_defaults target",
-        "passed": 0,
+        "phase": "Isolated Stage 1 candidate. run the whole Rust letrec target",
+        "passed": 2,
         "total": 6,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
@@ -20849,8 +20849,8 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with the preceding compiler",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
+        "passed": 2,
         "total": 5,
         "failed": 0,
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
@@ -20903,5 +20903,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:01:30.923971+00:00"
+  "updatedAt": "2026-11-09T00:02:33.552396+00:00"
 }
