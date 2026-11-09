@@ -14042,7 +14042,7 @@
         "total": 34,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-shared-worker",
+        "status": "running",
         "phase": "Wait for the matching fixed point.",
         "evidence": null
       },
@@ -14282,10 +14282,10 @@
         "source": "6f4b534d5c3057122ce38316d4795f13c2fb6318523537c0c07695b2e39135c7",
         "unit": "gates",
         "total": 4,
-        "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build the Rust provider from the frozen dependency graph",
+        "passed": 3,
+        "failed": 1,
+        "status": "failed",
+        "phase": "RuntimeError(\"Stage 1 stopped before recording a runnable compiler: BootstrapError('stage1 did not build (exit 1).\\\\ncinch: 898:46: type mismatch: expected String, got (String -> String) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/sources/Bootstrap.Resolve.cinch)\\\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/build.log')\")",
         "evidence": null
       },
       {
@@ -14393,9 +14393,9 @@
         "unit": "gates",
         "total": 6,
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Check scalar projection bounds and the private proof boundary",
+        "phase": "Replay the original goal_tactics tests",
         "evidence": null
       },
       {
@@ -14544,5 +14544,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:04:49.405968+00:00"
+  "updatedAt": "2026-11-09T10:05:52.749958+00:00"
 }
