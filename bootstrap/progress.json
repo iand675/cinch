@@ -738,8 +738,8 @@
         "counts": {
           "verified": 18,
           "blocked": 1,
-          "running": 0,
-          "pending": 217,
+          "running": 1,
+          "pending": 216,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -2821,11 +2821,28 @@
           {
             "id": "native:bootstrap_pipeline",
             "title": "bootstrap_pipeline",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T09:33:30.267520+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "diagnostic_origins_retain_actual_bundle_labels_and_local_lines",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_ladder_compiles_the_fib_example_with_itself",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:alloc_accounting",
@@ -4779,10 +4796,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 9,
+          "verified": 10,
           "blocked": 1,
           "running": 1,
-          "pending": 151,
+          "pending": 150,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5458,17 +5475,17 @@
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "8d16260abe7f222474607542284631b17cc5cb842d539c5257cfc8fe54ff5acf",
               "cases": [
                 {
                   "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
@@ -5488,7 +5505,19 @@
                 },
                 {
                   "name": "normal_program_is_quiet_under_the_guarded_cap",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "stats_line_counts_list_cells_only_when_asked",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+                  "status": "passed"
+                },
+                {
+                  "name": "unbounded_allocation_hits_the_named_cap",
+                  "status": "passed"
                 }
               ]
             }
@@ -5496,11 +5525,24 @@
           {
             "id": "stage3:argv",
             "title": "argv",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:arrays",
@@ -13552,10 +13594,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 9,
+        "passed": 10,
         "failed": 1,
         "status": "running",
-        "phase": "Replay alloc_accounting with the combined Stage 3",
+        "phase": "Replay argv with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13664,8 +13706,8 @@
         "total": 236,
         "passed": 18,
         "failed": 1,
-        "status": "waiting-worker",
-        "phase": "Wait for the reserved fifth lane after the active preceding Rust test. Audited 430 passing cases across the first 18 complete targets.",
+        "status": "running",
+        "phase": "bootstrap_pipeline Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -13971,9 +14013,9 @@
         "unit": "gates",
         "total": 7,
         "passed": 2,
-        "failed": 4,
-        "status": "running",
-        "phase": "Replay the original lib_matrix tests Audited outcomes are 6/6 small-integer, 4/10 range, and 5/14 dependent cases.",
+        "failed": 5,
+        "status": "completed-with-failures",
+        "phase": "Original range and proof replays finished Audited outcomes are 6/6 small-integer, 4/10 range, and 5/14 dependent cases.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-small-nats-range-dependent.json"
       },
       {
@@ -14005,8 +14047,8 @@
         "total": 6,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a lane to build Stage 1, replay 35 original tests and check seven projection controls.",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -14143,10 +14185,10 @@
       }
     ],
     "counts": {
-      "verified": 295,
+      "verified": 296,
       "blocked": 3,
-      "running": 2,
-      "pending": 485,
+      "running": 3,
+      "pending": 483,
       "recheck": 21
     },
     "total": 806,
@@ -14155,5 +14197,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:32:43.815483+00:00"
+  "updatedAt": "2026-11-09T09:33:48.113285+00:00"
 }
