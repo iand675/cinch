@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 26,
+          "verified": 27,
           "blocked": 2,
           "running": 1,
-          "pending": 207,
+          "pending": 206,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -3202,21 +3202,21 @@
           {
             "id": "native:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T11:40:31.377658+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T12:04:44.092291+00:00",
+              "exitCode": 0,
+              "logSha256": "8772ca130bea8d4f47d36890e2e1cca1319596fafe22fc2d4ef423e213cd23e3",
               "cases": [
                 {
                   "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -3224,11 +3224,24 @@
           {
             "id": "native:bootstrap_array_float_bits",
             "title": "bootstrap_array_float_bits",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T12:04:44.116464+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "cinch_packed_float_arrays_preserve_ieee_payloads",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_body_bindings",
@@ -15538,10 +15551,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 26,
+        "passed": 27,
         "failed": 2,
         "status": "running",
-        "phase": "bootstrap_argument_scopes Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "bootstrap_array_float_bits Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -16052,10 +16065,10 @@
       }
     ],
     "counts": {
-      "verified": 316,
+      "verified": 317,
       "blocked": 26,
       "running": 3,
-      "pending": 440,
+      "pending": 439,
       "recheck": 21
     },
     "total": 806,
@@ -16064,5 +16077,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:58:30.578255+00:00"
+  "updatedAt": "2026-11-09T12:04:56.757900+00:00"
 }
