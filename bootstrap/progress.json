@@ -2809,6 +2809,10 @@
                 },
                 {
                   "name": "source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_contracts",
+                  "status": "failed"
+                },
+                {
+                  "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
                   "status": "running"
                 }
               ]
@@ -4994,6 +4998,14 @@
                 },
                 {
                   "name": "source_task_forwarders_check_actual_captures",
+                  "status": "passed"
+                },
+                {
+                  "name": "spawned_task_results_join_correctly",
+                  "status": "passed"
+                },
+                {
+                  "name": "task_handles_cannot_escape_their_scope",
                   "status": "running"
                 }
               ]
@@ -13425,9 +13437,9 @@
         "unit": "gates",
         "total": 7,
         "passed": 2,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay the original dependent tests",
+        "phase": "Replay the original lib_bigdecimal tests",
         "evidence": null
       },
       {
@@ -13598,5 +13610,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:05:04.917984+00:00"
+  "updatedAt": "2026-11-09T09:06:08.261359+00:00"
 }
