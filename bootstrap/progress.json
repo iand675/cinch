@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "9/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
+  "activity": "10/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17875,22 +17875,22 @@
         "title": "Verify build manifests and original module tests in Rust and Cinch",
         "source": "20c76ab4b0423a5cf790060bcdaa5c487acbd8ea7b769d8ec25575423b82a447",
         "unit": "checks",
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "total": 7,
         "status": "running",
-        "phase": "reproduce the Rust ABI mismatch and run the original module tests",
+        "phase": "verify bootstrap_resolve",
         "evidence": null
       },
       {
         "title": "Run all 236 Rust targets on the integrated candidate",
         "source": "e91197eb5f3d8fc8f680fb375675fd3268b469ebe7e1bec785633dce66d30d43",
         "unit": "targets",
-        "passed": 4,
+        "passed": 5,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_library_object",
+        "phase": "staging",
         "evidence": null
       },
       {
@@ -17919,11 +17919,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 9,
+        "passed": 10,
         "total": 105,
         "failed": 1,
         "status": "running",
-        "phase": "arrays",
+        "phase": "bootstrap_abstract_nonzero_methods",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:18:03.106962+00:00"
+  "updatedAt": "2026-11-09T00:19:06.424772+00:00"
 }
