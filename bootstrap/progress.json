@@ -5589,6 +5589,14 @@
                 },
                 {
                   "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
+                  "status": "passed"
+                },
+                {
+                  "name": "column_projection_returns_the_original_typed_buffers",
+                  "status": "passed"
+                },
+                {
+                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
                   "status": "running"
                 }
               ]
@@ -14279,5 +14287,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:53:06.520291+00:00"
+  "updatedAt": "2026-11-09T09:54:17.077870+00:00"
 }
