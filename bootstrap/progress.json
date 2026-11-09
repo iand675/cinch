@@ -20915,8 +20915,8 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 1 with the preceding compiler",
-        "passed": 1,
+        "phase": "Combined candidate, starting from the pinned seed. replay the exact Stage 3 concurrency failure on successor Stage 1",
+        "passed": 2,
         "total": 5,
         "failed": 0,
         "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
@@ -21013,5 +21013,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:13:37.163028+00:00"
+  "updatedAt": "2026-11-09T02:18:02.081405+00:00"
 }
