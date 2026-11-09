@@ -21121,6 +21121,28 @@
         "evidence": null
       },
       {
+        "title": "Verify primitive law citations and target selection in Cinch",
+        "source": "268332cc7fd4e524c3c72bf2def359e59a5a6a9a08068108251213ca7158d883",
+        "unit": "checks",
+        "total": 12,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-predecessor",
+        "phase": "Wait for Stage 1 target selection controls",
+        "evidence": null
+      },
+      {
+        "title": "Verify codata observation contracts through compiled objects",
+        "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
+        "unit": "checks",
+        "total": 8,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released worker slot",
+        "evidence": null
+      },
+      {
         "title": "Replay original modules with both manifest harness fixes",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21200,5 +21222,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:13:19.475809+00:00"
+  "updatedAt": "2026-11-09T05:23:15.960764+00:00"
 }
