@@ -14611,9 +14611,9 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "tests",
         "total": 4,
-        "passed": 0,
+        "passed": 4,
         "failed": 0,
-        "status": "running",
+        "status": "passed",
         "phase": "run all four original tail-call cases through the integrated Cinch Stage 3",
         "evidence": null
       },
@@ -14701,8 +14701,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Check the 4 exact original Rust harnesses",
         "evidence": null
       },
       {
@@ -15093,5 +15093,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:52:48.855689+00:00"
+  "updatedAt": "2026-11-09T10:53:51.842630+00:00"
 }
