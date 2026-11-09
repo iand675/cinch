@@ -21499,10 +21499,10 @@
         "source": "74cf3b2cc0e65d18d7404acba7123e5a101edbf7ad776862d650271c09bef593",
         "unit": "checks",
         "total": 3,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build symbol-literal Stage 1 with the pinned Rust seed",
+        "phase": "Run the original hk target through the symbol-literal Stage 1",
         "evidence": null
       },
       {
@@ -21585,5 +21585,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:09:49.920882+00:00"
+  "updatedAt": "2026-11-09T08:10:53.571371+00:00"
 }
