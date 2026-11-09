@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | letrec",
+        "detail": "bootstrap_source_instances | letrec | intrinsic_objects",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -5597,6 +5597,26 @@
                 },
                 {
                   "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+                  "status": "passed"
+                },
+                {
+                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_scalars_roundtrip_through_generic_operations",
                   "status": "running"
                 }
               ]
@@ -9839,9 +9859,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 0,
+          "blocked": 1,
           "running": 1,
-          "pending": 43,
+          "pending": 42,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -9849,6 +9869,28 @@
           {
             "id": "additional:intrinsic_objects",
             "title": "intrinsic_objects",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "failed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 101,
+              "logSha256": "ad66f3faa414ba1ebf19c29e21e9a55d78909574359799bb2b0b5c26612f1c57",
+              "cases": [
+                {
+                  "name": "checked_intrinsic_exports_are_object_roots_with_exact_word_classes",
+                  "status": "failed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "additional:syntax_declaration_groups",
+            "title": "syntax_declaration_groups",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -9860,17 +9902,29 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "binary_format_is_a_native_group_with_definition_helpers_and_source_operands",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_bindings_survive_a_nested_code_quotation_and_later_instantiation",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_group_cannot_acquire_a_private_helper_by_selecting_its_name",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_group_exports_follow_owned_renames_without_exporting_private_constructors",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_group_operator_references_and_exported_fixity_follow_the_owned_member",
+                  "status": "running"
+                }
+              ]
             }
-          },
-          {
-            "id": "additional:syntax_declaration_groups",
-            "title": "syntax_declaration_groups",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "additional:syntax_declaration_namespaces",
@@ -13916,9 +13970,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay original intrinsic_objects target on Stage 3",
+        "phase": "Replay original syntax_declaration_groups target on Stage 3",
         "evidence": null
       },
       {
@@ -14276,9 +14330,9 @@
     ],
     "counts": {
       "verified": 297,
-      "blocked": 3,
+      "blocked": 4,
       "running": 4,
-      "pending": 481,
+      "pending": 480,
       "recheck": 21
     },
     "total": 806,
@@ -14287,5 +14341,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:54:17.077870+00:00"
+  "updatedAt": "2026-11-09T09:55:20.452605+00:00"
 }
