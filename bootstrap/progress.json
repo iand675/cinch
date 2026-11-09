@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 2,
-        "failed": 2,
+        "passed": 3,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay class_defaults with the combined Stage 3",
+        "phase": "Replay integration with the combined Stage 3",
         "evidence": null
       },
       {
@@ -21092,10 +21092,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 0,
+        "passed": 1,
         "failed": 4,
         "status": "running",
-        "phase": "Replay original lib_builder target on Stage 3",
+        "phase": "Replay original lib_category target on Stage 3",
         "evidence": null
       },
       {
@@ -21310,5 +21310,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:08:35.294424+00:00"
+  "updatedAt": "2026-11-09T06:09:39.686385+00:00"
 }
