@@ -21411,10 +21411,10 @@
         "source": "74b0ca5b9541e7df4b709bc1af3d75cf0b6129516ea266d87cad940716274b31",
         "unit": "checks",
         "total": 6,
-        "passed": 0,
+        "passed": 2,
         "failed": 0,
         "status": "running",
-        "phase": "Native interface region and effect cases",
+        "phase": "Build Stage 1 with the pinned seed",
         "evidence": null
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:26:17.391741+00:00"
+  "updatedAt": "2026-11-09T08:27:20.910889+00:00"
 }
