@@ -21247,9 +21247,9 @@
         "unit": "targets",
         "total": 5,
         "passed": 1,
-        "failed": 0,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original goal_tactics target on Stage 3",
+        "phase": "Replay original nominal_identity target on Stage 3",
         "evidence": null
       },
       {
@@ -21519,5 +21519,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:47:47.154402+00:00"
+  "updatedAt": "2026-11-09T07:48:50.519462+00:00"
 }
