@@ -20994,9 +20994,9 @@
         "unit": "targets",
         "total": 162,
         "passed": 2,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay modules with the combined Stage 3",
+        "phase": "Replay class_defaults with the combined Stage 3",
         "evidence": null
       },
       {
@@ -21193,8 +21193,8 @@
         "total": 12,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 modules harness",
+        "status": "waiting-worker",
+        "phase": "Wait for a released worker slot",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:03:04.379805+00:00"
+  "updatedAt": "2026-11-09T06:04:07.753520+00:00"
 }
