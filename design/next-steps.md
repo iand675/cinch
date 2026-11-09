@@ -215,6 +215,14 @@ refusals and the nested let depth limit also passed. Both remaining cases
 require region-scoped value knots. Constant-stack lowering has a
 separate validation. See [the recursive function audit](../bootstrap/current-abi7-guarded-function-letrec-results.json).
 
+An isolated Cinch Stage 1 passed seven guarded-value scope probes.
+All three escaping forms name the retained binding. The independent
+scalar, unrelated closure and 128-iteration cleanup probe run with
+zero leaks. An eager read of an uninitialized slot exits through the
+black-hole rule. The common LLVM preamble declares the allocator and
+black-hole helper even when the program has no memo worker.
+See [the guarded-value audit](../bootstrap/current-abi7-guarded-value-results.json).
+
 An isolated Cinch Stage 1 passed all four original tail-call programs.
 The three million-call programs ran on 8 MiB stacks and emitted LLVM
 `musttail` calls. The original non-tail control exhausted its stack

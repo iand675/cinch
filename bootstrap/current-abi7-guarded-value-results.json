@@ -1,0 +1,128 @@
+{
+  "compiler_sha256": "e80f9613acc3cf92d15c5063f9f126a1fd37b7e17f2fb6c3461dc42030b853af",
+  "compiler_source_sha256": "cdc110397f33faba2725c7e09d786be01b4b64709f3f96315a91bebc39ad6fef",
+  "controls": [
+    {
+      "diagnostic_sha256": "53a7d8fd7a337c8dca52ad8a933acf6cc4694e7cbc51265730f2ed3365a60cd5",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "return-knot",
+      "passed": true,
+      "source_sha256": "29106ea9ebe1aec53eecff9ff0c6af8e45d47d7e0f4327fcf1f7a88c15c81cec"
+    },
+    {
+      "diagnostic_sha256": "53a7d8fd7a337c8dca52ad8a933acf6cc4694e7cbc51265730f2ed3365a60cd5",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "return-knot-closure",
+      "passed": true,
+      "source_sha256": "e8cd899b2b038bede4a78a234d9dfcd5f7c96710460ad474e682408247cb7901"
+    },
+    {
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "return-independent-scalar",
+      "passed": true,
+      "source_sha256": "bee1ff94778b69d38ef5dfcdccd108766364d363fca880ee5b11e3e63fb4b131"
+    },
+    {
+      "diagnostic_sha256": "9b908cff3419b69ca1d056fcfd887cbd56455a23ec6665f310df21debd3c0855",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "store-knot-closure",
+      "passed": true,
+      "source_sha256": "5c7bfc6be861ecca935012311e467743753e02ae3d43f4959d6578e9a6617a55"
+    },
+    {
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 70,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "knot-black-hole",
+      "passed": true,
+      "source_sha256": "1e9f5bce889ac85dcfda969508a3139b283fd924463ecb7f32c1ff11f2373501"
+    },
+    {
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 42,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "return-unrelated-closure",
+      "passed": true,
+      "source_sha256": "b69ffaf9cbdd925414848d343f2c662e5ff332a1b361f27b39bff6b1b527edc8"
+    },
+    {
+      "diagnostic_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit_code": 0,
+      "log_sha256": "bde7388cce290f6980e7bea26d71106d4656c3fed2e0d1e6ee850b609c255a47",
+      "name": "scoped-knot-loop",
+      "passed": true,
+      "source_sha256": "52fe308486064393ca39d97eac2039705e216e0ec446513c04032a800b0b068d"
+    }
+  ],
+  "full_goal_complete": false,
+  "passed": 7,
+  "previous_compiler_source_sha256": "040dc6296a0e290e07d8583e0accb32c6c75188563f8329f1f12a4d74e4ab759",
+  "previous_controls": [
+    {
+      "diagnostic_sha256": "53a7d8fd7a337c8dca52ad8a933acf6cc4694e7cbc51265730f2ed3365a60cd5",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "return-knot",
+      "passed": true,
+      "source_sha256": "29106ea9ebe1aec53eecff9ff0c6af8e45d47d7e0f4327fcf1f7a88c15c81cec"
+    },
+    {
+      "diagnostic_sha256": "53a7d8fd7a337c8dca52ad8a933acf6cc4694e7cbc51265730f2ed3365a60cd5",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "return-knot-closure",
+      "passed": true,
+      "source_sha256": "e8cd899b2b038bede4a78a234d9dfcd5f7c96710460ad474e682408247cb7901"
+    },
+    {
+      "diagnostic_sha256": "e4e51ab1d2a58a851f6b3d243811b7d5935211ed4b285501a69d795953a2479f",
+      "exit_code": 5,
+      "log_sha256": "0046f2244dcfc5b07aa6d1f089ae9fc4dac4f236a2e95eb6e5698fcd7c6a98ae",
+      "name": "return-independent-scalar",
+      "passed": false,
+      "source_sha256": "bee1ff94778b69d38ef5dfcdccd108766364d363fca880ee5b11e3e63fb4b131"
+    },
+    {
+      "diagnostic_sha256": "9b908cff3419b69ca1d056fcfd887cbd56455a23ec6665f310df21debd3c0855",
+      "exit_code": 4,
+      "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "name": "store-knot-closure",
+      "passed": true,
+      "source_sha256": "5c7bfc6be861ecca935012311e467743753e02ae3d43f4959d6578e9a6617a55"
+    },
+    {
+      "diagnostic_sha256": "e4e51ab1d2a58a851f6b3d243811b7d5935211ed4b285501a69d795953a2479f",
+      "exit_code": 5,
+      "log_sha256": "f4fa7ce3cbca01123920bd8810c0f8df959c83dea2dc08212b1a26380306f884",
+      "name": "knot-black-hole",
+      "passed": false,
+      "source_sha256": "1e9f5bce889ac85dcfda969508a3139b283fd924463ecb7f32c1ff11f2373501"
+    },
+    {
+      "diagnostic_sha256": "e4e51ab1d2a58a851f6b3d243811b7d5935211ed4b285501a69d795953a2479f",
+      "exit_code": 5,
+      "log_sha256": "eee6d333e144f622fc2345a19cb974f2d0ca7510bca4c06a458fe8974c7d6d26",
+      "name": "return-unrelated-closure",
+      "passed": false,
+      "source_sha256": "b69ffaf9cbdd925414848d343f2c662e5ff332a1b361f27b39bff6b1b527edc8"
+    },
+    {
+      "diagnostic_sha256": "e4e51ab1d2a58a851f6b3d243811b7d5935211ed4b285501a69d795953a2479f",
+      "exit_code": 5,
+      "log_sha256": "a29b6a7c540275703276de34f599fc9c88284b4400991da92c228b3b9b885485",
+      "name": "scoped-knot-loop",
+      "passed": false,
+      "source_sha256": "52fe308486064393ca39d97eac2039705e216e0ec446513c04032a800b0b068d"
+    }
+  ],
+  "schema": 1,
+  "scope": "The scoped probes preserve the exact earlier sources. The common LLVM preamble supplies allocator and black-hole declarations to programs without memo workers. Full original targets and matching Stage 3 remain separate.",
+  "stage_receipt_sha256": "8a08b0cd197d7655b969d2d083b270272686d433a7774df54c5cf789bc24cad4",
+  "status": "audited-stage1-guarded-value-controls",
+  "total": 7
+}
