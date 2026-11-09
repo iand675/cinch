@@ -20970,10 +20970,10 @@
         "title": "Replay all original concurrency cases on the successor Stage 3",
         "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
         "unit": "tests",
-        "passed": 0,
+        "passed": 20,
         "failed": 0,
         "total": 20,
-        "status": "pending",
+        "status": "passed",
         "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
         "evidence": null
       },
@@ -21057,5 +21057,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:28:36.247983+00:00"
+  "updatedAt": "2026-11-09T03:30:19.188503+00:00"
 }
