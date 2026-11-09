@@ -10656,6 +10656,26 @@
                 },
                 {
                   "name": "postcondition_rows_round_trip_through_the_interface",
+                  "status": "failed"
+                },
+                {
+                  "name": "signature_obligations_constrain_callers_identically",
+                  "status": "failed"
+                },
+                {
+                  "name": "specialized_sorted_merge_wins_by_most_specific_resolution",
+                  "status": "failed"
+                },
+                {
+                  "name": "the_implication_table_drives_the_flow",
+                  "status": "failed"
+                },
+                {
+                  "name": "transfer_accepts_non_empty_with_preservation_evidence",
+                  "status": "failed"
+                },
+                {
+                  "name": "transfer_rejects_sized_ascii_naming_the_conjunct",
                   "status": "running"
                 }
               ]
@@ -15004,5 +15024,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:47:31.912995+00:00"
+  "updatedAt": "2026-11-09T10:48:36.002088+00:00"
 }
