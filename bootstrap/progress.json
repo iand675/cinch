@@ -17916,6 +17916,17 @@
         "evidence": null
       },
       {
+        "title": "Rebuild with checked equality methods and guarded recursion",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "checks",
+        "total": 7,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Rebuild with guarded recursion and constant-stack tail calls",
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
@@ -20978,6 +20989,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage3-task-capture-results.json"
       },
       {
+        "title": "Replay the combined Stage 3 frontend inventory",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "targets",
+        "total": 162,
+        "passed": 0,
+        "failed": 0,
+        "status": "pending",
+        "phase": "Await the combined Stage 3 fixed point.",
+        "evidence": null
+      },
+      {
         "title": "Build the pinned object with three additional HashMap variants",
         "source": "5bffe67f2c0ca09c0831256c77fcb22afd9a8f84afee6141369fc854408e63fe",
         "unit": "builds",
@@ -21079,5 +21101,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:50:07.237934+00:00"
+  "updatedAt": "2026-11-09T03:54:42.641485+00:00"
 }
