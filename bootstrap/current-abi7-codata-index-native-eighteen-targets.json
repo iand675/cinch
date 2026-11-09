@@ -1,0 +1,90 @@
+{
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "native_compiler_sha256": "db8b598f52bd06ceb79011c2bec7d8205cf1fc2ad71d9d557628225ec7f828e3",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "newly_audited_targets": {
+    "bootstrap_nominals": {
+      "cases": [
+        "imported_nominals_are_checked_with_defining_identities_in_cinch"
+      ],
+      "log_sha256": "9285623ab26fc38e7c2c087cb0aae66889d16cecafd257addf4b2abd4dca58ca",
+      "test_source_sha256": "5b139891dff87c00f5e137083ae8ed9fadb0ade40215a9f34e6baac4cd931737",
+      "tests": 1
+    },
+    "case_evidence": {
+      "cases": [
+        "a_read_only_fact_survives_a_mutable_write",
+        "a_write_between_test_and_use_invalidates_the_fact",
+        "case_facts_go_stale_on_the_path_only",
+        "case_on_a_comparison_binds_its_rows",
+        "case_on_a_list_binds_non_emptiness",
+        "case_on_a_three_way_comparison_binds_its_constructors",
+        "case_on_a_value_binds_literal_and_default_rows",
+        "conditions_in_handled_computations_carry_facts",
+        "else_branch_of_a_zero_test_discharges_non_zero",
+        "fact_bearing_matches_allocate_what_a_plain_if_does",
+        "guards_carry_their_fact_and_their_refutation",
+        "less_than_discharges_in_then_and_its_negation_in_else",
+        "nested_conditions_contribute_together",
+        "obligations_the_condition_does_not_imply_are_refused",
+        "prelude_division_takes_its_divisor_from_a_zero_test",
+        "reading_a_condition_never_changes_how_it_typechecks",
+        "short_circuit_operands_carry_the_left_outcome",
+        "structural_predicate_as_a_condition"
+      ],
+      "log_sha256": "be2750333482de51348487c41453ee07cf668b5e69b7fe3199d7f634554e4b39",
+      "test_source_sha256": "37527335828ed4dfcf9d1b665a2fc199c7ead9f79d3391204f2a80d83038f279",
+      "tests": 18
+    },
+    "evidence_invalidation": {
+      "cases": [
+        "call_with_mut_argument_invalidates",
+        "call_with_no_write_does_not_invalidate",
+        "call_with_write_effect_invalidates",
+        "derive_then_mutate_then_use_rejects_naming_both_sites",
+        "derive_use_before_mutate_checks",
+        "erased_proofs_are_not_resurrected_after_invalidation",
+        "immutable_evidence_never_invalidates",
+        "mutation_is_observable_after_passing_the_borrow_to_a_callee",
+        "mutation_is_observable_through_the_borrow",
+        "rawptr_targets_carry_no_evidence",
+        "rawptr_writes_invalidate_mutable_evidence",
+        "re_derive_after_mutate_checks",
+        "ref_evidence_survives_its_region"
+      ],
+      "log_sha256": "1e42f7d64834f08c457e66835d835726fd2ec0a497916fcef9d673b886565eb4",
+      "test_source_sha256": "b8bb00237937b8ce8cdbc343f3f11d11e71eca8e9a26a67d823f64443e47a0b4",
+      "tests": 13
+    },
+    "repl": {
+      "cases": [
+        "a_failed_load_keeps_the_previous_session",
+        "an_error_shows_its_source_span",
+        "completion_covers_session_and_prelude_names",
+        "definition_and_expression_evaluation_persist_across_inputs",
+        "history_records_the_accepted_inputs",
+        "load_and_reload_a_multi_file_project",
+        "loaded_project_expressions_reuse_the_checked_closure",
+        "multi_line_input_continues_until_the_block_closes",
+        "plain_loop_handles_a_pipe",
+        "runtime_backed_io_uses_the_native_compiler",
+        "runtime_backed_probe_sees_a_loaded_module",
+        "runtime_backed_probe_sees_a_session_definition",
+        "runtime_backed_probe_uses_session_imports_and_the_project_directory",
+        "type_kind_and_browse_outputs",
+        "warm_expressions_reuse_the_checked_session"
+      ],
+      "log_sha256": "00e1d0a82fecdbaa01277a5baeca0919fe489c2958a3a3912981f265b39c965a",
+      "test_source_sha256": "5ba6b87268d46f471395245ff18b66bd3ac2d68e0e4e1da0f96f058645efaf28",
+      "tests": 15
+    }
+  },
+  "passed_targets": 18,
+  "passed_tests": 430,
+  "previous_target_audit_sha256": "c214dde6ea594a84d5de60c65b94ef8bb7f41c91e1c65948f373fd4957a348c0",
+  "source_snapshot_sha256": "2a918d41f8db15a08ce310f389c11b3c98c3fa59588e14345e98ed4d988131d9",
+  "status": "audited-matching-native-compiler-targets",
+  "target_inventory_sha256": "139b83cb2a55c1ab4b31c6814311888f4e32b9dde7526349d0bdea5f88fc0eb5",
+  "total_targets": 236
+}

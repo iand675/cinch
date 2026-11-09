@@ -109,7 +109,10 @@ See [the matching Rust audit](../bootstrap/current-abi7-codata-index-opening-nat
 The matching Rust sweep passed 383 cases across its first 14 complete
 targets, including all 216 library tests, 26 staging tests,
 and the pinned library-object and bootstrap loader tests.
-See [the compiler target audit](../bootstrap/current-abi7-codata-index-native-fourteen-targets.json).
+Four more targets passed all 47 cases, including nominal contracts,
+REPL behavior, and evidence invalidation. The matching Rust sweep
+has 430 passing cases across 18 complete targets.
+See [the compiler target audit](../bootstrap/current-abi7-codata-index-native-eighteen-targets.json).
 
 The matching Stage 1 executable passed all eight original law cases with
 14 selected-compiler invocations. It also exported the three erased
@@ -119,16 +122,18 @@ then built Stage 2 from those same inputs. The Stage 2 audit verifies all
 Stage 2 and Stage 3 produced byte-identical executables, LLVM IR and all
 46 compiler interfaces. Both passed their smoke tests. The Stage 3
 compiler checked a separate entry using the emitted interfaces. The
-changed-source rebuild is running.
+changed-source rebuild passed. The rebuilt compiler emitted the new
+diagnostic, and the merged Stage 3 suite has started.
 See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json),
-[the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json), and
-[the Stage 3 agreement audit](../bootstrap/current-abi7-codata-index-stage3-agreement.json).
+[the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json),
+[the Stage 3 agreement audit](../bootstrap/current-abi7-codata-index-stage3-agreement.json),
+and [the changed-source audit](../bootstrap/current-abi7-codata-index-fixed-point.json).
 
-The coverage audit assigns 162 targets to the Stage 3 matrix, 37 to
+The coverage audit assigns 162 targets to the Stage 3 matrix, 41 to
 supplemental Stage 3 runs, one to the small-stack tail-call run,
-and two to reviewed Rust harness checks. The latest supplemental
-run preserves all 108 original cases across 11 syntax targets.
-Another 34 targets still need assertion review.
+and two to reviewed Rust harness checks. The supplemental runs
+include 47 original declaration and object artifact cases across four
+targets. Another 30 targets still need assertion review.
 See [the original target routing](../bootstrap/current-abi7-codata-index-target-routing.json).
 
 The pinned producer emitted the five requested Bits variants and the two

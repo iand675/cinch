@@ -1,0 +1,19 @@
+{
+  "artifact_agreement_sha256": "1f27c1e951a3099661f1215a22b1d77f0add8f51fd9d892c9f7e79b6ed6a853d",
+  "changed_diagnostic": "bootstrap.check.changed-source:3:10: type mismatch: expected Int, found Bool\n",
+  "changed_probe_executable_absent": true,
+  "changed_probe_exit_code": 4,
+  "changed_probe_source_sha256": "c5a2e67e4f234a8d289f4f1800fe41cc58608b118653195e70424a73e5d099a0",
+  "changed_source": {
+    "compiler_sha256": "4516707ea9da178e3b1610d31e11ec37d2940e7a7e82441af775b231cab49414",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "4cdffd00afff84cb6d8dd3cd2ffd0776526e22cea7c130fbfb5bdfe9709e4576"
+  },
+  "changed_stage_receipt_sha256": "fea94e757e33d6baa815be274989708df96dd8aacce2f8ff69ac54f2b5a54d1b",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "source_snapshot_sha256": "2255a06886bed332111898ad16a5dc74a3affc2f14b03b40c5dbece222dc1746",
+  "status": "audited-merged-abi7-fixed-point-and-changed-source"
+}

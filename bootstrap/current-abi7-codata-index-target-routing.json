@@ -2,10 +2,10 @@
   "acceptance_identity_sha256": "8fdee4afc9cb8878cbf6e96a6c4b5be1a5f8a56e9f6518923b2057d5267ff65c",
   "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
   "counts": {
-    "requires-assertion-review": 34,
+    "requires-assertion-review": 30,
     "reviewed-native-harness-infrastructure": 2,
     "stage3-matrix": 162,
-    "stage3-supplemental-replay": 37,
+    "stage3-supplemental-replay": 41,
     "stage3-tail-replay": 1
   },
   "full_goal_complete": false,
@@ -14,6 +14,11 @@
   "scope": "Routes describe where each original test target will run. Passing outcomes require separate matching receipts.",
   "status": "target-routing-review-incomplete",
   "supplemental_batches": {
+    "declaration-artifacts": {
+      "cases": 47,
+      "inventory_sha256": "2cc9a88fc0039c69f67e1dcc3f08d1c255b9cbe8afe44bf1e63fcc5ef20fa5ef",
+      "targets": 4
+    },
     "refinement-staging": {
       "cases": 72,
       "inventory_sha256": "93564079f4089c457ac84200a3dca65e914e5e0fce096008ac8ab06146cda7ab",
@@ -461,7 +466,11 @@
       "role": "stage3-supplemental-replay"
     },
     "intrinsic_objects": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "7e6645c3de197dc21e695961145f83a0dd882379cff5b1c05aeca73602bb14ca",
+      "batch": "declaration-artifacts",
+      "cases": 1,
+      "original_sha256": "9ea39f8ad0838749bb7bc18cc8b4666dcb8ac8935484e5c4f8d2502a6139c9a8",
+      "role": "stage3-supplemental-replay"
     },
     "jit": {
       "role": "requires-assertion-review"
@@ -800,13 +809,25 @@
       "role": "stage3-supplemental-replay"
     },
     "syntax_declaration_groups": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "01084a6ee1d9fde740d31bb8e5a218ed27f783456451c16ced4300c9c02c8f66",
+      "batch": "declaration-artifacts",
+      "cases": 11,
+      "original_sha256": "e66aadde984f61670ed248c7bddd45902db36805f83086327c064eaf8309869e",
+      "role": "stage3-supplemental-replay"
     },
     "syntax_declaration_namespaces": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "d2e65ebdd4a49c104d8e7ac066180ecc3fc22851bea47c79933d0d261b535012",
+      "batch": "declaration-artifacts",
+      "cases": 8,
+      "original_sha256": "3cd1e076987c09b65db96e9a71e538b8e02cfdc64a2d0f314f905ff96333eb60",
+      "role": "stage3-supplemental-replay"
     },
     "syntax_declarations": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "f8bad9afcbbc93efbdcc84388fa6ff1bf6a5ec18917b3a2b1f75e861b5d3e361",
+      "batch": "declaration-artifacts",
+      "cases": 27,
+      "original_sha256": "43481fd1abdc50c6456bc94321d2b51ea31f40e139a04afb3f413676903bda6d",
+      "role": "stage3-supplemental-replay"
     },
     "syntax_effect_declarations": {
       "adapted_sha256": "e00efed671242adcd6cdf1dc20f2d8adc56d9c1bb5fa7edd67ad2d53a29c23a6",
