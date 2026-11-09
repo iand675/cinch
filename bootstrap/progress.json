@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "10/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
+  "activity": "11/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17883,6 +17883,28 @@
         "evidence": null
       },
       {
+        "title": "Run all 236 Rust targets on the integrated candidate",
+        "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
+        "unit": "targets",
+        "passed": 0,
+        "total": 236,
+        "failed": 0,
+        "status": "waiting-target-boundary",
+        "phase": "Wait for the preceding Rust target to finish before switching revisions.",
+        "evidence": null
+      },
+      {
+        "title": "Run all 110 Cinch Stage 3 targets on the integrated candidate",
+        "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+        "unit": "targets",
+        "passed": 0,
+        "total": 110,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "build Stage 2 with the preceding compiler",
+        "evidence": null
+      },
+      {
         "title": "Run all 236 Rust targets on the preceding memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
@@ -17897,11 +17919,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 10,
+        "passed": 11,
         "total": 105,
         "failed": 1,
-        "status": "running",
-        "phase": "bootstrap_abstract_nonzero_methods",
+        "status": "completed-superseded-snapshot",
+        "phase": "Queued for a shared worker.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20892,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:32:52.060544+00:00"
+  "updatedAt": "2026-11-09T00:33:55.234837+00:00"
 }
