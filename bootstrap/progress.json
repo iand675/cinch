@@ -21071,9 +21071,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original lib_base64 target on Stage 3",
+        "phase": "Replay original lib_benchmark target on Stage 3",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:53:02.210175+00:00"
+  "updatedAt": "2026-11-09T05:54:45.944141+00:00"
 }
