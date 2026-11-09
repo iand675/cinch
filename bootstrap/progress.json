@@ -17909,10 +17909,10 @@
         "source": "583d5159fe93d33d81ed7b3353830cbb066a97de873312ee87ba43a3ddce67f2",
         "unit": "checks",
         "passed": 4,
-        "failed": 0,
+        "failed": 1,
         "total": 7,
-        "status": "running",
-        "phase": "build Cinch Stage 1 with the checked build manifest",
+        "status": "failed",
+        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 169:86: cannot determine the type of the scrutinee; add a type annotation (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-4/build/stage1/sources/Bootstrap.Pipeline.cinch)\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-4/build/stage1/build.log')",
         "evidence": null
       },
       {
@@ -20897,7 +20897,7 @@
         "passed": 1,
         "total": 6,
         "failed": 1,
-        "source": "dd60a6893c3b01ff29370bcf867884212edac2df03824da67c9bec0be31799de",
+        "source": "cce79c50cfbc66b390d24f95862fb1f21c1349f23baa7c279486f71c8d66159b",
         "evidence": null
       },
       {
@@ -20969,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:28:20.932537+00:00"
+  "updatedAt": "2026-11-09T01:30:04.770372+00:00"
 }
