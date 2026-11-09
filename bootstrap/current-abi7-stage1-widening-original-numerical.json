@@ -1,0 +1,212 @@
+{
+  "compiler_sha256": "f0c829125a5ed3fbb8eb112c8ec7ff76201b196989783d6fefff8b2a180c0950",
+  "compiler_source_sha256": "10ca60b04d2064fd8166f0f45535c2876cea870a1c4880ad4a7441e2fa01a5b5",
+  "focused_audit_sha256": "047d4b08fe64d3f468db0726a7d9e79832f5bd3434be5d330a3f3dc63d9dd938",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "preceding_candidate_audit_sha256": "903ae63395ade21569a60ff15fe510609be7a05171ff4b868e62307c16e65008",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-stage1-widening-original-numerical-outcomes",
+  "targets": {
+    "range_facts": {
+      "cases": [
+        {
+          "name": "a_cps_call_drops_its_argument_fact",
+          "status": "failed"
+        },
+        {
+          "name": "a_function_value_keeps_its_refined_result",
+          "status": "passed"
+        },
+        {
+          "name": "a_refined_result_is_its_number_in_ordinary_use",
+          "status": "failed"
+        },
+        {
+          "name": "a_widening_conversion_discharges_a_subtraction_and_nat_from_i64",
+          "status": "passed"
+        },
+        {
+          "name": "an_intrinsic_given_a_huge_nat_answers_totally",
+          "status": "failed"
+        },
+        {
+          "name": "an_out_of_range_use_is_refused",
+          "status": "passed"
+        },
+        {
+          "name": "char_code_is_a_scalar_value",
+          "status": "passed"
+        },
+        {
+          "name": "hash_int_hashes_a_huge_int_without_converting",
+          "status": "passed"
+        },
+        {
+          "name": "the_conversions_are_total",
+          "status": "passed"
+        },
+        {
+          "name": "the_mask_bounds_its_result",
+          "status": "failed"
+        }
+      ],
+      "changed_outcomes": {
+        "a_function_value_keeps_its_refined_result": [
+          "failed",
+          "passed"
+        ],
+        "an_out_of_range_use_is_refused": [
+          "failed",
+          "passed"
+        ]
+      },
+      "failed": 4,
+      "failure_details": {
+        "a_cps_call_drops_its_argument_fact": {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:1:1: typed core contains an unresolved scheme or error term\n",
+          "diagnostic_sha256": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+          "invocation_sha256": "87287d6a1ae2c79a03af4ebcec6e4324621ee56f0a4422a75eca62e422a94279",
+          "requested_roots": {
+            "dictionaries": [],
+            "methods": [],
+            "schema": 1,
+            "units": []
+          }
+        },
+        "a_refined_result_is_its_number_in_ordinary_use": {
+          "compiler_exit_code": 5,
+          "diagnostic": "bootstrap.runtime-ir:17:25: checked external variant is absent from the runtime object: i.68_97_116_97_46_76_105_115_116_46_109_97_112_ [RT]\n",
+          "diagnostic_sha256": "ef28e16654a67f9a61861b173e2b312d4ee583c9548211763bd2268e7bf93c45",
+          "invocation_sha256": "6d031abd458943aba5b47c969d0ebe5641a745d3f4dd7c3002a1a129224e7afc",
+          "requested_roots": {
+            "dictionaries": [],
+            "methods": [],
+            "schema": 1,
+            "units": [
+              {
+                "classes": "RT",
+                "symbol": "Data.List.map"
+              }
+            ]
+          }
+        },
+        "an_intrinsic_given_a_huge_nat_answers_totally": {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:4:3: foreign symbol has no checked runtime intrinsic contract or valid C identifier (in Main.cinch:3:3)\n",
+          "diagnostic_sha256": "928f847068dfa73261d0c4260e5a115db3b77f61dc2c6647c4b4317cb4a32c0c",
+          "invocation_sha256": "f1d6915b5e97bcb52d9a0b5aa5f575c143f17dda0aab5371860b9630dd18a79b",
+          "requested_roots": {
+            "dictionaries": [],
+            "methods": [],
+            "schema": 1,
+            "units": []
+          }
+        },
+        "the_mask_bounds_its_result": {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:5:48: function precondition is not established at this call because the obligation `#dependent-argument <= 255` needs evidence and the checker found no evidence for `#dependent-argument <= 255` (in Main.cinch:4:48)\n",
+          "diagnostic_sha256": "1f99ac0017744cad3138be471c9413b962f992dd89706955952383c513ae3405",
+          "invocation_sha256": "d5f0dcc9f6443fad7f45cdaed643207ce3fd0aec12f2458e7345e8fc67ff7358",
+          "requested_roots": {
+            "dictionaries": [],
+            "methods": [],
+            "schema": 1,
+            "units": []
+          }
+        }
+      },
+      "harness_sha256": "94e78d678df1f1273e9b44cdd59fa3bba6c29706bae62877dcb49a09916e2e7e",
+      "invocations": {
+        "59724-0.json": "656237a40eb1e0179b3f59534c3449662cd9e8e30669dcf038930b523f62f791",
+        "59724-1.json": "87287d6a1ae2c79a03af4ebcec6e4324621ee56f0a4422a75eca62e422a94279",
+        "59724-10.json": "d52162c8376a8aca7b71b87ab8b0eeb25b3f55250029616f4a638805452ff1e4",
+        "59724-11.json": "daee8977256206d79bb6cf6888e584cdf41bc777cc0511cc30b6c62bf407c81f",
+        "59724-12.json": "1f375441adcefcbaac91ce7db15b82dd17798b39188847c3abd0f0da620a060a",
+        "59724-13.json": "d5f0dcc9f6443fad7f45cdaed643207ce3fd0aec12f2458e7345e8fc67ff7358",
+        "59724-2.json": "7811e1d80a6bd1d3f56bc26eced98d5aa71c50aa137bfe2c9d4fbb7316d20570",
+        "59724-3.json": "6d031abd458943aba5b47c969d0ebe5641a745d3f4dd7c3002a1a129224e7afc",
+        "59724-4.json": "b7f89fbe3bb08dd7f0320c392dd0e3d54b3fa5f31cbe8c39955ff21cac08555f",
+        "59724-5.json": "f1d6915b5e97bcb52d9a0b5aa5f575c143f17dda0aab5371860b9630dd18a79b",
+        "59724-6.json": "42e005196b39221f25b94189c5ca7ed74b08b4dff6fa9bc7243b2f8061d3632c",
+        "59724-7.json": "690e8d500ad6a2b6ea47ce9a3ae226809f4ea8dca2b92e13e050e9da94bc81c5",
+        "59724-8.json": "a197435b864c0e451c5582db48273189f6fbb98073af849bbc8c6020d88d96fb",
+        "59724-9.json": "18c14bb98933c238ca0d323fc9a84f8078589e6e78544327fd268739fa81c613"
+      },
+      "log_sha256": "d7ba74c6c9d886fe593c8cb781f23656787bafd21058aaba9e20b1a7a8a40512",
+      "original_source_sha256": "f9b97651a3e0bab924e934c1e857750312d337faa631c356a9aa32905852c2c7",
+      "passed": 6,
+      "source_sha256": "2151d4f8107fa444abd1d6b4ccd736820d0dbc84217a5f63b05ade4112cfb93f",
+      "total": 10
+    },
+    "small_nats": {
+      "cases": [
+        {
+          "name": "division_by_an_immediate_takes_a_decided_divisor",
+          "status": "passed"
+        },
+        {
+          "name": "equal_values_agree_as_map_keys_whichever_path_built_them",
+          "status": "passed"
+        },
+        {
+          "name": "int_crosses_both_immediate_edges_and_their_negations",
+          "status": "passed"
+        },
+        {
+          "name": "nat_crosses_the_immediate_edge_exactly_in_both_directions",
+          "status": "passed"
+        },
+        {
+          "name": "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers",
+          "status": "failed"
+        },
+        {
+          "name": "nat_subtraction_on_immediates_takes_its_evidence_from_a_test",
+          "status": "passed"
+        }
+      ],
+      "changed_outcomes": {
+        "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers": [
+          "passed",
+          "failed"
+        ]
+      },
+      "failed": 1,
+      "failure_details": {
+        "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers": {
+          "compiler_exit_code": 4,
+          "diagnostic": "bootstrap.check:94:30: argument method needs checked mathematical semantics (in Main.cinch:93:30)\n",
+          "diagnostic_sha256": "3705352d7dc1429842e2ba19705139e72aaf72d388594a836f542510e0e79807",
+          "invocation_sha256": "98c6333a8835d5c492ebc32d09c73f962246ea55bd1c4471c02712ae7ca15562",
+          "requested_roots": {
+            "dictionaries": [],
+            "methods": [],
+            "schema": 1,
+            "units": []
+          }
+        }
+      },
+      "harness_sha256": "961bbba596dca1a538d582b90ce89121d916b739a9ba0ff9462c49e738d5e350",
+      "invocations": {
+        "66511-0.json": "9384796bed497355d722af84481f8c45fdb8142df88d7c01c84d8ec88b4c3556",
+        "66511-1.json": "c6d614fc231e70ba5af4d8aeac1142fa82a553decb95a395578a206158946553",
+        "66511-2.json": "14cbc769838885bfa50939bd6d5faf37cef4e025d4b2c711c2da1da28d40d438",
+        "66511-3.json": "b994a5f8c736fbd48fd2f9ab4b2417639aca53fea7493b5b3f7368c46725db58",
+        "66511-4.json": "1dac1bcba81d6d35f8c119af839e2c1a953796204b07e370b14788814fe33f9c",
+        "66511-5.json": "0dc853f8b22c59163268c403559501a446183ceb023b58cb4eeebc66a3da80ec",
+        "66511-6.json": "98c6333a8835d5c492ebc32d09c73f962246ea55bd1c4471c02712ae7ca15562",
+        "66511-7.json": "4011d6be3a2ea2e5bde2d2bbf5ddaf15c9eee068998d6a5bf55a768479be1630",
+        "66511-8.json": "664208345387e29497d0d8399f6348a67f0948fa6ba52879f122ac9613f31945"
+      },
+      "log_sha256": "86e76d13b60ec7b8a4860e3b172d62a05e1b841ed3966768240f088c51b8fd22",
+      "original_source_sha256": "59e60e6e7535e1b82869791a1cba1d51ce797b1389bb58080d7796193dc80665",
+      "passed": 5,
+      "source_sha256": "79e0a478ff72981bc3e1d8fbd9c1c4a8be370e3ca3c3950dd34ead970ef355ea",
+      "total": 6
+    }
+  }
+}
