@@ -6293,6 +6293,10 @@
               "cases": [
                 {
                   "name": "driver_links_a_fixed_ir_module_and_reports_both_exit_codes",
+                  "status": "passed"
+                },
+                {
+                  "name": "driver_refuses_incomplete_arguments_with_its_named_exit_code",
                   "status": "running"
                 }
               ]
@@ -16142,5 +16146,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:18:57.881758+00:00"
+  "updatedAt": "2026-11-09T12:20:02.531710+00:00"
 }
