@@ -964,6 +964,7 @@ This facade re-exports the following checked values. Follow a defining module fo
 | `break` | [Data.List](Data.List.md#value-627265616b) |
 | `bytes-compare` | [Data.Bytes](Data.Bytes.md#value-62797465732d636f6d70617265) |
 | `bytes-copy-range` | [Data.Bytes](Data.Bytes.md#value-62797465732d636f70792d72616e6765) |
+| `bytes-data` | [Data.Bytes](Data.Bytes.md#value-62797465732d64617461) |
 | `bytes-from-list` | [Data.Bytes](Data.Bytes.md#value-62797465732d66726f6d2d6c697374) |
 | `bytes-from-u8s` | [Data.Bytes](Data.Bytes.md#value-62797465732d66726f6d2d753873) |
 | `bytes-get` | [Data.Bytes](Data.Bytes.md#value-62797465732d676574) |

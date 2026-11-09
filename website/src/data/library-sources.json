@@ -141,9 +141,9 @@
     {
       "module": "Data.Bytes",
       "path": "compiler/prelude/Data/Bytes.cinch",
-      "sha256": "47f2c8ee650238fae49e2f10f60f84d4d7b1fce1ab2fc8b5588dcd85c50cfffe",
+      "sha256": "4a18314a82db723cbd91eea9036b92efb2ea8137527dd2adccb3b30022d4e454",
       "embedded": true,
-      "values": 9,
+      "values": 10,
       "public_methods": 0
     },
     {
@@ -607,7 +607,7 @@
       "path": "compiler/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
       "embedded": true,
-      "values": 1038,
+      "values": 1039,
       "public_methods": 41
     },
     {

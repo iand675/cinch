@@ -50,7 +50,7 @@ The lexicographic order of two buffers' contents as the raw -1/0/1
 immediate (the `nat-cmp` convention), read in place: no copy and
 no allocation.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 53
+[Source](/reference-sources/Data.Bytes.cinch) · line 62
 
 <a id="value-62797465732d636f70792d72616e6765"></a>
 
@@ -63,7 +63,23 @@ into `dst` at `di`, as one runtime `memmove` (the two may be the
 same buffer and overlap). A copy loop written here would box a `Nat`
 for every index step, so every bulk copy goes through this.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 48
+[Source](/reference-sources/Data.Bytes.cinch) · line 57
+
+<a id="value-62797465732d64617461"></a>
+
+## `bytes-data`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-data</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+
+`bytes-data b`: the address of the buffer's payload as a machine
+word. This is how a buffer reaches the operating system: a `prim`
+body or a `foreign import ccall` takes the address and the length
+separately, exactly as the C interface does. The buffer never moves
+and the address is valid while the handle is live, so a caller that
+wants a C string NUL-terminates it itself (a fresh buffer one byte
+longer, the bytes copied in, the last byte zeroed).
+
+[Source](/reference-sources/Data.Bytes.cinch) · line 51
 
 <a id="value-62797465732d66726f6d2d6c697374"></a>
 
@@ -75,7 +91,7 @@ The list's bytes, in order. A byte is an `InRange 0 255 Nat`, so a
 list of numerals decides each element at compile time and a
 computed list carries its elements' ranges.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 64
+[Source](/reference-sources/Data.Bytes.cinch) · line 73
 
 <a id="value-62797465732d66726f6d2d753873"></a>
 
@@ -85,7 +101,7 @@ computed list carries its elements' ranges.
 
 The `FromList` buffer: `bytes-from-list`'s shape over `U8`.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 89
+[Source](/reference-sources/Data.Bytes.cinch) · line 98
 
 <a id="value-62797465732d676574"></a>
 
@@ -139,7 +155,7 @@ buffer (the P31 content identity; `compiler/runtime/src/text.rs`,
 the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
 digest as a fresh 32-byte buffer.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 59
+[Source](/reference-sources/Data.Bytes.cinch) · line 68
 
 # Instances
 
@@ -158,4 +174,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `47f2c8ee650238fae49e2f10f60f84d4d7b1fce1ab2fc8b5588dcd85c50cfffe`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Data/Bytes.cinch`. Source SHA-256: `4a18314a82db723cbd91eea9036b92efb2ea8137527dd2adccb3b30022d4e454`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
