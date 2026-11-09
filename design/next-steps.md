@@ -174,9 +174,11 @@ combined Stage 1. See [the provider and integration audit](../bootstrap/current-
 All twelve original module tests passed through the isolated Cinch
 Stage 1, including qualified import overlap, concrete cycle paths
 and the actual build manifest. Its source-refusal control clears
-both the previous IR and manifest. All twelve Rust cases and both
-component controls also passed. The candidate still needs early
-admission failure cleanup and a matching Stage 3 replay.
+both the previous IR and manifest. Independent replay confirmed the same
+cleanup for missing interfaces and invalid object digests. The compiler
+refuses an output that aliases its metadata input and preserves the
+input and IR. All twelve Rust cases and both component controls passed.
+The matching Stage 3 replay remains open.
 See [the module and manifest audit](../bootstrap/current-abi7-module-manifest-results.json).
 
 Rust now initializes acyclic strict recursive bindings before their
