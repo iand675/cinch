@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 16,
+        "passed": 17,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_boolean_branches with the combined Stage 3",
+        "phase": "Replay bootstrap_buffer_aliases with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
@@ -21215,7 +21215,7 @@
         "total": 34,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-shared-worker",
+        "status": "running",
         "phase": "Await the combined Stage 3 fixed point.",
         "evidence": null
       },
@@ -21268,9 +21268,9 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "tests",
         "total": 39,
-        "passed": 0,
+        "passed": 39,
         "failed": 0,
-        "status": "running",
+        "status": "audited-abi7-native-editor",
         "phase": "complete syntax and editor suite",
         "evidence": null
       },
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:12:40.469501+00:00"
+  "updatedAt": "2026-11-09T08:13:43.559018+00:00"
 }
