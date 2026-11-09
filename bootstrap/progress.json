@@ -21202,9 +21202,9 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 14,
-        "passed": 13,
+        "passed": 14,
         "failed": 0,
-        "status": "running",
+        "status": "passed-exact-abi7-stage3-external-acceptance",
         "phase": "class-identity",
         "evidence": null
       },
@@ -21468,8 +21468,8 @@
         "total": 7,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -21618,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:27:20.910889+00:00"
+  "updatedAt": "2026-11-09T08:28:24.105707+00:00"
 }
