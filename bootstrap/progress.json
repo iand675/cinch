@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "commit": "90c0283c5bfc2b71427716ffe506538d1afc8908",
+  "commit": "39072f11858567137d66d0bc0411f8b6b66834b7",
   "status": "Integrated ABI 7 verification",
   "stages": [
     {
@@ -455,28 +455,28 @@
       "title": "Earlier source: Changed-source rebuilding verified"
     }
   ],
-  "candidateSource": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+  "candidateSource": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
   "candidatePublished": true,
   "fullGoalComplete": false,
-  "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
+  "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
   "activity": "The integrated candidate 3 passed the changed-source check. 12/110 Cinch Stage 3 targets passed and 25/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
-      "compiler": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-      "native": "d04ac86784a6cee08e6cdff148d4c1d78b427159f3d9b8d2216327e6ca61d2f0"
+      "compiler": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
+      "native": "32b28f279481ab495b971910c30526109014dc8b8149d4816ee64da271ac0a7a"
     },
     "acceptance": [
       {
         "id": "acceptance:1",
         "title": "1. Pinned seed builds Stage1",
         "state": "verified",
-        "detail": "Pinned Rust seed built Stage 1 and all stage smoke tests passed.",
+        "detail": "The pinned Rust seed built the published compiler into Stage 1.",
         "doneWhen": "The pinned Rust seed builds all latest compiler sources; Stage1 is runnable and passes its executable smoke checks.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-published-task-capture-compiler.json",
         "observed": {
           "status": "passed",
-          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+          "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
           "cases": []
         }
       },
@@ -484,12 +484,12 @@
         "id": "acceptance:2",
         "title": "2. Stage1 builds Stage2",
         "state": "verified",
-        "detail": "Stage 1 rebuilt the codata compiler from the same sources and emitted all 46 compiler interfaces.",
+        "detail": "Stage 1 rebuilt the same compiler source and emitted all 46 interfaces.",
         "doneWhen": "Stage1 freshly rebuilds every compiler module from those same inputs, without a Rust frontend or prebuilt compiler substitution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-published-task-capture-compiler.json",
         "observed": {
           "status": "passed",
-          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+          "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
           "cases": []
         }
       },
@@ -497,12 +497,12 @@
         "id": "acceptance:3",
         "title": "3. Stage2 builds matching Stage3",
         "state": "verified",
-        "detail": "Stage 2 and Stage 3 agree in executable bytes, LLVM IR and all 46 compiler interfaces. Both passed their smoke tests.",
+        "detail": "Stage 2 and Stage 3 agree in executable bytes, LLVM IR and all 46 compiler interfaces.",
         "doneWhen": "Build and run Stage3; Stage2/Stage3 emitted IR, executable and every canonical interface agree.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-published-task-capture-compiler.json",
         "observed": {
           "status": "passed",
-          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+          "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
           "cases": []
         }
       },
@@ -510,12 +510,12 @@
         "id": "acceptance:4",
         "title": "4. Changed-source bootstrap works",
         "state": "verified",
-        "detail": "A source change rebuilt through the ladder and produced the expected changed diagnostic.",
+        "detail": "A deliberate source change rebuilt through Stage 2 and produced the expected changed diagnostic.",
         "doneWhen": "Change actual compiler source, rebuild it through the chain, and prove that its changed behavior reaches the consumer.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-codata-fixed-point-results.json",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-published-task-capture-compiler.json",
         "observed": {
           "status": "passed",
-          "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
+          "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
           "cases": []
         }
       },
@@ -21156,5 +21156,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:06:05.162002+00:00"
+  "updatedAt": "2026-11-09T04:11:07.011037+00:00"
 }
