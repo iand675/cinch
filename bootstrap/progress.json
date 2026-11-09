@@ -17875,10 +17875,10 @@
         "title": "Replay all original concurrency cases with interface emission enabled",
         "source": "760727efa97de529ab842ec53875f753443562b4a9910404cdebfbdb1d266c3a",
         "unit": "tests",
-        "passed": 0,
+        "passed": 20,
         "total": 20,
         "failed": 0,
-        "status": "running",
+        "status": "passed",
         "phase": "Replay all twenty original Cinch concurrency cases",
         "evidence": null
       },
@@ -20969,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:19:10.338193+00:00"
+  "updatedAt": "2026-11-09T01:23:55.743160+00:00"
 }
