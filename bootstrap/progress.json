@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 27,
+          "verified": 28,
           "blocked": 3,
           "running": 1,
-          "pending": 205,
+          "pending": 204,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -3246,17 +3246,17 @@
           {
             "id": "native:bootstrap_body_bindings",
             "title": "bootstrap_body_bindings",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T12:18:41.096656+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T12:29:49.212836+00:00",
+              "exitCode": 0,
+              "logSha256": "acb2d3c56de807be298828017b35694742c681d79675703726732987ae7d420a",
               "cases": [
                 {
                   "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
@@ -3264,7 +3264,7 @@
                 },
                 {
                   "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -3272,11 +3272,24 @@
           {
             "id": "native:bootstrap_boolean_branches",
             "title": "bootstrap_boolean_branches",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T12:29:49.239690+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "compiled_cinch_retains_only_valid_one_way_boolean_facts",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_buffer_aliases",
@@ -15650,10 +15663,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 27,
+        "passed": 28,
         "failed": 3,
         "status": "running",
-        "phase": "bootstrap_body_bindings Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "bootstrap_boolean_branches Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -16164,10 +16177,10 @@
       }
     ],
     "counts": {
-      "verified": 322,
+      "verified": 323,
       "blocked": 28,
       "running": 3,
-      "pending": 432,
+      "pending": 431,
       "recheck": 21
     },
     "total": 806,
@@ -16176,5 +16189,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:26:01.839184+00:00"
+  "updatedAt": "2026-11-09T12:30:07.699134+00:00"
 }
