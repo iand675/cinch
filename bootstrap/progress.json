@@ -5581,6 +5581,14 @@
                 },
                 {
                   "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "arrays_keep_record_and_string_elements_alive",
+                  "status": "passed"
+                },
+                {
+                  "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
                   "status": "running"
                 }
               ]
@@ -14067,10 +14075,10 @@
         "source": "10ca60b04d2064fd8166f0f45535c2876cea870a1c4880ad4a7441e2fa01a5b5",
         "unit": "checks and targets",
         "total": 9,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build signed widening Stage 1 with the pinned seed",
+        "phase": "Check plain-signed-boundaries",
         "evidence": null
       },
       {
@@ -14230,5 +14238,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:37:19.551195+00:00"
+  "updatedAt": "2026-11-09T09:38:23.983977+00:00"
 }
