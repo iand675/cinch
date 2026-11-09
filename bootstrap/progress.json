@@ -20859,12 +20859,12 @@
       {
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
-        "status": "completed-with-failures",
-        "phase": "Isolated Stage 1 candidate. run all eleven original letrec cases",
-        "passed": 4,
+        "status": "running",
+        "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
+        "passed": 1,
         "total": 6,
-        "failed": 2,
-        "source": "760727efa97de529ab842ec53875f753443562b4a9910404cdebfbdb1d266c3a",
+        "failed": 0,
+        "source": "4a7e6706e69c1b989230e5eefdef2eaf2d3a138580d4f3c235176bce08d76a25",
         "evidence": null
       },
       {
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:15:19.085533+00:00"
+  "updatedAt": "2026-11-09T01:16:41.815472+00:00"
 }
