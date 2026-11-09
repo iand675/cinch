@@ -21192,9 +21192,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 12,
-        "failed": 8,
+        "failed": 9,
         "status": "running",
-        "phase": "Replay original lib_matrix target on Stage 3",
+        "phase": "Replay original lib_option_parser target on Stage 3",
         "evidence": null
       },
       {
@@ -21337,7 +21337,7 @@
         "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Compare the original argument-scope input builder write retains an exact branch bound among related facts",
+        "phase": "Compare the original argument-scope input bounded byte length in nested guarded subtraction",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:04:35.155159+00:00"
+  "updatedAt": "2026-11-09T07:05:38.127663+00:00"
 }
