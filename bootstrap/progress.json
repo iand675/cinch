@@ -13769,7 +13769,7 @@
         "total": 34,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-disk-space",
+        "status": "waiting-shared-worker",
         "phase": "Wait for the matching fixed point.",
         "evidence": null
       },
@@ -14271,5 +14271,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:46:41.033903+00:00"
+  "updatedAt": "2026-11-09T09:52:00.728770+00:00"
 }
