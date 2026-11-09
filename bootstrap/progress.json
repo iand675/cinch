@@ -10689,6 +10689,30 @@
                 },
                 {
                   "name": "signature_predicates_keep_checked_index_carrier_kinds",
+                  "status": "failed"
+                },
+                {
+                  "name": "sorted_reverse_append_is_rejected_naming_the_preservation_law",
+                  "status": "failed"
+                },
+                {
+                  "name": "stale_witness_cannot_be_constructed",
+                  "status": "passed"
+                },
+                {
+                  "name": "surface_spelling_declares_the_refinement",
+                  "status": "failed"
+                },
+                {
+                  "name": "surface_spelling_refuses_a_wrong_predicate_naming_it",
+                  "status": "failed"
+                },
+                {
+                  "name": "the_bespoke_nonempty_type_is_gone",
+                  "status": "failed"
+                },
+                {
+                  "name": "the_four_refinements_exist_with_their_constructors",
                   "status": "running"
                 }
               ]
@@ -15296,5 +15320,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:03:19.287194+00:00"
+  "updatedAt": "2026-11-09T11:04:21.930123+00:00"
 }
