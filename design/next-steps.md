@@ -101,6 +101,11 @@ tail-call tests. The full matching Rust inventory and Cinch bootstrap chain
 are still running.
 See [the matching Rust audit](../bootstrap/current-abi7-codata-index-opening-native-results.json).
 
+The matching Rust sweep passed 383 cases across its first 14 complete
+targets, including all 216 library tests, 26 staging tests,
+and the pinned library-object and bootstrap loader tests.
+See [the compiler target audit](../bootstrap/current-abi7-codata-index-native-fourteen-targets.json).
+
 The matching Stage 1 executable passed all eight original law cases with
 14 selected-compiler invocations. It also exported the three erased
 equation methods under their declaring class and checked slots. Stage 1
