@@ -1,5 +1,5 @@
 //! Versioned interface bodies retain actual defining identity and dependencies.
-use cinch::interface::Iface;
+use cinch::interface::{Iface, SCHEMA_VERSION};
 use cinch::total::{CheckedGraph, Definition, Expr, Sort};
 
 #[test]
@@ -21,7 +21,7 @@ module Main where
 "#;
     let (_, interfaces) = cinch::driver::check_sources_ifaces(source, "body-interfaces.cinch").unwrap();
     let a = interfaces.iter().find(|i| i.module == "A").unwrap();
-    assert_eq!(a.schema, 8);
+    assert_eq!(a.schema, SCHEMA_VERSION);
     let width = a.exports.values.iter().find(|v| v.name == "width").unwrap();
     let body = width.total_body.as_ref().expect("actual closed width body is a contract");
     assert_eq!(body.get("A.width").unwrap().parameters, [Sort::Nat]);
@@ -53,7 +53,7 @@ module Main where
 
 
     let mut missing = a.clone();
-    missing.schema = 7;
+    missing.schema = SCHEMA_VERSION - 1;
     assert!(Iface::from_json(&missing.to_json()).is_err(), "old readers must not ignore new semantic fields");
     let mut unrelated = a.clone();
     let extra = Definition { identity: "unrelated".into(), parameters: vec![], result: Sort::Nat, body: Expr::Number { sort: Sort::Nat, decimal: "0".into() } };
