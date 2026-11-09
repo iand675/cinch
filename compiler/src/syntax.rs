@@ -517,7 +517,7 @@ fn walk_decl(decl: &Decl, visit: &mut impl FnMut(&Term) -> Result<()>) -> Result
         }
         Decl::Prim(prim) => {
             for body in &prim.bodies {
-                if let Some(when) = &body.when {
+                for when in &body.when {
                     walk_term(when, visit)?;
                 }
                 if let Some(justify) = &body.justify {

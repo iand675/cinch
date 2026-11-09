@@ -306,7 +306,46 @@ module Main where
   main = if add-word 40 2 == 42 then 0 else 1
 ```
 
-Bodies take clauses after the fragment: `when <capability>` selects a body by target capability, `justify <term>` records why a representation choice is sound, `uses (name :: type), ...` declares the callee vocabulary the fragment may use, `immarg 0, 1` marks immediate arguments, and a leading `unsafe` on one body marks that body unverified so its declared row is trusted instead of checked.
+Bodies take clauses after the fragment: `when <atom>` selects a body by the compile target, `justify <term>` records why a representation choice is sound, `uses (name :: type), ...` declares the callee vocabulary the fragment may use, `immarg 0, 1` marks immediate arguments, and a leading `unsafe` on one body marks that body unverified so its declared row is trusted instead of checked.
+
+A `when` clause is one atom read off the target profile, and every atom is also usable negated, with the atom in parentheses:
+
+| Atom | Holds when |
+| --- | --- |
+| `Available <capability>` | the profile's capability evidence names it, which is a `signature` (platform proofs and SIMD specification section 3) |
+| `arch <name>` | the target's architecture is `<name>`: `x86_64`, `aarch64`, `wasm32` |
+| `os <name>` | the target's operating system is `<name>`: `darwin`, `linux`, `windows` |
+| `libc <name>` | the target links `<name>`: `glibc`, `musl`, `libSystem`, `none` |
+| `endian <little\|big>` | the target's byte order is the one named |
+| `word-size <bits>` | the target's `Usize` and `Isize` width is `<bits>`: `32`, `64` |
+| `target <triple>` | the target's whole triple is `<triple>`, the exact-match escape hatch |
+
+A body may carry several clauses, and they are a conjunction: `when os linux when arch aarch64` holds on Linux on aarch64 and nowhere else. `when not (os windows)` is the negation of `os windows`, so it holds on Darwin and Linux.
+
+Every atom reads the compile target profile and never the build host, so a cross compile selects by the artifact's own target. A conditional body wins over the baseline body (no `when`), and a prim whose conditions no body satisfies refuses by name:
+
+```
+cinch: 3:3: no body applies for the target profile `x86_64-unknown-linux-gnu` (`x86_64-unknown-linux-gnu`): the `asm` body's `when os windows` does not hold (`os windows` fails: the target's os is `linux`). A `when` clause is one atom over the compile target: ...
+```
+
+The refusal names the atom that failed and what the target is instead, and a missing capability reads differently from a platform mismatch: the capability account lists the evidence the profile does carry.
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  prim pick :: U32 -> U32 where
+    llvm {
+      %s = add i32 1, %0
+      ret i32 %s
+    } when not (os windows)
+    llvm {
+      %s = add i32 %0, 1
+      ret i32 %s
+    }
+
+  main :: Int
+  main = if pick 1 == 2 then 0 else 1
+```
 
 Containment parses the fragment before emission and refuses what an inline body may not do:
 
@@ -323,6 +362,6 @@ A reserved family is refused by name rather than half-supported:
 cinch: 3:5: the `clr` target-IR family is reserved: its fragment grammar lands with its backend (primitive operations and inline target IR specification section 3)
 ```
 
-A `wasm` or `asm` body that names a capability the profile cannot assume is not selected; the selection and the assumptions land in the manifest. Registering a family name is not backend support.
+A conditional body whose atoms do not hold in the target profile is not selected, and the selection with its reason lands in the manifest. A body's family must also lower through this build's emission path, which today means `llvm` and admitted `asm`; registering a family name is not backend support.
 
 Implementation: `repr.rs` (layout admission), `check_decls.rs` (binding contracts, containment), `codegen.rs` (declarations, stubs, freeze), `interface.rs` (the recorded contract); suites `ffi.rs`, `attributes.rs`, `prim.rs`, `llvm_contract.rs`, `repr_classes.rs`, `safety.rs`. Intended semantics: [foreign function interface specification](../specifications/foreign-function-interface-specification.md) sections 1 to 4, [attribute annotations specification](../specifications/attribute-annotations-specification.md) sections 1 and 4, [inline target IR](../specifications/primitive-operations-and-inline-target-ir-specification.md). Design notes: [LLVM contract attributes](../design/llvm-contract-attributes.md), [runtime object linkage](../design/runtime-object-linkage.md).

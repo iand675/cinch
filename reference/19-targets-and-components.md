@@ -6,7 +6,7 @@ A target profile states what an artifact may assume: the triple, the word width,
 
 | Field | Meaning |
 | --- | --- |
-| `triple` | The target triple. `Usize` and `Isize` widths and `when arch <name>` predicates key on it. |
+| `triple` | The target triple. `Usize` and `Isize` widths, the `when` atoms of a `prim` body, and package conditions all key on it. |
 | `word_size` | Pointer and word width in bits. |
 | `endian` | `little` or `big`. |
 | `vector_shape` | The admitted SIMD shape. |

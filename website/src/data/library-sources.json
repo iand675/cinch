@@ -621,7 +621,7 @@
     {
       "module": "Prim.Sys.Linux",
       "path": "compiler/prelude/Prim/Sys/Linux.cinch",
-      "sha256": "d42ed77dbae4f77283305ac21eb6d4191bf33a7b87b1d5061c68b8575dc66136",
+      "sha256": "e30c5a9c0b5d8f6d5cf78953bf2bd6f7ce6e95f2fde5a4b355f9cfd7d5a9f5cb",
       "embedded": true,
       "values": 17,
       "public_methods": 0

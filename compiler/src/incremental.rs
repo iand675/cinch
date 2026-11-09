@@ -509,7 +509,7 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
         }
         Decl::Prim(p) => {
             for b in &p.bodies {
-                if let Some(w) = &b.when {
+                for w in &b.when {
                     ast::collect_term_refs(w, out);
                 }
                 if let Some(j) = &b.justify {

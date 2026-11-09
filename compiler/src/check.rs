@@ -3328,15 +3328,13 @@ struct Checker {
     /// Checked `prim` plans in declaration order (core specification
     /// section 11's manifest).
     prims: Vec<crate::core::PrimPlan>,
-    /// The target profile's capability evidence: a body's `Available X`
-    /// condition holds where `X` is listed (platform proofs and SIMD
-    /// specification section 3).
-    target_caps: Vec<String>,
-    /// The target profile's arch (the target triple's first component):
-    /// a body's `when arch <name>` platform condition holds where the
-    /// names agree (primitive operations and inline target IR
-    /// specification section 13).
-    target_arch: String,
+    /// The compile target profile: every atom of a `prim` body's `when`
+    /// condition is read off this profile, never off the build host
+    /// (primitive operations and inline target IR specification
+    /// section 13; platform proofs and SIMD specification section 3 for
+    /// the `Available` evidence). `None` before a driver sets one, and
+    /// body selection then refuses rather than guessing a target.
+    target: Option<crate::core::TargetProfile>,
     /// Class law obligations collected per instance, checked sample-wise
     /// after every module's bodies (primitive operations and inline
     /// target IR specification section 5).
@@ -3821,8 +3819,7 @@ impl Checker {
             pending_rewrites: Vec::new(),
             pending_prims: Vec::new(),
             prims: Vec::new(),
-            target_caps: Vec::new(),
-            target_arch: String::new(),
+            target: None,
             law_obligations: Vec::new(),
             pres_obligations: Vec::new(),
             law_rows: Vec::new(),

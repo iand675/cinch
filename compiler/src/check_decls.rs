@@ -7763,9 +7763,16 @@ impl Checker {
             for b in &p.bodies {
                 let (validation, uses) =
                     self.validate_prim_body(&module, &p, b, &arg_tys, &res_ty, pure)?;
-                let cond = match &b.when {
-                    Some(w) => Some(self.lower_when(w)?),
-                    None => None,
+                // The clauses are a conjunction, so every clause of
+                // one body contributes an atom to the one condition.
+                let mut conjunction = WhenCond::default();
+                for clause in &b.when {
+                    conjunction.atoms.push(self.lower_when(clause)?);
+                }
+                let cond = if conjunction.atoms.is_empty() {
+                    None
+                } else {
+                    Some(conjunction)
                 };
                 let assumptions = match &b.justify {
                     Some(j) => self.check_prim_justify(j, &unit, arity, b.span)?,
@@ -7803,9 +7810,7 @@ impl Checker {
                 bodies.push(crate::core::PrimBodyPlan {
                     family: b.family.text.clone(),
                     fragment: b.fragment.clone(),
-                    when: b.when.as_ref().map(|_| {
-                        conds.last().unwrap().as_ref().unwrap().render()
-                    }),
+                    when: conds.last().unwrap().as_ref().map(WhenCond::render),
                     immarg: b.immarg.iter().map(|(n, _)| *n).collect(),
                     uses,
                     assumptions,
@@ -7814,23 +7819,22 @@ impl Checker {
                     validation,
                 });
             }
-            // Selection (section 6): a body applies when its family
-            // lowers through this build's emission path and its `when`
-            // condition holds in the target profile. The single matching
-            // conditional body is the specific one; the baseline (no
-            // `when`) is the fallback. Two bodies with overlapping
-            // conditions in one family are the first-match ambiguity and
-            // an error. Selection is fixed at compile time per artifact.
-            // Selection (section 6, with section 13's platform
-            // predicates): a body applies when its `when` condition holds
-            // in the target profile (capability evidence or the target
-            // triple's arch) and its family lowers through this build's
-            // emission path. A matching conditional body is the specific
-            // one and wins; the baseline (no `when`) is the fallback when
-            // no condition matches (the canonical portable baseline
-            // beside specific bodies). Two bodies with overlapping
-            // conditions in one family are the first-match ambiguity and
-            // an error. Selection is fixed at compile time per artifact.
+            // Selection (section 6, with section 13's target predicates):
+            // a body applies when every atom of its `when` condition holds
+            // in the target profile and its family lowers through this
+            // build's emission path. A matching conditional body is the
+            // specific one and wins; the baseline (no `when`) is the
+            // fallback when no condition matches (the canonical portable
+            // baseline beside specific bodies). Two bodies with
+            // overlapping conditions in one family are the first-match
+            // ambiguity and an error. Selection is fixed at compile time
+            // per artifact, against the compile target and never the build
+            // host.
+            let Some(target) = self.target.as_ref() else {
+                return Err(Error::plain(
+                    "internal error: `prim` body selection needs the target profile, and this checker carries none",
+                ));
+            };
             let mut family_units: Vec<(String, usize)> = Vec::new();
             let mut picks: Vec<(&str, Option<usize>, Option<usize>)> = Vec::new();
             for fam in ["llvm", "asm"] {
@@ -7841,9 +7845,7 @@ impl Checker {
                         continue;
                     }
                     match &conds[i] {
-                        Some(c) if c.holds(&self.target_caps, &self.target_arch) => {
-                            matched.push(i)
-                        }
+                        Some(c) if c.holds(target) => matched.push(i),
                         None => {
                             if baseline.is_some() {
                                 return Err(Error::at(
@@ -7876,7 +7878,7 @@ impl Checker {
             let mut selected: Option<(usize, String)> = None;
             for (fam, m, _) in &picks {
                 if let Some(i) = m {
-                    let render = conds[*i].as_ref().map(|c| c.render()).unwrap_or_default();
+                    let render = conds[*i].as_ref().map(WhenCond::render).unwrap_or_default();
                     selected = Some((
                         *i,
                         format!("the `{fam}` body's `when {render}` condition holds in the target profile"),
@@ -7898,14 +7900,30 @@ impl Checker {
             let (selected, selected_why) = match selected {
                 Some(x) => x,
                 None => {
-                    let names: Vec<String> =
-                        conds.iter().flatten().map(|c| c.render()).collect();
-                    if !names.is_empty() {
+                    // A capability atom and a platform atom fail for
+                    // different reasons, so the account says which atom
+                    // failed and what the target profile is instead: a
+                    // missing capability lists the evidence the profile
+                    // does carry, a platform atom names the target's own
+                    // component.
+                    let mut accounts: Vec<String> = Vec::new();
+                    for (i, cond) in conds.iter().enumerate() {
+                        let Some(cond) = cond else { continue };
+                        accounts.push(format!(
+                            "the `{}` body's `when {}` does not hold ({})",
+                            bodies[i].family,
+                            cond.render(),
+                            cond.account(target)
+                        ));
+                    }
+                    if !accounts.is_empty() {
                         return Err(Error::at(
                             p.span,
                             format!(
-                                "no body applies: the `when` conditions name the capability/platform {} which the target profile does not provide (primitive operations and inline target IR specification sections 6 and 13: reject the missing capability or platform)",
-                                names.join(", ")
+                                "no body applies for the target profile `{}` (`{}`): {}. {WHEN_VOCABULARY}",
+                                target.name,
+                                target.triple,
+                                accounts.join(", ")
                             ),
                         ));
                     }
@@ -7979,9 +7997,18 @@ impl Checker {
                 ctor: None,
                 hints: self.fn_hints.get(&unit).cloned().unwrap_or_default(),
                 meta,
-                // An inline target fragment: its words are the fragment's
-                // own, not classified here.
-                repr: crate::core::UnitRepr::default(),
+                // An inline target fragment receives its arguments as
+                // machine scalars (`validate_prim_body` refuses anything
+                // else), so every parameter is a raw word. The classes
+                // still have to be stated: a separately compiled consumer
+                // reads them out of the object's ABI (`object_abi`), and a
+                // default representation leaves that map empty.
+                repr: crate::core::UnitRepr {
+                    tparams: 0,
+                    params: vec![crate::core::Class::Raw; arity],
+                    fields: Vec::new(),
+                    ..Default::default()
+                },
             });
             self.prims.push(plan);
         }
@@ -10415,10 +10442,11 @@ impl Checker {
                 },
             ));
         }
-        // The `when` condition is the platform chapter's capability
-        // evidence (`Available X`), scoped exactly like `target
-        // rewrite`'s `require` (decision D59's rule).
-        if let Some(w) = &b.when {
+        // Every `when` clause is checked here, in the shape pass:
+        // capability evidence or one target atom (section 13), scoped
+        // exactly like `target rewrite`'s `require` (decision D59's
+        // rule). The clauses are a conjunction at selection.
+        for w in &b.when {
             self.lower_when(w)?;
         }
         // The `unsafe` trust rule (section 12): a body containment
@@ -10455,36 +10483,52 @@ impl Checker {
         Ok((validation, use_renders))
     }
 
-    /// A body's `when` condition (primitive operations and inline target
-    /// IR specification sections 2 and 13): `Available X` over a
-    /// capability name of the platform chapter's evidence, or the
-    /// platform predicate `arch <name>` keyed on the target triple.
-    fn lower_when(&self, t: &ast::Term) -> Result<WhenCond> {
-        let bad = |span: ast::Span| {
-            Error::at(
-                span,
-                "a `when` condition is `Available <capability>` over the target profile's capability evidence, or the platform predicate `arch <name>` over its triple (primitive operations and inline target IR specification sections 2 and 13; platform proofs and SIMD specification section 3)",
-            )
-        };
-        let (head, arg, span) = match t {
-            ast::Term::App(f, args, span) => match (&**f, args.as_slice()) {
-                (h, [a]) => (h, a, *span),
-                _ => return Err(bad(*span)),
-            },
+    /// One `when` clause of a body (primitive operations and inline
+    /// target IR specification sections 2 and 13): one atom over the
+    /// compile target profile, or that atom negated. The clause list on a
+    /// body is a conjunction; `when os linux when arch x86_64` holds on
+    /// Linux on x86_64 and nowhere else.
+    fn lower_when(&self, t: &ast::Term) -> Result<WhenAtom> {
+        let bad = |span: ast::Span| Error::at(span, WHEN_VOCABULARY.to_string());
+        let (head, args, span) = match t {
+            ast::Term::App(f, args, span) => (f, args, *span),
             other => return Err(bad(other.span())),
         };
-        let head_last = match head {
+        let head_last = match &**head {
             ast::Term::Var(p) => p.name.text.clone(),
             ast::Term::Con(p) => p.parts().last().copied().unwrap_or("").to_string(),
             other => return Err(bad(other.span())),
         };
-        let name = match arg {
-            ast::Term::Var(p) if p.quals.is_empty() => p.name.text.clone(),
-            ast::Term::Con(p) => p.parts().join("."),
-            other => return Err(bad(other.span())),
+        // `not (<atom>)`: the atom in parentheses, negated.
+        if head_last == "not" {
+            let [inner] = args.as_slice() else {
+                return Err(Error::at(
+                    span,
+                    format!("a negated `when` atom is written `not (<atom>)`, with the atom in parentheses: {WHEN_VOCABULARY}"),
+                ));
+            };
+            let atom = self.lower_when(inner)?;
+            if atom.negated {
+                return Err(Error::at(
+                    span,
+                    format!("a `when` clause is negated once: `not ({})` is the clause itself ({WHEN_VOCABULARY})", atom.kind.render()),
+                ));
+            }
+            return Ok(WhenAtom { negated: true, kind: atom.kind });
+        }
+        let [arg] = args.as_slice() else {
+            return Err(bad(span));
         };
-        match head_last.as_str() {
+        let name = || -> Result<String> {
+            match arg {
+                ast::Term::Var(p) if p.quals.is_empty() => Ok(p.name.text.clone()),
+                ast::Term::Con(p) => Ok(p.parts().join(".")),
+                other => Err(bad(other.span())),
+            }
+        };
+        let kind = match head_last.as_str() {
             "Available" => {
+                let name = name()?;
                 if !self.sigs.contains_key(&name) {
                     return Err(Error::at(
                         span,
@@ -10493,11 +10537,37 @@ impl Checker {
                         ),
                     ));
                 }
-                Ok(WhenCond::Capability(name))
+                WhenKind::Capability(name)
             }
-            "arch" => Ok(WhenCond::Arch(name)),
-            _ => Err(bad(span)),
-        }
+            "arch" => WhenKind::Arch(name()?),
+            "os" => WhenKind::Os(name()?),
+            "libc" => WhenKind::Libc(name()?),
+            "endian" => {
+                let name = name()?;
+                if name != "little" && name != "big" {
+                    return Err(Error::at(
+                        span,
+                        format!("an `endian` atom is `little` or `big`, and `{name}` is neither (primitive operations and inline target IR specification section 13)"),
+                    ));
+                }
+                WhenKind::Endian(name)
+            }
+            "word-size" => match arg {
+                ast::Term::Int(bits, _) => match bits.parse::<u32>() {
+                    Ok(bits) => WhenKind::WordSize(bits),
+                    Err(_) => return Err(bad(span)),
+                },
+                other => {
+                    return Err(Error::at(
+                        other.span(),
+                        format!("a `word-size` atom is a bit width as an integer, such as `word-size 32` or `word-size 64` (primitive operations and inline target IR specification section 13)"),
+                    ))
+                }
+            },
+            "target" => WhenKind::Target(name()?),
+            _ => return Err(bad(span)),
+        };
+        Ok(WhenAtom { negated: false, kind })
     }
 
     /// Containment validation of an `llvm` fragment (primitive
@@ -17358,24 +17428,13 @@ fn check_program_multi_full_prepared_impl(
         c.install_builtins();
         c.allow_eval = profile.allow_eval;
         c.usize_bits = profile.word_size;
-        // Capability evidence of the target profile (primitive operations
-        // and inline target IR specification section 6): a `prim` body's
-        // `Available X` condition holds where `X` is listed.
-        c.target_caps = {
-            let mut caps = profile.required.clone();
-            for f in &profile.features {
-                if !caps.contains(f) {
-                    caps.push(f.clone());
-                }
-            }
-            caps
-        };
-        c.target_arch = profile
-            .triple
-            .split('-')
-            .next()
-            .unwrap_or_default()
-            .to_string();
+        // The whole compile target profile, which is what every `prim`
+        // body's `when` atom reads (primitive operations and inline
+        // target IR specification section 13): its os, arch, libc,
+        // endian, word size, triple and capability evidence all come
+        // from here, so a cross compile selects by its own target and
+        // never by the machine doing the build.
+        c.target = Some(profile.clone());
         // P20: the `jpl` target profile makes the safety assertion set
         // mandatory for the user's program (decision D114); the prelude
         // family is the standard library, not flight code.
@@ -22861,30 +22920,159 @@ const IO_SYMS: &[&str] = &[
     "read", "open", "close", "exit", "abort", "_exit", "perror", "scanf", "fscanf", "sscanf",
 ];
 
-/// A `prim` body's `when` condition (primitive operations and inline
-/// target IR specification sections 2 and 13): the platform chapter's
-/// capability evidence (`Available X`), or a platform predicate keyed on
-/// the target profile's triple (`arch <name>`).
-enum WhenCond {
+/// The `when` vocabulary, spelled once for every error that names it
+/// (primitive operations and inline target IR specification sections 2
+/// and 13).
+const WHEN_VOCABULARY: &str = "A `when` clause is one atom over the compile target: `Available <capability>`, `arch <name>`, `os <name>`, `libc <name>`, `endian <little|big>`, `word-size <bits>`, or `target <triple>`, and a clause may negate its atom as `not (<atom>)`; repeated `when` clauses on one body are a conjunction (primitive operations and inline target IR specification sections 2 and 13)";
+
+/// One atom of a `prim` body's `when` condition (primitive operations
+/// and inline target IR specification sections 2 and 13). Every atom
+/// reads one component of the compile target profile, never the build
+/// host, so a cross compile selects by the artifact's target.
+#[derive(Clone, Debug)]
+enum WhenKind {
+    /// `Available <capability>`: the profile's capability evidence (its
+    /// required set and its feature assumptions) names it.
     Capability(String),
+    /// `arch <name>`: the profile's architecture.
     Arch(String),
+    /// `os <name>`: the profile's operating system.
+    Os(String),
+    /// `libc <name>`: the C library the profile links.
+    Libc(String),
+    /// `endian <little|big>`.
+    Endian(String),
+    /// `word-size <bits>`: the `Usize`/`Isize` width.
+    WordSize(u32),
+    /// `target <triple>`: the whole triple.
+    Target(String),
 }
 
-impl WhenCond {
+impl WhenKind {
+    /// The atom as written, without its negation.
     fn render(&self) -> String {
         match self {
-            WhenCond::Capability(c) => format!("Available {c}"),
-            WhenCond::Arch(a) => format!("arch {a}"),
+            WhenKind::Capability(c) => format!("Available {c}"),
+            WhenKind::Arch(a) => format!("arch {a}"),
+            WhenKind::Os(o) => format!("os {o}"),
+            WhenKind::Libc(l) => format!("libc {l}"),
+            WhenKind::Endian(e) => format!("endian {e}"),
+            WhenKind::WordSize(b) => format!("word-size {b}"),
+            WhenKind::Target(t) => format!("target {t}"),
         }
     }
 
-    /// Does the condition hold in the target profile (its capability
-    /// evidence and its arch)?
-    fn holds(&self, caps: &[String], arch: &str) -> bool {
+    /// The target profile's value for this atom's component, spelled for
+    /// an error's account of why the atom failed.
+    fn actual(&self, target: &crate::core::TargetProfile) -> String {
         match self {
-            WhenCond::Capability(c) => caps.iter().any(|x| x == c),
-            WhenCond::Arch(a) => a == arch,
+            WhenKind::Capability(_) => {
+                let mut caps = target.required.clone();
+                for f in &target.features {
+                    if !caps.contains(f) {
+                        caps.push(f.clone());
+                    }
+                }
+                if caps.is_empty() {
+                    "the target profile carries no capability evidence".to_string()
+                } else {
+                    format!("the target profile carries {}", caps.join(", "))
+                }
+            }
+            WhenKind::Arch(_) => format!("the target's arch is `{}`", target.arch),
+            WhenKind::Os(_) => format!("the target's os is `{}`", target.os),
+            WhenKind::Libc(_) => format!("the target links `{}`", target.libc),
+            WhenKind::Endian(_) => format!("the target's endian is `{}`", target.endian),
+            WhenKind::WordSize(_) => format!("the target's word size is {} bits", target.word_size),
+            WhenKind::Target(_) => format!("the target's triple is `{}`", target.triple),
         }
+    }
+
+    /// Does the atom name what the target profile is?
+    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
+        match self {
+            WhenKind::Capability(c) => target.required.iter().any(|x| x == c)
+                || target.features.iter().any(|x| x == c),
+            WhenKind::Arch(a) => *a == target.arch,
+            WhenKind::Os(o) => *o == target.os,
+            WhenKind::Libc(l) => *l == target.libc,
+            WhenKind::Endian(e) => *e == target.endian,
+            WhenKind::WordSize(b) => *b == target.word_size,
+            WhenKind::Target(t) => *t == target.triple,
+        }
+    }
+}
+
+/// One `when` clause: an atom, or that atom negated (the `not (<atom>)`
+/// spelling).
+#[derive(Clone, Debug)]
+struct WhenAtom {
+    negated: bool,
+    kind: WhenKind,
+}
+
+impl WhenAtom {
+    fn render(&self) -> String {
+        if self.negated {
+            format!("not ({})", self.kind.render())
+        } else {
+            self.kind.render()
+        }
+    }
+
+    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
+        self.kind.holds(target) != self.negated
+    }
+
+    /// Why this atom does not hold, in one account naming the atom and
+    /// what the target profile is instead. `None` when it holds. A
+    /// negated atom reports the same component, because the clause is
+    /// false exactly where that component is what it negates.
+    fn unmet(&self, target: &crate::core::TargetProfile) -> Option<String> {
+        if self.holds(target) {
+            return None;
+        }
+        Some(format!("`{}` fails: {}", self.render(), self.kind.actual(target)))
+    }
+}
+
+/// A `prim` body's `when` condition: the conjunction of its clauses
+/// (primitive operations and inline target IR specification sections 2
+/// and 13). An empty condition is the baseline body.
+#[derive(Clone, Debug, Default)]
+struct WhenCond {
+    atoms: Vec<WhenAtom>,
+}
+
+impl WhenCond {
+    /// The condition as written, its clauses joined as the conjunction
+    /// they are: `os darwin and arch aarch64`.
+    fn render(&self) -> String {
+        self.atoms
+            .iter()
+            .map(WhenAtom::render)
+            .collect::<Vec<_>>()
+            .join(" and ")
+    }
+
+    /// Does every atom hold in the target profile?
+    fn holds(&self, target: &crate::core::TargetProfile) -> bool {
+        self.atoms.iter().all(|a| a.holds(target))
+    }
+
+    /// Every atom with its outcome in the target profile, so a false
+    /// condition says which atom decided it as well as which atoms held:
+    /// `os darwin` holds, `arch aarch64` fails: the target's arch is
+    /// `x86_64`. The failing atoms carry what the profile is instead.
+    fn account(&self, target: &crate::core::TargetProfile) -> String {
+        self.atoms
+            .iter()
+            .map(|a| match a.unmet(target) {
+                Some(why) => why,
+                None => format!("`{}` holds", a.render()),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

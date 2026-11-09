@@ -9,7 +9,10 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, check_sources_profile, driver_with_profile, run_source, Mode};
+use cinch::driver::{
+    check_sources, check_sources_profile, driver_with_profile, run_source, target_profile,
+    DriverOptions, Mode,
+};
 use std::path::PathBuf;
 
 /// The `prim` acceptance fixture: one prim with `llvm` and `asm` bodies
@@ -546,7 +549,57 @@ module Main where
     );
 }
 
-// --------------------------------------- section 13: platform gating
+// ------------------------------ section 13: target-gated body selection
+
+/// A target profile for one triple with its components set by hand. A
+/// body's `when` atoms read these fields, so a test states exactly what
+/// the compile target is instead of inheriting the host's os or arch
+/// (which is the difference between reading a target and reading the
+/// build machine).
+fn profile_for(triple: &str, os: &str, arch: &str, libc: &str, word_size: u32) -> TargetProfile {
+    let mut profile = TargetProfile::native();
+    profile.name = triple.to_string();
+    profile.triple = triple.to_string();
+    profile.os = os.to_string();
+    profile.arch = arch.to_string();
+    profile.libc = libc.to_string();
+    profile.word_size = word_size;
+    profile
+}
+
+/// The emitted LLVM IR of one checked source under an explicit profile.
+fn ir_profile(name: &str, src: &str, profile: &TargetProfile) -> String {
+    let program = check_sources_profile(src, name, profile)
+        .unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+}
+
+/// Checking one source under an explicit profile fails with a message
+/// containing `needle` (and every `also` needle).
+fn expect_err_profile(
+    name: &str,
+    src: &str,
+    profile: &TargetProfile,
+    needle: &str,
+    also: &[&str],
+) -> String {
+    let diagnostic = check_sources_profile(src, name, profile).err()
+        .unwrap_or_else(|| {
+            panic!("{name}: expected an error containing {needle:?}, but it checked")
+        });
+    let msg = diagnostic.to_string();
+    assert!(msg.contains(needle), "{name}: {msg:?} does not contain {needle:?}");
+    for extra in also {
+        assert!(msg.contains(extra), "{name}: {msg:?} does not contain {extra:?}");
+    }
+    msg
+}
+
+/// The `x86_64-unknown-linux-gnu` profile: a GNU/Linux target whose every
+/// component is stated, built by hand rather than taken from the host.
+fn linux_x86_64() -> TargetProfile {
+    profile_for("x86_64-unknown-linux-gnu", "linux", "x86_64", "glibc", 64)
+}
 
 #[test]
 fn platform_gated_asm_bodies_select_per_arch() {
@@ -570,46 +623,34 @@ module Main where
   main =
     if pop 3 == 0 then 0 else 0
 "#;
-    let mut x86 = TargetProfile::native();
-    x86.triple = "x86_64-unknown-linux-gnu".to_string();
-    let mut arm = TargetProfile::native();
-    arm.triple = "aarch64-unknown-linux-gnu".to_string();
-    let mut other = TargetProfile::native();
-    other.triple = "riscv64-unknown-linux-gnu".to_string();
+    let x86 = profile_for("x86_64-unknown-linux-gnu", "linux", "x86_64", "glibc", 64);
+    let arm = profile_for("aarch64-unknown-linux-gnu", "linux", "aarch64", "glibc", 64);
+    let other = profile_for("riscv64-unknown-linux-gnu", "linux", "riscv64", "glibc", 64);
 
     // x86_64: the matching `asm` body wins, and the manifest names the
     // platform.
     let mx = manifest_profile("pop-x86", src, &x86);
     assert!(mx.contains("arch x86_64"), "{mx}");
     assert!(mx.contains("condition holds in the target profile"), "{mx}");
-    let irx = {
-        let p = check_sources_profile(src, "pop-x86", &x86).expect("x86 checks");
-        cinch::codegen::emit(&p).expect("emit")
-    };
+    let irx = ir_profile("pop-x86", src, &x86);
     assert!(body_of(&irx, "Main.pop.asm").contains("popcnt"), "{irx}");
     assert!(define_of(&irx, "Main.pop.asm").contains("!immarg"));
-    assert!(!irx.contains("cnt\\0A") && !body_of(&irx, "Main.pop.asm").contains(" cnt"), "{irx}");
+    assert!(!body_of(&irx, "Main.pop.asm").contains(" cnt"), "{irx}");
 
     // aarch64: the other conditional wins.
     let ma = manifest_profile("pop-arm", src, &arm);
     assert!(ma.contains("arch aarch64"), "{ma}");
-    let ira = {
-        let p = check_sources_profile(src, "pop-arm", &arm).expect("arm checks");
-        cinch::codegen::emit(&p).expect("emit")
-    };
+    let ira = ir_profile("pop-arm", src, &arm);
     assert!(body_of(&ira, "Main.pop.asm").contains("cnt"), "{ira}");
     assert!(define_of(&ira, "Main.pop.asm").contains("!immarg"));
     assert!(!body_of(&ira, "Main.pop.asm").contains("popcnt"), "{ira}");
 
-    // A third platform: no condition matches, so the portable `llvm`
+    // A third architecture: no condition matches, so the portable `llvm`
     // baseline is the fallback and no `asm` unit is emitted.
     let mo = manifest_profile("pop-other", src, &other);
     assert!(mo.contains("baseline"), "{mo}");
     assert!(!mo.contains("arch x86_64\\\""), "{mo}");
-    let iro = {
-        let p = check_sources_profile(src, "pop-other", &other).expect("other checks");
-        cinch::codegen::emit(&p).expect("emit")
-    };
+    let iro = ir_profile("pop-other", src, &other);
     assert!(body_of(&iro, "Main.pop.llvm").contains("ret i32"), "{iro}");
     assert!(!iro.contains("Main.pop.asm"), "{iro}");
 
@@ -621,6 +662,286 @@ module Main where
         .expect("check run");
     let iface = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
     assert!(!iface.contains("x86_64") && !iface.contains("arch "), "{iface}");
+}
+
+#[test]
+fn os_gated_bodies_select_the_target_os() {
+    // Two bodies gated on the operating system, both `asm`. The profiles
+    // are stated by hand, so this fails if a condition reads the build
+    // host (this host is darwin) instead of the compile target.
+    let src = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      linuxmarker
+    } when os linux
+    unsafe asm {
+      darwinmarker
+    } when os darwin
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let linux = linux_x86_64();
+    let darwin = profile_for("aarch64-apple-darwin", "darwin", "aarch64", "libSystem", 64);
+
+    let mlin = manifest_profile("os-linux", src, &linux);
+    assert!(mlin.contains("os linux"), "{mlin}");
+    assert!(mlin.contains("condition holds in the target profile"), "{mlin}");
+    let irlin = ir_profile("os-linux", src, &linux);
+    assert!(body_of(&irlin, "Main.probe.asm").contains("linuxmarker"), "{irlin}");
+    assert!(!body_of(&irlin, "Main.probe.asm").contains("darwinmarker"), "{irlin}");
+
+    let mdar = manifest_profile("os-darwin", src, &darwin);
+    assert!(mdar.contains("os darwin"), "{mdar}");
+    let irdar = ir_profile("os-darwin", src, &darwin);
+    assert!(body_of(&irdar, "Main.probe.asm").contains("darwinmarker"), "{irdar}");
+    assert!(!body_of(&irdar, "Main.probe.asm").contains("linuxmarker"), "{irdar}");
+}
+
+#[test]
+fn the_driver_target_names_the_body_that_compiles() {
+    // The same selection through the driver's own target option: naming
+    // `x86_64-unknown-linux-gnu` on a Darwin machine compiles the Linux
+    // body and not the Darwin one, which is the cross-compilation shape
+    // the syscall layer needs and the whole point of reading a target
+    // profile rather than the host.
+    let src = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      linuxmarker
+    } when os linux
+    unsafe asm {
+      darwinmarker
+    } when os darwin
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let options = |target: &str| DriverOptions {
+        target: Some(target.to_string()),
+        ..DriverOptions::default()
+    };
+    let linux = target_profile(&options("x86_64-unknown-linux-gnu"))
+        .expect("the cross target's profile");
+    assert_eq!(linux.os, "linux");
+    assert_eq!(linux.arch, "x86_64");
+    let irlin = ir_profile("driver-linux", src, &linux);
+    assert!(body_of(&irlin, "Main.probe.asm").contains("linuxmarker"), "{irlin}");
+    assert!(!irlin.contains("darwinmarker"), "{irlin}");
+
+    let darwin = target_profile(&options("aarch64-apple-darwin"))
+        .expect("the host target's profile");
+    assert_eq!(darwin.os, "darwin");
+    let irdar = ir_profile("driver-darwin", src, &darwin);
+    assert!(body_of(&irdar, "Main.probe.asm").contains("darwinmarker"), "{irdar}");
+    assert!(!irdar.contains("linuxmarker"), "{irdar}");
+}
+
+#[test]
+fn word_size_gated_bodies_select_the_target_width() {
+    // `word-size` reads the profile's `Usize`/`Isize` width, not the
+    // host's: a 32-bit target takes the narrow body on this 64-bit
+    // machine.
+    let src = r#"
+module Main where
+  prim word :: U32 -> U32 where
+    unsafe asm {
+      narrowmarker
+    } when word-size 32
+    unsafe asm {
+      widemarker
+    } when word-size 64
+
+  main :: Int
+  main =
+    if word 3 == 0 then 0 else 0
+"#;
+    let narrow = profile_for("i686-unknown-linux-gnu", "linux", "x86", "glibc", 32);
+    let wide = linux_x86_64();
+
+    let mn = manifest_profile("word-32", src, &narrow);
+    assert!(mn.contains("word-size 32"), "{mn}");
+    let irn = ir_profile("word-32", src, &narrow);
+    assert!(body_of(&irn, "Main.word.asm").contains("narrowmarker"), "{irn}");
+    assert!(!body_of(&irn, "Main.word.asm").contains("widemarker"), "{irn}");
+
+    let mw = manifest_profile("word-64", src, &wide);
+    assert!(mw.contains("word-size 64"), "{mw}");
+    let irw = ir_profile("word-64", src, &wide);
+    assert!(body_of(&irw, "Main.word.asm").contains("widemarker"), "{irw}");
+    assert!(!body_of(&irw, "Main.word.asm").contains("narrowmarker"), "{irw}");
+}
+
+#[test]
+fn a_negated_atom_holds_where_the_target_is_not_that_os() {
+    // `not (os windows)` is the negation of the atom, so the two bodies
+    // partition the targets: Windows takes the first, everything else
+    // the second.
+    let src = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      windowsmarker
+    } when os windows
+    unsafe asm {
+      portablemarker
+    } when not (os windows)
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let linux = linux_x86_64();
+    let windows = profile_for("x86_64-pc-windows-msvc", "windows", "x86_64", "msvcrt", 64);
+
+    let mlin = manifest_profile("not-windows-linux", src, &linux);
+    assert!(mlin.contains("not (os windows)"), "{mlin}");
+    let irlin = ir_profile("not-windows-linux", src, &linux);
+    assert!(body_of(&irlin, "Main.probe.asm").contains("portablemarker"), "{irlin}");
+    assert!(!body_of(&irlin, "Main.probe.asm").contains("windowsmarker"), "{irlin}");
+
+    let mwin = manifest_profile("not-windows-win", src, &windows);
+    assert!(mwin.contains("os windows"), "{mwin}");
+    let irwin = ir_profile("not-windows-win", src, &windows);
+    assert!(body_of(&irwin, "Main.probe.asm").contains("windowsmarker"), "{irwin}");
+    assert!(!body_of(&irwin, "Main.probe.asm").contains("portablemarker"), "{irwin}");
+
+    // The negated atom alone, with no other body, is unsatisfiable on the
+    // target it negates: the refusal names the negated clause.
+    let only_negated = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      portablemarker
+    } when not (os windows)
+
+  main :: Int
+  main = 0
+"#;
+    expect_err_profile(
+        "not-windows-alone",
+        only_negated,
+        &windows,
+        "not (os windows)",
+        &["the target's os is `windows`"],
+    );
+}
+
+#[test]
+fn clauses_on_one_body_are_a_conjunction() {
+    // Two clauses on one body, both required. Reading either clause alone
+    // (or reading them as a disjunction) would select the `asm` body on
+    // one of the two profiles that must fall back to the baseline.
+    let src = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      linuxarmmarker
+    } when os linux when arch aarch64
+    llvm {
+      ret i32 %0
+    }
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let linux_arm = profile_for("aarch64-unknown-linux-gnu", "linux", "aarch64", "glibc", 64);
+    let linux_x86 = linux_x86_64();
+    let darwin_arm = profile_for("aarch64-apple-darwin", "darwin", "aarch64", "libSystem", 64);
+
+    // Both atoms hold: the conditional body wins and the manifest renders
+    // the conjunction.
+    let mb = manifest_profile("conj-arm-linux", src, &linux_arm);
+    assert!(mb.contains("os linux and arch aarch64"), "{mb}");
+    let irb = ir_profile("conj-arm-linux", src, &linux_arm);
+    assert!(body_of(&irb, "Main.probe.asm").contains("linuxarmmarker"), "{irb}");
+
+    // The os alone: the arch clause does not hold, so the baseline is the
+    // fallback.
+    let mx = manifest_profile("conj-x86-linux", src, &linux_x86);
+    assert!(mx.contains("baseline"), "{mx}");
+    let irx = ir_profile("conj-x86-linux", src, &linux_x86);
+    assert!(!irx.contains("Main.probe.asm"), "{irx}");
+
+    // The arch alone: the os clause does not hold either.
+    let md = manifest_profile("conj-arm-darwin", src, &darwin_arm);
+    assert!(md.contains("baseline"), "{md}");
+    let ird = ir_profile("conj-arm-darwin", src, &darwin_arm);
+    assert!(!ird.contains("Main.probe.asm"), "{ird}");
+}
+
+#[test]
+fn a_condition_no_body_satisfies_names_the_atom() {
+    // The refusal is honest: it names the atom that failed, what the
+    // target is instead, and the whole vocabulary, so a mistyped or
+    // unsatisfiable condition is not confused with a missing body.
+    let source = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      windowsmarker
+    } when os windows
+
+  main :: Int
+  main = 0
+"#;
+    let msg = expect_err_profile(
+        "no-body-platform",
+        source,
+        &linux_x86_64(),
+        "no body applies",
+        &[
+            "os windows",
+            "the target's os is `linux`",
+            "x86_64-unknown-linux-gnu",
+            "Available <capability>",
+            "arch <name>",
+            "os <name>",
+            "libc <name>",
+            "endian <little|big>",
+            "word-size <bits>",
+            "target <triple>",
+            "not (<atom>)",
+        ],
+    );
+    assert!(msg.contains("the `asm` body's `when os windows`"), "{msg}");
+
+    // A capability atom fails differently: it names the evidence the
+    // profile does carry, so a missing capability reads as a capability
+    // answer rather than a platform mismatch.
+    let capability_source = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    llvm {
+      ret i32 %0
+    } when Available VecU32Target
+
+  main :: Int
+  main = 0
+"#;
+    let mut profile = linux_x86_64();
+    profile.required.clear();
+    profile.features.clear();
+    expect_err_profile(
+        "no-body-capability",
+        capability_source,
+        &profile,
+        "Available VecU32Target",
+        &["the target profile carries no capability evidence"],
+    );
+    profile.required.push("SomeOtherCapability".to_string());
+    expect_err_profile(
+        "no-body-capability-listed",
+        capability_source,
+        &profile,
+        "the target profile carries SomeOtherCapability",
+        &[],
+    );
 }
 
 #[test]
@@ -637,13 +958,107 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let mut profile = TargetProfile::native();
-    profile.triple = "aarch64-unknown-linux-gnu".to_string();
-    let diagnostic = check_sources_profile(source, "pop-missing", &profile)
-        .expect_err("the only primitive body requires x86_64");
-    assert!(diagnostic.to_string().contains("arch x86_64"), "{diagnostic}");
+    let arm = profile_for("aarch64-unknown-linux-gnu", "linux", "aarch64", "glibc", 64);
+    expect_err_profile("pop-missing", source, &arm, "arch x86_64", &["the target's arch is `aarch64`"]);
 
-    profile.triple = "x86_64-unknown-linux-gnu".to_string();
-    check_sources_profile(source, "pop-present", &profile)
+    let x86 = linux_x86_64();
+    check_sources_profile(source, "pop-present", &x86)
         .expect("the same primitive has a body on x86_64");
+}
+
+#[test]
+fn every_atom_and_negation_read_the_target_profile() {
+    // The atoms that no other case pins: `libc`, `endian`, `target`, and
+    // the negated forms of the remaining atoms. Each body is the only one
+    // in its family, so a wrong evaluation rejects instead of picking a
+    // baseline.
+    let src = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      gnu
+    } when libc glibc when endian little when target x86_64-unknown-linux-gnu
+    unsafe asm {
+      musl
+    } when libc musl
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let linux = linux_x86_64();
+    let irlin = ir_profile("atoms-linux", src, &linux);
+    assert!(body_of(&irlin, "Main.probe.asm").contains("gnu"), "{irlin}");
+    assert!(!body_of(&irlin, "Main.probe.asm").contains("musl"), "{irlin}");
+
+    let musl = profile_for("x86_64-unknown-linux-musl", "linux", "x86_64", "musl", 64);
+    let irmusl = ir_profile("atoms-musl", src, &musl);
+    assert!(body_of(&irmusl, "Main.probe.asm").contains("musl"), "{irmusl}");
+    assert!(!body_of(&irmusl, "Main.probe.asm").contains("gnu"), "{irmusl}");
+
+    // A big-endian target takes the negated endian atom, and a mismatched
+    // triple is refused by name.
+    let negated = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      littleendian
+    } when not (endian big)
+    unsafe asm {
+      bigendian
+    } when endian big
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let irle = ir_profile("endian-little", negated, &linux);
+    assert!(body_of(&irle, "Main.probe.asm").contains("littleendian"), "{irle}");
+    let mut big = linux_x86_64();
+    big.endian = "big".to_string();
+    let irbe = ir_profile("endian-big", negated, &big);
+    assert!(body_of(&irbe, "Main.probe.asm").contains("bigendian"), "{irbe}");
+
+    let wrong_triple = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      exact
+    } when target aarch64-apple-darwin
+
+  main :: Int
+  main = 0
+"#;
+    expect_err_profile(
+        "atoms-wrong-triple",
+        wrong_triple,
+        &linux,
+        "target aarch64-apple-darwin",
+        &["the target's triple is `x86_64-unknown-linux-gnu`"],
+    );
+
+    // The `target` atom is a declaration keyword in the rest of the
+    // grammar, so its clause spelling is pinned here, negated and as a
+    // body's last clause.
+    let negated_triple = r#"
+module Main where
+  prim probe :: U32 -> U32 where
+    unsafe asm {
+      nottriplemarker
+    } when not (target aarch64-apple-darwin)
+    unsafe asm {
+      exacttriplemarker
+    } when target aarch64-apple-darwin
+
+  main :: Int
+  main =
+    if probe 3 == 0 then 0 else 0
+"#;
+    let irnot = ir_profile("triple-not-darwin", negated_triple, &linux);
+    assert!(body_of(&irnot, "Main.probe.asm").contains("nottriplemarker"), "{irnot}");
+    assert!(!body_of(&irnot, "Main.probe.asm").contains("exacttriplemarker"), "{irnot}");
+    let darwin = profile_for("aarch64-apple-darwin", "darwin", "aarch64", "libSystem", 64);
+    let irtriple = ir_profile("triple-darwin", negated_triple, &darwin);
+    assert!(body_of(&irtriple, "Main.probe.asm").contains("exacttriplemarker"), "{irtriple}");
+    assert!(!body_of(&irtriple, "Main.probe.asm").contains("nottriplemarker"), "{irtriple}");
 }

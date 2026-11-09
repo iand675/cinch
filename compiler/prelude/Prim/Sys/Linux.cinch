@@ -20,13 +20,16 @@
 --
 -- # One file, two architectures
 --
--- A prim body can be gated on the target architecture (`when arch
--- aarch64`), and the checker selects the matching body per target, which
--- is pinned by `compiler/tests/prim.rs`'s
--- `platform_gated_asm_bodies_select_per_arch`. That is why the two
--- architectures live in one module here: a body's `when` cannot test the
--- operating system, so per-OS files are the split that matters, and
--- within an OS the architecture is expressible in the body.
+-- A prim body can be gated on the compile target: `when arch aarch64`,
+-- `when os linux`, or both as one body's conjunction, and the checker
+-- selects the matching body against the target profile (pinned by
+-- `compiler/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
+-- and `clauses_on_one_body_are_a_conjunction`). That is why the two
+-- architectures live in one module here: the architecture is expressible
+-- in the body, so no per-architecture split is needed. `Prim.Sys.Darwin`
+-- is a separate module because its implementation differs in kind (a
+-- libSystem call rather than a `syscall` instruction), not because a
+-- `when` clause cannot see the operating system.
 --
 -- Every primitive also carries a portable baseline body (the `llvm` one
 -- after the two `when` bodies) that answers the kernel's `ENOSYS`, 38

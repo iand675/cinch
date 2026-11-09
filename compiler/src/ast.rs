@@ -943,7 +943,7 @@ impl Decl {
             Decl::Prim(primitive) => {
                 primitive.ty.visit_mut(visit);
                 for body in &mut primitive.bodies {
-                    if let Some(condition) = &mut body.when { condition.visit_types_mut(visit); }
+                    for condition in &mut body.when { condition.visit_types_mut(visit); }
                     if let Some(evidence) = &mut body.justify { evidence.visit_types_mut(visit); }
                     for usage in &mut body.uses { usage.ty.visit_mut(visit); }
                 }
@@ -1227,12 +1227,12 @@ pub struct PrimUse {
 }
 
 /// One target-IR body of a `prim` declaration (primitive operations
-/// and inline target IR specification section 2): `family { fragment }
-/// [when cond] [justify e] [uses ...] [immarg ...]`. The fragment is
-/// the family's raw text payload, kept verbatim for round-tripping and
-/// provenance; `immarg` lists the parameter indices (from 0) the body
-/// requires as compile-time immediates (`llvm-contract-attributes.md`:
-/// shift amounts, SIMD lane indices).
+/// and inline target IR specification section 2):
+/// `family { fragment } [when atom]... [justify e] [uses ...] [immarg
+/// ...]`. The fragment is the family's raw text payload, kept verbatim
+/// for round-tripping and provenance; `immarg` lists the parameter
+/// indices (from 0) the body requires as compile-time immediates
+/// (`llvm-contract-attributes.md`: shift amounts, SIMD lane indices).
 #[derive(Clone, Debug)]
 pub struct PrimBody {
     /// The target-IR family: `llvm`, `wasm`, `asm`, `clr`, `jvm`, or a
@@ -1242,9 +1242,12 @@ pub struct PrimBody {
     pub fragment: String,
     /// The fragment's own span (the open brace's).
     pub fragment_span: Span,
-    /// `when cond`: the capability condition scoping the body. `None`
-    /// is the baseline body.
-    pub when: Option<Term>,
+    /// `when atom` clauses: the conditions scoping the body, a
+    /// conjunction of atoms over the compile target profile (primitive
+    /// operations and inline target IR specification sections 2 and 13).
+    /// The body applies where every atom holds; an empty list is the
+    /// baseline body.
+    pub when: Vec<Term>,
     /// `justify e`: evidence that the body implements the declared
     /// type's mathematical meaning (specification section 5).
     pub justify: Option<Term>,
@@ -1812,7 +1815,7 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         Decl::Prim(p) => {
             collect_type_refs(&p.ty, out);
             for b in &p.bodies {
-                if let Some(w) = &b.when {
+                for w in &b.when {
                     collect_term_refs(w, out);
                 }
                 if let Some(j) = &b.justify {
@@ -3083,9 +3086,11 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             let mut p = p.clone();
             p.ty = hyg_type(&p.ty, cx, sc)?;
             for b in &mut p.bodies {
-                if let Some(w) = &b.when {
-                    b.when = Some(hyg_term(w, cx, sc)?);
-                }
+                b.when = b
+                    .when
+                    .iter()
+                    .map(|w| hyg_term(w, cx, sc))
+                    .collect::<Result<Vec<_>>>()?;
                 if let Some(j) = &b.justify {
                     b.justify = Some(hyg_term(j, cx, sc)?);
                 }
@@ -3455,7 +3460,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         Decl::Prim(p) => {
             let mut p = p.clone();
             for b in &mut p.bodies {
-                b.when = b.when.as_ref().map(|t| subst_holes(t, vals));
+                b.when = b.when.iter().map(|t| subst_holes(t, vals)).collect();
                 b.justify = b.justify.as_ref().map(|t| subst_holes(t, vals));
             }
             Decl::Prim(p)
@@ -3748,7 +3753,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_) => {}
         Decl::Prim(p) => {
             for b in &mut p.bodies {
-                if let Some(w) = &mut b.when {
+                for w in &mut b.when {
                     collect_template_holes_with_macros(w, holes, false);
                 }
                 if let Some(j) = &mut b.justify {

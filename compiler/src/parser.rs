@@ -757,7 +757,7 @@ impl<'a> Parser<'a> {
             }
         };
         self.expect(&Tok::RBrace, "`}` closing the body's inline fragment")?;
-        let mut when: Option<Term> = None;
+        let mut when: Vec<Term> = Vec::new();
         let mut justify: Option<Term> = None;
         let mut uses: Vec<PrimUse> = Vec::new();
         let mut immarg: Vec<(u64, Span)> = Vec::new();
@@ -775,12 +775,7 @@ impl<'a> Parser<'a> {
                 Error::at(cspan, format!("duplicate `{name}` clause in a target-IR body"))
             };
             match slot {
-                0 => {
-                    if when.is_some() {
-                        return Err(dup("when"));
-                    }
-                    when = Some(self.parse_prim_condition()?);
-                }
+                0 => when.push(self.parse_prim_condition()?),
                 1 => {
                     if justify.is_some() {
                         return Err(dup("justify"));
@@ -849,30 +844,58 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// A complete predicate can be followed by a contextual body clause.
-    /// A clause spelling inside a predicate, such as `arch immarg`, is
+    /// One `when` clause: one atom, or `not (<atom>)`. A clause can be
+    /// followed by a further clause (`when os linux when arch x86_64`)
+    /// or by a contextual body clause, so the scan stops at the next
+    /// `when`, `uses` or `immarg` and at the body's own terminator. A
+    /// clause spelling inside a predicate, such as `arch immarg`, is
     /// still an ordinary name.
     fn parse_prim_condition(&mut self) -> Result<Term> {
         for (end, token) in self.toks.iter().enumerate().skip(self.pos + 1) {
-            match &token.tok {
-                Tok::Semicolon | Tok::RBrace | Tok::Eof | Tok::Justify => break,
-                Tok::VarId(word) if matches!(word.as_str(), "when" | "uses" | "immarg") => {
-                    let mut predicate = self.toks[self.pos..end].to_vec();
-                    predicate.push(Token { tok: Tok::Eof, span: token.span, virtual_: false });
-                    let mut parser = Parser::new(&predicate);
-                    if let Ok(term) = parser.parse_term() {
-                        if parser.at(&Tok::Eof)
-                            && matches!(&term, Term::App(_, arguments, _) if arguments.len() == 1)
-                        {
-                            self.pos = end;
-                            return Ok(term);
-                        }
-                    }
-                }
-                _ => {}
+            let boundary = match &token.tok {
+                Tok::Semicolon | Tok::RBrace | Tok::Eof | Tok::Justify => true,
+                Tok::VarId(word) => matches!(word.as_str(), "when" | "uses" | "immarg"),
+                _ => false,
+            };
+            if !boundary {
+                continue;
+            }
+            if let Some(term) = self.parse_prim_clause(end, token.span) {
+                self.pos = end;
+                return Ok(term);
+            }
+            // A clause keyword can be a name inside the predicate, so a
+            // rejected candidate may still sit mid-clause; a terminator
+            // ends it either way.
+            if !matches!(token.tok, Tok::VarId(_)) {
+                break;
             }
         }
         self.parse_term()
+    }
+
+    /// Parse the clause running from the cursor to `end`, over a copy of
+    /// its tokens. `target` is a declaration keyword (`target rewrite`)
+    /// and also the `when target <triple>` atom, so the keyword is read
+    /// as the atom name here.
+    fn parse_prim_clause(&self, end: usize, span: Span) -> Option<Term> {
+        let mut clause = self.toks[self.pos..end].to_vec();
+        clause.push(Token { tok: Tok::Eof, span, virtual_: false });
+        for token in &mut clause {
+            if matches!(token.tok, Tok::Target) {
+                token.tok = Tok::VarId("target".to_string());
+            }
+        }
+        let mut parser = Parser::new(&clause);
+        match parser.parse_term() {
+            Ok(term)
+                if parser.at(&Tok::Eof)
+                    && matches!(&term, Term::App(_, arguments, _) if arguments.len() == 1) =>
+            {
+                Some(term)
+            }
+            _ => None,
+        }
     }
 
     /// `upgrade Old to New where { migrate = e; [related = e] }` and its
@@ -3731,7 +3754,7 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
         Decl::Prim(p) => {
             resolve_type(&mut p.ty, fix)?;
             for b in &mut p.bodies {
-                if let Some(w) = &mut b.when {
+                for w in &mut b.when {
                     resolve_term(w, fix)?;
                 }
                 if let Some(j) = &mut b.justify {

@@ -658,7 +658,7 @@ fn declaration(decl: &mut Decl, visit: &mut impl FnMut(&mut Name, RefKind)) {
         Decl::Prim(prim) => {
             visit(&mut prim.name, RefKind::Value);
             for body in &mut prim.bodies {
-                if let Some(body) = &mut body.when { term(body, visit); }
+                for condition in &mut body.when { term(condition, visit); }
                 if let Some(body) = &mut body.justify { term(body, visit); }
             }
         },

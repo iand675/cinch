@@ -36,13 +36,16 @@ imports this module. The arch that emitted here is aarch64
 
 # One file, two architectures
 
-A prim body can be gated on the target architecture (`when arch
-aarch64`), and the checker selects the matching body per target, which
-is pinned by `compiler/tests/prim.rs`'s
-`platform_gated_asm_bodies_select_per_arch`. That is why the two
-architectures live in one module here: a body's `when` cannot test the
-operating system, so per-OS files are the split that matters, and
-within an OS the architecture is expressible in the body.
+A prim body can be gated on the compile target: `when arch aarch64`,
+`when os linux`, or both as one body's conjunction, and the checker
+selects the matching body against the target profile (pinned by
+`compiler/tests/prim.rs`'s `platform_gated_asm_bodies_select_per_arch`
+and `clauses_on_one_body_are_a_conjunction`). That is why the two
+architectures live in one module here: the architecture is expressible
+in the body, so no per-architecture split is needed. `Prim.Sys.Darwin`
+is a separate module because its implementation differs in kind (a
+libSystem call rather than a `syscall` instruction), not because a
+`when` clause cannot see the operating system.
 
 Every primitive also carries a portable baseline body (the `llvm` one
 after the two `when` bodies) that answers the kernel's `ENOSYS`, 38
@@ -84,7 +87,7 @@ modules swap with one import line.
 What the kernel said, named. The same constructors as the Darwin
 module's, so a caller's mapping is written once.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 76
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 79
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SysNotFound</span> :: <span class="tok-constructor">Prim</span>.<span class="tok-constructor">Sys</span>.<span class="tok-constructor">Linux</span>.<span class="tok-constructor">SysError</span></code></pre>
 
@@ -110,7 +113,7 @@ module's, so a caller's mapping is written once.
 
 Close `fd`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 342
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 345
 
 <a id="value-7379732d6370617468"></a>
 
@@ -120,7 +123,7 @@ Close `fd`.
 
 `s` as a C string, the same shape as the Darwin module's.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 308
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 311
 
 <a id="value-7379732d637265617465"></a>
 
@@ -130,7 +133,7 @@ Close `fd`.
 
 Create or truncate `path` for writing: the descriptor.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 323
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 326
 
 <a id="value-7379732d6572726f722d6f66"></a>
 
@@ -141,7 +144,7 @@ Create or truncate `path` for writing: the descriptor.
 The kernel's negative return as the named vocabulary. The six numbers
 are fixed by POSIX; anything else is `SysIoError`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 285
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 288
 
 <a id="value-7379732d66737461742d696e746f"></a>
 
@@ -152,7 +155,7 @@ are fixed by POSIX; anything else is `SysIoError`.
 Fill `buf` with the raw `struct stat` of `path`. The layout belongs
 to the caller that reads the fields out of it.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 387
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 390
 
 <a id="value-7379732d6673796e63"></a>
 
@@ -162,7 +165,7 @@ to the caller that reads the fields out of it.
 
 Flush `fd` to the storage device.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 380
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 383
 
 <a id="value-7379732d676574706964"></a>
 
@@ -172,7 +175,7 @@ Flush `fd` to the storage device.
 
 This process's own id.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 396
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 399
 
 <a id="value-7379732d6c7365656b"></a>
 
@@ -182,7 +185,7 @@ This process's own id.
 
 Move `fd`'s offset.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 348
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 351
 
 <a id="value-7379732d6d6b646972"></a>
 
@@ -192,7 +195,7 @@ Move `fd`'s offset.
 
 Create the directory `path`, one level.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 362
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 365
 
 <a id="value-7379732d6f2d72646f6e6c79"></a>
 
@@ -202,7 +205,7 @@ Create the directory `path`, one level.
 
 `O_RDONLY`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 91
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 94
 
 <a id="value-7379732d6f70656e2d72656164"></a>
 
@@ -212,7 +215,7 @@ Create the directory `path`, one level.
 
 Open `path` for reading: the descriptor.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 317
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 320
 
 <a id="value-7379732d72656164"></a>
 
@@ -222,7 +225,7 @@ Open `path` for reading: the descriptor.
 
 Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 329
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 332
 
 <a id="value-7379732d72656e616d65"></a>
 
@@ -232,7 +235,7 @@ Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
 
 Rename `from` onto `dst`, atomically.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 352
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 355
 
 <a id="value-7379732d7365656b2d656e64"></a>
 
@@ -242,7 +245,7 @@ Rename `from` onto `dst`, atomically.
 
 `SEEK_END`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 108
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 111
 
 <a id="value-7379732d7365656b2d736574"></a>
 
@@ -252,7 +255,7 @@ Rename `from` onto `dst`, atomically.
 
 `SEEK_SET`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 104
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 107
 
 <a id="value-7379732d756e6c696e6b"></a>
 
@@ -264,7 +267,7 @@ Remove the name `path` with `unlinkat`'s flag word: 0 removes a file
 or a link, `sys-at-removedir` (0x200) an empty directory. The flag is
 spelled out so the caller owns the choice.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 372
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 375
 
 <a id="value-7379732d7772697465"></a>
 
@@ -275,8 +278,8 @@ spelled out so the caller owns the choice.
 Write up to `count` bytes of `buf` from `at` to `fd`: the count
 written.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 336
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 339
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `d42ed77dbae4f77283305ac21eb6d4191bf33a7b87b1d5061c68b8575dc66136`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `e30c5a9c0b5d8f6d5cf78953bf2bd6f7ce6e95f2fde5a4b355f9cfd7d5a9f5cb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
