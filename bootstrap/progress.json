@@ -14406,9 +14406,9 @@
         "unit": "gates",
         "total": 6,
         "passed": 1,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay the original nominal_identity tests",
+        "phase": "Replay the original lib_toml tests",
         "evidence": null
       },
       {
@@ -14557,5 +14557,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:09:04.164696+00:00"
+  "updatedAt": "2026-11-09T10:10:27.677516+00:00"
 }
