@@ -17924,7 +17924,7 @@
         "failed": 0,
         "status": "running",
         "phase": "Verify Stage 2 and Stage 3 agreement, smokes and changed-source rebuild",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-agreement.json"
       },
       {
         "title": "Rebuild with guarded recursion and constant-stack tail calls",
@@ -21143,6 +21143,17 @@
         "evidence": null
       },
       {
+        "title": "Replay the original symbol and higher-kinded targets",
+        "source": "74cf3b2cc0e65d18d7404acba7123e5a101edbf7ad776862d650271c09bef593",
+        "unit": "checks",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for the codata validation to obtain a worker",
+        "evidence": null
+      },
+      {
         "title": "Replay original modules with both manifest harness fixes",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21222,5 +21233,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:32:31.293196+00:00"
+  "updatedAt": "2026-11-09T05:33:23.547078+00:00"
 }
