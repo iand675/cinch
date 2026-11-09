@@ -1,0 +1,238 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-published-stage3-integration",
+  "targets": {
+    "integration": {
+      "cases": [
+        {
+          "name": "arithmetic_through_class_methods",
+          "status": "passed"
+        },
+        {
+          "name": "case_guards_fall_through_to_later_rows",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_from_another_type_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_patterns_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "custom_class_custom_operator_custom_instance",
+          "status": "passed"
+        },
+        {
+          "name": "duplicate_binders_in_one_pattern_are_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "effect_rows_are_typed_and_honest",
+          "status": "passed"
+        },
+        {
+          "name": "generic_constraint_and_partial_application",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_on_boxed_result_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_with_covered_patterns_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "integer_match_without_catch_all_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "lambdas_capture_and_prelude_folds",
+          "status": "passed"
+        },
+        {
+          "name": "library_modules_check_without_an_entry_point",
+          "status": "passed"
+        },
+        {
+          "name": "list_literals_and_list_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "literal_patterns_fall_through_in_source_order",
+          "status": "passed"
+        },
+        {
+          "name": "local_let_polymorphism",
+          "status": "passed"
+        },
+        {
+          "name": "memo_bindings_demand_on_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_cells_with_signatures_and_shared_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_black_hole_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_mutual_demand_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "nested_constructor_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "nested_patterns_keep_source_order_fall_through",
+          "status": "passed"
+        },
+        {
+          "name": "prelude_sum_list_generic",
+          "status": "passed"
+        },
+        {
+          "name": "record_rejections",
+          "status": "passed"
+        },
+        {
+          "name": "records_construction_projection_and_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "recursion_negation_and_bool_operators",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_missing_instance",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_non_exhaustive_match",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_type_mismatch",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_undeclared_operator",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_unknown_name",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_wrong_main_type",
+          "status": "passed"
+        },
+        {
+          "name": "surface_and_or_short_circuit",
+          "status": "passed"
+        },
+        {
+          "name": "thunks_delay_and_force",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_arity_mismatch_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_let_destructuring_and_types",
+          "status": "passed"
+        },
+        {
+          "name": "tuples_through_functions",
+          "status": "passed"
+        },
+        {
+          "name": "where_clauses_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "wrong_main_type_still_rejected",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "23071-0.json": "f96de8f865a8ae31ec957033daba7038e1ab9bb142ebc51e63c9ef5b3f5e9697",
+        "23071-1.json": "67fe65205290685b7b0963e9addc215662ed821cc11411eb805be837441a009f",
+        "23071-10.json": "70c65436410572f2c54f501534c4e98259136932b2beda55a22e0121c9cd403e",
+        "23071-11.json": "7562f302a93da833b27af14c9231888016c76eab3a5831e2c7ca571aedc6c787",
+        "23071-12.json": "5ebea05791517ae9c0a3f83c4d32676aabbde6adb940516f9f244e8446dc6f7e",
+        "23071-13.json": "b47f92e00efb91336e2e6abb9f8dab674587d3126bd41dff1087245c8dd7ce6f",
+        "23071-14.json": "7fb2de4f400425ad5f16d12fdd0546576ef6e611e3769ed19e8b068b0417420c",
+        "23071-15.json": "7596e45edf90c5a380f1e7712983b619ea8a8e6b0a33dece360fad19a508260d",
+        "23071-16.json": "1e505896999dd02d411f9807318d177eb24da88ed01fb007e3fae7f4fe51c6fc",
+        "23071-17.json": "f27d1d3e085ec34dbfc542034a61d0537185c28f0d3c81f6598ecf47543d1ca6",
+        "23071-18.json": "2d8f6e127241be7b43f58af727ed5a91d4893755e1355080363a8381f7fdb22c",
+        "23071-19.json": "13aae1084613a2dac55d2bb57274885d328068f2bd24d5cab2f585bee4056d61",
+        "23071-2.json": "f35be144090710b2e2f05e9155337d18062d613d0a12ea96865971ac7e267644",
+        "23071-20.json": "54173de85a2fe9941db3b121a07fbc96765d882835c3805f2ce2c2963385caae",
+        "23071-21.json": "e3b44dd028b181309637f1e5d8b555b8e624a16b5c99ed656b09771ba6e308ec",
+        "23071-22.json": "3a7cb60045e3155b7a084970a5c6b9de3ff20e74b833f8ee28d380f2f20c21a1",
+        "23071-23.json": "c8638876eff6ee757d839796f855e291e0a597ecbbe394751f49ff68e17f7146",
+        "23071-24.json": "6b4184d5b99ba670e24f582815b4b747726b9cc05100b4925cf73b5f5bd25325",
+        "23071-25.json": "806236a28206876d54b8544af8bc682552ffc14cfe11e4a8394e0d2a999275f8",
+        "23071-26.json": "bee4f70ca510090b401418454393a374d6e8efee925c9e9784ddaea92ce6c40f",
+        "23071-27.json": "209363a4454aa52dc9eb075507760512a0623b1097769992db3e0dd87dff94ec",
+        "23071-28.json": "87fc3d39e0610c7389774c5b7a5b6cc983c8e8a80ebe243cc6b6279cc5e44e6c",
+        "23071-29.json": "70bb27c652453f1cd0108d677b5eb7974331756380a1a799b3503f3aa49a74da",
+        "23071-3.json": "6d94e1cb1ea6e83797883e1b7a06d9e8dba29e1ad1481229b2786f20a2475a0b",
+        "23071-30.json": "da9e245ccbbc9e698c665b0ea27b0f24da08ef6196e4ff350ffe19d63bf2f7f2",
+        "23071-31.json": "c88c08e750a66ed6c72638bd81b52a9e238765d25cc5f793438221bf599fcbed",
+        "23071-32.json": "072e8a40c5006fc98b4e16c8c4ce3c2c61f68a0b265939d585dff456049803f3",
+        "23071-33.json": "0575d6064680e16f56330231b639e9ef893d910ceb76febe1783605aa6656b6e",
+        "23071-34.json": "319179ac56d06f1ffbe1134123bc36a3128e38ef215dc47ae035808e4d3359c6",
+        "23071-35.json": "35c84413da6a4a099bbfe1bfa7706a1f4998033e31208cd7c09acce89eb602de",
+        "23071-36.json": "2b78121d6cfb1ccdfe9bd011e7252c1a9a2cc25c048b781c1e27e33c39eea745",
+        "23071-37.json": "05925716e34f70bce9a49728292cf93a3fd569e804bea345601ac16be1b00dc0",
+        "23071-38.json": "0c4911c8dcddac966f315ae7562d8dd335e467acd5d7525646be24d58bd34c4f",
+        "23071-39.json": "dd832a31e430bd93c760d3bed4fbb1c797bc20d75f59d5b46bfdfe4e872a6bc6",
+        "23071-4.json": "172f07c999defdf6a2fc0ae44c1ac72b97bf3720b03ed7af41ce5a37102956ea",
+        "23071-40.json": "3e1760c70cfa23f8f49e0c7166c0bece71e7f26245ca173a78c91e731acc6538",
+        "23071-41.json": "78e0d343e64a6afb8bc5ab7fa566951dc38b71ea6d1b2bce389c4ebadb7c4c89",
+        "23071-42.json": "82900ba8e26536897dc502f46d14f18516e17d59d398ce0acb24882138dc9bea",
+        "23071-43.json": "1da0920d036ac4374f2a7c14af326ee3fcee39b761dd925acb3b0ac4000cf3b8",
+        "23071-44.json": "f0c60ec0dd05e6275b72b160597f68a6dab4716552c000b36ec87a6f13216bef",
+        "23071-45.json": "627963135d8ea06a00529ac5cd4c823af6f196a00de83aa7f565eff0e41f4ff7",
+        "23071-46.json": "24ba3aaad6ed65329b04726d36f7c4312aba0186589541d836037335694c268e",
+        "23071-47.json": "f7a482db44c2fb8f840634c5ced1b06784cc048197b1b75932927205aa5d423f",
+        "23071-48.json": "96f43a9cb50dfb345a51af8f4e02022f53d584bc545477a79b14f8e739622b97",
+        "23071-49.json": "a5026a28c06662c7472b9427e45877eaa6a2aafff83d7a85213a44035aeabd54",
+        "23071-5.json": "e8cb52f98d2c625128212a2ae45de6dd186b360ada39ca74f75f817213652e83",
+        "23071-50.json": "ca81be3ebeb4eba5e321373acefe7aaea3f2568bb37553ea470e532d3b6b9ee6",
+        "23071-51.json": "f2cf9396687b3f135d97599a45daf209f170f3820aebaab9118916cd322b27e0",
+        "23071-52.json": "be11623dc0e9b7f3f5b1da3cd27ea1324c2f08f42684f21feed04b712af042e0",
+        "23071-53.json": "abb786151c3e02283fa8bf2dc9cb31820f6b6ba3db075ae543130682e5e643fd",
+        "23071-54.json": "94fd78349b6a6c92086804cd28a5b939c3b418594226b1c470c32de290fa6896",
+        "23071-55.json": "ca3c126e213ab835037eddc7f7cfd7b8f74f7c24abad2d7eaa9c79c000856841",
+        "23071-56.json": "51bffd3be9b128c73b9dc59baa9aa29289b90c2e30d946a4e4bba8ab0b59b583",
+        "23071-6.json": "9cc686d130eabf579874ff62302fd0fa4487451c9ccd3ec9d0c3b83e800d9b7b",
+        "23071-7.json": "8802b5ac009da10fa50d9aea274f4ba53b546928df643cb87647e4b522f12523",
+        "23071-8.json": "5519f39425444fe6d93c9d0c691730f08fb7627c4dac82cc8ddc3fb2ab65a856",
+        "23071-9.json": "055b519aea32595a77804a9a0ae6ecec7628f8ef854e498f630dce5aee1000e9"
+      },
+      "log_sha256": "8e4bcea97910f4c1239900e01bb009dbec30ac19a0de42a9d8e110fb0c658b45",
+      "passed": 39,
+      "test_source_sha256": "30a2d61bed9b6510f44bf01c3b319e4f31e72345f7730ecb3e77e291eec56833",
+      "total": 39
+    }
+  }
+}

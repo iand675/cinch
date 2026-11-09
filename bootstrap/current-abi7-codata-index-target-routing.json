@@ -2,10 +2,10 @@
   "acceptance_identity_sha256": "8fdee4afc9cb8878cbf6e96a6c4b5be1a5f8a56e9f6518923b2057d5267ff65c",
   "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
   "counts": {
-    "requires-assertion-review": 30,
+    "requires-assertion-review": 27,
     "reviewed-native-harness-infrastructure": 2,
     "stage3-matrix": 162,
-    "stage3-supplemental-replay": 41,
+    "stage3-supplemental-replay": 44,
     "stage3-tail-replay": 1
   },
   "full_goal_complete": false,
@@ -23,6 +23,11 @@
       "cases": 72,
       "inventory_sha256": "93564079f4089c457ac84200a3dca65e914e5e0fce096008ac8ab06146cda7ab",
       "targets": 4
+    },
+    "runtime-contracts": {
+      "cases": 49,
+      "inventory_sha256": "61b8bd885ad22a5103f59e47c1d8395b6302322fb15603f61abac3e5736ee286",
+      "targets": 3
     },
     "supplemental-frontend": {
       "cases": 201,
@@ -349,7 +354,11 @@
       "role": "stage3-supplemental-replay"
     },
     "evolution": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "0c15fee9a0abbb799d08c01b470af9362d66a00ab90d2888c2c27cdbb08d1497",
+      "batch": "runtime-contracts",
+      "cases": 12,
+      "original_sha256": "d2cbb7c1f708245e7b3832c008d1ead17d93f5551d74d37d8c2c7042ae39653f",
+      "role": "stage3-supplemental-replay"
     },
     "exhaustion": {
       "role": "stage3-matrix"
@@ -483,7 +492,11 @@
       "role": "stage3-supplemental-replay"
     },
     "lattice": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "5203e6126c0429b725e41353f04ab9506e04f13fcbf4ae480ccdb622d53d4ae0",
+      "batch": "runtime-contracts",
+      "cases": 23,
+      "original_sha256": "860a269d3104ebf8c0915493a5563f2010131c5803c8bcec14d3b62ab14313e5",
+      "role": "stage3-supplemental-replay"
     },
     "laws": {
       "role": "stage3-matrix"
@@ -609,7 +622,11 @@
       "role": "stage3-matrix"
     },
     "llvm_contract": {
-      "role": "requires-assertion-review"
+      "adapted_sha256": "a88ad4cce2e736da0e9824fac9244bfb514f11d24f3c53740c21a332b35c7379",
+      "batch": "runtime-contracts",
+      "cases": 14,
+      "original_sha256": "3eb59499be946f0851e3ceceb6fe7b0026ba3933bb5b0dd4a65be1e6186b58d7",
+      "role": "stage3-supplemental-replay"
     },
     "lsp": {
       "role": "requires-assertion-review"
