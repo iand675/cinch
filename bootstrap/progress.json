@@ -17895,7 +17895,7 @@
       },
       {
         "title": "Replay the original module tests on isolated Cinch Stage 1",
-        "source": "dabfc9c105d4d9f7458cc43c5336dbb252efb40f4bb6161a0bb58982240ab8dc",
+        "source": "833a0fdb8ff590cbd6857c93f459549479493c65331fd5bb398317d00ed4aa05",
         "unit": "tests",
         "passed": 12,
         "total": 12,
@@ -20980,5 +20980,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:53:56.253623+00:00"
+  "updatedAt": "2026-11-09T01:55:19.697897+00:00"
 }
