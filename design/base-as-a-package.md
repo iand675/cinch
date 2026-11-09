@@ -174,7 +174,7 @@ The rules that make this sound rather than convenient:
 - **Pure macros stay local.** Sending everything to a remote executor would make every build depend on a network hop and a service; only the evaluations the interpreter cannot do cross the boundary.
 - **Evaluation results are facts about the target**, so they belong to the target profile's part of the interface cache, exactly like target-selected modules.
 
-This is the reason the host and target split comes first: without a build that names both profiles, an executor cannot be asked for "the target" and a refusal cannot say which context it came from.
+This is a stated goal, not scheduled work. Nothing in the current compiler depends on it: the interpreter keeps refusing target code, and the refusal stays honest until an executor exists. The host and target split comes first for the mechanical reason that an executor cannot be asked for "the target" until a build names both profiles, and a refusal cannot say which context it came from.
 
 ## 4.2 Platform modules are an opt-in surface
 
