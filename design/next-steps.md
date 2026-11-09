@@ -26,8 +26,9 @@ The other two compiled and ran, then failed to find their build
 manifests. Both manifests were emitted in the compiler scratch directory.
 The test adapter now publishes each emitted manifest under its declared
 entry after linking. The original module replay with this adapter remains
-open. The same Stage 3 passed all 20 concurrency and 39 integration
-cases. Seven of ten codata cases passed with interface emission enabled.
+open. The same Stage 3 passed all 20 concurrency, 39 integration and
+five guard coverage cases. Seven of ten codata cases passed with
+interface emission enabled.
 The three positive cases requiring a codata observation contract
 reached the explicit exporter refusal.
 See [the candidate audit](../bootstrap/current-abi7-candidate5-fixed-point-results.json).
