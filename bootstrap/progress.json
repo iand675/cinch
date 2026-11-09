@@ -21099,6 +21099,17 @@
         "evidence": null
       },
       {
+        "title": "Replay 14 original interface body and contract tests outside the Stage 3 matrix",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "targets",
+        "total": 5,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
         "title": "Check source equality methods and replay the original laws",
         "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
         "unit": "checks",
@@ -21167,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:23:38.696576+00:00"
+  "updatedAt": "2026-11-09T04:27:56.416198+00:00"
 }
