@@ -17966,8 +17966,8 @@
         "passed": 47,
         "total": 236,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "bootstrap_guarded_association",
+        "status": "superseded-at-target-boundary",
+        "phase": "Preserved 47 original passing Rust targets and all five prerequisites. The exact merged sweep took the reserved fifth lane.",
         "evidence": null
       },
       {
@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 13,
+        "passed": 14,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_argument_scopes with the combined Stage 3",
+        "phase": "Replay bootstrap_body_bindings with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21194,7 +21194,7 @@
         "passed": 0,
         "failed": 0,
         "status": "running",
-        "phase": "clean-native-build",
+        "phase": "letrec",
         "evidence": null
       },
       {
@@ -21519,5 +21519,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:46:43.990508+00:00"
+  "updatedAt": "2026-11-09T07:47:47.154402+00:00"
 }
