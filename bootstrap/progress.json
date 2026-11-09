@@ -5388,6 +5388,10 @@
                 },
                 {
                   "name": "surface_and_or_short_circuit",
+                  "status": "passed"
+                },
+                {
+                  "name": "thunks_delay_and_force",
                   "status": "running"
                 }
               ]
@@ -13991,5 +13995,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:24:31.640627+00:00"
+  "updatedAt": "2026-11-09T09:25:34.914407+00:00"
 }
