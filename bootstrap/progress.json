@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | evolution | lattice",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | evolution | lattice | llvm_contract",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10206,8 +10206,8 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 6,
-          "running": 1,
+          "blocked": 7,
+          "running": 0,
           "pending": 37,
           "recheck": 0
         },
@@ -10688,17 +10688,17 @@
           {
             "id": "additional:llvm_contract",
             "title": "llvm_contract",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "ebe907a92a73743ab6851ad6649ecd49e12a4a13757dc6481fa4f4e025ca6b94",
               "cases": [
                 {
                   "name": "borrow_field_loads_state_their_pointee_alignment",
@@ -10742,7 +10742,19 @@
                 },
                 {
                   "name": "pure_definitions_carry_memory_none_and_speculatable",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "range_facts_state_bounded_returns_and_calls",
+                  "status": "failed"
+                },
+                {
+                  "name": "typed_loads_state_only_statable_ranges",
+                  "status": "failed"
+                },
+                {
+                  "name": "untrusted_boundary_reads_freeze",
+                  "status": "failed"
                 }
               ]
             }
@@ -14721,9 +14733,9 @@
         "unit": "targets",
         "total": 3,
         "passed": 0,
-        "failed": 2,
-        "status": "running",
-        "phase": "Replay original llvm_contract target on Stage 3",
+        "failed": 3,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 1 passed, 48 failed.",
         "evidence": null
       },
       {
@@ -15070,8 +15082,8 @@
     ],
     "counts": {
       "verified": 308,
-      "blocked": 10,
-      "running": 4,
+      "blocked": 11,
+      "running": 3,
       "pending": 463,
       "recheck": 21
     },
@@ -15081,5 +15093,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:50:42.478712+00:00"
+  "updatedAt": "2026-11-09T10:51:45.339049+00:00"
 }
