@@ -1,0 +1,895 @@
+{
+  "acceptance_identity_sha256": "8fdee4afc9cb8878cbf6e96a6c4b5be1a5f8a56e9f6518923b2057d5267ff65c",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "counts": {
+    "requires-assertion-review": 34,
+    "reviewed-native-harness-infrastructure": 2,
+    "stage3-matrix": 162,
+    "stage3-supplemental-replay": 37,
+    "stage3-tail-replay": 1
+  },
+  "full_goal_complete": false,
+  "native_inventory_sha256": "139b83cb2a55c1ab4b31c6814311888f4e32b9dde7526349d0bdea5f88fc0eb5",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "scope": "Routes describe where each original test target will run. Passing outcomes require separate matching receipts.",
+  "status": "target-routing-review-incomplete",
+  "supplemental_batches": {
+    "refinement-staging": {
+      "cases": 72,
+      "inventory_sha256": "93564079f4089c457ac84200a3dca65e914e5e0fce096008ac8ab06146cda7ab",
+      "targets": 4
+    },
+    "supplemental-frontend": {
+      "cases": 201,
+      "inventory_sha256": "27aa5ef15062da05aedc9fccaec3a9a75202810102fabe2055cdb6852c4d0736",
+      "targets": 22
+    },
+    "syntax-frontend": {
+      "cases": 108,
+      "inventory_sha256": "5e954d7e2895456044997befcc0ec3541fe7c7e0fd565b8c6d148d0c49ce16ea",
+      "targets": 11
+    }
+  },
+  "targets": {
+    "alloc_accounting": {
+      "role": "stage3-matrix"
+    },
+    "argv": {
+      "role": "stage3-matrix"
+    },
+    "arrays": {
+      "role": "stage3-matrix"
+    },
+    "attributes": {
+      "role": "requires-assertion-review"
+    },
+    "bin-cinch": {
+      "role": "requires-assertion-review"
+    },
+    "bootstrap_abstract_nonzero_methods": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_abstract_nonzero_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_anonymous_contracts": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_argument_scopes": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_array_float_bits": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_body_bindings": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_boolean_branches": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_buffer_aliases": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_byte_observations": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_check": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_checked_program": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_collections": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_conditional_methods": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_contract": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_core": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_decisions": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_driver": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_effect_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_effects": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_eval": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_export_interfaces": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_export_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_external_frontend": {
+      "original_sha256": "6a5c20a8b856036b1f92ecac1d8b87db7780c71fe24db1af8c80457ae54dc734",
+      "role": "reviewed-native-harness-infrastructure"
+    },
+    "bootstrap_function_preconditions": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_globals": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_guarded_arithmetic": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_guarded_association": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_guarded_bodies": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_guarded_calls": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_handler_core": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_imported_nonzero": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_imported_preconditions": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_indices": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_infer": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_instance_resolution": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_interface": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_intrinsics": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_ir": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_ladder": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_lexer": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_library_object": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_load": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_machine_values": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_manifest": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_measure_contracts": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_module_scopes": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_named_refinements": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_nominals": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_nonzero_source": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_nonzero_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_parse": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_pi": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_pipeline": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_proof": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_proof_arrows": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_proof_terms": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_proposition_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_refinement_closure": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_refinement_constructors": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_refinement_core": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_refinement_types": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_resolve": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_runtime_emit": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_runtime_ir": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_runtime_library": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_runtime_library_abi": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_runtime_objects": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_constructors": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_decisions": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_effects": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_handlers": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_instances": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_paths": {
+      "original_sha256": "ff5a37160269060863e74052320414e206fa36d575ffaeada91bbb2ad7496b87",
+      "role": "reviewed-native-harness-infrastructure"
+    },
+    "bootstrap_source_pi": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_projection": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_proofs": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_source_refinements": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_test_runner": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_total": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_total_indices": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_total_semantics": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_type_syntax": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_typed_indices": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_typing": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_value_indices": {
+      "role": "stage3-matrix"
+    },
+    "bootstrap_value_kinds": {
+      "role": "stage3-matrix"
+    },
+    "canonical_artifacts": {
+      "role": "stage3-matrix"
+    },
+    "case_evidence": {
+      "role": "stage3-matrix"
+    },
+    "class_defaults": {
+      "role": "stage3-matrix"
+    },
+    "class_identity": {
+      "role": "stage3-matrix"
+    },
+    "codata": {
+      "role": "stage3-matrix"
+    },
+    "comparison_method_facts": {
+      "role": "requires-assertion-review"
+    },
+    "concurrency": {
+      "role": "stage3-matrix"
+    },
+    "dependent": {
+      "role": "stage3-matrix"
+    },
+    "doc": {
+      "role": "requires-assertion-review"
+    },
+    "effects": {
+      "role": "stage3-matrix"
+    },
+    "evidence_invalidation": {
+      "adapted_sha256": "854f091ac9a35d3cf993d735b8e8c3619c4d514f9f234e42a472c44c21d6b3c9",
+      "batch": "supplemental-frontend",
+      "cases": 13,
+      "original_sha256": "b8bb00237937b8ce8cdbc343f3f11d11e71eca8e9a26a67d823f64443e47a0b4",
+      "role": "stage3-supplemental-replay"
+    },
+    "evolution": {
+      "role": "requires-assertion-review"
+    },
+    "exhaustion": {
+      "role": "stage3-matrix"
+    },
+    "ffi": {
+      "adapted_sha256": "1f19b3e6d3eb6a6dfcdf64eb33d4d4fe0dace5ec64534320881dbc1132b9db01",
+      "batch": "supplemental-frontend",
+      "cases": 12,
+      "original_sha256": "8bb362caa9bbd7691628c2b6022b3cd0063fbaeabf462653c2b0bb2bf7599f4d",
+      "role": "stage3-supplemental-replay"
+    },
+    "fixity_interfaces": {
+      "role": "stage3-matrix"
+    },
+    "folded_literal_ownership": {
+      "role": "stage3-matrix"
+    },
+    "goal_tactics": {
+      "adapted_sha256": "27e5fde87783c7b87a1136b805024e780e9f6bd5443cf601fa202aafb9a215dd",
+      "batch": "supplemental-frontend",
+      "cases": 13,
+      "original_sha256": "422201adf800b595babf1d59a5cd232e9a52e2122a9cf9ffa9b2b3f3149b62af",
+      "role": "stage3-supplemental-replay"
+    },
+    "guard_coverage": {
+      "role": "stage3-matrix"
+    },
+    "hk": {
+      "adapted_sha256": "ab7c63f5bd4cbf44f32fed74cc25f610750a29f1dd8f1ddd2cca74f3f7db3d4f",
+      "batch": "refinement-staging",
+      "cases": 24,
+      "original_sha256": "d61804207023fa08175c67af0ed2cefb269221cbe60c8b693cbee56faf4174d2",
+      "role": "stage3-supplemental-replay"
+    },
+    "incremental": {
+      "role": "requires-assertion-review"
+    },
+    "index_local_carriers": {
+      "adapted_sha256": "9fffd5d5c5116edf9e407bf53a0b123ace270a8169716154436fc93fee82281f",
+      "batch": "supplemental-frontend",
+      "cases": 1,
+      "original_sha256": "a0b510a65c2b5ea562ba82d8ded9238f5fe21fb3d2e0cce6243f52b407f93370",
+      "role": "stage3-supplemental-replay"
+    },
+    "integration": {
+      "role": "stage3-matrix"
+    },
+    "interface_anonymous_contracts": {
+      "role": "stage3-matrix"
+    },
+    "interface_byte_observations": {
+      "role": "stage3-matrix"
+    },
+    "interface_class_contracts": {
+      "role": "stage3-matrix"
+    },
+    "interface_conditional_methods": {
+      "adapted_sha256": "1c93388f024024e11c7cca2433dfca00da0e37b2b797cb10598faee13e426651",
+      "batch": "supplemental-frontend",
+      "cases": 1,
+      "original_sha256": "92741fa8ec99b92c9787db605e9bb45ded17615a58c3b3ae4c46be8ea8e4c22b",
+      "role": "stage3-supplemental-replay"
+    },
+    "interface_guarded_bodies": {
+      "adapted_sha256": "100000f7db29d778cfc6d492464e9b4e3def1eb89a2d96bf27d83978ba3aa7f0",
+      "batch": "supplemental-frontend",
+      "cases": 1,
+      "original_sha256": "e3cbe6578786fafcb090f519ea672bc4f4b4c10ebb9c3b6e54f7e58bde1f7f06",
+      "role": "stage3-supplemental-replay"
+    },
+    "interface_kinds": {
+      "role": "stage3-matrix"
+    },
+    "interface_machine_contracts": {
+      "role": "stage3-matrix"
+    },
+    "interface_method_bodies": {
+      "adapted_sha256": "58d86e3ff8135d079b6a7a0e9a3e9194d5e7b5ef432f987539f1a0d4b07f95cb",
+      "batch": "supplemental-frontend",
+      "cases": 9,
+      "original_sha256": "47533fc017b3b97378668b1487f59822be7805e90381eed05971855a41ec8107",
+      "role": "stage3-supplemental-replay"
+    },
+    "interface_nominals": {
+      "role": "stage3-matrix"
+    },
+    "interface_preconditions": {
+      "role": "stage3-matrix"
+    },
+    "interface_prelude_overrides": {
+      "role": "stage3-matrix"
+    },
+    "interface_primitive_bodies": {
+      "adapted_sha256": "4e39ac9caab0e6d9835558ed050aa269fd171057013dfc29e68dd2a56864f8ca",
+      "batch": "supplemental-frontend",
+      "cases": 2,
+      "original_sha256": "299fccb3943566d1c4dc57737d5d30e55551b668817459cca3fc90a79e391d4c",
+      "role": "stage3-supplemental-replay"
+    },
+    "interface_refinement_closure": {
+      "role": "stage3-matrix"
+    },
+    "interface_refinements": {
+      "role": "stage3-matrix"
+    },
+    "interface_region_effects": {
+      "role": "stage3-matrix"
+    },
+    "interface_total_bodies": {
+      "adapted_sha256": "4b5bda0a9c2ebc54fa2c1d65e12ada270b11e08754e1f3bacc0f51e8a31f3a65",
+      "batch": "supplemental-frontend",
+      "cases": 1,
+      "original_sha256": "75f9f2f1c1c4008569d9b7da0592e0a156344a7acaf1694e0cc15695a3b1cf72",
+      "role": "stage3-supplemental-replay"
+    },
+    "intrinsic_objects": {
+      "role": "requires-assertion-review"
+    },
+    "jit": {
+      "role": "requires-assertion-review"
+    },
+    "json": {
+      "adapted_sha256": "00d1763c514b89f74066e42a3d62d2547d667ae511e56393feaae52a16a04de8",
+      "batch": "supplemental-frontend",
+      "cases": 9,
+      "original_sha256": "54d4bc81456e9f26e4f0d1dadeaeededdb4d342a845568365c0c0a79a1d8a4c2",
+      "role": "stage3-supplemental-replay"
+    },
+    "lattice": {
+      "role": "requires-assertion-review"
+    },
+    "laws": {
+      "role": "stage3-matrix"
+    },
+    "letrec": {
+      "role": "stage3-matrix"
+    },
+    "lib": {
+      "role": "requires-assertion-review"
+    },
+    "lib_algebra": {
+      "role": "stage3-matrix"
+    },
+    "lib_base64": {
+      "role": "stage3-matrix"
+    },
+    "lib_benchmark": {
+      "role": "stage3-matrix"
+    },
+    "lib_bigdecimal": {
+      "role": "stage3-matrix"
+    },
+    "lib_builder": {
+      "role": "stage3-matrix"
+    },
+    "lib_category": {
+      "role": "stage3-matrix"
+    },
+    "lib_char_tuple": {
+      "role": "stage3-matrix"
+    },
+    "lib_civil_time": {
+      "role": "stage3-matrix"
+    },
+    "lib_complex": {
+      "role": "stage3-matrix"
+    },
+    "lib_coverage": {
+      "role": "stage3-matrix"
+    },
+    "lib_csv": {
+      "role": "stage3-matrix"
+    },
+    "lib_digest": {
+      "role": "stage3-matrix"
+    },
+    "lib_file_utils": {
+      "role": "stage3-matrix"
+    },
+    "lib_find": {
+      "role": "stage3-matrix"
+    },
+    "lib_foldable": {
+      "role": "stage3-matrix"
+    },
+    "lib_function_ord": {
+      "role": "stage3-matrix"
+    },
+    "lib_hash_keys": {
+      "role": "stage3-matrix"
+    },
+    "lib_hashmap_real": {
+      "role": "stage3-matrix"
+    },
+    "lib_http": {
+      "role": "stage3-matrix"
+    },
+    "lib_list": {
+      "role": "stage3-matrix"
+    },
+    "lib_map_set_ops": {
+      "role": "stage3-matrix"
+    },
+    "lib_matrix": {
+      "role": "stage3-matrix"
+    },
+    "lib_option_parser": {
+      "role": "stage3-matrix"
+    },
+    "lib_option_result": {
+      "role": "stage3-matrix"
+    },
+    "lib_pty": {
+      "role": "stage3-matrix"
+    },
+    "lib_random": {
+      "role": "stage3-matrix"
+    },
+    "lib_rational": {
+      "role": "stage3-matrix"
+    },
+    "lib_resolv": {
+      "role": "stage3-matrix"
+    },
+    "lib_shellwords": {
+      "role": "stage3-matrix"
+    },
+    "lib_signal": {
+      "role": "stage3-matrix"
+    },
+    "lib_string_io": {
+      "role": "stage3-matrix"
+    },
+    "lib_test_runner": {
+      "role": "stage3-matrix"
+    },
+    "lib_text_ops": {
+      "role": "stage3-matrix"
+    },
+    "lib_toml": {
+      "role": "stage3-matrix"
+    },
+    "lib_uri_ipaddr": {
+      "role": "stage3-matrix"
+    },
+    "lib_yaml": {
+      "role": "stage3-matrix"
+    },
+    "lib_zlib": {
+      "role": "stage3-matrix"
+    },
+    "linear_facts": {
+      "role": "stage3-matrix"
+    },
+    "llvm_contract": {
+      "role": "requires-assertion-review"
+    },
+    "lsp": {
+      "role": "requires-assertion-review"
+    },
+    "modules": {
+      "role": "stage3-matrix"
+    },
+    "native_closure_checks": {
+      "role": "requires-assertion-review"
+    },
+    "native_dictionary_checks": {
+      "role": "requires-assertion-review"
+    },
+    "nominal_identity": {
+      "adapted_sha256": "5d4d357a68d90317c667077a751fbbacd413cd9e0d0aa622408ce79e116f18fa",
+      "batch": "supplemental-frontend",
+      "cases": 7,
+      "original_sha256": "fd9f1f68f599f67df734ce8179abeebacbbcf662be7aa02260d606f80e7826f1",
+      "role": "stage3-supplemental-replay"
+    },
+    "observability": {
+      "adapted_sha256": "7784a57e6be7347eec1af550e85fcabf1ef36f24d0f671fccd5bf7f233114cb8",
+      "batch": "supplemental-frontend",
+      "cases": 7,
+      "original_sha256": "83c8f5ebe51c7fc5aea888076d374c9c599fb0eb1eec16f391c228ad645686eb",
+      "role": "stage3-supplemental-replay"
+    },
+    "optimizer": {
+      "role": "requires-assertion-review"
+    },
+    "order_independence": {
+      "adapted_sha256": "17cd3a75ea6d574167aefec0c12aa9ff63758bd96775f2004ebdc13c82cc9ff9",
+      "batch": "supplemental-frontend",
+      "cases": 5,
+      "original_sha256": "60439e57154e5ef1ca7ec8db97044a69f9d5785a24350f30befa651236f6e481",
+      "role": "stage3-supplemental-replay"
+    },
+    "ownership": {
+      "adapted_sha256": "a188f6a13656a929db7b407ac833bbd068c37c572a7628767ccbb8adb89abfe0",
+      "batch": "supplemental-frontend",
+      "cases": 27,
+      "original_sha256": "cd90243ca34988045a060ba7f6bdef21db65341467d2ab70730747f303cf810b",
+      "role": "stage3-supplemental-replay"
+    },
+    "package_manifest": {
+      "role": "requires-assertion-review"
+    },
+    "package_store": {
+      "role": "requires-assertion-review"
+    },
+    "params": {
+      "adapted_sha256": "b53747ac51dc66beb50a12bcc9f17ef01e20075e6ddb0aac6a925037345cb392",
+      "batch": "supplemental-frontend",
+      "cases": 7,
+      "original_sha256": "f7c6f5b42d25efe5757388619f9f6947b7cdee5610f71beb77f459ffa600a35c",
+      "role": "stage3-supplemental-replay"
+    },
+    "parsers": {
+      "adapted_sha256": "96b3912b08109ba48dfdfe39598b9a62bc988c945c0d666fba7d221a6b236126",
+      "batch": "supplemental-frontend",
+      "cases": 9,
+      "original_sha256": "7046a21bc55d669a9b0dc20cd75892aac435acda068e58f36beb0d24a08fdc26",
+      "role": "stage3-supplemental-replay"
+    },
+    "pattern_field_names": {
+      "role": "stage3-matrix"
+    },
+    "platform": {
+      "adapted_sha256": "f0e95311f54594950972dba276bae2098b754b5d693009f1cc123c2ca4a2e224",
+      "batch": "supplemental-frontend",
+      "cases": 8,
+      "original_sha256": "1a901ae3424c1adaf38f77e9357a1eea9a3ca500577f1f27e7b5bc1a723e93a8",
+      "role": "stage3-supplemental-replay"
+    },
+    "prelude_lib": {
+      "role": "stage3-matrix"
+    },
+    "prelude_split": {
+      "role": "requires-assertion-review"
+    },
+    "prim": {
+      "role": "requires-assertion-review"
+    },
+    "primitive_length_identity": {
+      "role": "stage3-matrix"
+    },
+    "primitives": {
+      "adapted_sha256": "5517d413e036aa187554729b5b38d2829196e6d71bd6078431c8b8b0e012d07f",
+      "batch": "supplemental-frontend",
+      "cases": 37,
+      "original_sha256": "b06315decf73ecd496617f3edc8fd0fa8e40f008a64771cb04162bbaa7c3727c",
+      "role": "stage3-supplemental-replay"
+    },
+    "proof_guarded_lets": {
+      "role": "stage3-matrix"
+    },
+    "proof_value_identity": {
+      "role": "stage3-matrix"
+    },
+    "range_facts": {
+      "role": "stage3-matrix"
+    },
+    "reclamation": {
+      "role": "requires-assertion-review"
+    },
+    "reclamation_tasks": {
+      "role": "requires-assertion-review"
+    },
+    "refinements": {
+      "adapted_sha256": "2d5bb4c9cc2662de97c10d63da1163656e6da97222969f2c81676aa3ed26ebe6",
+      "batch": "refinement-staging",
+      "cases": 27,
+      "original_sha256": "98ea192a35760921193df9f5554c6fa6951525021d70d600491033ed4d4d6e16",
+      "role": "stage3-supplemental-replay"
+    },
+    "regex": {
+      "adapted_sha256": "993cb26c26adb6276658a1c18fabebcb6069e1f98e5c046d51df3e558cd7bfd4",
+      "batch": "supplemental-frontend",
+      "cases": 5,
+      "original_sha256": "a49de63bcf9df3f742c547ddae5667274269257d9fa37f8ee217b2f581d8ecba",
+      "role": "stage3-supplemental-replay"
+    },
+    "repl": {
+      "role": "requires-assertion-review"
+    },
+    "repr_classes": {
+      "role": "requires-assertion-review"
+    },
+    "runtime_net_prims": {
+      "adapted_sha256": "ccfdcebc77b4d67263104ea3ff568265641153576accd8fd02419beb2873e07f",
+      "batch": "supplemental-frontend",
+      "cases": 2,
+      "original_sha256": "1c8a5597e4a6cfc2e06149e9f238463c65ccbde8f38b946c73cf3e4630451c43",
+      "role": "stage3-supplemental-replay"
+    },
+    "runtime_prims": {
+      "adapted_sha256": "a7ba6706e45f4cb76c4a08eecf981293e57597756deead8a178da74fa7a5e1c7",
+      "batch": "supplemental-frontend",
+      "cases": 6,
+      "original_sha256": "5996e0fbeb941ee58f7e32bef0752f8ed92af7be171227d163e56abf6bce0769",
+      "role": "stage3-supplemental-replay"
+    },
+    "safe_bytes": {
+      "role": "stage3-matrix"
+    },
+    "safe_division": {
+      "role": "stage3-matrix"
+    },
+    "safe_subtraction": {
+      "role": "stage3-matrix"
+    },
+    "safety": {
+      "role": "requires-assertion-review"
+    },
+    "small_nats": {
+      "role": "stage3-matrix"
+    },
+    "stage_code_expectations": {
+      "adapted_sha256": "384a8ecf6c2d264659b8926ec14d6018ac58c24dda37f03767f1b85fc517c122",
+      "batch": "refinement-staging",
+      "cases": 11,
+      "original_sha256": "4b9c55e10f0a3ec1bb6ddb114b7b41945633f62bb9fd474749a58189197b28c1",
+      "role": "stage3-supplemental-replay"
+    },
+    "staging": {
+      "role": "requires-assertion-review"
+    },
+    "string_literals": {
+      "role": "requires-assertion-review"
+    },
+    "surface": {
+      "adapted_sha256": "b689e0d02971ff5a6d886b025d29f3d0f03569fe6a0f6a0f86e4bbb5dc09492e",
+      "batch": "supplemental-frontend",
+      "cases": 19,
+      "original_sha256": "5cb6f583ec6627f88839e4acf67c8e0fb0d12e201bcb4b3974548145d41987e8",
+      "role": "stage3-supplemental-replay"
+    },
+    "sym": {
+      "adapted_sha256": "0077956696409a2eb48467b443294cfa291dd7246467adac4e949391ecedb154",
+      "batch": "refinement-staging",
+      "cases": 10,
+      "original_sha256": "0966c4f6fe03001a862bd0e5d360954ef158e73b4c08306f743be41660bb5545",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_choreography": {
+      "adapted_sha256": "0700f98fec82154e56f075bf6b8b5788c89b63cecedd2820840faeb6d7d06ead",
+      "batch": "syntax-frontend",
+      "cases": 8,
+      "original_sha256": "7c6089b91750efca8e0067f0223316ccab8220c6ea4885b63ce5eca3fd9ee288",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_declaration_composition": {
+      "adapted_sha256": "aecc46b231b8619c7bdc5b8c3972079504e21c7ca132f693e7002b1b28893866",
+      "batch": "syntax-frontend",
+      "cases": 12,
+      "original_sha256": "b3bec9e25aa586b419e6baac6be74420f0005ef08587e12fc9504785be17e713",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_declaration_groups": {
+      "role": "requires-assertion-review"
+    },
+    "syntax_declaration_namespaces": {
+      "role": "requires-assertion-review"
+    },
+    "syntax_declarations": {
+      "role": "requires-assertion-review"
+    },
+    "syntax_effect_declarations": {
+      "adapted_sha256": "e00efed671242adcd6cdf1dc20f2d8adc56d9c1bb5fa7edd67ad2d53a29c23a6",
+      "batch": "syntax-frontend",
+      "cases": 7,
+      "original_sha256": "1585b65e5456c6188dd7eacee8d10d3f1cb33633dad84472b305188c98b16861",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_index_evidence": {
+      "adapted_sha256": "6ae89bc213c86a2ffa840d44c35ce99ebe5564c01cbbf465b9c2ee1f749e64d6",
+      "batch": "syntax-frontend",
+      "cases": 14,
+      "original_sha256": "a3a93c9393f88dc3480fcb923284a08e3eb57a8ee6c13b9e575f6ec273a52e47",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_index_lambdas": {
+      "adapted_sha256": "aef16fd0b24043e57a7195f69eb477b4a669e1d21f31e3a3288333107fa43179",
+      "batch": "syntax-frontend",
+      "cases": 7,
+      "original_sha256": "91ec8a46d0128f765677ce3ed236d0af3fbfa3e33b58a2e7a9cbfa1f3f0b3c3a",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_lambdas": {
+      "adapted_sha256": "4982b3578b5758898fa94366249e516c713c9d68c02a690e44f5f41673400e91",
+      "batch": "syntax-frontend",
+      "cases": 8,
+      "original_sha256": "9247fbba223e0a5875ede67a37b9a3425ac60c4797d05fe8acae6ecbe5712572",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_navigation": {
+      "role": "requires-assertion-review"
+    },
+    "syntax_objects": {
+      "role": "requires-assertion-review"
+    },
+    "syntax_proof_patterns": {
+      "adapted_sha256": "4e7eb2060b5fe0b06fde993b58dbca06f723ed1048511a583bbee2ee5fce8cfb",
+      "batch": "syntax-frontend",
+      "cases": 17,
+      "original_sha256": "446f670c3610023c7b5d219a5718666056e1fb3092fa9b9cb2947473a3e963f9",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_quoted_macro_scope": {
+      "adapted_sha256": "f3e594595646181d8e3e543b038502fc3f4d86e56294faf60a863cc231c6a229",
+      "batch": "syntax-frontend",
+      "cases": 2,
+      "original_sha256": "5ddb9430981a42664788045679b4c6e215951583b084387570403d121d189cab",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_runtime_proofs": {
+      "adapted_sha256": "9c1c13b27a5a30a36027768d669b282c2a519466663381b1f04661f0477efa51",
+      "batch": "syntax-frontend",
+      "cases": 12,
+      "original_sha256": "b94fe2726b74c4d0dd0bf41083132fc5d921742b14623daa55c1fac4e6196d6e",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_signature_scope": {
+      "adapted_sha256": "3d7a08a718cd4555091fbfc8943048ddfcbfb73cc3efb097523abd195ca49eff",
+      "batch": "syntax-frontend",
+      "cases": 7,
+      "original_sha256": "7623ffff490485083453af596e26ec7e9f8e13805801753ea6276c40e17d15a0",
+      "role": "stage3-supplemental-replay"
+    },
+    "syntax_structural_builders": {
+      "adapted_sha256": "48aa21edaa29335ce903ddeee79ee476656eefcd84e6c96b6ba54ca17a3dafa1",
+      "batch": "syntax-frontend",
+      "cases": 14,
+      "original_sha256": "2bb0c22c1d3cc02eb6b44969e38b33f219bfa3efef162b007260d137b4f06e42",
+      "role": "stage3-supplemental-replay"
+    },
+    "tail_calls": {
+      "cases": 4,
+      "original_sha256": "674d927322c2aee1b3e8f36efc5a766154fe9a8cf6a604a6177139399a13ce81",
+      "role": "stage3-tail-replay"
+    },
+    "temporal": {
+      "role": "requires-assertion-review"
+    },
+    "total_bodies": {
+      "role": "requires-assertion-review"
+    },
+    "wasm": {
+      "role": "requires-assertion-review"
+    }
+  }
+}

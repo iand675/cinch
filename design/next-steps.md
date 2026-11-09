@@ -124,6 +124,13 @@ See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-law
 [the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json), and
 [the Stage 3 agreement audit](../bootstrap/current-abi7-codata-index-stage3-agreement.json).
 
+The coverage audit assigns 162 targets to the Stage 3 matrix, 37 to
+supplemental Stage 3 runs, one to the small-stack tail-call run,
+and two to reviewed Rust harness checks. The latest supplemental
+run preserves all 108 original cases across 11 syntax targets.
+Another 34 targets still need assertion review.
+See [the original target routing](../bootstrap/current-abi7-codata-index-target-routing.json).
+
 The pinned producer emitted the five requested Bits variants and the two
 Map variants without changing any of the 55 library interface files. The
 original two bitwise cases and all four coverage-recorder cases passed on
