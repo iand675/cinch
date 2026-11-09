@@ -21104,9 +21104,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 5,
-        "failed": 4,
+        "failed": 5,
         "status": "running",
-        "phase": "Replay original lib_coverage target on Stage 3",
+        "phase": "Replay original lib_csv target on Stage 3",
         "evidence": null
       },
       {
@@ -21343,5 +21343,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:25:20.054187+00:00"
+  "updatedAt": "2026-11-09T06:26:44.066039+00:00"
 }
