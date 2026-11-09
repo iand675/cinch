@@ -1,0 +1,29 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "cases": [
+    {
+      "name": "imported_fixity_parses_in_a_single_source_program",
+      "status": "passed"
+    },
+    {
+      "name": "project_consumer_parses_imported_operator_and_iface_records_it",
+      "status": "passed"
+    }
+  ],
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_output": true,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "invocation_receipts": {
+    "82169-0.json": "70cac4b4403f82c44ad3565e86b1437afbac49ce722e9203a550f81d42f45073",
+    "82169-1.json": "23ceefa49d9887edf34e854a2efd96799162bdb149ac1120027a68aafbec11e8"
+  },
+  "log_sha256": "a5a261988015a1135126d934c25cf82279c906f2a260ec017c0046e61588df7d",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "original_harness_sha256": "62548089aaff10b626e4f0b7c51fb55fa457945a1e60327a355d90a72f02d729",
+  "original_test_sha256": "20e88bfaac347e2d87d3207495dfdf52c6a06b817638632222a39b2126e9698e",
+  "prior_log_sha256": "6562b0220c9e8f35158cb42632c5c07c045a21d66b1a2f101911805342f9bc15",
+  "status": "audited-combined-stage3-fixity-interfaces"
+}
