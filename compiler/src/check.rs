@@ -2632,7 +2632,11 @@ fn callee_writes_opaque(core: &ECore) -> bool {
         ECore::Foreign(_) => true,
         ECore::Prim(crate::core::PrimOp::Eval) => true,
         ECore::Prim(crate::core::PrimOp::Bytes(op)) => {
-            !matches!(op, crate::core::BytesOp::Len | crate::core::BytesOp::Get)
+            // `Data` reads the payload address and writes nothing.
+            !matches!(
+                op,
+                crate::core::BytesOp::Len | crate::core::BytesOp::Get | crate::core::BytesOp::Data
+            )
         }
         // The platform ops mutate the filesystem and the process table:
         // conservatively an opaque write.

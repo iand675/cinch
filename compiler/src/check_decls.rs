@@ -21325,6 +21325,11 @@ impl Checker {
                         d[di..end].copy_from_slice(&chunk);
                         Value::Unit
                     }
+                    BytesOp::Data => {
+                        return Err(Error::plain(
+                            "`bytesData` has no compile-time value: a buffer's address exists only in emitted code",
+                        ));
+                    }
                     BytesOp::Compare => {
                         let (Value::Bytes(a), Value::Bytes(b)) = (&args[0], &args[1]) else {
                             return Err(Error::plain(

@@ -68,6 +68,33 @@ entry:
 }
 ```
 
+# Handing a buffer to C
+
+A C function that takes a `char *` needs an address, and `Bytes` values are counted handles rather than pointers. `bytes-data` is the one conversion: it returns the address of the buffer's payload as a machine word, which is what a foreign declaration's first parameter expects when the callee reads memory.
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  foreign import ccall "strlen" c-strlen :: I64 ->{Foreign Lib, Diverge} I64
+
+  main :: Unit ->{Foreign Lib, Diverge} Int
+  main u =
+    let raw = string-to-bytes "note.txt"
+        n = bytes-len raw
+        path = bytes-new (n + 1)
+        _ = bytes-copy-range path raw 0 0 n
+        _ = bytes-set path n 0
+    in if eq-i64 (c-strlen (bytes-data path)) 8 then 0 else 1
+```
+
+Three facts make this safe to write:
+
+- **The payload does not move.** A buffer's address is fixed when it is made, so an address taken once stays valid while the handle is live. It is the handle, not the address, that the compiler tracks.
+- **`bytes-data` does not release the buffer.** The ownership stays with the caller, which is what keeps the payload alive for the rest of the expression. A pointer that outlives the last use of its handle is a dangling read, and the checker will not invent a reference to save it.
+- **`Bytes` is not a C string.** There is no terminator, and the length is carried beside the buffer, so a C string is a fresh buffer one byte longer with the last byte zeroed, as above.
+
+The address is a word, not a typed pointer, so the type checker cannot tell you what it points at. That is deliberate: the only thing to do with it is pass it to something that already knows, a declaration whose signature you wrote or a `prim` body.
+
 # Linking an object of your own
 
 The CLI has no option that supplies an object or library. `--object`, `-l`, and `--lib` are not flags: a word after the entry file that is not one of the documented flags becomes a program argument, so the build succeeds and silently ignores it. The Rust API is the current route (`driver::run_source_objects` and `build_source_objects` link supplied object files, which is how the `ffi` and `llvm_contract` suites call real C fixtures).

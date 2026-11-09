@@ -412,6 +412,14 @@ pub enum BytesOp {
     Get,
     /// `bytesSet :: Bytes -> Nat -> Nat -> Unit`.
     Set,
+    /// `bytesData :: Bytes -> I64`: the address of the buffer's payload
+    /// as a machine word. This is the seam that lets a `prim` body or a
+    /// `foreign import ccall` hand a buffer to the operating system: the
+    /// address is the payload itself, which never moves, and it stays
+    /// valid while the handle is live. It is deliberately a word rather
+    /// than a typed pointer, so the only way to use it is to hand it to
+    /// something that knows what it points at.
+    Data,
     /// `bytesCopy :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit`: copy
     /// `n` bytes from `src` at `si` into `dst` at `di` in one runtime
     /// `memmove` (overlap-safe; either range out of bounds faults, exit
@@ -430,6 +438,7 @@ impl BytesOp {
             BytesOp::Len => "Len",
             BytesOp::Get => "Get",
             BytesOp::Set => "Set",
+            BytesOp::Data => "Data",
             BytesOp::Copy => "Copy",
             BytesOp::Compare => "Compare",
         }
@@ -442,6 +451,7 @@ impl BytesOp {
             BytesOp::Len => "cinch_bytes_len",
             BytesOp::Get => "cinch_bytes_get",
             BytesOp::Set => "cinch_bytes_set",
+            BytesOp::Data => "cinch_bytes_data",
             BytesOp::Copy => "cinch_bytes_copy",
             BytesOp::Compare => "cinch_bytes_compare",
         }
@@ -1079,6 +1089,7 @@ impl PrimOp {
                 "bytesLen" => Bytes(BytesOp::Len),
                 "bytesGet" => Bytes(BytesOp::Get),
                 "bytesSet" => Bytes(BytesOp::Set),
+                "bytesData" => Bytes(BytesOp::Data),
                 "bytesCopy" => Bytes(BytesOp::Copy),
                 "bytesCompare" => Bytes(BytesOp::Compare),
                 "utf8Validate" => Utf8(Utf8Op::Validate),
@@ -1230,7 +1241,7 @@ impl PrimOp {
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
-            | Bytes(BytesOp::New | BytesOp::Len)
+            | Bytes(BytesOp::New | BytesOp::Len | BytesOp::Data)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
             | Text(
                 TextOp::Sha256 | TextOp::Sha512 | TextOp::Sha1 | TextOp::Md5
@@ -1309,6 +1320,7 @@ impl PrimOp {
             Bytes(BytesOp::Copy) => {
                 (vec![Ty::Bytes, Ty::Bytes, Ty::Nat, Ty::Nat, Ty::Nat], Ty::Unit)
             }
+            Bytes(BytesOp::Data) => (vec![Ty::Bytes], i64t),
             Bytes(BytesOp::Compare) => (vec![Ty::Bytes, Ty::Bytes], i64t),
             Utf8(Utf8Op::Validate) => (vec![Ty::Bytes], Ty::Bool),
             Utf8(Utf8Op::CountChars) => (vec![Ty::Bytes], Ty::Nat),

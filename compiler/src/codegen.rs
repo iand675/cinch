@@ -1462,6 +1462,11 @@ fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
+        // The address `bytesData` hands out aliases the caller's buffer,
+        // so the unit must not release it on return: the caller's own
+        // reference is what keeps the payload alive for as long as the
+        // pointer is used.
+        PrimOp::Bytes(BytesOp::Data) => i == 0,
         _ => false,
     }
 }
@@ -3683,6 +3688,14 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         ],
                     );
                     ret(b, "0");
+                }
+                BytesOp::Data => {
+                    // The payload address as a word: the one place a
+                    // `Bytes` becomes something the kernel can be handed.
+                    // Nothing to box and nothing to freeze, because the
+                    // value is used as a pointer, never as a branch.
+                    let p = rt_call(b, k.extern_name(), &args);
+                    ret(b, &p);
                 }
                 BytesOp::Compare => {
                     // The order is a machine word (-1/0/1), not a `Nat`:

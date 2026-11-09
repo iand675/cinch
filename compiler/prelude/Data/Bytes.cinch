@@ -22,7 +22,7 @@ module Data.Bytes where
   import Data.List
   import Data.Nat
 
-  export bytes-new, bytes-len, bytes-get, bytes-set, bytes-copy-range, bytes-compare, bytes-from-list, bytes-from-u8s, sha256-bytes
+  export bytes-new, bytes-len, bytes-get, bytes-set, bytes-data, bytes-copy-range, bytes-compare, bytes-from-list, bytes-from-u8s, sha256-bytes
 
 
   -- `nat-cmp`/`int-cmp` return the raw -1/0/1 immediate at `I64`, so
@@ -40,6 +40,15 @@ module Data.Bytes where
   foreign import ccall "cinch.runtime.bytesNew" bytes-new :: (n :: Nat) -> refined (bytes-len out == n) Bytes
   foreign import ccall "cinch.runtime.bytesGet" bytes-get :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat
   foreign import ccall "cinch.runtime.bytesSet" bytes-set :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat -> Unit
+
+  -- `bytes-data b`: the address of the buffer's payload as a machine
+  -- word. This is how a buffer reaches the operating system: a `prim`
+  -- body or a `foreign import ccall` takes the address and the length
+  -- separately, exactly as the C interface does. The buffer never moves
+  -- and the address is valid while the handle is live, so a caller that
+  -- wants a C string NUL-terminates it itself (a fresh buffer one byte
+  -- longer, the bytes copied in, the last byte zeroed).
+  foreign import ccall "cinch.runtime.bytesData" bytes-data :: Bytes -> I64
 
   -- `bytes-copy-range dst src di si n`: the `n` bytes of `src` from `si`
   -- into `dst` at `di`, as one runtime `memmove` (the two may be the
