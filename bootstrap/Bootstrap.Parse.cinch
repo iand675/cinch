@@ -34,7 +34,7 @@ module Bootstrap.Parse where
   import Bootstrap.Ast
   import Bootstrap.Report
   import Text.Lex (Span, span-start, span-end, span-line, span-col,
-                   Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord,
+                   Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPrimFrag,
                    TPunct, TEOF, LToken, lt-span, lt-virtual, lt-token,
                    Lexed, LexedTokens, LexedFail, LexErrorKind, lex-error-message,
                    lex-source, bytes-slice)
@@ -739,7 +739,9 @@ module Bootstrap.Parse where
   parse-decl toks src fix = case toks of
     Cons t rest -> case lt-token t of
       TWord w -> decl-by-word w toks src fix
-      TVar s -> parse-sig-or-eq toks src fix
+      TVar s -> if string-compare s "unsafe" == 0 then
+        (case rest of Cons keyword more -> if is-word-t (lt-token keyword) "prim" then parse-prim True rest src fix else parse-sig-or-eq toks src fix; Nil -> PBad)
+        else parse-sig-or-eq toks src fix
       TPunct p ->
         if string-compare p "(" == 0 then parse-sig-or-eq toks src fix
         else PBad
@@ -755,10 +757,11 @@ module Bootstrap.Parse where
     else if string-compare w "data" == 0 then parse-data toks src fix
     else if string-compare w "type" == 0 then parse-refinement toks src
     else if string-compare w "opaque" == 0 then parse-opaque toks src
-    else if string-compare w "record" == 0 then parse-field-declaration DRecord toks src
-    else if string-compare w "codata" == 0 then parse-field-declaration DCodata toks src
+    else if string-compare w "record" == 0 then parse-field-declaration True DRecord toks src
+    else if string-compare w "codata" == 0 then parse-field-declaration False DCodata toks src
     else if string-compare w "effect" == 0 then parse-effect toks src fix
     else if string-compare w "foreign" == 0 then parse-foreign toks src
+    else if string-compare w "prim" == 0 then parse-prim False toks src fix
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
     else if string-compare w "stage" == 0 then parse-marked-decl DStage toks src fix
@@ -775,6 +778,112 @@ module Bootstrap.Parse where
     Cons keyword rest -> case parse-sig-or-eq rest src fix of
       POk body tail -> POk (mark (span-join (sp-of keyword) (decl-span body)) body) tail
       PBad -> PBad
+    Nil -> PBad
+
+  parse-prim :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-prim unsafe-declaration toks src fix = case toks of
+    Cons start input -> (case parse-value-name input of
+      POk name rest -> (case expect-punct-t rest "::" of
+        POk at type-tokens -> (case parse-type type-tokens src of
+          POk ty after -> (case expect-word-t after "where" of
+            POk where-span block -> (case expect-punct-t block "{" of
+              POk opened bodies -> (case parse-prim-bodies unsafe-declaration bodies src fix Nil of
+                POk (Cons first more) tail -> POk (DPrim (sp-of start) name ty (Cons first more)) tail
+                other -> PBad)
+              PBad -> PBad)
+            PBad -> PBad)
+          PBad -> PBad)
+        PBad -> PBad)
+      PBad -> PBad)
+    Nil -> PBad
+  parse-prim-bodies :: Bool -> List LToken -> Bytes -> List (String, Fix) -> List PrimBody -> Ps (List PrimBody)
+  parse-prim-bodies unsafe-declaration toks src fix acc = case toks of
+    Cons token rest -> if is-punct-t (lt-token token) "}" then POk (reverse acc) rest
+      else if is-punct-t (lt-token token) ";" then parse-prim-bodies unsafe-declaration rest src fix acc
+      else (case parse-prim-body unsafe-declaration toks src fix of
+        POk body tail -> (case tail of
+          Cons separator more -> if is-punct-t (lt-token separator) ";" || is-punct-t (lt-token separator) "}" then
+            parse-prim-bodies unsafe-declaration tail src fix (Cons body acc) else PBad
+          Nil -> PBad)
+        PBad -> PBad)
+    Nil -> PBad
+  prim-word :: Token -> String
+  prim-word token = case token of TVar value -> value; TWord value -> value; other -> ""
+  parse-prim-body :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps PrimBody
+  parse-prim-body unsafe-declaration toks src fix = case toks of
+    Cons first rest -> if string-compare (prim-word (lt-token first)) "unsafe" == 0 then parse-prim-fragment True rest src fix
+      else parse-prim-fragment unsafe-declaration toks src fix
+    Nil -> PBad
+  parse-prim-fragment :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps PrimBody
+  parse-prim-fragment unsafe-body toks src fix = case toks of
+    Cons first rest -> (case lt-token first of
+      TVar family -> (case expect-punct-t rest "{" of
+        POk at (Cons fragment after) -> (case (lt-token fragment, expect-punct-t after "}") of
+          (TPrimFrag text, POk close tail) ->
+            parse-prim-modifiers (MkPrimBody (sp-of first) family text unsafe-body None None Nil Nil) tail src fix
+          other -> PBad)
+        other -> PBad)
+      other -> PBad)
+    Nil -> PBad
+  prim-clause :: Token -> Bool
+  prim-clause token = let word = prim-word token in string-compare word "when" == 0 || string-compare word "justify" == 0
+    || string-compare word "uses" == 0 || string-compare word "immarg" == 0
+  prim-clause-tokens :: List LToken -> Nat -> List LToken -> (List LToken, List LToken)
+  prim-clause-tokens toks depth backwards = case toks of
+    Nil -> (reverse backwards, Nil)
+    Cons first rest -> let token = lt-token first in
+      if depth == 0 && (prim-clause token || is-close-tok token || is-punct-t token ";" || is-eof-t token) then
+        (reverse backwards, toks)
+      else if is-open-tok token then prim-clause-tokens rest (depth + 1) (Cons first backwards)
+      else if is-close-tok token && 1 <= depth then prim-clause-tokens rest (depth - 1) (Cons first backwards)
+      else prim-clause-tokens rest depth (Cons first backwards)
+  parse-prim-clause :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-prim-clause toks src fix = case prim-clause-tokens toks 0 Nil of
+    (body, rest) -> (case parse-expr body src fix of POk value Nil -> POk value rest; other -> PBad)
+  parse-prim-modifiers :: PrimBody -> List LToken -> Bytes -> List (String, Fix) -> Ps PrimBody
+  parse-prim-modifiers body toks src fix = case (body, toks) of
+    (MkPrimBody sp family fragment unverified when justification uses immediates, Cons word rest) ->
+      let label = prim-word (lt-token word) in
+      if string-compare label "when" == 0 then (case (when, parse-prim-clause rest src fix) of
+        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified (Some value) justification uses immediates) tail src fix
+        other -> PBad)
+      else if string-compare label "justify" == 0 then (case (justification, parse-prim-clause rest src fix) of
+        (None, POk value tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when (Some value) uses immediates) tail src fix
+        other -> PBad)
+      else if string-compare label "uses" == 0 then (case (uses, parse-prim-uses rest src Nil) of
+        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when justification values immediates) tail src fix
+        other -> PBad)
+      else if string-compare label "immarg" == 0 then (case (immediates, parse-prim-immediates rest Nil) of
+        (Nil, POk values tail) -> parse-prim-modifiers (MkPrimBody sp family fragment unverified when justification uses values) tail src fix
+        other -> PBad)
+      else POk body toks
+    other -> POk body toks
+  parse-prim-uses :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  parse-prim-uses toks src acc = case expect-punct-t toks "(" of
+    POk opened input -> (case parse-field input src of
+      POk value (Cons token tail) ->
+        if is-punct-t (lt-token token) "," then parse-prim-uses tail src (Cons value acc)
+        else if is-punct-t (lt-token token) ")" then POk (reverse (Cons value acc)) tail
+        else PBad
+      POk value Nil -> PBad
+      PBad -> PBad)
+    PBad -> PBad
+  prim-immediate-number :: List Char -> Nat -> Option Nat
+  prim-immediate-number chars value = case chars of
+    Nil -> Some value
+    Cons digit rest -> let code = char-code digit in
+      if 48 <= code && code <= 57 then prim-immediate-number rest (value * 10 + (code - 48))
+      else None
+  parse-prim-immediates :: List LToken -> List Nat -> Ps (List Nat)
+  parse-prim-immediates toks acc = case toks of
+    Cons first rest -> (case lt-token first of
+      TInt digits -> (case prim-immediate-number (unpack digits) 0 of
+        Some value -> (case rest of
+          Cons token tail -> if is-punct-t (lt-token token) "," then parse-prim-immediates tail (Cons value acc)
+            else POk (reverse (Cons value acc)) rest
+          Nil -> POk (reverse (Cons value acc)) Nil)
+        None -> PBad)
+      other -> PBad)
     Nil -> PBad
 
   parse-generate-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
@@ -1244,12 +1353,12 @@ module Bootstrap.Parse where
       PBad -> PBad
     Nil -> PBad
 
-  parse-field-declaration :: (Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl) -> List LToken -> Bytes -> Ps Decl
-  parse-field-declaration declaration toks src = case toks of
+  parse-field-declaration :: Bool -> (Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl) -> List LToken -> Bytes -> Ps Decl
+  parse-field-declaration evidence declaration toks src = case toks of
     Cons t rest -> case parse-ctor-name rest of
       POk name rest1 -> case parse-params rest1 src Nil of
         POk params rest2 -> case expect-word-t rest2 "where" of
-          POk _ rest3 -> case parse-fields rest3 src of
+          POk _ rest3 -> case parse-fields-with-evidence evidence rest3 src of
             POk fields rest4 -> POk (declaration (sp-of t) name params fields) rest4
             PBad -> PBad
           PBad -> PBad
@@ -1276,30 +1385,41 @@ module Bootstrap.Parse where
   -- A `{ name :: Type ; ... }` block, as a list of pairs; an item the
   -- fragment cannot model becomes a `("", TUnmodeled)` pair.
   parse-fields :: List LToken -> Bytes -> Ps (List (String, TypeExpr))
-  parse-fields toks src = case toks of
+  parse-fields toks src = parse-fields-with-evidence False toks src
+  parse-fields-with-evidence :: Bool -> List LToken -> Bytes -> Ps (List (String, TypeExpr))
+  parse-fields-with-evidence evidence toks src = case toks of
     Cons t rest ->
-      if is-punct-t (lt-token t) "{" then fields-loop rest src Nil
+      if is-punct-t (lt-token t) "{" then fields-loop evidence rest src Nil
       else PBad
     Nil -> PBad
 
-  fields-loop :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
-  fields-loop toks src acc = case toks of
+  fields-loop :: Bool -> List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  fields-loop evidence toks src acc = case toks of
     Cons t rest -> case lt-token t of
       TPunct p ->
-        if string-compare p ";" == 0 then fields-loop rest src acc
+        if string-compare p ";" == 0 then fields-loop evidence rest src acc
         else if string-compare p "}" == 0 then POk (reverse acc) rest
-        else field-step toks src acc
+        else field-step evidence toks src acc
       TEOF -> POk (reverse acc) toks
-      _ -> field-step toks src acc
+      _ -> field-step evidence toks src acc
     Nil -> POk (reverse acc) Nil
 
-  field-step :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
-  field-step toks src acc = case parse-field toks src of
-    POk f rest -> fields-loop rest src (Cons f acc)
+  field-step :: Bool -> List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  field-step evidence toks src acc = case (if evidence then parse-record-field toks src else parse-field toks src) of
+    POk f rest -> fields-loop evidence rest src (Cons f acc)
     PBad -> case take-bal toks 0 Nil of
       consumed ->
         let sp = run-span toks consumed in
-        fields-loop (drop-toks toks (list-length consumed)) src (Cons ("", TUnmodeled sp (slice-src src sp)) acc)
+        fields-loop evidence (drop-toks toks (list-length consumed)) src (Cons ("", TUnmodeled sp (slice-src src sp)) acc)
+
+  parse-record-field :: List LToken -> Bytes -> Ps (String, TypeExpr)
+  parse-record-field toks src = case toks of
+    Cons first rest -> if is-word-t (lt-token first) "erased" then
+      (case parse-field rest src of
+        POk (name, ty) tail -> POk (name, TEvidenceField (sp-of first) name ty) tail
+        PBad -> PBad)
+      else parse-field toks src
+    Nil -> PBad
 
   parse-field :: List LToken -> Bytes -> Ps (String, TypeExpr)
   parse-field toks src = case parse-value-name toks of

@@ -835,6 +835,37 @@ module Bootstrap.Typing where
   task-evidence-holds-memo types = case types of
     Nil -> False
     Cons ty rest -> task-type-holds-memo ty || task-evidence-holds-memo rest
+  -- Ownership of a constructor can move, but its borrowed fields still
+  -- refer to values outside the task. Check the instantiated fields.
+  task-transfer-safe :: TypingContext -> List UType -> Nat -> UType -> Bool
+  task-transfer-safe context seen fuel ty = if fuel == 0 then False else
+    let base = task-base ty in
+    let remaining = fuel - 1 in
+    case borrow-type-parts base of
+      Some (mutable, region, carrier) -> not mutable && task-shareable context Nil remaining carrier
+      None -> (case lazy-parts base of
+        Some cell -> False
+        None -> (case base of
+          UTuple fields -> task-transfer-safe context seen remaining fields
+          UArg first rest -> task-transfer-safe context seen remaining first && task-transfer-safe context seen fuel rest
+          other -> if task-seen-type base seen then True else
+            (case task-type-spine base Nil of
+              (UCon name kind, args) -> if array-type-name name then task-transfer-types context seen remaining Nil args else
+                (case task-data name (context-data context) of
+                  Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
+                    Nil -> (case borrow-regions base of Nil -> True; other -> False)
+                    fields -> task-transfer-constructors context (Cons base seen) remaining (task-actuals (core-data-params d) args) fields)
+                  None -> (case borrow-regions base of Nil -> True; other -> False))
+              other -> (case borrow-regions base of Nil -> True; other -> False))))
+  task-transfer-types :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List UType -> Bool
+  task-transfer-types context seen fuel pairs types = case types of
+    Nil -> True
+    Cons ty rest -> task-transfer-safe context seen fuel (substitute-bound pairs ty) && task-transfer-types context seen fuel pairs rest
+  task-transfer-constructors :: TypingContext -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
+  task-transfer-constructors context seen fuel pairs constructors = case constructors of
+    Nil -> True
+    Cons ctor rest -> task-transfer-types context seen fuel pairs (core-constructor-fields ctor)
+      && task-transfer-constructors context seen fuel pairs rest
   -- A non-shareable value can move into the direct, one-shot task body
   -- only when its source binder has its own checked usage obligation.
   task-free-transfer :: TypingContext -> List TaskLocal -> CoreTerm -> List (Nat, UType) -> Bool
@@ -842,7 +873,7 @@ module Bootstrap.Typing where
     Nil -> True
     Cons (id, ty) rest ->
       (task-handle-type ty || task-shareable context Nil 64 ty || (transferable-local env id &&
-        (case borrow-regions ty of Nil -> True; other -> False) &&
+        task-transfer-safe context Nil 64 ty &&
         (case use-count False id body of Some (low, high) -> high == 1; None -> False)))
       && task-free-transfer context env body rest
   task-callable :: TypingContext -> List TaskLocal -> List UType -> Bool -> Span -> CoreTerm -> TaskTrace

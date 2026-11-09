@@ -1161,6 +1161,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.sum-list"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.drop"
     }
   ]
 }

@@ -1,0 +1,43 @@
+{
+  "base_interfaces": 55,
+  "changed_source": {
+    "compiler_sha256": "f45ef4dcd66676e5fecd79c3d220ada25bda819ff2db0c65d1cfe066a74963ff",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "263c25f2fc4dbd3e8e927c11616cdb6876b8d48b6a3e07832fd10baaad5ed319"
+  },
+  "compiler_interfaces": 46,
+  "compiler_sha256": "5958d1a53bb45ca9757bc5fe7e72b2a76f1fc17f1200a6bfd840ad742912d58c",
+  "compiler_source_sha256": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
+  "concurrency_passed": 20,
+  "concurrency_receipt_sha256": "24593c4eb0add06842ab5994a11e7d8302d2051bd92ebe51e2564ebe8864a76a",
+  "files": {
+    "bootstrap/Bootstrap.Ast.cinch": "53e116bcdefb00df4333a23cb0623e873f07e7b96273e21e78fa8bfe1829a4b7",
+    "bootstrap/Bootstrap.Check.cinch": "7afa8eb4b7b2b75f2b8d04feaaf1c16a869ffd7ff7cc8cb1164e80fa8a135222",
+    "bootstrap/Bootstrap.Contracts.cinch": "8d3801cd67b8796f5bef43360db49ca158c37e029dc9441c0a30addaf4418b63",
+    "bootstrap/Bootstrap.Dictionary.cinch": "8c5bff0760d06f109f5e011c2d171336a5a459161641ffdd58ac3500a66ffa1a",
+    "bootstrap/Bootstrap.Export.cinch": "771c04384935a5d7324c9eb46f25665473f527917702806bd1d6cbbaece92cd4",
+    "bootstrap/Bootstrap.ExportType.cinch": "a26f18f24d90fb31db31f18ba26eb63f2e06b43ddb2fa97075c2b9f6ad3527da",
+    "bootstrap/Bootstrap.Foreign.cinch": "bedb023b562a2bcba834651a3dae8092cf7101a7781aa718ac3367be0ffbac81",
+    "bootstrap/Bootstrap.Infer.cinch": "11717e2e397e7a33630d67edc7b8dcfd9321d08b34583dbd8f79e03ee7ff31c5",
+    "bootstrap/Bootstrap.Load.cinch": "a6008fd9424080a3f63cfb6e71eb0dcd79665a4d84758e7a06c658cd238da9d9",
+    "bootstrap/Bootstrap.Parse.cinch": "42ce55897bbacc18fba5de52996c511e3719fe97dd1aa0fa67a1695477f560d7",
+    "bootstrap/Bootstrap.Resolve.cinch": "c130cf8e06e7d78d082f538ac454f89e6b969739eda44c8732ee7e83f15da3d0",
+    "bootstrap/Bootstrap.RuntimeIr.cinch": "cb1a24824273db9d48c6f707ed66c162991f25de7d35df6a71be6d03adb4380a",
+    "bootstrap/Bootstrap.Typing.cinch": "a46604a21132bf6f855323fbcb545a96b9f91c3e94f8359416e2ec1499a7656a",
+    "bootstrap/library-object-roots.json": "b4856638a148e784c000deceae4b2348c252d573dad2075ee19ae76670d85e0e",
+    "compiler/prelude/Text/Lex.cinch": "7ce40c52587d28ea17f9bb4f6e9b3de900e2bf223e529a8ff43f372ca017a899"
+  },
+  "full_goal_complete": false,
+  "interface_consumer": {
+    "compiler_sha256": "5958d1a53bb45ca9757bc5fe7e72b2a76f1fc17f1200a6bfd840ad742912d58c",
+    "manifest_sha256": "84af8de60f371f1e0df23f71c3e49df682417644fa636c32213f04c8d8577de4",
+    "source_sha256": "179cb043fcb46e7d0f1e6b3587792042ba64442c10edeb4667155fcb16e91acf",
+    "status": "passed"
+  },
+  "llvm_sha256": "d2be4a30ded9ee11debf7c3312cec94fc73ec66599ed5237b33c0c88e43725b0",
+  "native_source_sha256": "32b28f279481ab495b971910c30526109014dc8b8149d4816ee64da271ac0a7a",
+  "object_sha256": "d1a0f3f586a6390845cb399b6b48a7a89e7c48d16251e0c12c0ddf47f215fe35",
+  "schema": 1,
+  "scope": "Verified bootstrap and original Stage 3 concurrency cases. Complete matching suites remain open.",
+  "status": "published-verified-task-capture-fixed-point"
+}

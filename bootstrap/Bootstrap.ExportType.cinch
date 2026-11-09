@@ -11,6 +11,7 @@ module Bootstrap.ExportType where
 
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
   export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
+  export constructor-field-erasure
   export export-resolved-value-scheme
   export diagnostic-member-name
 
@@ -116,10 +117,16 @@ module Bootstrap.ExportType where
   constructor-field-rows scope ty = case ty of
     UFun domain result -> prepend-field (type-in scope domain) (constructor-field-rows scope result)
     UPi id name domain row result -> prepend-field (type-in scope domain)
-      (constructor-field-rows (Cons (id, fresh-name "p" (list-length scope)) scope) result)
-    UProofFun predicate row result -> Err "proof constructor fields require explicit erased metadata"
+      (constructor-field-rows (Cons (id, source-binder (fresh-name "p" (list-length scope)) name scope) scope) result)
+    UProofFun predicate row result -> prepend-field (type-in scope predicate) (constructor-field-rows scope result)
     URequire predicates result -> Err "constrained constructor fields require checked proof metadata"
     other -> Ok Nil
+  constructor-field-erasure :: UType -> List Bool
+  constructor-field-erasure ty = case ty of
+    UFun domain result -> Cons False (constructor-field-erasure result)
+    UPi id name domain row result -> Cons False (constructor-field-erasure result)
+    UProofFun predicate row result -> Cons True (constructor-field-erasure result)
+    other -> Nil
   prepend-field :: Result String String -> Result String (List String) -> Result String (List String)
   prepend-field first rest = case (first, rest) of
     (Ok value, Ok more) -> Ok (Cons value more)

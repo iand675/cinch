@@ -2,6 +2,13 @@
 
 ## Integrated ABI 7 acceptance
 
+The published Cinch compiler now includes the checked task-capture
+repair and the pinned tagged `Data.List.drop` variant. Its exact
+Stage 2 and Stage 3 artifacts agree, the changed-source and separate
+interface consumer checks pass, and all 20 original concurrency
+tests passed on Stage 3. The matching full suites remain open.
+See [the published compiler receipt](../bootstrap/current-abi7-published-task-capture-compiler.json).
+
 The current Cinch source rebuilt from Stage 0 through Stage 3. Stage 2 and
 Stage 3 agree on the executable, LLVM IR and all 46 compiler interfaces.
 The 55 base interfaces, 12 smoke tests, separate interface consumer and

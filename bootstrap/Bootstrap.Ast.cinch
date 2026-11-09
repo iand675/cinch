@@ -105,6 +105,7 @@ module Bootstrap.Ast where
     TArgsEnd :: Span -> TypeExpr
     TBound :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
     TBoundsEnd :: Span -> TypeExpr
+    TEvidenceField :: Span -> String -> TypeExpr -> TypeExpr
     TUnmodeled :: Span -> String -> TypeExpr
 
   type-arg-spine :: Span -> List TypeExpr -> TypeExpr
@@ -152,6 +153,7 @@ module Bootstrap.Ast where
     TArgsEnd s -> s
     TBound s name ty rest -> s
     TBoundsEnd s -> s
+    TEvidenceField s name ty -> s
     TUnmodeled s text -> s
 
   -- Declaration binders retain their kinds and implicitness. Throwing
@@ -392,6 +394,9 @@ module Bootstrap.Ast where
     LawEquation :: Expr -> Expr -> LawSyntax
     LawProposition :: TypeExpr -> LawSyntax
 
+  data PrimBody where
+    MkPrimBody :: Span -> String -> String -> Bool -> Option Expr -> Option Expr -> List (String, TypeExpr) -> List Nat -> PrimBody
+
   data Decl where
     DSource :: Span -> String -> Json -> Decl
     DInterface :: Span -> String -> String -> Json -> Decl
@@ -413,6 +418,7 @@ module Bootstrap.Ast where
     DCodata :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DEffect :: Span -> String -> List TypeParam -> List (String, TypeExpr) -> Decl
     DForeign :: Span -> String -> String -> String -> String -> TypeExpr -> Decl
+    DPrim :: Span -> String -> TypeExpr -> List PrimBody -> Decl
     DProof :: Span -> Decl -> Decl
     DCorec :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
@@ -455,6 +461,7 @@ module Bootstrap.Ast where
     DCodata s n params observations -> s
     DEffect s n params ops -> s
     DForeign s direction conv symbol foreign-name t -> s
+    DPrim s name ty bodies -> s
     DProof s body -> s
     DCorec s body -> s
     DStage s body -> s
@@ -487,6 +494,7 @@ module Bootstrap.Ast where
     DCodata s n params observations -> Some n
     DEffect s n params ops -> Some n
     DForeign s direction conv symbol foreign-name t -> Some foreign-name
+    DPrim s name ty bodies -> Some name
     DDecl s x rest -> None
     DDeclsEnd s -> None
     DUnmodeled s text -> None
@@ -551,6 +559,7 @@ module Bootstrap.Ast where
     TBound s name ty rest -> type-unmodeled-count ty + type-unmodeled-count rest
     TBoundsEnd s -> 0
     TUnmodeled s text -> 1
+    TEvidenceField s name ty -> type-unmodeled-count ty
 
   type-unmodeleds :: List TypeExpr -> Nat
   type-unmodeleds ts = case ts of
@@ -697,6 +706,7 @@ module Bootstrap.Ast where
     DCodata s n params observations -> params-unmodeled params + ctors-unmodeled observations
     DEffect s n params ops -> params-unmodeled params + ctors-unmodeled ops
     DForeign s direction conv symbol foreign-name t -> type-unmodeled-count t
+    DPrim s name ty bodies -> type-unmodeled-count ty + prim-bodies-unmodeled bodies
     DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
     DDeclsEnd s -> 0
     DUnmodeled s text -> 1
@@ -706,6 +716,14 @@ module Bootstrap.Ast where
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template
     DStageBranch s condition yes no -> expr-unmodeled-count condition + decl-unmodeled-count yes + decl-unmodeled-count no
+
+  prim-bodies-unmodeled :: List PrimBody -> Nat
+  prim-bodies-unmodeled bodies = case bodies of
+    Nil -> 0
+    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
+      (case condition of Some value -> expr-unmodeled-count value; None -> 0)
+        + (case justification of Some value -> expr-unmodeled-count value; None -> 0)
+        + ctors-unmodeled uses + prim-bodies-unmodeled rest
 
   law-unmodeled-count :: LawSyntax -> Nat
   law-unmodeled-count syntax = case syntax of
@@ -758,6 +776,7 @@ module Bootstrap.Ast where
     TBound part0 part1 part2 part3 -> JArr (JStr "TBound") (JArr (JStr part1) (JArr (source-identity-type part2) (JArr (source-identity-type part3) (JArrEnd))))
     TBoundsEnd part0 -> JArr (JStr "TBoundsEnd") (JArrEnd)
     TUnmodeled part0 part1 -> JArr (JStr "TUnmodeled") (JArr (JStr part1) (JArrEnd))
+    TEvidenceField s name ty -> JArr (JStr "TEvidenceField") (JArr (JStr name) (JArr (source-identity-type ty) JArrEnd))
 
   source-identity-pat :: Pat -> Json
   source-identity-pat value = case value of

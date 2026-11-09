@@ -1137,21 +1137,23 @@ module Text.Lex where
   -- word, so a `family { ... }` body opener can be recognized (the
   -- compiler's `Lexer::note`/`at_prim_fragment`).
   data LexCtx where
-    LexCtx :: Option (Nat, Bool) -> Option String -> LexCtx
+    LexCtx :: Option (Nat, Bool) -> Option String -> Option Nat -> LexCtx
 
   lex-ctx-prim :: LexCtx -> Option (Nat, Bool)
   lex-ctx-prim c = case c of
-    LexCtx p l -> p
+    LexCtx p l unsafe-column -> p
 
   lex-ctx-last :: LexCtx -> Option String
   lex-ctx-last c = case c of
-    LexCtx p l -> l
+    LexCtx p l unsafe-column -> l
+  lex-ctx-unsafe-column :: LexCtx -> Option Nat
+  lex-ctx-unsafe-column c = case c of LexCtx p l unsafe-column -> unsafe-column
 
   set-lex-prim :: LexCtx -> Option (Nat, Bool) -> LexCtx
-  set-lex-prim c p = LexCtx p (lex-ctx-last c)
+  set-lex-prim c p = LexCtx p (lex-ctx-last c) (lex-ctx-unsafe-column c)
 
   set-lex-last :: LexCtx -> Option String -> LexCtx
-  set-lex-last c l = LexCtx (lex-ctx-prim c) l
+  set-lex-last c l = LexCtx (lex-ctx-prim c) l (lex-ctx-unsafe-column c)
 
   -- The registered target-IR family names a `prim` body may open.
   is-family-word :: Option String -> Bool
@@ -1179,8 +1181,12 @@ module Text.Lex where
   -- keyword's column.
   note-token :: Bool -> Nat -> Token -> LexCtx -> LexCtx
   note-token at-line-start col t c =
-    let c1 = note-last t c in
-    if is-tok-word t ("prim") then set-lex-prim c1 (Some (col, False))
+    let noted = note-last t c in
+    let pending = (case t of TVar w -> if string-compare w "unsafe" == 0 then Some col else None; other -> None) in
+    let c1 = LexCtx (lex-ctx-prim noted) (lex-ctx-last noted) pending in
+    if is-tok-word t ("prim") then
+      let opening = (case lex-ctx-unsafe-column c of Some before -> if at-line-start then col else before; None -> col) in
+      set-lex-prim c1 (Some (opening, False))
     else case lex-ctx-prim c1 of
       None -> c1
       Some pc -> case pc of
@@ -1196,7 +1202,7 @@ module Text.Lex where
     Span a b l c -> Span a (scan-off s) l c
 
   lex-tokens :: Bytes -> Lexed
-  lex-tokens b = scan-all (LexCtx None None) (Scan b 0 1 1 True None) Nil
+  lex-tokens b = scan-all (LexCtx None None None) (Scan b 0 1 1 True None) Nil
 
   scan-all :: LexCtx -> Scan -> List LToken -> Lexed
   scan-all ctx s acc = case skip-blank s of

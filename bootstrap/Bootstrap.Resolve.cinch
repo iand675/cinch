@@ -378,6 +378,7 @@ module Bootstrap.Resolve where
     TFun s a b -> TFun s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) b)
     TFunEff s a row b -> TFunEff s (rename-type visible locals a) (rename-type visible (bound-names a <> locals) row) (rename-type visible (bound-names a <> locals) b)
     TUsageArrow s usage arrow -> TUsageArrow s usage (rename-type visible locals arrow)
+    TEvidenceField s name ty -> TEvidenceField s name (rename-type visible locals ty)
     TRow s labels tail -> TRow s (rename-type visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
@@ -405,10 +406,11 @@ module Bootstrap.Resolve where
     Cons (name, ty) rest -> Cons (global-name home name, rename-type visible locals ty) (rename-ctors home visible locals rest)
 
   -- Labels belong to the record. Only their field types use module names.
-  rename-record-fields :: List Binding -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
-  rename-record-fields visible locals fields = case fields of
+  rename-record-fields :: Bool -> List Binding -> List String -> List (String, TypeExpr) -> List (String, TypeExpr)
+  rename-record-fields dependent visible locals fields = case fields of
     Nil -> Nil
-    Cons (name, ty) rest -> Cons (name, rename-type visible locals ty) (rename-record-fields visible locals rest)
+    Cons (name, ty) rest -> Cons (name, rename-type visible locals ty)
+      (rename-record-fields dependent visible (if dependent then Cons name locals else locals) rest)
 
   pattern-names :: Pat -> List String
   pattern-names p = case p of
@@ -449,7 +451,7 @@ module Bootstrap.Resolve where
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier visible then
             (name, fail sp (cat ["unknown constructor ", name, ": not exported into this scope"]))
-          else (name, fail sp (cat ["name is not in scope: ", name]))
+          else (name, fail sp (cat ["unknown name (name is not in scope: ", name, ")"]))
 
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
@@ -765,11 +767,11 @@ module Bootstrap.Resolve where
       (Nil, fail s "a builtin array primitive cannot be redefined as a record")
       else if has-name name ["Ref", "Mut", "Thunk", "Lazy", "Later"] then (Nil, fail s "a builtin ownership type cannot be redefined")
       else (Cons (DRecord s (global-name home name) (rename-params visible Nil params)
-        (rename-record-fields visible (parameter-names params) fields)) Nil, Nil)
+        (rename-record-fields True visible (parameter-names params) fields)) Nil, Nil)
     DCodata s name params observations -> if opaque-name-reserved name then
       (Nil, fail s "a builtin type cannot be redefined as codata")
       else ([DCodata s (global-name home name) (rename-params visible Nil params)
-        (rename-record-fields visible (parameter-names params) observations)], Nil)
+        (rename-record-fields False visible (parameter-names params) observations)], Nil)
     DClass s name params members ->
       if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
@@ -788,6 +790,8 @@ module Bootstrap.Resolve where
       if same direction "import" then (Cons (DForeign s direction abi symbol (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
       else case resolve-use s False visible Nil name of
         (exported-symbol, errors) -> (Cons (DForeign s direction abi symbol exported-symbol (rename-type visible Nil ty)) Nil, errors)
+    DPrim s name ty bodies -> case rename-prim-bodies visible bodies of
+      (renamed, errors) -> ([DPrim s (global-name home name) (rename-type visible Nil ty) renamed], errors)
     DImport s path mods alias members args -> (Nil, Nil)
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
@@ -800,6 +804,17 @@ module Bootstrap.Resolve where
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")
+
+  rename-prim-bodies :: List Binding -> List PrimBody -> (List PrimBody, List Diagnostic)
+  rename-prim-bodies visible bodies = case bodies of
+    Nil -> (Nil, Nil)
+    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
+      let (evidence, evidence-errors) = (case justification of
+        None -> (None, Nil)
+        Some expression -> (case rename-expr visible Nil expression of (renamed, errors) -> (Some renamed, errors))) in
+      (case rename-prim-bodies visible rest of
+        (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition evidence
+          (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))
 
   rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
   rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
@@ -919,11 +934,18 @@ module Bootstrap.Resolve where
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
           let source-surfaces = source-scopes modules done in
-          let references = declaration-references declarations <> export-references source-surfaces in
-          let all-references = references <> imported-class-references declarations declarations in
+          let imported-records = imported-record-symbols declarations in
+          let records = source-record-symbols modules <> imported-records in
+          let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
+          let contexts = source-contexts modules (modules <> headers) done source-surfaces prelude-available records base in
+          let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
+          let record-references = (case imported-records of
+            Nil -> Nil
+            other -> imported-record-references references imported-records declarations) in
+          let all-references = references <> imported-class-references declarations declarations <> record-references in
           let admitted = if has-name "b.Fin" all-references then Cons finite-index-declaration declarations else declarations in
           case materialize-externals all-references admitted Nil of
-            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (source-contexts modules (modules <> headers) done source-surfaces (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) (source-record-symbols modules) base <> body))) Nil), errors)
+            (body, errors) -> (MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (contexts <> body))) Nil), errors)
         (done, errors) -> (p, errors)
       errors -> (p, errors)
 
@@ -961,6 +983,46 @@ module Bootstrap.Resolve where
     Cons (DRecord sp name params fields) rest -> Cons (global-name home name) (declared-record-symbols home rest)
     Cons (DCodata sp name params observations) rest -> Cons (global-name home name) (declared-record-symbols home rest)
     Cons other rest -> declared-record-symbols home rest
+  imported-record-symbols :: List Decl -> List String
+  imported-record-symbols declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal sp name category syntax metadata) rest ->
+      let more = imported-record-symbols rest in
+      if same category "type" && (case context-field "kind" metadata of JStr kind -> same kind "record"; other -> False)
+        && not (has-name name more) then Cons name more else more
+    Cons other rest -> imported-record-symbols rest
+  context-field :: String -> Json -> Json
+  context-field wanted doc = case doc of
+    JObj key value rest -> if same wanted key then value else context-field wanted rest
+    other -> JNull
+  record-context-references :: List Decl -> List String
+  record-context-references contexts = case contexts of
+    Nil -> Nil
+    Cons (DSource sp name metadata) rest -> record-context-labels (context-field "record_scope" metadata) <> record-context-references rest
+    Cons other rest -> record-context-references rest
+  record-context-labels :: Json -> List String
+  record-context-labels rows = case rows of
+    JArr (JStr name) rest -> Cons name (record-context-labels rest)
+    other -> Nil
+  -- A known receiver can use its public defining record even when only
+  -- the function that returned it was imported. Nominal closures contain
+  -- no labels, so private carriers cannot introduce field authority here.
+  imported-record-references :: List String -> List String -> List Decl -> List String
+  imported-record-references references records declarations = case declarations of
+    Nil -> Nil
+    Cons (DExternal sp name category syntax metadata) rest ->
+      let more = imported-record-references references records rest in
+      if has-name name references then
+        record-nominal-references records (context-field "nominals" (context-field "resolved" metadata)) <> more
+      else more
+    Cons other rest -> imported-record-references references records rest
+  record-nominal-references :: List String -> Json -> List String
+  record-nominal-references records rows = case rows of
+    JArr nominal rest -> let more = record-nominal-references records rest in
+      (case context-field "identity" nominal of
+        JStr identity -> let symbol = interface-global identity in if has-name symbol records then Cons symbol more else more
+        other -> more)
+    other -> Nil
   visible-record-symbols :: List Binding -> List String -> List String
   visible-record-symbols bindings records = case records of
     Nil -> Nil

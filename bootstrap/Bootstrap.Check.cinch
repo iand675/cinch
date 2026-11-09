@@ -317,6 +317,7 @@ module Bootstrap.Check where
     TArgsEnd s -> (TyHole, fail s "unsupported type: type spine end")
     TBound s name ty rest -> (TyHole, fail s "unsupported type: implicit bound")
     TBoundsEnd s -> (TyHole, fail s "unsupported type: implicit bounds end")
+    TEvidenceField s name ty -> (TyHole, fail s "record evidence fields require checked proposition elaboration")
     TUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled type: " text))
 
   type-app-to-ty :: TypeExpr -> TypeExpr -> (Ty, List Diagnostic)
@@ -953,6 +954,7 @@ module Bootstrap.Check where
     DCorec s body -> fail s "a corec declaration requires guarded recursion checking"
     DEffect s n params ops -> fail s "effect declarations are not supported in this rung"
     DForeign s direction conv symbol foreign-name t -> fail s "foreign declarations are not supported in this rung"
+    DPrim s name ty bodies -> fail s "inline primitives require checked signatures and target containment"
     DProof s body -> fail s "a proof declaration requires erased checking"
     DStage s body -> fail s "a stage declaration requires compile-time checking"
     DGenerate s actions -> fail s "a generate block requires compile-time expansion"

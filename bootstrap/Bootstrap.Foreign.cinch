@@ -2,30 +2,46 @@
 -- string never supplies a calling convention, ownership fact or total body.
 module Bootstrap.Foreign where
   import Bootstrap.Type
+  import Bootstrap.Ast (PrimBody, MkPrimBody, Expr, EVar, ECon, EApp, EArg, EArgsEnd)
   import Bootstrap.Core (contract-scheme-closed)
-  import Bootstrap.ExportType (export-type)
+  import Bootstrap.ExportType (export-type, export-global)
+  import Bootstrap.Interface (fnv-source-hash)
   import Data.Json
   import Data.Nat (nat-to-int)
   import Text.Show (nat-to-string)
+  import Text.Scan (string-contains, string-split-on, string-starts-with, string-words)
   import Algebra.Semigroup
 
   export ForeignPlan, ForeignParameter, foreign-plan, foreign-parameters, foreign-result
   export foreign-symbol, foreign-scheme, foreign-parameter-type, foreign-class
   export foreign-width, foreign-signed, foreign-nullable, foreign-role
   export foreign-pointer, foreign-document, foreign-display-scheme
+  export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
+  export PrimitiveAssembly, AssemblyFragment
+  export foreign-llvm-type
 
   data ForeignParameter where
     Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
+  data PrimitiveAssembly where
+    AssemblyFragment :: String -> List Nat -> PrimitiveAssembly
+  data InlinePrimitive where
+    InlinePrimitiveBody :: String -> List String -> List Nat -> Option PrimitiveAssembly -> InlinePrimitive
   data ForeignPlan where
-    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> ForeignPlan
+    Plan :: String -> Scheme -> List ForeignParameter -> ForeignParameter -> Option (InlinePrimitive, String, List String) -> ForeignPlan
   foreign-symbol :: ForeignPlan -> String
-  foreign-symbol plan = case plan of Plan symbol scheme params result -> symbol
+  foreign-symbol plan = case plan of Plan symbol scheme params result inline -> symbol
   foreign-scheme :: ForeignPlan -> Scheme
-  foreign-scheme plan = case plan of Plan symbol scheme params result -> scheme
+  foreign-scheme plan = case plan of Plan symbol scheme params result inline -> scheme
   foreign-parameters :: ForeignPlan -> List ForeignParameter
-  foreign-parameters plan = case plan of Plan symbol scheme params result -> params
+  foreign-parameters plan = case plan of Plan symbol scheme params result inline -> params
   foreign-result :: ForeignPlan -> ForeignParameter
-  foreign-result plan = case plan of Plan symbol scheme params result -> result
+  foreign-result plan = case plan of Plan symbol scheme params result inline -> result
+  foreign-inline :: ForeignPlan -> Option InlinePrimitive
+  foreign-inline plan = case plan of Plan symbol scheme params result inline -> (case inline of Some (body, identity, trust) -> Some body; None -> None)
+  foreign-primitive-assumptions :: ForeignPlan -> Option (String, List String)
+  foreign-primitive-assumptions plan = case plan of
+    Plan symbol scheme params result inline ->
+      (case inline of Some (body, identity, trust) -> Some (identity, trust); None -> None)
   foreign-parameter-type :: ForeignParameter -> UType
   foreign-parameter-type parameter = case parameter of Parameter ty category role width align signed nullable -> ty
   foreign-class :: ForeignParameter -> String
@@ -38,6 +54,14 @@ module Bootstrap.Foreign where
   foreign-nullable parameter = case parameter of Parameter ty category role width align signed nullable -> nullable
   foreign-role :: ForeignParameter -> String
   foreign-role parameter = case parameter of Parameter ty category role width align signed nullable -> role
+  foreign-llvm-type :: ForeignParameter -> String
+  foreign-llvm-type parameter =
+    if same (foreign-class parameter) "unit" then "void"
+    else if same (foreign-class parameter) "ptr" then "ptr"
+    else case foreign-parameter-type parameter of
+      UCon name KType -> if same name "F32" then "float" else if same name "F64" then "double"
+        else string-concat "i" (nat-to-string (foreign-width parameter * 8))
+      other -> string-concat "i" (nat-to-string (foreign-width parameter * 8))
   same :: String -> String -> Bool
   same first second = string-compare first second == 0
   has :: String -> List String -> Bool
@@ -117,7 +141,183 @@ module Bootstrap.Foreign where
     else if not (envelope (scheme-body scheme)) then Err "foreign import needs a function type, closed explicit rows and accounted result effects"
     else case parameters abstracts (scheme-body scheme) Nil of
       Err error -> Err error
-      Ok (arguments, result) -> Ok (Plan symbol scheme arguments result)
+      Ok (arguments, result) -> Ok (Plan symbol scheme arguments result None)
+  primitive-carrier :: UType -> Result String ForeignParameter
+  primitive-carrier ty = case ty of
+    UCon name KType -> if same name "Bool" then Ok (Parameter ty "scalar" "value" 1 1 False False)
+      else if same name "Char" then Ok (Parameter ty "scalar" "value" 4 4 False False)
+      else (case scalar name of
+        Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
+        None -> Err "a prim needs a first-order machine scalar carrier")
+    other -> Err "a prim needs a first-order machine scalar carrier"
+  primitive-parameters :: UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  primitive-parameters ty backwards = case ty of
+    UFun domain rest -> primitive-domain domain rest backwards
+    UFunEff domain row rest -> if closed-row row then primitive-domain domain rest backwards
+      else Err "a prim needs closed explicit effect rows"
+    other -> (case (backwards, primitive-carrier ty) of
+      (Nil, result) -> Err "a prim declaration needs a function type"
+      (arguments, Ok result) -> Ok (reverse arguments, result)
+      (arguments, Err message) -> Err message)
+  primitive-domain :: UType -> UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  primitive-domain domain rest backwards = case primitive-carrier domain of
+    Ok argument -> primitive-parameters rest (Cons argument backwards)
+    Err error -> Err error
+  immediate-indices-valid :: Nat -> List Nat -> List Nat -> Bool
+  immediate-indices-valid arity indices seen = case indices of
+    Nil -> True
+    Cons first rest -> first < arity && not (has-index first seen) && immediate-indices-valid arity rest (Cons first seen)
+  has-index :: Nat -> List Nat -> Bool
+  has-index value values = case values of Nil -> False; Cons first rest -> value == first || has-index value rest
+  allowed-intrinsic :: String -> Bool
+  allowed-intrinsic symbol = has symbol [
+    "@llvm.sadd.with.overflow.i8", "@llvm.sadd.with.overflow.i16", "@llvm.sadd.with.overflow.i32", "@llvm.sadd.with.overflow.i64",
+    "@llvm.uadd.with.overflow.i8", "@llvm.uadd.with.overflow.i16", "@llvm.uadd.with.overflow.i32", "@llvm.uadd.with.overflow.i64",
+    "@llvm.ssub.with.overflow.i8", "@llvm.ssub.with.overflow.i16", "@llvm.ssub.with.overflow.i32", "@llvm.ssub.with.overflow.i64",
+    "@llvm.usub.with.overflow.i8", "@llvm.usub.with.overflow.i16", "@llvm.usub.with.overflow.i32", "@llvm.usub.with.overflow.i64",
+    "@llvm.smul.with.overflow.i8", "@llvm.smul.with.overflow.i16", "@llvm.smul.with.overflow.i32", "@llvm.smul.with.overflow.i64",
+    "@llvm.umul.with.overflow.i8", "@llvm.umul.with.overflow.i16", "@llvm.umul.with.overflow.i32", "@llvm.umul.with.overflow.i64"]
+  ir-line-words :: String -> List String
+  ir-line-words line = case string-split-on ";" line of
+    Nil -> Nil
+    Cons code rest -> string-words (pack (ir-token-chars (unpack code)))
+  ir-token-chars :: List Char -> List Char
+  ir-token-chars chars = case chars of
+    Nil -> Nil
+    Cons first rest -> let code = char-code first in
+      Cons (if code == 40 || code == 41 || code == 44 || code == 61 then ' ' else first) (ir-token-chars rest)
+  ir-symbols :: List String -> List String
+  ir-symbols words = case words of
+    Nil -> Nil
+    Cons word rest -> if string-starts-with "@" word then Cons word (ir-symbols rest) else ir-symbols rest
+  ir-no-unsafe-punctuation :: String -> Bool
+  ir-no-unsafe-punctuation line =
+    not (string-contains "\"" line || string-contains "!" line || string-contains "\\" line || string-contains ":" line
+      || string-contains "#" line)
+  ir-has-word :: List String -> List String -> Bool
+  ir-has-word forbidden words = case words of
+    Nil -> False
+    Cons word rest -> has word forbidden || ir-has-word forbidden rest
+  ir-instruction :: List String -> List String
+  ir-instruction words = case words of
+    Cons first rest -> if string-starts-with "%" first then rest else words
+    Nil -> Nil
+  first-ir-return :: String -> List String -> Bool
+  first-ir-return result words = case words of
+    Cons operation (Cons actual (Cons operand Nil)) -> same operation "ret" && same actual result
+    other -> False
+  contained-ir :: String -> List String -> Bool -> List String -> Result String (List String)
+  contained-ir result lines returned symbols = case lines of
+    Nil -> if returned then Ok symbols else Err "containment (grammar): an LLVM fragment needs one final return"
+    Cons line rest -> let words = ir-line-words line in
+      (case ir-instruction words of
+        Nil -> if list-length words == 0 then contained-ir result rest returned symbols
+          else Err "containment (grammar): an LLVM result binding needs an instruction"
+        Cons operation arguments ->
+          if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
+            Err "containment (no-unwind): the inline body may unwind"
+          else if ir-has-word ["define", "declare"] words then Err "containment (signature discipline): a fragment declares extra parameters or results"
+          else if ir-has-word ["store", "load", "atomicrmw", "cmpxchg", "fence", "volatile"] words then
+            Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
+          else if returned then Err "containment (grammar): an instruction follows the return"
+          else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
+          else if ir-has-word ["br", "switch", "indirectbr", "alloca", "getelementptr", "unreachable", "ptr", "inttoptr", "ptrtoint", "asm", "va_arg"] words then
+            Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
+          else if same operation "ret" then
+            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result rest True symbols
+            else Err "containment (signature discipline): LLVM return disagrees with the declared result"
+          else if same operation "call" && not (has "call" arguments) then (case ir-symbols arguments of
+            [symbol] -> if allowed-intrinsic symbol then contained-ir result rest False (if has symbol symbols then symbols else Cons symbol symbols)
+              else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
+            other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
+          else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
+            Err "containment (no-escape): unchecked calls and symbols are forbidden"
+          else if has operation ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
+              "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "extractvalue", "insertvalue",
+              "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze"] then
+            contained-ir result rest False symbols
+          else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
+  condition-operand :: Expr -> String
+  condition-operand expression = case expression of
+    EVar sp name -> if string-contains "." name then "" else name
+    ECon sp name (EArgsEnd end) -> name
+    other -> ""
+  condition-spelling :: String -> Expr -> String
+  condition-spelling head argument = let name = condition-operand argument in
+    if string-length name == 0 then "" else
+      (case reverse (string-split-on "." head) of
+        Cons last rest -> if same last "arch" || same last "Available" then string-concat-all [last, " ", name] else ""
+        Nil -> "")
+  primitive-condition :: Expr -> String
+  primitive-condition expression = case expression of
+    EApp sp (EVar at predicate) argument -> condition-spelling predicate argument
+    EApp sp (ECon at predicate (EArgsEnd end)) argument -> condition-spelling predicate argument
+    ECon sp predicate (EArg at argument (EArgsEnd end)) -> condition-spelling predicate argument
+    other -> ""
+  condition-text :: Option Expr -> String
+  condition-text when = case when of Some expression -> primitive-condition expression; None -> ""
+  immediate-text :: List Nat -> String
+  immediate-text positions = case positions of
+    Nil -> ""
+    Cons position Nil -> nat-to-string position
+    Cons position rest -> string-concat-all [nat-to-string position, ", ", immediate-text rest]
+  immediate-list :: List Nat -> String
+  immediate-list positions = string-concat-all ["[", immediate-text positions, "]"]
+  primitive-identity :: String -> String -> String
+  primitive-identity symbol text = string-concat-all ["prim:", symbol, "#", fnv-source-hash (string-to-bytes text)]
+  -- This is the Native assumed-body encoding. The checked uses list is
+  -- empty in this tier. Source order, whitespace and immarg order matter.
+  primitive-body-text :: List PrimBody -> String
+  primitive-body-text bodies = case bodies of
+    Nil -> ""
+    Cons (MkPrimBody sp family fragment unverified when justification uses immediates) rest ->
+      string-concat-all [family, "\n", condition-text when, "\n", fragment, "[]", immediate-list immediates, primitive-body-text rest]
+  primitive-trust :: String -> List PrimBody -> List String
+  primitive-trust symbol bodies = case bodies of
+    Nil -> Nil
+    Cons (MkPrimBody sp family fragment unverified when justification uses immediates) rest ->
+      let more = primitive-trust symbol rest in
+      if unverified then Cons (primitive-identity symbol (string-concat-all
+        [family, "\n", condition-text when, "\n", fragment, "\n[]\n", immediate-list immediates])) more else more
+  contained-assembly :: String -> Bool
+  contained-assembly fragment = let words = string-words (pack (ir-token-chars (unpack fragment))) in
+    list-length words /= 0 && not (ir-has-word ["syscall", "svc", "int", "udf", "brk", "hlt", "ud2", "trap",
+      "call", "callq", "bl", "blr", "ret", "jmp", "br"] words)
+  checked-prim-bodies :: List PrimBody -> Nat -> String -> Option (String, List String, List Nat) -> Option PrimitiveAssembly -> String -> Result String InlinePrimitive
+  checked-prim-bodies bodies arity result baseline assembly missing = case bodies of
+    Nil -> (case baseline of Some (fragment, symbols, immediates) -> Ok (InlinePrimitiveBody fragment symbols immediates assembly); None -> Err (string-concat "no LLVM baseline for " missing))
+    Cons (MkPrimBody sp family fragment unverified when justification uses immediates) rest ->
+      if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
+      else if has family ["clr", "jvm"] then Err (string-concat family " target-IR family is reserved")
+      else if same family "asm" && not unverified then Err "an assembly fragment must mark it `unsafe`"
+      else if same family "asm" && not (contained-assembly fragment) then Err "containment (no-escape): the assembly has an empty or escaping fragment"
+      else if list-length uses /= 0 then Err "inline primitive uses entries need checked foreign contracts"
+      else if (case when of Some condition -> string-length (primitive-condition condition) == 0; None -> False) then
+        Err "a `when` condition is Available <capability> or arch <name>"
+      else (case justification of
+        Some evidence -> Err "inline primitive justification needs a checked law identity"
+        None -> if same family "llvm" then (case contained-ir result (string-split-on "\n" fragment) False Nil of
+          Err message -> Err message
+          Ok symbols -> (case (when, baseline) of
+            (None, None) -> checked-prim-bodies rest arity result (Some (fragment, symbols, immediates)) assembly missing
+            (None, Some prior) -> Err "duplicate LLVM baseline in an inline primitive"
+            (Some condition, prior) -> checked-prim-bodies rest arity result prior assembly (primitive-condition condition)))
+          else if same family "asm" then (case (when, assembly) of
+            (Some condition, prior) -> checked-prim-bodies rest arity result baseline prior (primitive-condition condition)
+            (None, None) -> checked-prim-bodies rest arity result baseline (Some (AssemblyFragment fragment immediates)) "an unselected assembly body"
+            (None, Some prior) -> Err "duplicate unconditional assembly body in an inline primitive")
+          else Err (string-concat "unsupported inline target-IR family " family))
+  primitive-plan :: String -> Scheme -> List PrimBody -> Result String ForeignPlan
+  primitive-plan name scheme bodies =
+    if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
+      Err "a prim declaration needs a monomorphic checked signature"
+    else (case (export-global name, primitive-parameters (scheme-body scheme) Nil) of
+      (Ok symbol, Ok (arguments, result)) -> (case checked-prim-bodies bodies (list-length arguments) (foreign-llvm-type result) None None "the current target profile" of
+        Ok body -> Ok (Plan (string-concat symbol ".llvm") scheme arguments result
+          (Some (body, primitive-identity symbol (primitive-body-text bodies), primitive-trust symbol bodies)))
+        Err message -> Err message)
+      (Err message, other) -> Err message
+      (other, Err message) -> Err message)
   strings :: String -> List String -> String
   strings delimiter values = case values of Nil -> ""; Cons first Nil -> first; Cons first rest -> string-concat-all [first, delimiter, strings delimiter rest]
   visible-regions :: List Quant -> List (Nat, UType)

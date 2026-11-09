@@ -18,6 +18,7 @@ module Bootstrap.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
+  import Text.Scan (string-split-on)
   import Text.Lex (Span)
   import Data.Json
 
@@ -49,6 +50,7 @@ module Bootstrap.RuntimeIr where
     MemoWorker :: Demand
     ExternalDemand :: RuntimeUnit -> Demand
     ForeignDemand :: ForeignPlan -> Demand
+    PrimitiveIntrinsicDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   data MethodVersion where
@@ -368,6 +370,7 @@ module Bootstrap.RuntimeIr where
     MemoWorker -> "runtime:memo"
     ExternalDemand unit -> cat ["external:", unit-symbol unit]
     ForeignDemand plan -> cat ["foreign:", foreign-symbol plan]
+    PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) ->
@@ -889,14 +892,10 @@ module Bootstrap.RuntimeIr where
     CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
     CErasedApply sp ty row f witness -> case f of
       CUse at function name role actuals ->
-        if same role "constructor" then
-          if decision-word-type ty && (same name "b.Yes" || same name "b.No") then decision-constructor sp (same name "b.Yes") w
-          else expression definitions locals w f
-        else erased-application definitions locals w f
-      other -> (case head f of
-        CUse at function name role actuals -> if same role "constructor" then expression definitions locals w f
-          else erased-application definitions locals w f
-        other -> erased-application definitions locals w f)
+        if same role "constructor" && decision-word-type ty && (same name "b.Yes" || same name "b.No") then
+          decision-constructor sp (same name "b.Yes") w
+        else erased-constructor-or-function definitions locals w sp f
+      other -> erased-constructor-or-function definitions locals w sp f
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
@@ -907,7 +906,22 @@ module Bootstrap.RuntimeIr where
             external-call-unit definitions locals (note-version owner slot Nil w) sp unit (mono function) Nil (arguments term Nil)
             else indirect-application definitions locals w f x
           None -> indirect-application definitions locals w f x)
-      other -> indirect-application definitions locals w f x
+      other -> (case erased-constructor-call term Nil of
+        Some (name, actuals, args) -> direct-call definitions locals w sp name actuals args
+        None -> indirect-application definitions locals w f x)
+  -- A checked proposition argument occupies no runtime field. Continue
+  -- gathering positional values through proof applications of constructors.
+  erased-constructor-call :: CoreTerm -> List CoreTerm -> Option (String, List UType, List CoreTerm)
+  erased-constructor-call term args = case term of
+    CUse sp ty name role actuals -> if same role "constructor" then Some (name, actuals, args) else None
+    CApply sp ty f x -> erased-constructor-call f (Cons x args)
+    CApplyEff sp ty row f x -> erased-constructor-call f (Cons x args)
+    CErasedApply sp ty row f witness -> erased-constructor-call f args
+    other -> None
+  erased-constructor-or-function :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> (Writer, String)
+  erased-constructor-or-function definitions locals w sp function = case erased-constructor-call function Nil of
+    Some (name, actuals, args) -> direct-call definitions locals w sp name actuals args
+    None -> erased-application definitions locals w function
   indirect-application :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> (Writer, String)
   indirect-application definitions locals w f x = case expression definitions locals w f of
     (callee, function) -> case expression definitions locals callee x of
@@ -1280,18 +1294,58 @@ module Bootstrap.RuntimeIr where
   foreign-binding name bindings = case bindings of
     Nil -> None
     Cons binding rest -> if same name (checked-name binding) then checked-foreign-plan binding else foreign-binding name rest
-  foreign-llvm-type :: ForeignParameter -> String
-  foreign-llvm-type parameter = if same (foreign-class parameter) "unit" then "void"
-    else if same (foreign-class parameter) "ptr" then "ptr"
-    else if named (foreign-parameter-type parameter) "F32" then "float"
-    else if named (foreign-parameter-type parameter) "F64" then "double"
-    else cat ["i", nat-to-string (foreign-width parameter * 8)]
   foreign-parameter-types :: List ForeignParameter -> List String
   foreign-parameter-types params = case params of
     Nil -> Nil
     Cons first rest -> if same (foreign-class first) "unit" then foreign-parameter-types rest else Cons (foreign-llvm-type first) (foreign-parameter-types rest)
   foreign-worker :: ForeignPlan -> Writer -> Writer
-  foreign-worker plan w = global w (cat ["declare ", foreign-llvm-type (foreign-result plan), " ", llvm-object-symbol (foreign-symbol plan), "(", join (foreign-parameter-types (foreign-parameters plan)), ")"])
+  foreign-worker plan w = let result = foreign-llvm-type (foreign-result plan) in
+    let arguments = foreign-parameter-types (foreign-parameters plan) in
+    let symbol = foreign-symbol plan in
+    case foreign-inline plan of
+      None -> global w (cat ["declare ", result, " ", llvm-object-symbol symbol, "(", join arguments, ")"])
+      Some (InlinePrimitiveBody fragment symbols immediates assembly) ->
+        let required = primitive-intrinsics symbols w in
+        let defined = primitive-worker symbol result arguments fragment immediates required in
+        case assembly of
+          None -> defined
+          Some (AssemblyFragment template indices) ->
+            let owner = string-drop-llvm-suffix symbol in
+            let constraints = string-concat-all ["=", primitive-register result, primitive-registers arguments] in
+            let body = cat ["  call void @llvm.sideeffect()\n  %asmresult = call ", result, " asm sideeffect \"",
+              llvm-data-bytes template, "\", \"", constraints, "\"(", join (primitive-arguments arguments 0), ")\n  ret ", result, " %asmresult"] in
+            primitive-worker (cat [owner, ".asm"]) result arguments body indices (request-demand (PrimitiveIntrinsicDemand "@llvm.sideeffect") defined)
+  string-drop-llvm-suffix :: String -> String
+  string-drop-llvm-suffix symbol = pack (reverse (drop 5 (reverse (unpack symbol))))
+  primitive-register :: String -> String
+  primitive-register ty = if same ty "float" || same ty "double" then "f" else "r"
+  primitive-registers :: List String -> String
+  primitive-registers arguments = case arguments of
+    Nil -> ""
+    Cons ty rest -> cat [",", primitive-register ty, primitive-registers rest]
+  primitive-arguments :: List String -> Nat -> List String
+  primitive-arguments arguments index = case arguments of
+    Nil -> Nil
+    Cons ty rest -> Cons (cat [ty, " %", nat-to-string index]) (primitive-arguments rest (index + 1))
+  primitive-worker :: String -> String -> List String -> String -> List Nat -> Writer -> Writer
+  primitive-worker name result arguments body immediates w =
+    let (ready, attachment) = primitive-immediate-metadata immediates w in
+    global ready (cat ["define internal ", result, " ", llvm-object-symbol name, "(", join (primitive-arguments arguments 0),
+      ")", attachment, " {\n", body, "\n}"])
+  primitive-immediate-metadata :: List Nat -> Writer -> (Writer, String)
+  primitive-immediate-metadata indices w = case indices of
+    Nil -> (w, "")
+    other -> let (next, name) = fresh w "!" in
+      (global next (cat [name, " = !{", join (map (\index -> cat ["i32 ", nat-to-string index]) indices), "}"]), cat [" !immarg ", name])
+  primitive-intrinsics :: List String -> Writer -> Writer
+  primitive-intrinsics symbols w = case symbols of
+    Nil -> w
+    Cons symbol rest -> primitive-intrinsics rest (request-demand (PrimitiveIntrinsicDemand symbol) w)
+  primitive-intrinsic-worker :: String -> Writer -> Writer
+  primitive-intrinsic-worker symbol w = if same symbol "@llvm.sideeffect" then global w "declare void @llvm.sideeffect()" else
+    (case reverse (string-split-on "." symbol) of
+      Cons ty rest -> global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
+      Nil -> refuse w (Span 0 0 1 1) "inline intrinsic is missing its checked result width")
   foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
   foreign-abi-compatible first second = same (foreign-llvm-type (foreign-result first)) (foreign-llvm-type (foreign-result second))
     && same (join (foreign-parameter-types (foreign-parameters first))) (join (foreign-parameter-types (foreign-parameters second)))
@@ -1345,12 +1399,26 @@ module Bootstrap.RuntimeIr where
     None -> unsupported w sp "foreign call has no checked ABI plan"
     Some plan -> if list-length givens /= 0 || not (foreign-argument-types (foreign-parameters plan) args) then unsupported w sp "foreign call must supply every checked ABI argument"
       else if not (foreign-abi-coherent plan (program-bindings (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
+      else if not (primitive-immediate-arguments (foreign-inline plan) args) then unsupported w sp "an immarg primitive operand must be an immediate literal"
       else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
         (evaluated, values) -> case foreign-marshal evaluated (foreign-parameters plan) values of
           (ready, arguments) -> let result = foreign-result plan in let ty = foreign-llvm-type result in
             if same ty "void" then (line ready (cat ["  call void ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"]), "0")
             else let (next, value) = fresh ready "%foreign" in
               foreign-result-word (line next (cat ["  ", value, " = call ", ty, " ", llvm-object-symbol (foreign-symbol plan), "(", join arguments, ")"])) result value
+  primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
+  primitive-immediate-arguments plan args = case plan of
+    None -> True
+    Some (InlinePrimitiveBody fragment symbols indices assembly) -> immediate-operands indices args
+  immediate-operands :: List Nat -> List CoreTerm -> Bool
+  immediate-operands indices args = case indices of
+    Nil -> True
+    Cons index rest -> immediate-operand index args && immediate-operands rest args
+  immediate-operand :: Nat -> List CoreTerm -> Bool
+  immediate-operand index args = case args of
+    Nil -> False
+    Cons first rest -> if index == 0 then (case first of CInt sp ty text -> True; other -> False)
+      else immediate-operand (index - 1) rest
   external-binding :: String -> List CheckedBinding -> Option CheckedBinding
   external-binding name bindings = case bindings of Nil -> None; Cons first rest -> if same name (checked-name first) && same (checked-role first) "external" then Some first else external-binding name rest
   external-shape :: Nat -> UType -> List UType -> Option (List UType, UType)
@@ -2473,6 +2541,7 @@ module Bootstrap.RuntimeIr where
           MemoWorker -> workers definitions (memo-worker claimed)
           ExternalDemand unit -> workers definitions (external-worker unit claimed)
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
+          PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
   declarations = cat [
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",

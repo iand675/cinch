@@ -152,6 +152,7 @@ module Bootstrap.Contracts where
     TUsing s bounds body -> type-references bounds <> type-references body
     TArg s x rest -> type-references x <> type-references rest
     TBound s name kind rest -> type-references kind <> type-references rest
+    TEvidenceField s name ty -> type-references ty
     other -> Nil
 
   pat-references :: Pat -> List String
@@ -310,7 +311,14 @@ module Bootstrap.Contracts where
     DEffect s name params ops -> param-references params <> ctor-references ops
     DInstance s only name params class-app members -> param-references params <> type-references class-app <> declaration-references (decls-of members)
     DForeign s direction abi symbol name ty -> type-references ty <> (if same direction "export" then Cons name Nil else Nil)
+    DPrim s name ty bodies -> type-references ty <> prim-body-references bodies
     other -> Nil
+
+  prim-body-references :: List PrimBody -> List String
+  prim-body-references bodies = case bodies of
+    Nil -> Nil
+    Cons (MkPrimBody sp family fragment unverified condition justification uses immediates) rest ->
+      ctor-references uses <> (case justification of Some evidence -> expr-references evidence; None -> Nil) <> prim-body-references rest
 
   declaration-references :: List Decl -> List String
   declaration-references ds = case ds of

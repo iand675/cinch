@@ -5,7 +5,7 @@ module Bootstrap.Infer where
 
   import Bootstrap.Ast
   import Bootstrap.Type
-  import Bootstrap.Foreign (ForeignPlan, foreign-plan, foreign-document)
+  import Bootstrap.Foreign (ForeignPlan, foreign-plan, foreign-document, primitive-plan)
   import Bootstrap.Index
   import Bootstrap.Total
   import Bootstrap.BodyContract
@@ -21,7 +21,7 @@ module Bootstrap.Infer where
   import Bootstrap.Contracts (declaration-references, expr-references)
   import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body)
   import Text.Json (canonical-bytes)
-  import Bootstrap.ExportType (export-global, diagnostic-member-name)
+  import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
   import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
@@ -210,6 +210,7 @@ module Bootstrap.Infer where
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
       DForeign s direction abi symbol name ty -> True
+      DPrim s name ty bodies -> True
       DProof s body -> True
       DExternal s name kind (Some ty) metadata -> needs-type ty || (case resolved-text metadata of Some text -> True; other -> False)
       DFun s name clauses -> clauses-need clauses
@@ -938,8 +939,14 @@ module Bootstrap.Infer where
     TName sp name -> (case lookup-local name locals of Some ty -> kind-equal (type-kind ty) KProp; None -> False)
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "Not"
     other -> False)
+  record-proposition-type :: UType -> Bool
+  record-proposition-type ty = valid-type ty && kind-equal (type-kind ty) KProp
   convert-domain :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-domain external kinds locals syntax st = if proof-domain locals syntax then convert-predicate external kinds locals syntax st else convert external kinds locals syntax st
+  convert-domain external kinds locals syntax st = case syntax of
+    TEvidenceField sp name ty -> (case convert-domain external kinds locals ty st of
+      (field-type, checked) -> if record-proposition-type field-type then (field-type, checked)
+        else bad sp (string-concat-all ["an `erased` field is evidence: ", name, " needs a proposition"]) checked)
+    other -> if proof-domain locals syntax then convert-predicate external kinds locals syntax st else convert external kinds locals syntax st
   convert-proof-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> UType -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-proof-arrow external kinds locals sp predicate row result st =
     case (case row of None -> (URow UEnd, st); Some effects -> convert-row kinds locals effects st) of
@@ -1353,7 +1360,7 @@ module Bootstrap.Infer where
                         (more, final) -> collect-kinds rest (context-add-alias declaration more) final
                     other -> collect-kinds rest kinds (add-error s "invalid imported refinement declaration" checked)
                   (None, checked) -> collect-kinds rest kinds checked)
-              else if same variety "data" || same variety "opaque" || same variety "signature" then
+              else if same variety "data" || same variety "record" || same variety "opaque" || same variety "signature" then
                 case imported-kinds kinds (field "parameters" metadata) st of
                   (qs, sq) -> case context-kind name kinds of
                     Some old -> collect-kinds rest (context-add-alias d kinds) sq
@@ -1598,8 +1605,11 @@ module Bootstrap.Infer where
       other -> (mono UError, add-error sp "invalid resolved imported scheme syntax" st)
   json-length :: Json -> Nat
   json-length rows = case rows of JArr row rest -> 1 + json-length rest; other -> 0
-  computational-fields :: Json -> Bool
-  computational-fields rows = case rows of JArr (JBool False) rest -> computational-fields rest; JArrEnd -> True; other -> False
+  constructor-erasure-matches :: List Bool -> Json -> Bool
+  constructor-erasure-matches expected rows = case (expected, rows) of
+    (Nil, JArrEnd) -> True
+    (Cons first more, JArr (JBool flag) rest) -> first == flag && constructor-erasure-matches more rest
+    other -> False
   ctor-in-rows :: String -> Json -> Bool
   ctor-in-rows name rows = case rows of
     JArr (JStr symbol) rest -> same name (interface-global symbol) || ctor-in-rows name rest
@@ -1624,7 +1634,8 @@ module Bootstrap.Infer where
         else add-error sp "imported constructor needs existential or indexed elaboration" checked
   check-imported-constructor :: Span -> String -> Scheme -> Json -> Store -> Store
   check-imported-constructor sp name sc metadata st =
-    let sa = if scheme-arity sc == json-length (field "fields" metadata) && computational-fields (field "erased" metadata) then st
+    let sa = if scheme-arity sc == json-length (field "fields" metadata)
+          && constructor-erasure-matches (constructor-field-erasure (scheme-body sc)) (field "erased" metadata) then st
           else add-error sp "imported constructor arity or erasure disagrees with its resolved scheme" st in
     case (ctor-description name (resolved-nominals metadata), root-name (result-type (scheme-body sc))) of
       (Some description, Some result) -> let owner = interface-global (case field "identity" description of JStr identity -> identity; other -> "") in
@@ -2060,6 +2071,12 @@ module Bootstrap.Infer where
       DCodata s owner ps observations -> register rows classes kinds rest env st
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
         (e, se) -> register rows classes kinds rest e se
+      DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
+        (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
+          (case (lookup-binding name env, primitive-plan name actual bodies) of
+            (Some prior, result) -> register rows classes kinds rest env (add-error s "duplicate primitive binding" checked)
+            (None, Err error) -> register rows classes kinds rest env (add-error s error checked)
+            (None, Ok plan) -> register rows classes kinds rest (Cons (MkForeignBinding name actual plan) env) checked)
       DExternal s name category (Some ty) metadata ->
         case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register rows classes kinds rest e se
       DExternal s name category None metadata -> if same category "builtin" then
@@ -3748,14 +3765,26 @@ module Bootstrap.Infer where
       (bound, pattern, sp) -> case bind-pattern-fields classes kinds families bound locals rest tail sp of
         (final, patterns, ss) -> (final, CPField s pattern patterns, ss)
     other -> (env, CPWild (pat-span ps) UError, add-error (pat-span ps) "tuple pattern arity mismatch" st)
+  -- Later fields can depend on the actual payload even when the pattern
+  -- leaves it unnamed. Give such a field a private identity in Core.
+  indexable-constructor-pattern :: Pat -> Pat
+  indexable-constructor-pattern pat = case pat of
+    PVar sp name -> pat
+    PLitInt sp text -> pat
+    PAs sp name inner -> pat
+    PAnn sp inner ty -> PAnn sp (indexable-constructor-pattern inner) ty
+    PWild sp -> PVar sp "#constructor-field"
+    other -> PAs (pat-span pat) "#constructor-field" pat
   bind-constructor :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> UType -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
   bind-constructor classes kinds families env locals sp ps ty expected st = case ps of
     PArgsEnd s -> (env, CPDone s, unify sp ty expected st)
     PArg s p rest -> case normalize st ty of
-      UPi id name domain row result -> case bind-arrow-pattern classes kinds families env locals p ty st of
-        (bound, pattern, effects, out, checked) ->
-          case bind-constructor classes kinds families bound locals sp rest out expected (include-effects s effects (URow UEnd) checked) of
-            (final, patterns, done) -> (final, CPField s pattern patterns, done)
+      UPi id name domain row result ->
+        let field-pattern = if pi-dependent ty then indexable-constructor-pattern p else p in
+        (case bind-arrow-pattern classes kinds families env locals field-pattern ty st of
+          (bound, pattern, effects, out, checked) ->
+            case bind-constructor classes kinds families bound locals sp rest out expected (include-effects s effects (URow UEnd) checked) of
+              (final, patterns, done) -> (final, CPField s pattern patterns, done))
       UProofFun predicate row result -> case bind-proof-pattern kinds env locals p predicate (include-effects s row (URow UEnd) st) of
         (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest result expected sb of
           (final, patterns, done) -> (final, CPField s pattern patterns, done)
@@ -4352,7 +4381,7 @@ module Bootstrap.Infer where
         (qs, sq) -> case checked-constructors cs env sq of
           (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
-    DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data"; other -> False) then
+    DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data" || same variety "record"; other -> False) then
       (case imported-kinds kinds (field "parameters" metadata) st of
         (qs, checked) -> if runtime-constructors-complete name (field "ctors" metadata) then
           (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
@@ -4397,7 +4426,7 @@ module Bootstrap.Infer where
   complete-runtime-data-rows rows classes kinds datas st = case rows of
     JArr row rest -> (case (field "identity" row, field "kind" row) of
       (JStr identity, JStr variety) -> let name = interface-global identity in
-        if same variety "data" && runtime-data-present name datas && runtime-constructors-complete name (field "ctors" row) then
+        if (same variety "data" || same variety "record") && runtime-data-present name datas && runtime-constructors-complete name (field "ctors" row) then
           (case checked-data-declaration classes kinds Nil (DExternal zero name "type" None row) st of
             (Some actual, checked) -> complete-runtime-data-rows rest classes kinds (replace-runtime-data actual datas) checked
             (None, checked) -> complete-runtime-data-rows rest classes kinds datas checked)
@@ -4923,15 +4952,27 @@ module Bootstrap.Infer where
   record-labels :: List (String, TypeExpr) -> List String
   record-labels fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons name (record-labels rest)
   data RecordShape where
-    RecordShape :: Bool -> String -> List (String, TypeExpr) -> RecordShape
+    RecordShape :: String -> List String -> Option (List (String, TypeExpr)) -> RecordShape
   record-definition :: String -> List Decl -> Option RecordShape
   record-definition name ds = case ds of
     Nil -> None
-    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (RecordShape False actual fields) else record-definition name rest
-    Cons (DCodata sp actual params fields) rest -> if same name actual then Some (RecordShape True actual fields) else record-definition name rest
+    Cons (DRecord sp actual params fields) rest -> if same name actual then Some (RecordShape actual (record-labels fields) None) else record-definition name rest
+    Cons (DCodata sp actual params fields) rest -> if same name actual then Some (RecordShape actual (record-labels fields) (Some fields)) else record-definition name rest
+    Cons (DExternal sp actual category syntax metadata) rest ->
+      if same actual name && same category "type" then
+        (case (field "kind" metadata, field "ctors" metadata) of
+          (JStr variety, JArr constructor JArrEnd) ->
+            if same variety "record" && runtime-constructors-complete name (field "ctors" metadata)
+              && (case field "symbol" constructor of JStr symbol -> same name (interface-global symbol); other -> False) then
+              Some (RecordShape actual (record-context-names (field "fields" metadata)) None)
+            else record-definition name rest
+          other -> record-definition name rest)
+      else record-definition name rest
     Cons other rest -> record-definition name rest
+  has-observations :: Option (List (String, TypeExpr)) -> Bool
+  has-observations observations = case observations of Some fields -> True; None -> False
   codata-name :: String -> List Decl -> Bool
-  codata-name name ds = case record-definition name ds of Some (RecordShape observed owner fields) -> observed; None -> False
+  codata-name name ds = case record-definition name ds of Some (RecordShape owner fields observations) -> has-observations observations; None -> False
   unwrap-corec :: Decl -> Decl
   unwrap-corec declaration = case declaration of DCorec sp body -> body; other -> declaration
   unwrap-corec-declarations :: List Decl -> List Decl
@@ -5039,7 +5080,7 @@ module Bootstrap.Infer where
       ERecord sp name values -> (case position of
         GuardedObservation -> None
         other -> (case record-definition name declarations of
-          Some (RecordShape True owner fields) -> guarded-observation-fields declarations group productive diverges (is-codata-flow owner flow) fields values
+          Some (RecordShape owner labels (Some fields)) -> guarded-observation-fields declarations group productive diverges (is-codata-flow owner flow) fields values
           other -> eager values))
       ERecordField sp name value rest -> first-guard-error (eager value) (eager rest)
       EApp sp (EVar at name) (ELam site patterns body) | same name "b.delay" -> (case position of
@@ -5120,6 +5161,8 @@ module Bootstrap.Infer where
     Nil -> False
     Cons (DRecord sp name params fields) rest -> True
     Cons (DCodata sp name params fields) rest -> True
+    Cons (DExternal sp name category syntax metadata) rest ->
+      (same category "type" && (case field "kind" metadata of JStr kind -> same kind "record"; other -> False)) || record-definitions-present rest
     Cons other rest -> record-definitions-present rest
   record-result :: Span -> String -> List TypeParam -> TypeExpr
   record-result sp name params = case params of
@@ -5129,12 +5172,26 @@ module Bootstrap.Infer where
   record-parameter-types params = case params of Nil -> Nil; Cons param rest -> Cons (TName (param-span param) (param-name param)) (record-parameter-types rest)
   record-constructor :: Span -> List (String, TypeExpr) -> TypeExpr -> TypeExpr
   record-constructor sp fields result = case fields of Nil -> result; Cons (name, ty) rest -> TFun sp ty (record-constructor sp rest result)
+  has-record-evidence :: List (String, TypeExpr) -> Bool
+  has-record-evidence fields = case fields of
+    Nil -> False
+    Cons (name, TEvidenceField sp label ty) rest -> True
+    Cons first rest -> has-record-evidence rest
+  dependent-record-constructor :: Span -> List (String, TypeExpr) -> TypeExpr -> TypeExpr
+  dependent-record-constructor sp fields result = case fields of
+    Nil -> result
+    Cons (name, ty) rest ->
+      let at = type-expr-span ty in
+      TFun at (TBound at name ty (TBoundsEnd at)) (dependent-record-constructor sp rest result)
   record-declarations :: List Decl -> List Decl -> List Decl
   record-declarations all ds = case ds of
     Nil -> Nil
     Cons declaration rest -> let more = record-declarations all rest in
       case declaration of
-        DRecord sp name params fields -> Cons (DData sp name params [(name, record-constructor sp fields (record-result sp name params))]) (Cons declaration more)
+        DRecord sp name params fields ->
+          let result = record-result sp name params in
+          let signature-type = if has-record-evidence fields then dependent-record-constructor sp fields result else record-constructor sp fields result in
+          Cons (DData sp name params [(name, signature-type)]) (Cons declaration more)
         DCodata sp name params fields ->
           Cons (DData sp name params [(record-storage-name True name, record-constructor sp (observation-storage-fields sp fields) (record-result sp name params))])
             (Cons declaration more)
@@ -5157,10 +5214,17 @@ module Bootstrap.Infer where
     EArgsEnd sp -> Some Nil
     ERecordField sp name value rest -> (case record-expression-fields rest of Some more -> Some (Cons (name, value) more); None -> None)
     other -> None
-  record-labels-valid :: List String -> List String -> List String -> Bool
-  record-labels-valid allowed labels seen = case labels of
-    Nil -> True
-    Cons name rest -> has name allowed && not (has name seen) && record-labels-valid allowed rest (Cons name seen)
+  record-field-error :: List String -> List String -> List String -> Option String
+  record-field-error allowed labels seen = case labels of
+    Nil -> missing-record-field allowed seen
+    Cons name rest ->
+      if not (has name allowed) then Some (string-concat "unknown record field: " name)
+      else if has name seen then Some (string-concat "duplicate record field: " name)
+      else record-field-error allowed rest (Cons name seen)
+  missing-record-field :: List String -> List String -> Option String
+  missing-record-field allowed seen = case allowed of
+    Nil -> None
+    Cons name rest -> if has name seen then missing-record-field rest seen else Some (string-concat "missing field: " name)
   record-pattern-labels :: List (String, Pat) -> List String
   record-pattern-labels fields = case fields of Nil -> Nil; Cons (name, value) rest -> Cons name (record-pattern-labels rest)
   record-expression-labels :: List (String, Expr) -> List String
@@ -5169,16 +5233,17 @@ module Bootstrap.Infer where
   record-field-pattern sp label fields = case fields of
     Nil -> PUnmodeled sp "missing record pattern field"
     Cons (name, value) rest -> if same name label then value else record-field-pattern sp label rest
-  record-ordered-patterns :: List Decl -> Span -> List (String, TypeExpr) -> List (String, Pat) -> List Pat
+  record-ordered-patterns :: List Decl -> Span -> List String -> List (String, Pat) -> List Pat
   record-ordered-patterns all sp declared fields = case declared of
     Nil -> Nil
-    Cons (name, ty) rest -> Cons (record-pattern all (record-field-pattern sp name fields)) (record-ordered-patterns all sp rest fields)
+    Cons name rest -> Cons (record-pattern all (record-field-pattern sp name fields)) (record-ordered-patterns all sp rest fields)
   record-pattern :: List Decl -> Pat -> Pat
   record-pattern all pattern = case pattern of
     PRecord sp name fields -> (case (record-definition name all, record-pattern-fields fields) of
-      (Some (RecordShape True owner declared), Some values) -> pattern
-      (Some (RecordShape False owner declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-pattern-labels values) Nil then
-        PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)) else PUnmodeled sp "missing, duplicate or unknown record pattern field"
+      (Some (RecordShape owner declared (Some observations)), Some values) -> pattern
+      (Some (RecordShape owner declared None), Some values) -> (case record-field-error declared (record-pattern-labels values) Nil of
+        Some message -> PUnmodeled sp message
+        None -> PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)))
       other -> PUnmodeled sp "record pattern has no defining field contract")
     PCon sp name fields -> PCon sp name (record-pattern all fields)
     PTuple sp fields -> PTuple sp (record-pattern all fields)
@@ -5193,15 +5258,22 @@ module Bootstrap.Infer where
   record-value-expressions all sp fields = case fields of
     Nil -> EArgsEnd sp
     Cons (name, value) rest -> ERecordField (expr-span value) name (record-expression all value) (record-value-expressions all sp rest)
-  record-value-arguments :: Span -> List (String, TypeExpr) -> List Expr
-  record-value-arguments sp fields = case fields of Nil -> Nil; Cons (name, ty) rest -> Cons (EVar sp (record-local-name name)) (record-value-arguments sp rest)
+  record-value-arguments :: Span -> List (String, UType) -> List (String, Expr) -> List Expr
+  record-value-arguments sp fields written = case fields of
+    Nil -> Nil
+    Cons (name, ty) rest ->
+      let argument = (if record-proposition-type ty then record-written-argument sp name written
+        else EVar sp (record-local-name name)) in
+      Cons argument (record-value-arguments sp rest written)
+  record-written-argument :: Span -> String -> List (String, Expr) -> Expr
+  record-written-argument sp wanted written = case written of
+    Nil -> EUnmodeled sp "missing record evidence field"
+    Cons (name, value) rest -> if same name wanted then value else record-written-argument sp wanted rest
   record-expression :: List Decl -> Expr -> Expr
   record-expression all expression = case expression of
-    ERecord sp name fields -> (case (record-definition name all, record-expression-fields fields) of
-      (Some (RecordShape observed owner declared), Some values) -> if list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil then
-        ERecord sp name (record-value-expressions all sp values)
-        else EUnmodeled sp "missing, duplicate or unknown record construction field"
-      other -> EUnmodeled sp "record construction has no defining field contract")
+    ERecord sp name fields -> (case record-expression-fields fields of
+      Some values -> ERecord sp name (record-value-expressions all sp values)
+      None -> expression)
     EProject sp value name -> EProject sp (record-expression all value) name
     ECon sp name args -> ECon sp name (record-expression all args)
     EApp sp f x -> EApp sp (record-expression all f) (record-expression all x)
@@ -5231,10 +5303,10 @@ module Bootstrap.Infer where
     EBinding sp name value rest -> EBinding sp name (record-expression all value) (record-expression all rest)
     EAlt sp pattern body rest -> EAlt sp (record-pattern all pattern) (record-expression all body) (record-expression all rest)
     other -> expression
-  record-typed-fields :: List (String, TypeExpr) -> List UType -> Option (List (String, UType))
+  record-typed-fields :: List String -> List UType -> Option (List (String, UType))
   record-typed-fields fields types = case (fields, types) of
     (Nil, Nil) -> Some Nil
-    (Cons (name, syntax) rest, Cons ty more) -> (case record-typed-fields rest more of Some tail -> Some (Cons (name, ty) tail); None -> None)
+    (Cons name rest, Cons ty more) -> (case record-typed-fields rest more of Some tail -> Some (Cons (name, ty) tail); None -> None)
     other -> None
   -- Check each initializer in written order against its instantiated field
   -- type. Bind the checked value once, before declaration-order assembly.
@@ -5243,12 +5315,15 @@ module Bootstrap.Infer where
     Nil -> (env, Nil, st)
     Cons (label, expression) rest -> (case lookup-local label declared of
       None -> (env, Nil, add-error (expr-span expression) "record initializer has no declared field type" st)
+      Some expected | record-proposition-type expected -> record-initializers classes kinds families env locals declared rest st
       Some expected -> (case check classes kinds families env locals expression expected st of
         (value, checked) -> (case fresh-id checked of
           (id, ready) -> let name = record-local-name label in let sc = mono expected in
-            let bound = proof-let-env env (MkLocalBinding name sc id (store-level ready)) id sc value ready in
-            (case record-initializers classes kinds families bound locals declared rest ready of
-              (finished, more, done) -> (finished, Cons (id, name, sc, value) more, done)))))
+            (case let-binding (expr-span expression) env name sc id (store-level ready) value ready of
+              (binding, prepared) ->
+                let bound = proof-let-env env binding id sc value prepared in
+                (case record-initializers classes kinds families bound locals declared rest prepared of
+                  (finished, more, done) -> (finished, Cons (id, name, sc, value) more, done))))))
   record-initializer-lets :: Span -> List (Nat, String, Scheme, CoreTerm) -> CoreTerm -> CoreTerm
   record-initializer-lets sp fields result = case fields of
     Nil -> result
@@ -5261,20 +5336,21 @@ module Bootstrap.Infer where
       Cons (label, ELam sp [PWild sp] value) (delayed-observations rest)
   infer-record-construction :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-record-construction classes kinds families env locals sp name fields wanted st = case (record-definition name (context-aliases kinds), record-expression-fields fields) of
-    (Some (RecordShape observed owner declared), Some values) -> if not (list-length declared == list-length values && record-labels-valid (record-labels declared) (record-expression-labels values) Nil) then term-error sp "missing, duplicate or unknown record construction field" st else
-      (case lookup-expression-value sp kinds (record-storage-name observed owner) env st of
+    (Some (RecordShape owner declared observations), Some values) -> (case record-field-error declared (record-expression-labels values) Nil of
+      Some message -> term-error sp message st
+      None -> (case lookup-expression-value sp kinds (record-storage-name (has-observations observations) owner) env st of
         (constructor, opened) -> let ready = case wanted of None -> opened; Some expected -> unify sp (result-type (core-type constructor)) expected opened in
           (case record-typed-fields declared (domains (core-type constructor)) of
-            Some types -> let initializers = if observed then delayed-observations values else values in
+            Some types -> let initializers = if has-observations observations then delayed-observations values else values in
               (case record-initializers classes kinds families env locals types initializers ready of
-              (bound, bindings, prepared) -> (case apply-spine classes kinds families bound locals constructor (record-value-arguments sp declared) prepared of
-                (result, done) -> (record-initializer-lets sp bindings result, done)))
-            None -> term-error sp "record constructor fields disagree with the checked declaration" ready))
+                (bound, bindings, prepared) -> (case apply-spine classes kinds families bound locals constructor (record-value-arguments sp types initializers) prepared of
+                  (result, done) -> (record-initializer-lets sp bindings result, done)))
+            None -> term-error sp "record constructor fields disagree with the checked declaration" ready)))
     other -> term-error sp "record construction has no defining field contract" st
-  record-projection-pattern :: Span -> String -> List (String, TypeExpr) -> List Pat
+  record-projection-pattern :: Span -> String -> List String -> List Pat
   record-projection-pattern sp label fields = case fields of
     Nil -> Nil
-    Cons (name, ty) rest -> Cons (if same name label then PVar sp (record-local-name label) else PWild sp) (record-projection-pattern sp label rest)
+    Cons name rest -> Cons (if same name label then PVar sp (record-local-name label) else PWild sp) (record-projection-pattern sp label rest)
   record-context-names :: Json -> List String
   record-context-names names = case names of JArr (JStr name) rest -> Cons name (record-context-names rest); other -> Nil
   record-scope-contains :: Span -> Span -> Bool
@@ -5289,7 +5365,7 @@ module Bootstrap.Infer where
   record-field-candidates label visible declarations = case visible of
     Nil -> Nil
     Cons name rest -> (case record-definition name declarations of
-      Some (RecordShape observed owner fields) -> if has label (record-labels fields) then Cons owner (record-field-candidates label rest declarations) else record-field-candidates label rest declarations
+      Some (RecordShape owner fields observations) -> if has label fields then Cons owner (record-field-candidates label rest declarations) else record-field-candidates label rest declarations
       other -> record-field-candidates label rest declarations)
   -- Match Native: a known receiver chooses its declaring record. An
   -- unknown receiver may use exactly one visible declaring record, never
@@ -5307,10 +5383,10 @@ module Bootstrap.Infer where
     (scrutinee, inferred) -> let checked = hint-record-receiver sp label (core-type scrutinee) kinds env inferred in
       (case root-name (normalize checked (core-type scrutinee)) of
       Some owner -> (case record-definition owner (context-aliases kinds) of
-        Some (RecordShape observed name fields) -> if has label (record-labels fields) then
-          (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name observed owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
+        Some (RecordShape name fields observations) -> if has label fields then
+          (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name (has-observations observations) owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
             (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
-              (selected, done) -> (case (observed, thunk-function-parts (normalize done (core-type selected))) of
+              (selected, done) -> (case (has-observations observations, thunk-function-parts (normalize done (core-type selected))) of
                 (True, Some (row, result)) ->
                   let observed = CApply sp result selected (CUnit sp (primitive-type "Unit")) in
                   (CCase sp result scrutinee (CAlternative sp pattern observed (CAlternativesEnd sp)), done)

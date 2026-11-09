@@ -270,6 +270,20 @@ module Bootstrap.Load where
     JArrEnd -> True
     other -> False
 
+  record-labels-valid :: Json -> List String -> Bool
+  record-labels-valid rows seen = case rows of
+    JArr (JStr label) rest -> string-length label > 0 && not (member label seen) && record-labels-valid rest (Cons label seen)
+    JArrEnd -> True
+    other -> False
+  record-contract-valid :: Json -> Bool
+  record-contract-valid row = let labels = field "fields" row in
+    record-labels-valid labels Nil && (case field "ctors" row of
+      JArrEnd -> True
+      JArr constructor JArrEnd ->
+        same (text (field "identity" row)) (text (field "symbol" constructor))
+        && (case field "tag" constructor of JNum tag -> tag == 0; other -> False)
+        && array-length labels == array-length (field "fields" constructor)
+      other -> False)
   types-valid :: Json -> List String -> Bool
   types-valid rows seen = case rows of
     JArr row rest ->
@@ -280,6 +294,7 @@ module Bootstrap.Load where
       && member kind ["data", "record", "opaque", "refinement", "signature"]
       && parameters-valid (field "parameters" row) (field "params" row) Nil
       && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
+      && (not (same kind "record") || record-contract-valid row)
       && (if same kind "refinement" then
         let definition = field "refinement" row in
         string-length (text (field "binder" definition)) > 0

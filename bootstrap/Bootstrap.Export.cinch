@@ -4,7 +4,7 @@ module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Ast (Program, Module, Decl, module-decls, program-modules, DClass, DInstance, DForeign, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
+  import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
   import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -13,7 +13,7 @@ module Bootstrap.Export where
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
-  import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme)
+  import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions)
   import Bootstrap.ExportNominal
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
@@ -32,8 +32,8 @@ module Bootstrap.Export where
   text doc = case doc of JStr value -> value; other -> ""
   strings :: List String -> Json
   strings values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (strings rest)
-  bools :: List String -> Json
-  bools values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JBool False) (bools rest)
+  bools :: List Bool -> Json
+  bools values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JBool first) (bools rest)
   set-field :: String -> Json -> Json -> Json
   set-field key value doc = case doc of
     JObj name old rest -> if same key name then JObj name value rest else JObj name old (set-field key value rest)
@@ -202,6 +202,8 @@ module Bootstrap.Export where
   foreign-value-row :: String -> String -> CheckedBinding -> Result String Json
   foreign-value-row name symbol binding = case checked-foreign-plan binding of
     None -> Err "foreign binding has no checked ABI plan"
+    Some plan | (case foreign-primitive-assumptions plan of Some checked -> True; None -> False) ->
+      Err "public inline primitive needs a checked uniform-word object entry"
     Some plan -> case (export-global symbol, foreign-display-scheme plan) of
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name) (JObj "symbol" (JStr identity)
         (JObj "scheme" (JStr spelling) (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int (interface-value-arity (checked-scheme binding)))) (JObj "total_body" JNull JObjEnd))))))
@@ -254,7 +256,7 @@ module Bootstrap.Export where
       (Ok identity, Ok fields, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
           (JObj "scheme" (JStr spelling) (JObj "resolved" resolved
-            (JObj "fields" (strings fields) (JObj "erased" (bools fields) JObjEnd)))))))
+            (JObj "fields" (strings fields) (JObj "erased" (bools (constructor-field-erasure (scheme-body scheme))) JObjEnd)))))))
       (Err error, other, more, spelling) -> Err error
       (other, Err error, more, spelling) -> Err error
       (other, more, Err error, spelling) -> Err error
@@ -268,13 +270,29 @@ module Bootstrap.Export where
         (Ok row, Ok more) -> Ok (JArr row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
+  record-label-rows :: List (String, TypeExpr) -> Json
+  record-label-rows fields = case fields of
+    Nil -> JArrEnd
+    Cons (name, ty) rest -> JArr (JStr name) (record-label-rows rest)
+  record-label-contract :: String -> List Decl -> Option Json
+  record-label-contract symbol declarations = case declarations of
+    Nil -> None
+    Cons (DRecord sp owner params fields) rest ->
+      if same symbol owner then Some (record-label-rows fields) else record-label-contract symbol rest
+    Cons (DExternal sp owner category syntax metadata) rest ->
+      if same symbol owner && same category "type" && same (text (field "kind" metadata)) "record" then
+        Some (field "fields" metadata) else record-label-contract symbol rest
+    Cons first rest -> record-label-contract symbol rest
   type-row :: Elaboration -> List LoadedInterface -> Json -> String -> CoreData -> Result String Json
   type-row typed interfaces surface name declaration = case (data-nominal declaration,
     constructor-rows typed interfaces surface 0 (core-data-constructors declaration)) of
-      (Ok nominal, Ok constructors) -> Ok (JObj "name" (JStr name)
-        (JObj "identity" (field "identity" nominal) (JObj "kind" (field "kind" nominal)
+      (Ok nominal, Ok constructors) -> let (kind, labels) = (case record-label-contract (core-data-name declaration) (elaboration-declarations typed) of
+          Some fields -> (JStr "record", fields)
+          None -> (field "kind" nominal, JArrEnd)) in
+        Ok (JObj "name" (JStr name)
+        (JObj "identity" (field "identity" nominal) (JObj "kind" kind
           (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
-            (JObj "ctors" constructors (JObj "fields" JArrEnd (JObj "refinement" JNull JObjEnd))))))))
+            (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull JObjEnd))))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   constructor-present :: String -> List CoreData -> Bool
@@ -667,6 +685,8 @@ module Bootstrap.Export where
     Nil -> Ok rows
     Cons binding rest -> case checked-foreign-plan binding of
       None -> source-foreign-rows owner rest rows
+      Some plan | (case foreign-primitive-assumptions plan of Some checked -> True; None -> False) ->
+        source-foreign-rows owner rest rows
       Some plan -> case export-global (checked-name binding) of
         Err error -> Err error
         Ok identity -> case foreign-drop-prefix (unpack (string-concat owner ".")) (unpack identity) of
@@ -678,8 +698,25 @@ module Bootstrap.Export where
   foreign-assumptions rows = case rows of
     JArr row rest -> if same (text (field "kind" row)) "import" then insert-string (text (field "external" row)) (foreign-assumptions rest) else foreign-assumptions rest
     other -> JArrEnd
-  assumptions :: Json -> Json -> Json
-  assumptions primitives rows = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" JArrEnd JObjEnd))
+  primitive-trust-rows :: List String -> Json -> Json
+  primitive-trust-rows trust rows = case trust of
+    Nil -> rows
+    Cons identity rest -> primitive-trust-rows rest (insert-string identity rows)
+  source-primitive-assumptions :: Json -> List CheckedBinding -> Json -> Json -> (Json, Json)
+  source-primitive-assumptions context bindings primitives trust = case bindings of
+    Nil -> (primitives, trust)
+    Cons binding rest -> case checked-foreign-plan binding of
+      Some plan -> (case foreign-primitive-assumptions plan of
+        Some (identity, body-trust) | has-symbol (checked-name binding) (field "declarations" context) ->
+          source-primitive-assumptions context rest (insert-string identity primitives) (primitive-trust-rows body-trust trust)
+        other -> source-primitive-assumptions context rest primitives trust)
+      None -> source-primitive-assumptions context rest primitives trust
+  assumptions :: Json -> Json -> Json -> Json
+  assumptions primitives rows trust = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" trust JObjEnd))
+  interface-assumptions :: Json -> Elaboration -> Json -> Json
+  interface-assumptions context typed rows = case source-primitive-assumptions context (elaboration-bindings typed)
+    (source-primitives context (elaboration-contexts typed)) JArrEnd of
+      (primitives, trust) -> assumptions primitives rows trust
   law-order :: Json -> String
   law-order row = string-concat-all [text (field "instance" row), "\n", text (field "class" row), "\n", text (field "law" row)]
   insert-law :: Json -> Json -> Json
@@ -699,7 +736,7 @@ module Bootstrap.Export where
           (other, Err error) -> Err error)
         else Ok rows
   document :: Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
-  document context source-hash dependencies values types signatures instances primitives foreign-rows laws =
+  document context source-hash dependencies values types signatures instances checked-assumptions foreign-rows laws =
     JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
@@ -708,7 +745,7 @@ module Bootstrap.Export where
               (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts types) JObjEnd)))
-                (JObj "assumptions" (assumptions primitives foreign-rows) (JObj "assertions" JArrEnd
+                (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
                   (JObj "contracts" JArrEnd (JObj "must_use" JArrEnd (JObj "laws" laws
                     (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd))))))))))))))))
   source-hash :: Bytes -> Json -> Result String String
@@ -737,7 +774,7 @@ module Bootstrap.Export where
                   (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
                   (other, Err error, more) -> Err error
                   (other, more, Err error) -> Err error
-                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (source-primitives context (elaboration-contexts typed)) foreign-rows laws in
+                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
                     (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))
@@ -789,7 +826,6 @@ module Bootstrap.Export where
     Nil -> None
     Cons declaration rest -> case declaration of
       DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts || (case find-binding name bindings of Some binding -> (case checked-foreign-plan binding of Some plan -> True; None -> False); None -> False) then unsupported-declarations rest contexts bindings else Some "foreign assumption interface production is incomplete"
-      DRecord sp name parameters fields -> Some "record interface production is incomplete"
       DCodata sp name parameters observations -> Some "codata interface production needs its checked observation contract"
       -- A private effect grants no public type/operation names. If a public
       -- scheme mentions it, nominal export still refuses the absent contract.

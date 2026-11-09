@@ -269,8 +269,8 @@ module Bootstrap.Dictionary where
   select-instance-head context allowed sp wanted heads st = case heads of
     Cons first Nil -> case instance-matches context allowed sp wanted heads st of
       Cons (evidence, done) Nil -> (evidence, done)
-      other -> fail-evidence sp wanted (string-concat "no applicable instance for " (diagnostic-dictionary (normalize st wanted))) st
-    Nil -> fail-evidence sp wanted (string-concat "no instance for " (diagnostic-dictionary (normalize st wanted))) st
+      other -> fail-evidence sp wanted (string-concat "dictionary instance resolution failed: no applicable instance for " (diagnostic-dictionary (normalize st wanted))) st
+    Nil -> fail-evidence sp wanted (string-concat "dictionary instance resolution failed: no instance for " (diagnostic-dictionary (normalize st wanted))) st
     other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
   choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
   choose-instance context allowed sp wanted st =
