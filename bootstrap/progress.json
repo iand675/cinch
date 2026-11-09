@@ -21143,6 +21143,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json"
       },
       {
+        "title": "Original argument witness scopes on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built checker passed all 14 original argument-witness controls with the Rust reference assertions intact.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-argument-and-body-bindings.json"
+      },
+      {
+        "title": "Original checked body bindings on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "status": "passed",
+        "phase": "Both Stage 3-built checkers passed all eight input sizes, including the source body controls with zero leaks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-argument-and-body-bindings.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21248,8 +21270,19 @@
         "total": 39,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane.",
+        "status": "running",
+        "phase": "complete syntax and editor suite",
+        "evidence": null
+      },
+      {
+        "title": "Replay all four original tail-call tests on the merged Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "total": 4,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
         "evidence": null
       },
       {
@@ -21280,9 +21313,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 18,
-        "failed": 17,
-        "status": "running",
-        "phase": "Replay original lib_zlib target on Stage 3",
+        "failed": 18,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 150 passed, 85 failed.",
         "evidence": null
       },
       {
@@ -21440,14 +21473,14 @@
         "evidence": null
       },
       {
-        "title": "Replay 20 original nominal identity and proof tactic cases",
-        "source": "08519d64acba9062732be4a8dea6d26b5f613e6538858e500894bc069f919663",
+        "title": "Verify scalar cursor projections, nominal identities and tactic diagnostics",
+        "source": "0b0db91f5740af008abeeef7fecc97076ed74d3406177ace5cd922827db1abd4",
         "unit": "gates",
-        "total": 3,
+        "total": 6,
         "passed": 0,
         "failed": 0,
-        "status": "superseded-before-build",
-        "phase": "Replaced by the same diagnostics plus scalar projections, with 35 original tests and seven focused controls.",
+        "status": "waiting-worker",
+        "phase": "Wait for a lane to build Stage 1, replay 35 original tests and check seven projection controls.",
         "evidence": null
       },
       {
@@ -21585,5 +21618,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:10:53.571371+00:00"
+  "updatedAt": "2026-11-09T08:12:40.469501+00:00"
 }
