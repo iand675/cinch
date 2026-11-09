@@ -10759,6 +10759,34 @@
                 },
                 {
                   "name": "generic_declaration_producers_keep_the_bool_callers_type",
+                  "status": "failed"
+                },
+                {
+                  "name": "one_monomorphic_code_value_cannot_choose_two_parameter_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "partial_application_retains_the_generic_callers_type",
+                  "status": "failed"
+                },
+                {
+                  "name": "returned_stage_closures_cannot_capture_affine_arguments",
+                  "status": "failed"
+                },
+                {
+                  "name": "returned_stage_closures_retain_the_generic_callers_type",
+                  "status": "failed"
+                },
+                {
+                  "name": "separate_stage_instantiations_can_choose_different_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "staged_splices_preserve_the_declared_code_carrier",
+                  "status": "failed"
+                },
+                {
+                  "name": "stored_stage_values_preserve_linear_parameter_usage",
                   "status": "running"
                 }
               ]
@@ -15357,5 +15385,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:05:24.673543+00:00"
+  "updatedAt": "2026-11-09T11:06:27.402744+00:00"
 }
