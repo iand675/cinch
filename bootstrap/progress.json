@@ -4796,10 +4796,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 10,
+          "verified": 11,
           "blocked": 1,
           "running": 1,
-          "pending": 150,
+          "pending": 149,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5525,6 +5525,36 @@
           {
             "id": "stage3:argv",
             "title": "argv",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "bc031e67feec18e44199a1b3cf3e6e57b9df4dc7c0caa2c1ad886909591bee67",
+              "cases": [
+                {
+                  "name": "a_program_reads_its_own_command_line",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:arrays",
+            "title": "arrays",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -5538,28 +5568,15 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "a_program_reads_its_own_command_line",
+                  "name": "array_copy_evidence_depends_on_the_element_type",
                   "status": "passed"
                 },
                 {
-                  "name": "an_empty_command_line_is_zero_words_and_the_empty_word_is_a_word",
-                  "status": "passed"
-                },
-                {
-                  "name": "the_cli_forwards_arguments_after_the_entry_file",
+                  "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "stage3:arrays",
-            "title": "arrays",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_abstract_nonzero_methods",
@@ -13602,10 +13619,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 10,
+        "passed": 11,
         "failed": 1,
         "status": "running",
-        "phase": "Replay argv with the combined Stage 3",
+        "phase": "Replay arrays with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13943,10 +13960,10 @@
         "source": "c998c4eaec569483f8c1f22c9fa1ddc37616ef9494fbbd6223c477102fe6915b",
         "unit": "checks",
         "total": 6,
-        "passed": 3,
+        "passed": 6,
         "failed": 0,
-        "status": "running",
-        "phase": "Emit a row-polymorphic object",
+        "status": "passed",
+        "phase": "Checked row-polymorphic contracts verified in Rust and Cinch",
         "evidence": null
       },
       {
@@ -13967,8 +13984,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -14193,10 +14210,10 @@
       }
     ],
     "counts": {
-      "verified": 296,
+      "verified": 297,
       "blocked": 3,
       "running": 3,
-      "pending": 483,
+      "pending": 482,
       "recheck": 21
     },
     "total": 806,
@@ -14205,5 +14222,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:34:51.846664+00:00"
+  "updatedAt": "2026-11-09T09:35:55.316968+00:00"
 }
