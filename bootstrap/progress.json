@@ -21077,6 +21077,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-guards-allocation.json"
       },
       {
+        "title": "Original process arguments on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 3 original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-argv.json"
+      },
+      {
+        "title": "Original arrays, tensors and columnar controls on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 15,
+        "passed": 15,
+        "failed": 0,
+        "status": "passed",
+        "phase": "14 cases used the matching Stage 3. 1 case used the reviewed Rust target API.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-arrays.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21264,14 +21286,14 @@
         "evidence": null
       },
       {
-        "title": "Verify lexical sequencing and full do let groups",
-        "source": "f91cc125a6c7f1a14ed8daa531d923064946ad894b0dde8830a66a42ee65872e",
+        "title": "Rebuild lexical sequencing and full do let groups after correcting the resolver type error",
+        "source": "95e00ffd4c3d4ac5d3c4be3ef0e67b7597c8c79207640bd978bda35e43f49dac",
         "unit": "gates",
         "total": 2,
         "passed": 0,
-        "failed": 1,
-        "status": "failed",
-        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 898:46: type mismatch: expected String, got (String -> String) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/sources/Bootstrap.Resolve.cinch)\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/build.log')",
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21327,6 +21349,28 @@
         "failed": 0,
         "status": "passed",
         "phase": "Checked observation artifacts and original tests pass",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-codata-contract-and-suite.json"
+      },
+      {
+        "title": "Verify the codata contract on the matching Stage 2 and Stage 3",
+        "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
+        "unit": "gates",
+        "total": 4,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane for Stage 2 and Stage 3",
+        "evidence": null
+      },
+      {
+        "title": "Rebuild the pinned object for seven checked Bits and Map variants and replay the six original cases",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "gates",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait to rebuild the pinned library object",
         "evidence": null
       },
       {
@@ -21420,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:03:08.585566+00:00"
+  "updatedAt": "2026-11-09T07:03:31.861332+00:00"
 }
