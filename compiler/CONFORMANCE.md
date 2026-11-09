@@ -720,8 +720,35 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   the platform; manifest-only with the platform in the body row's
   reason). The canonical shape is a portable `llvm` baseline plus
   per-arch `asm` bodies (popcnt vs cnt). `os`/pointer-width predicates
-  deferred to a consumer. Spec section 13; folded into the running P18
-  continuation.
+  are D420. Spec section 13; folded into the running P18 continuation.
+- **D420 (in-source target conditions, user direction)**: a body's
+  `when` clauses become a conjunction over the whole `TargetProfile`
+  rather than the two atoms D214 left. The atoms are `Available
+  capability`, `arch`, `os`, `libc`, `endian`, `word-size` and `target`,
+  each negatable as `not (atom)`; repeated clauses are ANDed. Every atom
+  reads the compile target, never the build host, so a cross compile
+  cannot select the host's body. The vocabulary is one constant shared
+  by the parse error and the no-body refusal, and the refusal names the
+  atom that failed with the target's actual value. `Prim.Sys.Linux`
+  keeps its per-architecture bodies in one module for the same reason
+  D214's shape allowed: a conditional-only prim whose arch does not
+  match is refused at check time, so two arch modules cannot both sit in
+  the built-in prelude, while two arch bodies in one prim can. Cross
+  compilation of the same source (`--target`), with the triple and data
+  layout in the emitted module, is the companion change (D421). Spec
+  section 13; `compiler/src/check_decls.rs` (`WhenCond`, `WhenAtom`),
+  `compiler/tests/prim.rs`.
+- **D421 (one binary, every target, user direction)**: `--target`
+  accepts `aarch64-apple-darwin`, `x86_64-apple-darwin`,
+  `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`, building
+  the profile from the triple rather than the host, so a target no
+  longer needs its own compiler build. `check` and `emit-ir` work for
+  all four on any host and the module states its own `target triple` and
+  `target datalayout`; `build` takes `--runtime-archive` for a foreign
+  target and names the archive and the linker it needs when either is
+  missing; `run` stays host only. An unknown triple is refused with the
+  supported list. `compiler/src/driver.rs` (`profile_of_triple`,
+  `cross_runtime`), `compiler/src/codegen.rs`, `compiler/tests/targets.rs`.
 - **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
   prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
   folding into bodies at parse, recognized contextually so `unsafe`

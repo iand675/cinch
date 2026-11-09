@@ -45,8 +45,14 @@ defines operations.
 
 ```
 prim_decl  ::= "prim" name "::" type "where" INDENT { target_body } DEDENT
-target_body ::= target_ir "{" fragment "}" [ "when" cond ] [ "justify" expr ]
+target_body ::= target_ir "{" fragment "}" { "when" clause }
+                [ "justify" expr ] [ "uses" ( name "::" type ), ... ]
+                [ "immarg" 0, 1, ... ]
 target_ir  ::= "llvm" | "wasm" | "asm" | "clr" | "jvm" | name
+clause     ::= atom | "not" "(" atom ")"
+atom       ::= "Available" capability | "arch" name | "os" name
+             | "libc" name | "endian" ("little" | "big")
+             | "word-size" bits | "target" triple
 ```
 
 - The type is an ordinary monomorphic function type with a closed
@@ -54,9 +60,10 @@ target_ir  ::= "llvm" | "wasm" | "asm" | "clr" | "jvm" | name
   imports (effect honesty applies; most prim bodies are pure).
 - At least one `target_body` MUST be present. Each names a target-IR
   family and carries that family's inline fragment.
-- `when cond` scopes the body to a target capability condition (the
-  platform chapter's validity scopes; the same conditions `target
-  rewrite` accepts). A body without `when` is the baseline body.
+- Each `when` clause scopes the body to one atom of the target
+  profile (section 13). Repeated clauses on one body are a conjunction,
+  so `when os linux` followed by `when arch x86_64` holds only where
+  both do. A body without `when` is the baseline body.
 - `justify expr` provides evidence that the body implements the
   declared type's mathematical meaning (section 5).
 
@@ -279,19 +286,37 @@ containment or declared under `unsafe` and recorded as an assumption.
 
 # 13 Platform-gated bodies
 
-Body conditions gain platform predicates keyed on the target
-profile's triple: `when arch x86_64`, `when arch aarch64`,
-`when arch wasm32`, and other architecture names. The selection rules are
-unchanged: the matching conditional wins, an unconditional body is the
-baseline fallback, overlapping conditions in one family error, and a
-conditional-only prim whose conditions do not match rejects naming the
-missing platform. Selection remains manifest-only, with the platform
-recorded in the body row's reason. The canonical shape is a portable
-`llvm` baseline plus per-architecture `asm` bodies (for example
-`popcnt` on x86_64 versus `cnt` on aarch64). Architecture names come
-from the target profile's triple, the same target identity that keys
-cross-compilation widths. `os` and pointer-width predicates may follow
-if a consumer needs them.
+A body condition is a conjunction of atoms read from the target
+profile, the same profile that keys cross-compilation, the widths of
+`Usize` and `Isize`, and package resolution. It is never the build
+host's, so a cross compile cannot select the laptop's body.
+
+| Atom | Reads |
+| --- | --- |
+| `Available capability` | the profile's capability evidence (`required` and `features`) |
+| `arch name` | `x86_64`, `aarch64`, `wasm32`, from the triple |
+| `os name` | `darwin`, `linux`, `windows`, from the triple |
+| `libc name` | `libSystem`, `glibc`, `musl`, `none` |
+| `endian little` / `endian big` | the profile's byte order |
+| `word-size bits` | the pointer width, `32` or `64` |
+| `target triple` | the exact triple, for a case no other atom expresses |
+
+Any atom may be negated as `not (atom)`, where the parentheses are
+required. Repeated `when` clauses on one body are ANDed. The selection
+rules are otherwise unchanged: the matching conditional wins, an
+unconditional body is the baseline fallback, overlapping conditions in
+one family error, and a conditional-only prim whose conditions do not
+match rejects, naming the atom that failed, the value the target had,
+and the accepted vocabulary. Selection is still a manifest fact: the
+chosen body and its condition appear in the body row, so a reader of an
+artifact can see which implementation it carries.
+
+The canonical shape is a portable `llvm` baseline plus per-target
+bodies, which is what the syscall layer uses: one module per operating
+system, and inside each prim the architecture bodies, because the two
+instruction sequences cannot share a body (`Prim.Sys.Linux` issues
+`syscall` for x86_64 and `svc #0` for aarch64, with the numbers that
+differ between them, such as `renameat` at 264 against 38).
 
 # Amendments
 
@@ -342,8 +367,9 @@ D-numbers) that amend or interpret this chapter's normative text.
   `::unverifiable_bodies_without_unsafe_are_rejected`,
   `::unsafe_pure_prim_records_its_assumption_and_stays_scan_gated`).
   Selection precedence is cross-family conditional-first then
-  family-order baselines; `TargetProfile.triple` is the arch identity
-  and `when arch` matches its first component exactly; the manifest
+  family-order baselines; the profile's `arch` is the triple's first
+  component, and every `when` atom reads the profile rather than the
+  triple's spelling (section 13, D420); the manifest
   `condition` field prints the rendered predicate verbatim. Prim calls
   are not on the evidence-invalidation opaque-write list (they
   elaborate to plain unit calls), and the pure-prim evidence test pins
