@@ -17922,9 +17922,9 @@
         "total": 7,
         "passed": 7,
         "failed": 0,
-        "status": "running",
-        "phase": "Replay concurrency with the combined Stage 3",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-agreement.json"
+        "status": "passed",
+        "phase": "Stage 2 and Stage 3 agree, the changed-source rebuild passed, and the original laws passed on Stage 3.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-fixed-point-and-stage3-laws.json"
       },
       {
         "title": "Rebuild with guarded recursion and constant-stack tail calls",
@@ -21154,6 +21154,17 @@
         "evidence": null
       },
       {
+        "title": "Verify checked effect rows in Rust interfaces and Cinch objects",
+        "source": "74b0ca5b9541e7df4b709bc1af3d75cf0b6129516ea266d87cad940716274b31",
+        "unit": "checks",
+        "total": 6,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Verify codata observation contracts through compiled objects",
         "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
         "unit": "checks",
@@ -21255,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:50:04.302867+00:00"
+  "updatedAt": "2026-11-09T05:51:58.809202+00:00"
 }
