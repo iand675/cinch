@@ -51,7 +51,12 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
-  --target <triple>  the target to build for (this compiler's own triple)
+  --target <triple>  the target to compile for: aarch64-apple-darwin,
+              x86_64-apple-darwin, x86_64-unknown-linux-gnu, or
+              aarch64-unknown-linux-gnu (check and emit-ir work for all of
+              them here; build needs the target's runtime archive)
+  --runtime-archive <path>  the cinchruntime archive built for a foreign
+              --target, which a cross build links
   --target-version <version>  the platform version package conditions see
   --print-link-plan  report every contribution to the final link
   --allow-raw-link NAME  consent to one package's raw link words
@@ -72,7 +77,7 @@ Every command takes one entry source file, named on the command line. Imports re
 | `check` | entry source, the sources it imports, the embedded base family | `build/` artifacts beside the entry | 0 on success, 1 on a diagnostic |
 | `emit-ir` | same | the same artifacts, then LLVM IR text to `-o` (or stdout) | 0, 1 |
 | `emit-object` | same | the same artifacts, then a closed library object `<out>.o` with `<out>.ll` and `<out>.abi.json` companions | 0, 1 |
-| `build` | same | the same artifacts, `<out>` native executable, and `<out>.ll` | 0, 1 |
+| `build` | same | the same artifacts, `<out>` executable for the target, and `<out>.ll` | 0, 1 |
 | `run` | same | the same artifacts, then a temporary directory under the system temp root holding `program.ll` and `program`, removed after the run | the executed program's status |
 | `repl` | the current directory as a project | no files | see [REPL](26-repl.md) |
 | `lsp` | framed JSON-RPC on stdin | framed JSON-RPC on stdout | 0 on clean end of input |
@@ -116,7 +121,8 @@ The first word of `cinch doc` with no further argument prints `cinch doc: expect
 | `--object-roots <path>` | all modes parse it, `emit-object` uses it | Names a JSON document of concrete library variants. An empty document is accepted everywhere and does nothing; a document with a row in any other mode is refused. |
 | `--package-object <path>` | `build`, `run` | Links one separately produced package object. |
 | `--rebuild` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Forces a rewrite of this compile's package-store entry. |
-| `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Only this compiler's own triple is accepted, because a cross compile needs a runtime built for the target. |
+| `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Four triples are accepted: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, and `aarch64-unknown-linux-gnu`. Any of them checks and emits IR on any host, and the emitted module states that target's `target triple` and `target datalayout`, because layout and `when arch` body selection follow the target. The profile's operating system, architecture, C library, word size, and byte order come from the triple, never from the host, and the profile is named after the triple so the package store key and the artifact manifest identify the same target on every host. Any other triple is refused with the list of the four. A cross `build` needs `--runtime-archive`; `run` stays on the host's own target. |
+| `--runtime-archive <path>` | `build` | The `libcinchruntime.a` built for a foreign `--target`, which the cross build links. The archive is read before the link: a path that does not exist, a file that is not a static archive, and an archive whose objects belong to another architecture are each refused by name. Without it a cross `build` fails naming the flag and the triple. A link for a target other than the host also passes `-target` to the assembler and linker, so the cross toolchain has to be one that produces that target's objects (`CINCH_CLANG` names it). |
 | `--target-version <version>` | the same modes | States the target platform version that a package manifest's `os_version` conditions are evaluated against. A condition with no version refuses rather than reading the host's. |
 | `--print-link-plan` | the same modes | Reports every contribution to the final link with the package that asked for it, before anything is linked. |
 | `--allow-raw-link <name>` | the same modes | Consents to one package's raw link words, the flag form of the root manifest's `raw_link`. |
@@ -175,8 +181,11 @@ cinch: -O2: No such file or directory (os error 2)
 ```sh
 cinch check Main.cinch -O2             # exits 0, the word is a program argument nobody reads
 cinch run Main.cinch -O2               # the program receives one argument
-cinch build Main.cinch -o prog --target wasm32   # exits 0, and links a native binary
+cinch build Main.cinch -o prog --target wasm32   # exits 1, refused by name
+cinch: unknown target `wasm32`: cross compilation supports exactly these triples: aarch64-apple-darwin, x86_64-apple-darwin, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
 ```
+
+`--target` is a flag, so it is consumed wherever it appears, and `wasm32` on its own is not one of the four triples.
 
 A flag that expects a value and does not get one is a usage error, exit 2:
 
@@ -185,6 +194,36 @@ cinch check Main.cinch --object-roots
 cinch: --object-roots needs a path
 cinch emit-object Main.cinch -o
 cinch: -o needs a path
+```
+
+# Cross compilation
+
+`--target` selects one of four triples. `check` and `emit-ir` work on any host for all four: the target profile comes from the triple, the emitted module carries that target's `target triple` and `target datalayout`, and a `prim` body whose `when` names the target's architecture is the one selected. A program that imports `Prim.Sys.Linux` therefore emits the aarch64 syscall bodies under one target and the x86_64 bodies under the other:
+
+```sh
+cinch emit-ir Main.cinch --target aarch64-unknown-linux-gnu | grep -E 'target (triple|datalayout)'
+# target triple = "aarch64-unknown-linux-gnu"
+# target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
+cinch emit-ir Main.cinch --target x86_64-unknown-linux-gnu | grep 'mov rax, 257'
+#   %r = call i64 asm sideeffect "mov rax, 257\0A mov rdi, $1\0A ...
+```
+
+`build` for a foreign target links two things the host build does not have. The first is the compiler runtime archive for the target, named by `--runtime-archive`; the host's `libcinchruntime.a` is the natural mistake and is refused by architecture before the link starts. The second is a linker that produces the target's objects: the link passes `-target <triple>` to `clang`, and `CINCH_CLANG` names a compiler that has a cross linker for that target.
+
+```sh
+cinch build Main.cinch -o prog --target aarch64-unknown-linux-gnu
+cinch: target `aarch64-unknown-linux-gnu`: a cross build links the compiler runtime built for that target, and none was named; pass --runtime-archive <path>/libcinchruntime.a built for `aarch64-unknown-linux-gnu` (cargo build --manifest-path compiler/runtime/Cargo.toml --target aarch64-unknown-linux-gnu produces one)
+
+cinch build Main.cinch -o prog --target aarch64-unknown-linux-gnu \
+    --runtime-archive ../runtime/target/aarch64-unknown-linux-gnu/debug/libcinchruntime.a
+# exited 0 when the cross linker is present, and names it when it is not
+```
+
+`run` builds the program and executes it here, so it accepts only the host's own target and says so:
+
+```sh
+cinch run Main.cinch --target x86_64-unknown-linux-gnu
+cinch: target `x86_64-unknown-linux-gnu`: `run` executes the program on this host, whose target is `aarch64-apple-darwin`, and a binary built for `x86_64-unknown-linux-gnu` does not run here; use `cinch build --target x86_64-unknown-linux-gnu --runtime-archive <path>` and copy the artifact to the target
 ```
 
 # Exit statuses
@@ -362,8 +401,10 @@ Running that program with three words exits 3, with none exits 0, and with `-- -
 
 # Not available
 
-There is no `--target` flag, no optimization-level flag, no `--watch`, and no foreign-object flag on `build` or `run`; `build` and `run` take dependency objects only through `--package-object`. `-o` takes one path. `jit` is not part of the default build: this build prints `cinch: this build was compiled without the jit feature` and exits 2, and `cargo build --features jit` is what enables it.
+There is no optimization-level flag, no `--watch`, and no foreign-object flag on `build` or `run`; `build` and `run` take dependency objects only through `--package-object`. `-o` takes one path. `jit` is not part of the default build: this build prints `cinch: this build was compiled without the jit feature` and exits 2, and `cargo build --features jit` is what enables it.
+
+<span class="support-tag support-tag--partial">Partial</span> **cross compilation.** `--target` selects one of four triples, and `check`, `emit-ir`, and `emit-object` work for all of them on any host. `build` needs two things this repository does not ship prebuilt: a `libcinchruntime.a` for the target, which `--runtime-archive` names, and a cross linker, which `CINCH_CLANG` has to point at. `run` stays on the host's own target. There is no bundle or distribution workflow on top of the produced artifact yet.
 
 <span class="support-tag support-tag--planned">Coming soon</span> **portable distribution and target workflows.** Source builds and the native commands above are usable today. Target-profile APIs, component adapters, and runtime update mechanisms do not yet form a CLI for distributing cross-target bundles.
 
-Implementation: `compiler/src/main.rs` (argument parsing and the usage block), `compiler/src/driver.rs` (modes, artifacts, linking), `compiler/src/store.rs` (the package store), `compiler/src/incremental.rs` (the session API). Executable suites: `argv.rs`, `modules.rs`, `package_store.rs`, `incremental.rs`, `staging.rs`.
+Implementation: `compiler/src/main.rs` (argument parsing and the usage block), `compiler/src/driver.rs` (modes, artifacts, targets, linking), `compiler/src/codegen.rs` (the module header and its datalayout), `compiler/src/store.rs` (the package store), `compiler/src/incremental.rs` (the session API). Executable suites: `argv.rs`, `modules.rs`, `targets.rs`, `package_store.rs`, `incremental.rs`, `staging.rs`.

@@ -37,7 +37,12 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
-  --target <triple>  the target to build for (this compiler's own triple)
+  --target <triple>  the target to compile for: aarch64-apple-darwin,
+              x86_64-apple-darwin, x86_64-unknown-linux-gnu, or
+              aarch64-unknown-linux-gnu (check and emit-ir work for all of
+              them here; build needs the target's runtime archive)
+  --runtime-archive <path>  the cinchruntime archive built for a foreign
+              --target, which a cross build links
   --target-version <version>  the platform version package conditions see
   --print-link-plan  report every contribution to the final link
   --allow-raw-link NAME  consent to one package's raw link words
@@ -237,6 +242,16 @@ fn main() {
                     Some(triple) => opts.target = Some(triple.to_string()),
                     None => {
                         eprintln!("cinch: --target needs a triple such as aarch64-apple-darwin");
+                        exit(2);
+                    }
+                }
+            }
+            "--runtime-archive" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(path) => opts.runtime_archive = Some(PathBuf::from(path)),
+                    None => {
+                        eprintln!("cinch: --runtime-archive needs a path to libcinchruntime.a");
                         exit(2);
                     }
                 }

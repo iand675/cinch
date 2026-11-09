@@ -2963,20 +2963,67 @@ fn link(ir_path: &Path, out: &Path) -> Result<()> {
     link_with(ir_path, out, &[], &LinkPlan::default())
 }
 
-/// [`link`] with extra objects (the C fixtures of the foreign binding
-/// tests; foreign function interface specification section 7: the linker
-/// checks the compatible symbols).
-fn link_with(ir_path: &Path, out: &Path, objects: &[&str], plan: &LinkPlan) -> Result<()> {
-    let runtime = ensure_runtime()?;
-    // Shared, so a concurrent rebuild of the archive waits for this link
-    // instead of truncating the file under clang.
-    let _guard = runtime_lock(true);
+/// Where a link's two target-dependent inputs come from: the cinch
+/// runtime archive, and the triple the assembler and linker build for.
+/// The host's own target needs neither spelled out (the archive is built
+/// here, and clang's default is the host), and a foreign target needs
+/// both.
+#[derive(Clone, Copy, Default)]
+struct LinkTarget<'a> {
+    /// The triple to hand clang with `-target`; `None` for the host.
+    triple: Option<&'a str>,
+    /// `--runtime-archive`: the archive built for `triple`.
+    archive: Option<&'a Path>,
+}
+
+/// The link inputs one compile needs: a foreign target hands clang its
+/// triple and takes its runtime archive from `--runtime-archive`, and the
+/// host's own target keeps the archive built here and clang's default.
+fn link_target<'a>(
+    profile: &'a crate::core::TargetProfile,
+    opts: &'a DriverOptions,
+) -> LinkTarget<'a> {
+    if is_foreign(profile) {
+        LinkTarget {
+            triple: Some(profile.triple.as_str()),
+            archive: opts.runtime_archive.as_deref(),
+        }
+    } else {
+        LinkTarget::default()
+    }
+}
+
+/// [`link`] for an explicit target: the form `build` uses when
+/// `--target` names something other than the host, and `emit-object`
+/// uses to assemble the target's own objects.
+fn link_for(
+    ir_path: &Path,
+    out: &Path,
+    objects: &[&str],
+    plan: &LinkPlan,
+    target: &LinkTarget<'_>,
+) -> Result<()> {
     let mut cmd = std::process::Command::new(clang());
     cmd.arg(ir_path);
     for o in objects {
         cmd.arg(o);
     }
-    cmd.arg(&runtime).arg("-o").arg(out);
+    // The archive and, for the host, the shared lock that keeps a rebuild
+    // from truncating it under this link. A cross link reads an archive
+    // the caller produced, so it takes no lock.
+    let _guard;
+    match target.triple {
+        None => {
+            cmd.arg(ensure_runtime()?);
+            _guard = runtime_lock(true);
+        }
+        Some(triple) => {
+            cmd.arg(cross_runtime(triple, target.archive)?);
+            cmd.arg("-target").arg(triple);
+            _guard = None;
+        }
+    }
+    cmd.arg("-o").arg(out);
     for word in plan.words() {
         cmd.arg(word);
     }
@@ -2993,8 +3040,20 @@ fn link_with(ir_path: &Path, out: &Path, objects: &[&str], plan: &LinkPlan) -> R
         // reads as a truncated sentence.
         let stderr = String::from_utf8_lossy(&output.stderr);
         let detail = stderr.trim();
+        // A cross link has one more requirement the caller has to
+        // supply: an assembler and linker for the target. Naming it here
+        // is what turns clang's "unable to create target" or its
+        // truncated ELF complaint into an instruction.
+        let hint = match target.triple {
+            Some(triple) => format!(
+                "\ncross linking for `{triple}` also needs a linker that produces that \
+                 target's objects; CINCH_CLANG names a clang that has one (this run used `{}`)",
+                clang()
+            ),
+            None => String::new(),
+        };
         return Err(Error::plain(format!(
-            "{} failed to link {}{}",
+            "{} failed to link {}{}{hint}",
             clang(),
             ir_path.display(),
             if detail.is_empty() {
@@ -3005,6 +3064,121 @@ fn link_with(ir_path: &Path, out: &Path, objects: &[&str], plan: &LinkPlan) -> R
         )));
     }
     Ok(())
+}
+
+/// The runtime archive a cross link needs, from `--runtime-archive`: the
+/// archive is read, required to be a static library, and its first
+/// object is required to belong to the target's architecture. The host's
+/// archive is the natural mistake here, and linking it would surface as
+/// a pile of undefined `cinch_*` symbols instead of the one fact that
+/// explains them.
+fn cross_runtime(triple: &str, archive: Option<&Path>) -> Result<PathBuf> {
+    let Some(path) = archive else {
+        return Err(Error::plain(format!(
+            "target `{triple}`: a cross build links the compiler runtime built for that target, \
+             and none was named; pass --runtime-archive <path>/libcinchruntime.a built for \
+             `{triple}` (cargo build --manifest-path compiler/runtime/Cargo.toml \
+             --target {triple} produces one)"
+        )));
+    };
+    let bytes = std::fs::read(path).map_err(|e| {
+        Error::plain(format!(
+            "--runtime-archive {}: {e}; a cross build for `{triple}` needs the runtime \
+             archive built for that target",
+            path.display()
+        ))
+    })?;
+    if !bytes.starts_with(b"!<arch>\n") && !bytes.starts_with(b"!<thin>\n") {
+        return Err(Error::plain(format!(
+            "--runtime-archive {}: not a static library archive; a cross build for `{triple}` \
+             needs libcinchruntime.a built for that target",
+            path.display()
+        )));
+    }
+    let expected = triple_components(triple).map(|(arch, _, _)| arch);
+    if let (Some(expected), Some(found)) = (expected, first_object_arch(&bytes)) {
+        if found != expected {
+            return Err(Error::plain(format!(
+                "--runtime-archive {}: its objects are {found}, not {expected}; a cross build \
+                 for `{triple}` needs the runtime archive built for that target (cargo build \
+                 --manifest-path compiler/runtime/Cargo.toml --target {triple})",
+                path.display()
+            )));
+        }
+    }
+    Ok(path.to_path_buf())
+}
+
+/// The architecture of a static archive's first object, spelled as the
+/// triple table spells it. `None` when the bytes are not an archive of
+/// objects this check understands, which the linker reports instead of
+/// this guess.
+fn first_object_arch(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"!<thin>\n") {
+        // A thin archive holds references, not objects: nothing here to
+        // read, and clang's own diagnostic covers it.
+        return None;
+    }
+    if !bytes.starts_with(b"!<arch>\n") {
+        return None;
+    }
+    let mut pos = 8;
+    while pos + 60 <= bytes.len() {
+        let header = bytes.get(pos..pos + 60)?;
+        if &header[58..60] != b"`\n" {
+            return None;
+        }
+        let name = std::str::from_utf8(&header[0..16]).ok()?.trim_end();
+        let size: usize = std::str::from_utf8(&header[48..58])
+            .ok()?
+            .trim()
+            .parse()
+            .ok()?;
+        let start = pos + 60;
+        let end = start.checked_add(size)?;
+        let member = bytes.get(start..end)?;
+        // The two tables ar puts first: the symbol index and the long
+        // name table.
+        let table = name == "/" || name == "//" || name == "/SYM64/" || name.starts_with("__.SYMDEF");
+        if !table {
+            return object_arch(member);
+        }
+        pos = end + (size & 1);
+    }
+    None
+}
+
+/// One object's architecture from its header: an ELF64 little-endian
+/// machine word or a 64-bit little-endian Mach-O CPU type.
+fn object_arch(object: &[u8]) -> Option<&'static str> {
+    if object.starts_with(b"\x7fELF") && object.len() >= 20 {
+        // Class 2 is 64-bit and data 1 is little-endian; the four
+        // supported targets are all of them.
+        if object[4] != 2 || object[5] != 1 {
+            return None;
+        }
+        return match u16::from_le_bytes([object[18], object[19]]) {
+            62 => Some("x86_64"),
+            183 => Some("aarch64"),
+            _ => None,
+        };
+    }
+    // MH_MAGIC_64 read on a little-endian host.
+    if object.len() >= 8 && object.starts_with(b"\xcf\xfa\xed\xfe") {
+        return match u32::from_le_bytes([object[4], object[5], object[6], object[7]]) {
+            0x0100_0007 => Some("x86_64"),
+            0x0100_000c => Some("aarch64"),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// [`link`] with extra objects (the C fixtures of the foreign binding
+/// tests; foreign function interface specification section 7: the linker
+/// checks the compatible symbols).
+fn link_with(ir_path: &Path, out: &Path, objects: &[&str], plan: &LinkPlan) -> Result<()> {
+    link_for(ir_path, out, objects, plan, &LinkTarget::default())
 }
 
 /// Create a fresh directory for one compiled test or run.
@@ -3060,10 +3234,18 @@ pub struct DriverOptions {
     /// `--allow-raw-link NAME`: consent to one package's raw link words
     /// for this build, the flag form of the root manifest's `raw_link`.
     pub allow_raw_link: Vec<String>,
-    /// `--target <triple>`: the target to build for. Only the host's own
-    /// triple is accepted today; anything else is refused with the reason
-    /// instead of silently producing a host binary under a foreign name.
+    /// `--target <triple>`: the target to compile for. One of
+    /// [`SUPPORTED_TARGETS`]; an unrecognised triple is refused with the
+    /// list. `check` and `emit-ir` work for any of them on any host, a
+    /// cross `build` needs `runtime_archive`, and `run` stays on the
+    /// host's own target.
     pub target: Option<String>,
+    /// `--runtime-archive <path>`: the compiler runtime archive
+    /// (`libcinchruntime.a`) built for a foreign target. A cross build
+    /// cannot link the host's archive, so the target's is supplied here;
+    /// the archive is checked to be a static archive of the target's
+    /// objects before the link starts.
+    pub runtime_archive: Option<PathBuf>,
     /// `--target-version <version>`: the target platform version a
     /// package's `os_version` conditions are evaluated against. It is an
     /// explicit parameter rather than the host's version, because a
@@ -3112,22 +3294,74 @@ pub fn driver_opts(
     driver_with_profile_opts(mode, stage_mode_from_env(), path, out, &profile, opts)
 }
 
-/// The target profile a caller asked for: the host's own target with an
-/// optional explicit platform version. `--target` is accepted only for
-/// the host triple, because a cross compile needs a runtime built for the
-/// target and a sysroot, and pretending otherwise would produce a host
-/// binary under a foreign name.
-pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile> {
+/// The triples this compiler emits for. `check` and `emit-ir` work for
+/// every one of them on any host, because the module header, type
+/// widths, and `when arch` body selection read the target rather than
+/// the host. `build` additionally needs the runtime archive named by
+/// `--runtime-archive` and a linker that produces the target's objects;
+/// `run` executes only a program built for the host's own target.
+pub const SUPPORTED_TARGETS: &[&str] = &[
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+];
+
+/// The components one supported triple names: architecture, operating
+/// system, and C library. `None` is a triple this compiler does not emit
+/// for, and the caller names the supported set in its message.
+fn triple_components(triple: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    Some(match triple {
+        "aarch64-apple-darwin" => ("aarch64", "darwin", "libSystem"),
+        "x86_64-apple-darwin" => ("x86_64", "darwin", "libSystem"),
+        "x86_64-unknown-linux-gnu" => ("x86_64", "linux", "glibc"),
+        "aarch64-unknown-linux-gnu" => ("aarch64", "linux", "glibc"),
+        _ => return None,
+    })
+}
+
+/// The profile of one supported triple. The operating system,
+/// architecture, C library, word size, and byte order come from the
+/// triple, never from the build host, so a cross compile cannot inherit
+/// the laptop's conditions. The remaining fields are the bootstrap's
+/// target-independent defaults (`TargetProfile::native`), and the name is
+/// the triple itself, so the store key and the artifact manifest identify
+/// the same target wherever the compile runs.
+fn profile_of_triple(triple: &str) -> Result<crate::core::TargetProfile> {
+    let Some((arch, os, libc)) = triple_components(triple) else {
+        return Err(Error::plain(format!(
+            "unknown target `{triple}`: cross compilation supports exactly these triples: {}",
+            SUPPORTED_TARGETS.join(", ")
+        )));
+    };
     let mut profile = crate::core::TargetProfile::native();
-    if let Some(requested) = &opts.target {
-        let host = profile.triple.clone();
-        if *requested != host {
-            return Err(Error::plain(format!(
-                "target `{requested}` is not this compiler's host target `{host}`; \
-                 cross compilation needs a runtime built for the target and is not implemented"
-            )));
-        }
-    }
+    profile.name = triple.to_string();
+    profile.triple = triple.to_string();
+    profile.os = os.to_string();
+    profile.arch = arch.to_string();
+    profile.libc = libc.to_string();
+    // Every supported triple is 64-bit and little-endian; a 32-bit or
+    // big-endian target joins the table with its own values here.
+    profile.word_size = 64;
+    profile.endian = "little".to_string();
+    Ok(profile)
+}
+
+/// Does this profile name a target other than the one this compiler
+/// runs on? A cross compile needs that target's runtime archive, and the
+/// program it produces executes only there.
+fn is_foreign(profile: &crate::core::TargetProfile) -> bool {
+    profile.triple != crate::core::TargetProfile::native().triple
+}
+
+/// The target profile a caller asked for: the host's own target, or the
+/// profile of one triple from [`SUPPORTED_TARGETS`], with an optional
+/// explicit platform version.
+pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile> {
+    let mut profile = match &opts.target {
+        Some(requested) => profile_of_triple(requested)?,
+        None => crate::core::TargetProfile::native(),
+    };
     if let Some(version) = &opts.target_version {
         if version.trim().is_empty() {
             return Err(Error::plain("--target-version needs a version such as 14.0"));
@@ -3313,6 +3547,19 @@ pub fn driver_with_profile_opts(
     }
     if mode != Mode::EmitObject && !opts.package_objects.is_empty() && mode == Mode::EmitIr {
         return Err(Error::plain("package objects require build or run mode"));
+    }
+    // `run` builds a binary and executes it here, so a program for
+    // another target has nothing to run on: refuse before any work
+    // instead of failing later inside the linker or, worse, executing a
+    // foreign binary the host cannot start.
+    if mode == Mode::Run && is_foreign(profile) {
+        let host = crate::core::TargetProfile::native();
+        return Err(Error::plain(format!(
+            "target `{}`: `run` executes the program on this host, whose target is `{}`, and \
+             a binary built for `{}` does not run here; use `cinch build --target {} \
+             --runtime-archive <path>` and copy the artifact to the target",
+            profile.triple, host.triple, profile.triple, profile.triple
+        )));
     }
     let mut emit_modules = opts.emit_modules.clone();
     let project = load_project_for(path, &TargetFacts::of(profile))?;
@@ -3545,7 +3792,7 @@ pub fn driver_with_profile_opts(
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             let objects = object_paths(&opts.package_objects);
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
-            link_with(&ir_path, &out, &refs, &link_plan)?;
+            link_for(&ir_path, &out, &refs, &link_plan, &link_target(profile, opts))?;
             Ok(0)
         }
         Mode::Run => {
@@ -3605,11 +3852,15 @@ fn write_object(
     }
     std::fs::write(&ir_path, &object.ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    let output = std::process::Command::new(clang())
-        .arg("-c")
-        .arg(&ir_path)
-        .arg("-o")
-        .arg(&out)
+    let mut assemble = std::process::Command::new(clang());
+    assemble.arg("-c").arg(&ir_path).arg("-o").arg(&out);
+    // An object for a foreign target is assembled for that target: the
+    // triple decides which instruction set the body's `asm` is, and the
+    // emitted module says so in its own header.
+    if is_foreign(profile) {
+        assemble.arg("-target").arg(&profile.triple);
+    }
+    let output = assemble
         .output()
         .map_err(|e| Error::plain(format!("compile library object: {e}")))?;
     if !output.status.success() {
