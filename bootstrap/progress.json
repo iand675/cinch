@@ -20912,6 +20912,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
       },
       {
+        "title": "Replay the nominal task-capture failure on the integrated Stage 1",
+        "source": "5c9bb48a4d15ea441b7be58cca8f347a7ac97fe85e394e5a5e156580af20d3da",
+        "unit": "tests",
+        "passed": 0,
+        "failed": 0,
+        "total": 1,
+        "status": "pending",
+        "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
+        "evidence": null
+      },
+      {
+        "title": "Replay all original concurrency cases on the successor Stage 3",
+        "source": "5c9bb48a4d15ea441b7be58cca8f347a7ac97fe85e394e5a5e156580af20d3da",
+        "unit": "tests",
+        "passed": 0,
+        "failed": 0,
+        "total": 20,
+        "status": "pending",
+        "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
+        "evidence": null
+      },
+      {
         "title": "Replay the original recursive binding cases on Cinch Stage 1",
         "source": "61d1f429e526394d35fa36670f47bb977b69892342958d817043324aa262433a",
         "unit": "tests",
@@ -20947,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:42:19.293917+00:00"
+  "updatedAt": "2026-11-09T02:43:22.546267+00:00"
 }
