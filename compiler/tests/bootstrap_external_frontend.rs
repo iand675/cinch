@@ -48,7 +48,7 @@ fn selected_frontend_checks_builds_runs_and_records_the_actual_sources() {
     let first = invocations(&dir).pop().unwrap();
     let receipt = std::fs::read_to_string(first.join("invocation.json")).unwrap();
     assert!(receipt.contains("selected-compiler") && receipt.contains("entry with\\na newline.cinch"));
-    let bundle = std::fs::read_to_string(first.join("source.cinch")).unwrap();
+    let bundle = std::fs::read_to_string(first.join(entry)).unwrap();
     assert_eq!(bundle.lines().next().unwrap(), "-- source: entry with\\na newline.cinch");
     let output = dir.join("built-program");
     assert_eq!(drive(&frontend, Mode::Build, &dir, entry, Some(output.clone())).unwrap(), 0);
@@ -56,6 +56,7 @@ fn selected_frontend_checks_builds_runs_and_records_the_actual_sources() {
     assert!(!output.with_extension("ran").exists(), "build executed its artifact");
     assert_eq!(drive(&frontend, Mode::Run, &dir, entry, None).unwrap(), 37);
     let ran = invocations(&dir).into_iter().find(|p| p.join("program.ran").exists()).expect("selected artifact ran");
+    assert!(ran.join(entry).is_file(), "the staged build must keep the entry filename");
     let cwd = std::fs::read_to_string(ran.join("program.cwd")).unwrap();
     assert_eq!(Path::new(cwd.trim()).canonicalize().unwrap(), std::env::current_dir().unwrap().canonicalize().unwrap(),
         "selected artifacts must inherit the same caller working directory as the Native driver");
@@ -118,7 +119,7 @@ fn selected_frontend_bundles_imports_and_preserves_lexical_data_files() {
     std::fs::write(dir.join("ticks.cinch"), "not valid program source \"\n").unwrap();
     assert_eq!(drive(&frontend, Mode::Check, &dir, entry, None).unwrap(), 0);
     let invocation = invocations(&dir).pop().unwrap();
-    let bundle = std::fs::read_to_string(invocation.join("source.cinch")).unwrap();
+    let bundle = std::fs::read_to_string(invocation.join(entry)).unwrap();
     let receipt = std::fs::read_to_string(invocation.join("invocation.json")).unwrap();
     for path in ["provider.cinch", "Helper.cinch", "nested/Nested.cinch"] { assert!(receipt.contains(path), "{receipt}"); }
     for data in ["attrs.cinch", "ticks.cinch"] { assert!(!receipt.contains(data), "{receipt}"); }
@@ -136,7 +137,7 @@ fn duplicate_requested_providers_remain_in_the_selected_compiler_input() {
     for name in ["first.cinch", "second.cinch"] { std::fs::write(dir.join(name), "module Library where\n  value :: Int\n  value = 0\n").unwrap(); }
     drive(&frontend, Mode::Check, &dir, entry, None).unwrap();
     let invocation = invocations(&dir).pop().unwrap();
-    let bundle = std::fs::read_to_string(invocation.join("source.cinch")).unwrap();
+    let bundle = std::fs::read_to_string(invocation.join(entry)).unwrap();
     assert_eq!(bundle.matches("module Library").count(), 2, "duplicate declarations must reach the selected frontend");
     common::cleanup(&dir);
 }

@@ -173,7 +173,8 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
         bundle.push_str(&format!("-- source: {}\n{}\n\n", relative.escape_default(), text));
         inputs.push(Json::obj(vec![("path", Json::Str(relative)), ("hash", Json::Str(cinch::interface::content_hash(&text)))]));
     }
-    let source = work.join("source.cinch");
+    // The entry stem also names the build manifest emitted by the frontend.
+    let source = work.join(entry.file_name().ok_or("external test entry needs a filename")?);
     std::fs::write(&source, bundle).map_err(|e| e.to_string())?;
     let mut ir = work.join("output.ll");
     let requested_output = out.is_some();
