@@ -56,9 +56,10 @@ A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.
 The executable observed the stream through the compiled provider and ran
-with zero leaks. The remaining refusal replays and full candidate suite
-are still being checked.
-See [the codata object audit](../bootstrap/current-abi7-stage1-codata-object-client.json).
+with zero leaks. That Stage 1 rejected direct construction and pattern
+matching on the imported codata and passed all ten original codata cases
+with interface emission enabled. Matching Stage 2 and Stage 3 remain open.
+See [the codata contract and suite audit](../bootstrap/current-abi7-stage1-codata-contract-and-suite.json).
 
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
