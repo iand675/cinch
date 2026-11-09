@@ -21358,8 +21358,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane for Stage 2 and Stage 3",
+        "status": "superseded-before-build",
+        "phase": "Use the merged codata and indexed import acceptance ladder",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:15:07.111021+00:00"
+  "updatedAt": "2026-11-09T07:16:09.826103+00:00"
 }
