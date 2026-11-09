@@ -38,6 +38,11 @@ enabled. The unchanged project asserts right association after a facade rename
 and checks the public and private fixities in the emitted contracts.
 See [the fixity audit](../bootstrap/current-abi7-combined-stage3-fixity-interfaces.json).
 
+The ten original codata source cases passed on the same combined Stage 3.
+The audit retains 22 exact invocations for the runtime and refusal assertions.
+The separate codata interface and compiled-provider checks remain open.
+See [the codata source audit](../bootstrap/current-abi7-combined-stage3-codata.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,

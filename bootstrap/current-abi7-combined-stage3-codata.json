@@ -1,0 +1,88 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiled_provider_boundary_verified": false,
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-codata",
+  "targets": {
+    "codata": {
+      "cases": [
+        {
+          "name": "acceptance_example_04_productive_stream_checks",
+          "status": "passed"
+        },
+        {
+          "name": "codata_is_observed_not_destructured",
+          "status": "passed"
+        },
+        {
+          "name": "codata_keeps_thunk_and_memo_discipline",
+          "status": "passed"
+        },
+        {
+          "name": "corec_needs_an_observation_layer_per_step",
+          "status": "passed"
+        },
+        {
+          "name": "corec_stream_observes_head_and_tail",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_and_force_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "later_is_not_interchangeable_with_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "later_must_not_be_an_unrestricted_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "unproductive_corec_is_rejected_naming_the_call",
+          "status": "passed"
+        },
+        {
+          "name": "unrestricted_filter_loses_productivity",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "72387-0.json": "5a9d43253278264c6bc341e03207fbaf99795b00b78823ee11875807160f4705",
+        "72387-1.json": "a6691b761d6d5e4ea2ee45471d33fbf25ef80517bdbd294c6b938d406ef6aa41",
+        "72387-10.json": "686d6093d8d8e4053d3a15d4d896c1db0326bbd394137447faaa32f549ef5254",
+        "72387-11.json": "2ae49563e174006dc9efbd8db51fe1f1c3ee04647dcde52b95bdb5bac68cb33f",
+        "72387-12.json": "24217d32439c0594b6b95c71977939b490691077a864977f4bfd86d0c63e4ed4",
+        "72387-13.json": "ca6589780a50aa576f5c0f0a94e3e1e571c70c6673c867dad2f10511d438c49f",
+        "72387-14.json": "22bab0f4da7bc4f84448743d7f760647977bc7ab1ba490fc95d0cd805f62d53b",
+        "72387-15.json": "ad0c9b3f5362e9feac1668f722328c54315604705cec1bbcd811a418bd36f30d",
+        "72387-16.json": "1dea871e4f3fc20d33a108e0a638fb66ea0bae49e7bd5b33968582f71a86279c",
+        "72387-17.json": "b18381874fb95cad7ad2cfded75a326b58fc8a3d293693e159be3793d9ce2838",
+        "72387-18.json": "b744ad899abaa678e7c0790b89bcd57f96cdd3a429f09571e2c8e1ef4e2354e4",
+        "72387-19.json": "02b2264a9707c9459a9c923e13cef082fb38b3a55785507bcdb06e6cd440e17b",
+        "72387-2.json": "ac59ee5900ff0f419a9f4a6c6a11ac82961fa6f77591f2a7d6529b6f7abd56c8",
+        "72387-20.json": "e58bb713dc669108de0c55183bd3691e585df5b27201b193eb33586a5f5fe6fe",
+        "72387-21.json": "ab6cd2cde5fe4236fe051d6610b4dc8996f9de3a7bbac90cbe8bf035389a058f",
+        "72387-3.json": "428a994710cc074777d02c1a49357260c0f68af11995fca6c91e88690dbb6f97",
+        "72387-4.json": "14a666c4732f2caf9de73c1dec324aa1e7aa50f3c311316207466bb3e12bd4eb",
+        "72387-5.json": "76efd8e29d839a10b6de3d10a5aca7f5f92eb23f379af8edf859f6ad7768715e",
+        "72387-6.json": "4bb15b7fe19abd45ca810117b700b18ea04c68637e4f5382d583ff1ac3a71946",
+        "72387-7.json": "40b6c5b9bc527588a74077e63cc5fa3632ac70938b0c6b1ad07dc590d39390cb",
+        "72387-8.json": "d71b9f0331a60fc9188750b5e0f99859aacb97d54b83c583eba8665fc1d20fae",
+        "72387-9.json": "75cb0c5f2b52bde8288c0e1a3f24f396ec6232559ae6f2b73258a96aca25cd3a"
+      },
+      "log_sha256": "c5516623ba0d736c9cb8cacd32474496b954085849294a9c1c800aa9ce140bfd",
+      "passed": 10,
+      "test_source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+      "total": 10
+    }
+  }
+}
