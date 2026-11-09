@@ -20895,9 +20895,9 @@
         "status": "running",
         "phase": "Isolated Stage 1 candidate. build Stage 1 with recursive local scope and guard checking",
         "passed": 1,
-        "total": 8,
+        "total": 7,
         "failed": 0,
-        "source": "457c24d7e5436cdcc682f8b9c017c412447c1303afb03286b148a4f74563cb97",
+        "source": "040dc6296a0e290e07d8583e0accb32c6c75188563f8329f1f12a4d74e4ab759",
         "evidence": null
       },
       {
@@ -21013,5 +21013,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:20:28.270219+00:00"
+  "updatedAt": "2026-11-09T02:23:32.063036+00:00"
 }
