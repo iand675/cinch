@@ -4986,6 +4986,14 @@
                 },
                 {
                   "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+                  "status": "passed"
+                },
+                {
+                  "name": "ref_and_copy_captures_are_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_task_forwarders_check_actual_captures",
                   "status": "running"
                 }
               ]
@@ -13590,5 +13598,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:04:01.720302+00:00"
+  "updatedAt": "2026-11-09T09:05:04.917984+00:00"
 }
