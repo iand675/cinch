@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
-  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 34/236 Rust targets passed. Newer candidates have separate rebuilds.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 22/110 Cinch Stage 3 targets passed and 35/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17952,11 +17952,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate 3",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 34,
+        "passed": 35,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_core",
+        "phase": "bootstrap_decisions",
         "evidence": null
       },
       {
@@ -20993,11 +20993,11 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 5,
-        "failed": 3,
+        "passed": 6,
+        "failed": 2,
         "status": "running",
         "phase": "Replay guard_coverage with the combined Stage 3",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
         "title": "Original concurrency on the combined Stage 3",
@@ -21029,8 +21029,52 @@
         "passed": 7,
         "failed": 0,
         "status": "passed",
-        "phase": "All seven original source tests passed with matching invocation receipts.",
+        "phase": "All 7 original source tests passed with matching invocation receipts.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-class-defaults.json"
+      },
+      {
+        "title": "Original integration on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 39,
+        "passed": 39,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 39 original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-integration.json"
+      },
+      {
+        "title": "Original codata source cases on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 10,
+        "passed": 10,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 10 original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-codata.json"
+      },
+      {
+        "title": "Original fixity tests with Stage 3 interface output",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 2,
+        "passed": 2,
+        "failed": 0,
+        "status": "passed",
+        "phase": "Both original tests passed, including the facade rename and emitted fixity assertions.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
+      },
+      {
+        "title": "Release a worker from the superseded Stage 3 replay",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "worker",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "Preserved 22 completed passing targets and the final target's log.",
+        "evidence": null
       },
       {
         "title": "Run the matching Rust compiler suite",
@@ -21095,7 +21139,7 @@
         "passed": 0,
         "failed": 12,
         "status": "completed-with-failures",
-        "phase": "Additional frontend replay finished",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 52 passed, 61 failed.",
         "evidence": null
       },
       {
@@ -21103,10 +21147,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "targets",
         "total": 36,
-        "passed": 5,
-        "failed": 5,
+        "passed": 7,
+        "failed": 7,
         "status": "running",
-        "phase": "Replay original lib_csv target on Stage 3",
+        "phase": "Replay original lib_foldable target on Stage 3",
         "evidence": null
       },
       {
@@ -21204,8 +21248,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -21220,19 +21264,19 @@
         "evidence": null
       },
       {
-        "title": "Replay the original fixity tests with Stage 3 interface output",
-        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
-        "unit": "tests",
+        "title": "Verify recursive closure capture and partial calls in the original tests",
+        "source": "379c6f8d50b085ef28baa54318c5b4c3b4c7232ac5e4d1d8c0c0a8a7893f2fba",
+        "unit": "gates",
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "running",
-        "phase": "Run the original project and verify the emitted fixity interfaces",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
-        "title": "Verify recursive closure capture and partial calls in the original tests",
-        "source": "379c6f8d50b085ef28baa54318c5b4c3b4c7232ac5e4d1d8c0c0a8a7893f2fba",
+        "title": "Verify refined function results through the original range tests",
+        "source": "d685069edc92769bd0aff79e88d0ab883965a24ee59a41ede2bb69e7b6fa46b8",
         "unit": "gates",
         "total": 2,
         "passed": 0,
@@ -21343,5 +21387,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:31:32.884063+00:00"
+  "updatedAt": "2026-11-09T06:35:19.939719+00:00"
 }
