@@ -17899,9 +17899,9 @@
         "unit": "targets",
         "passed": 0,
         "total": 110,
-        "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "build Stage 2 with the preceding compiler",
+        "failed": 1,
+        "status": "failed",
+        "phase": "RuntimeError('The matching integrated fixed-point build did not pass')",
         "evidence": null
       },
       {
@@ -20859,11 +20859,11 @@
       {
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
-        "status": "running",
+        "status": "failed",
         "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
         "passed": 2,
         "total": 5,
-        "failed": 0,
+        "failed": 1,
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
         "evidence": null
       },
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:28:04.257662+00:00"
+  "updatedAt": "2026-11-09T00:30:08.151908+00:00"
 }
