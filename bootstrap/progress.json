@@ -14552,9 +14552,9 @@
         "unit": "gates",
         "total": 6,
         "passed": 1,
-        "failed": 4,
-        "status": "running",
-        "phase": "Replay the original lib_yaml tests",
+        "failed": 5,
+        "status": "completed-with-failures",
+        "phase": "Original frontend replays finished",
         "evidence": null
       },
       {
@@ -14703,5 +14703,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:33:09.883385+00:00"
+  "updatedAt": "2026-11-09T10:37:35.442650+00:00"
 }
