@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | evolution | lattice | llvm_contract",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10223,8 +10223,8 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 10,
-          "running": 1,
+          "blocked": 11,
+          "running": 0,
           "pending": 33,
           "recheck": 0
         },
@@ -10795,17 +10795,17 @@
           {
             "id": "additional:sym",
             "title": "sym",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "0f1d785a3825233c8ba3a6b0794d4a2833c3aca3410508478c7404c60fc20b92",
               "cases": [
                 {
                   "name": "a_symbol_literal_is_emitted_as_a_constant",
@@ -10833,7 +10833,19 @@
                 },
                 {
                   "name": "ord_is_lexicographic_by_name_and_deterministic_across_runs",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "sym_has_no_c_counterpart",
+                  "status": "failed"
+                },
+                {
+                  "name": "sym_literals_are_constants_with_identity_eq",
+                  "status": "failed"
+                },
+                {
+                  "name": "tick_name_quotes_reify_in_macro_positions",
+                  "status": "failed"
                 }
               ]
             }
@@ -14985,9 +14997,9 @@
         "unit": "targets",
         "total": 3,
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original ownership target on Stage 3",
+        "phase": "Replay original primitives target on Stage 3",
         "evidence": null
       },
       {
@@ -15029,9 +15041,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 3,
-        "status": "running",
-        "phase": "Replay original sym target on Stage 3",
+        "failed": 4,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 22 passed, 50 failed.",
         "evidence": null
       },
       {
@@ -15411,8 +15423,8 @@
     ],
     "counts": {
       "verified": 309,
-      "blocked": 14,
-      "running": 4,
+      "blocked": 15,
+      "running": 3,
       "pending": 458,
       "recheck": 21
     },
@@ -15422,5 +15434,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:07:30.769249+00:00"
+  "updatedAt": "2026-11-09T11:08:34.047002+00:00"
 }
