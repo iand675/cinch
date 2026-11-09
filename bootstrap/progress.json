@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "11/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
+  "activity": "The isolated integrated compiler passed the changed-source check. 0/110 Cinch Stage 3 targets passed and 12/236 Rust targets passed on the integrated candidate.",
   "checklist": {
     "version": 1,
     "target": {
@@ -20915,12 +20915,12 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "passed",
-        "phase": "Combined candidate, starting from the pinned seed. verify the fixed point, 12 smokes, interface consumer and changed-source rebuild",
+        "phase": "Stage 2 and Stage 3 matched byte for byte. All 46 compiler interfaces, the twelve smokes, the separate consumer and the changed-source rebuild passed.",
         "passed": 5,
         "total": 5,
         "failed": 0,
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage2-drop-provider-results.json"
       },
       {
         "title": "Replay integration, concurrency, guards and codata on the combined compiler",
@@ -20954,6 +20954,17 @@
         "failed": 0,
         "source": "b653e7307b3071472b5c2e56441882465d82c8ac805324265615cea3b4554834",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
+      },
+      {
+        "title": "Replay the original recursive binding cases on the earlier scoped compiler",
+        "source": "4a7e6706e69c1b989230e5eefdef2eaf2d3a138580d4f3c235176bce08d76a25",
+        "unit": "tests",
+        "passed": 5,
+        "failed": 6,
+        "total": 11,
+        "status": "completed-with-failures",
+        "phase": "Forward dependencies, eager cycle refusals and the nested let depth limit passed. Guarded functions and value knots are separate.",
+        "evidence": null
       }
     ],
     "counts": {
@@ -20969,5 +20980,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:41:07.607678+00:00"
+  "updatedAt": "2026-11-09T01:41:50.993807+00:00"
 }
