@@ -5348,6 +5348,18 @@
                 },
                 {
                   "name": "prelude_sum_list_generic",
+                  "status": "passed"
+                },
+                {
+                  "name": "record_rejections",
+                  "status": "passed"
+                },
+                {
+                  "name": "records_construction_projection_and_patterns",
+                  "status": "passed"
+                },
+                {
+                  "name": "recursion_negation_and_bool_operators",
                   "status": "running"
                 }
               ]
@@ -13951,5 +13963,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:22:23.977805+00:00"
+  "updatedAt": "2026-11-09T09:23:27.554274+00:00"
 }
