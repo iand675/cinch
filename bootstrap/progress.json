@@ -21323,10 +21323,10 @@
         "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
         "unit": "checks",
         "total": 8,
-        "passed": 5,
+        "passed": 6,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "refuse-imported-pattern-recheck",
         "evidence": null
       },
       {
@@ -21420,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:51:40.283405+00:00"
+  "updatedAt": "2026-11-09T06:53:24.047400+00:00"
 }
