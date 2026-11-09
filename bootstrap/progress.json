@@ -11730,6 +11730,30 @@
                 },
                 {
                   "name": "ordinary_matches_preserve_captured_erased_field_subjects",
+                  "status": "failed"
+                },
+                {
+                  "name": "pattern_shadows_preserve_the_outer_goal_and_its_existing_evidence",
+                  "status": "failed"
+                },
+                {
+                  "name": "proof_former_value_arguments_check_their_carrier",
+                  "status": "failed"
+                },
+                {
+                  "name": "proof_patterns_check_the_actual_subject_carrier",
+                  "status": "passed"
+                },
+                {
+                  "name": "proof_patterns_keep_recursive_calls_visible_to_termination",
+                  "status": "failed"
+                },
+                {
+                  "name": "proof_patterns_require_exhaustive_coverage",
+                  "status": "failed"
+                },
+                {
+                  "name": "typed_structural_induction_still_checks_and_erases",
                   "status": "running"
                 }
               ]
@@ -15808,5 +15832,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:24:01.339682+00:00"
+  "updatedAt": "2026-11-09T11:25:04.823123+00:00"
 }
