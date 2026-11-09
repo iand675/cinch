@@ -21337,7 +21337,7 @@
         "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Compare the original argument-scope input bounded byte length does not prove reversed subtraction",
+        "phase": "Compare the original argument-scope input sum does not retain byte length upper bound",
         "evidence": null
       },
       {
@@ -21464,5 +21464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:06:41.708581+00:00"
+  "updatedAt": "2026-11-09T07:07:45.063059+00:00"
 }
