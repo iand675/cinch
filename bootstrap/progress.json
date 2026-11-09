@@ -17916,6 +17916,17 @@
         "evidence": null
       },
       {
+        "title": "Rebuild with guarded recursion and constant-stack tail calls",
+        "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
+        "unit": "checks",
+        "total": 16,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for the expanded object and a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Rebuild the combined task, manifest and rewrite compiler",
         "source": "5c9bb48a4d15ea441b7be58cca8f347a7ac97fe85e394e5a5e156580af20d3da",
         "unit": "checks",
@@ -20967,14 +20978,36 @@
         "evidence": null
       },
       {
+        "title": "Build the pinned object with three additional HashMap variants",
+        "source": "78b4db881b28061c1729f92494483825818153655c121b56d834adb176179cc9",
+        "unit": "builds",
+        "total": 1,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a compiler worker to release its lane",
+        "evidence": null
+      },
+      {
+        "title": "Check source equality methods and replay the original laws",
+        "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
+        "unit": "checks",
+        "total": 11,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a compiler lane to run the original law tests",
+        "evidence": null
+      },
+      {
         "title": "Verify scoped recursive value teardown in Rust",
-        "source": "99c8189c0125ff49aa992d7665f9fa619ed88cda825edc2803c298a94de8abb7",
+        "source": "8551b636cbc616daa51361c5b0855c15453efc2d03c505eed38b26756e4b1ff7",
         "unit": "targets",
         "total": 1,
         "passed": 0,
-        "failed": 1,
-        "status": "failed",
-        "phase": "Rust scoped recursive value tests finished",
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for the guarded-value or task-capture worker to release its lane",
         "evidence": null
       },
       {
@@ -21024,5 +21057,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:23:23.132968+00:00"
+  "updatedAt": "2026-11-09T03:24:06.292020+00:00"
 }
