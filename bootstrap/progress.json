@@ -9988,6 +9988,26 @@
               "cases": [
                 {
                   "name": "foreign_export_renames_its_cinch_definition_without_changing_the_c_entry",
+                  "status": "failed"
+                },
+                {
+                  "name": "foreign_group_instances_rename_cinch_bindings_and_keep_the_external_contract",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_refinement_instantiations_keep_their_independent_type_and_value_members",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_refinement_link_replaces_the_placeholder_type_and_constructor_together",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_refinement_rename_keeps_its_constructor_and_sibling_contracts",
+                  "status": "failed"
+                },
+                {
+                  "name": "primitive_group_instances_keep_sibling_bindings_and_ir_containment",
                   "status": "running"
                 }
               ]
@@ -14399,5 +14419,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:56:23.892847+00:00"
+  "updatedAt": "2026-11-09T09:57:27.236315+00:00"
 }
