@@ -21004,11 +21004,11 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 14,
-        "failed": 2,
+        "passed": 15,
+        "failed": 1,
         "status": "running",
         "phase": "Replay bootstrap_body_bindings with the combined Stage 3",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
         "title": "Original concurrency on the combined Stage 3",
@@ -21117,8 +21117,30 @@
         "passed": 1,
         "failed": 0,
         "status": "passed",
-        "phase": "The Stage 3-built consumer passed all 17 controls against Rust-produced arithmetic contracts.",
+        "phase": "The Stage 3-built consumer passed all 17 controls against Rust-produced checked interfaces.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-abstract-nonzero-methods.json"
+      },
+      {
+        "title": "Original structural NonZero type consumer on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built type and Core runner passed all 5 input sizes.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json"
+      },
+      {
+        "title": "Original anonymous refinement consumer on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built consumer passed all 18 controls against Rust-produced checked interfaces.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json"
       },
       {
         "title": "Original fixity tests with Stage 3 interface output",
@@ -21191,10 +21213,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 0,
+        "passed": 3,
         "failed": 0,
         "status": "running",
-        "phase": "letrec",
+        "phase": "concurrency",
         "evidence": null
       },
       {
@@ -21247,9 +21269,9 @@
         "unit": "targets",
         "total": 5,
         "passed": 1,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original nominal_identity target on Stage 3",
+        "phase": "Replay original platform target on Stage 3",
         "evidence": null
       },
       {
@@ -21374,10 +21396,10 @@
         "evidence": null
       },
       {
-        "title": "Verify refined returns and proof refusals across the original range, Nat and dependent targets",
+        "title": "Verify refined returns and proof refusals across six original compiler and library targets",
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
-        "total": 4,
+        "total": 7,
         "passed": 0,
         "failed": 0,
         "status": "waiting-worker",
@@ -21447,8 +21469,8 @@
         "passed": 12,
         "failed": 0,
         "status": "passed",
-        "phase": "Module replay finished",
-        "evidence": null
+        "phase": "All 12 original cases passed after fixing entry filenames and build manifests in the harness.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
         "title": "Check source equality methods and replay the original laws",
@@ -21519,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:48:50.519462+00:00"
+  "updatedAt": "2026-11-09T07:49:29.301167+00:00"
 }
