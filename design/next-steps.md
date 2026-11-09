@@ -103,9 +103,12 @@ See [the matching Rust audit](../bootstrap/current-abi7-codata-index-opening-nat
 
 The matching Stage 1 executable passed all eight original law cases with
 14 selected-compiler invocations. It also exported the three erased
-equation methods under their declaring class and checked slots. Stage 2
-is building from those same inputs.
-See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json).
+equation methods under their declaring class and checked slots. Stage 1
+then built Stage 2 from those same inputs. The Stage 2 audit verifies all
+46 compiler interfaces and their closure with the 55 library interfaces.
+Stage 3 is building from the audited Stage 2 executable.
+See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json)
+and [the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json).
 
 The pinned producer emitted the five requested Bits variants and the two
 Map variants without changing any of the 55 library interface files. The

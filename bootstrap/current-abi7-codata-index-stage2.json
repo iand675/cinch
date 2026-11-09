@@ -1,0 +1,19 @@
+{
+  "base_interfaces": 55,
+  "compiler_interfaces": 46,
+  "compiler_ir_sha256": "ee4cf0a58510a8be4907f2a65177c472e13aed4123f82befad52b8d73bc32d02",
+  "compiler_no_args_exit_code": 1,
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "link_exit_code": 0,
+  "missing_object_roots": 0,
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_sha256": "5bffe67f2c0ca09c0831256c77fcb22afd9a8f84afee6141369fc854408e63fe",
+  "runtime_abi": 7,
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "source_snapshot_sha256": "2255a06886bed332111898ad16a5dc74a3affc2f14b03b40c5dbece222dc1746",
+  "stage1_sha256": "d31208ef7c228eede0ad930cb6465a1b5b0544f4e9f449d55491dc5f7292db40",
+  "stage2_receipt_sha256": "bf56ccae0840ac3a4de0c76d058eacfb38c7d59b6128b38ef6a3abdf9d22d516",
+  "stage2_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "status": "audited-abi7-merged-stage2"
+}
