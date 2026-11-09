@@ -17931,10 +17931,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
         "total": 16,
-        "passed": 8,
+        "passed": 9,
         "failed": 2,
         "status": "running",
-        "phase": "Replay original concurrency target on Stage 3",
+        "phase": "Replay original integration target on Stage 3",
         "evidence": null
       },
       {
@@ -21200,5 +21200,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:06:03.806122+00:00"
+  "updatedAt": "2026-11-09T05:08:48.201409+00:00"
 }
