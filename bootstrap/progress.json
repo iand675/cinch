@@ -14075,10 +14075,10 @@
         "source": "10ca60b04d2064fd8166f0f45535c2876cea870a1c4880ad4a7441e2fa01a5b5",
         "unit": "checks and targets",
         "total": 9,
-        "passed": 1,
+        "passed": 6,
         "failed": 0,
         "status": "running",
-        "phase": "Check plain-signed-boundaries",
+        "phase": "Check refined-return-cannot-be-fabricated",
         "evidence": null
       },
       {
@@ -14238,5 +14238,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:38:23.983977+00:00"
+  "updatedAt": "2026-11-09T09:39:27.706229+00:00"
 }
