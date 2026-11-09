@@ -21000,6 +21000,17 @@
         "evidence": null
       },
       {
+        "title": "Replay 235 original library tests outside the Stage 3 matrix",
+        "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
+        "unit": "targets",
+        "total": 36,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
         "title": "Check source equality methods and replay the original laws",
         "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
         "unit": "checks",
@@ -21068,5 +21079,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:35:41.081421+00:00"
+  "updatedAt": "2026-11-09T03:41:10.993597+00:00"
 }
