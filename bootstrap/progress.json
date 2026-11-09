@@ -10722,6 +10722,26 @@
                 },
                 {
                   "name": "captures_none_marks_only_non_escaping_borrows",
+                  "status": "failed"
+                },
+                {
+                  "name": "checked_params_restate_as_assumes",
+                  "status": "failed"
+                },
+                {
+                  "name": "fault_paths_are_noreturn_and_leave_their_successor_dead",
+                  "status": "failed"
+                },
+                {
+                  "name": "io_definitions_carry_no_purity_claims",
+                  "status": "failed"
+                },
+                {
+                  "name": "no_alloc_and_totality_rows_restate_as_nofree_and_willreturn",
+                  "status": "failed"
+                },
+                {
+                  "name": "pure_definitions_carry_memory_none_and_speculatable",
                   "status": "running"
                 }
               ]
@@ -15061,5 +15081,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:49:39.234160+00:00"
+  "updatedAt": "2026-11-09T10:50:42.478712+00:00"
 }
