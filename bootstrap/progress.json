@@ -17934,7 +17934,7 @@
         "passed": 7,
         "failed": 0,
         "status": "running",
-        "phase": "Replay tail-call fixture local-mixed-arity-tail on Stage 3",
+        "phase": "Replay tail-call fixture deep-recursion-control on Stage 3",
         "evidence": null
       },
       {
@@ -21178,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:55:24.486844+00:00"
+  "updatedAt": "2026-11-09T04:56:27.045404+00:00"
 }
