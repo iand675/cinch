@@ -5328,6 +5328,26 @@
                 },
                 {
                   "name": "memo_cells_with_signatures_and_shared_use",
+                  "status": "passed"
+                },
+                {
+                  "name": "memo_group_black_hole_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "memo_group_mutual_demand_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_constructor_patterns",
+                  "status": "passed"
+                },
+                {
+                  "name": "nested_patterns_keep_source_order_fall_through",
+                  "status": "passed"
+                },
+                {
+                  "name": "prelude_sum_list_generic",
                   "status": "running"
                 }
               ]
@@ -13931,5 +13951,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:21:20.174118+00:00"
+  "updatedAt": "2026-11-09T09:22:23.977805+00:00"
 }
