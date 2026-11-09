@@ -17886,11 +17886,11 @@
         "title": "Run all 236 Rust targets on the integrated candidate",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 2,
+        "passed": 3,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "ownership",
+        "phase": "lib",
         "evidence": null
       },
       {
@@ -20824,17 +20824,6 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-records-and-rewrite-results.json"
       },
       {
-        "title": "Check rewrite equations against cited laws and record assumptions",
-        "unit": "controls",
-        "status": "completed-with-failures",
-        "phase": "Isolated Stage 1 candidate. link and run U32 overflow and underflow controls",
-        "passed": 9,
-        "total": 11,
-        "failed": 2,
-        "source": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-rewrite-resource-results.json"
-      },
-      {
         "title": "Verify the five original targets through the standard Rust and Cinch harness",
         "unit": "controls",
         "status": "completed-with-failures",
@@ -20936,5 +20925,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:45:20.268003+00:00"
+  "updatedAt": "2026-11-09T00:46:23.466637+00:00"
 }
