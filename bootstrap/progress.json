@@ -17931,10 +17931,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
         "total": 16,
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "status": "running",
-        "phase": "Verify fixed point, smokes, separate interface consumer and changed-source rebuild",
+        "phase": "Replay the manifest sidecar and admission controls",
         "evidence": null
       },
       {
@@ -21061,8 +21061,8 @@
         "total": 12,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21072,8 +21072,8 @@
         "total": 36,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21178,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:47:14.514496+00:00"
+  "updatedAt": "2026-11-09T04:54:21.099982+00:00"
 }
