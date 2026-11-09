@@ -20832,7 +20832,7 @@
         "total": 10,
         "failed": 0,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-standard-stage1-portable-results.json"
       },
       {
         "title": "Replay original defaults, modules and recursive binding targets",
@@ -20843,7 +20843,7 @@
         "total": 6,
         "failed": 2,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-standard-stage1-portable-results.json"
       },
       {
         "title": "Verify Rust primitive clause order and the checked law observation",
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:21:12.480530+00:00"
+  "updatedAt": "2026-11-09T00:21:35.151308+00:00"
 }
