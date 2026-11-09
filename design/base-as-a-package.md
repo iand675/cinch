@@ -164,7 +164,28 @@ The rules that make the opt-in honest:
 - **Availability is visible before a build.** The interface records `available_for: [<triple>...]` per module, `cinch pkg info` prints it, and the generated library reference labels a platform module with its targets. A reader sees the constraint without compiling anything.
 - **Overlap is still an error.** Two entries that select the same module name under overlapping conditions with different paths remain a resolution error, whether the module is internal or exposed.
 
-## 4.3 Resolution is recorded, then the build is frozen against it
+## 4.3 Semantic fields first, and one escape hatch with a consent gate
+
+The compiler should understand what a package needs, not just pass words through: which libraries a closure requires, which of them resolve, whether a produced binary names a foreign library, and whether a package is asking for something a semantic field can already express. That understanding is what lets `cinch pkg verify`, `cinch pkg info`, and the docs answer questions instead of printing a command line.
+
+So the manifest has three tiers, and only one of them is a hole:
+
+| Tier | Shape | Understood | In the lock | Portable |
+| --- | --- | --- | --- | --- |
+| Semantic | `libs`, `frameworks`, `rpaths`, `libdirs`, `soname`, `whole_archive`, `pkgconfig` | yes: validated, ordered, and reported per package | resolved words | yes, when `rpaths` are relative or `@loader_path` |
+| Raw | `raw: { "ldflags": [...], "cflags": [...] }` | no: recorded verbatim with a hash, flagged in `verify` | yes, verbatim | only within one machine |
+| Local | project config, never package metadata | no | no, and the build records that it was used | no, by definition |
+
+Rules for the raw tier, which exists for the case a semantic field cannot express:
+
+- **It is refused unless the consumer consents.** A closure that contains raw link words fails the build with the package, the words, and the two ways forward: add `"raw_link": ["acme/vendorlib"]` to the root `.cinchpkg`, or pass `--allow-raw-link acme/vendorlib`. Consent is per package and per root, not global, so a transitive dependency cannot smuggle one in.
+- **It is visible everywhere it matters.** `cinch pkg info` prints the words, `cinch pkg verify` reports `native.raw` for that package, `cinch build --print-link-plan` shows every contribution tagged with its origin, and the artifact manifest records that raw words were part of the link.
+- **It never changes the hardening defaults.** Raw words are appended after the compiler's own, and the ones that redefine the product (`-Wl,--script`, `-nostdlib`, `-Wl,-e`, `-Xlinker`, response files) are refused even under consent, because the package that needs them needs a different mechanism rather than a bigger hammer.
+- **Local overrides are separate and self-incriminating.** A machine-specific tweak (`-L/opt/local/lib`) belongs in project configuration, is applied last, is excluded from the lock, and makes the build record `local_link_used: true`, so a reproducible-build check can refuse the artifact instead of silently accepting a binary nobody else can produce.
+
+The point of the split is not to make linking safe, which it cannot be, but to keep the analysed, reproducible, portable path as the default and confine the unknowable path to something a consumer has to say yes to, and something a verification tool can name.
+
+## 4.4 Resolution is recorded, then the build is frozen against it
 
 - **Resolution time.** The resolver evaluates `select` against the requested target at `cinch pkg add` / `install` time, runs `pkg-config --modversion/--libs/--cflags` for each surviving `pkgconfig` entry, and writes the effective result into `.cinchlock`: target triple, selected modules, resolved versions, ordered linker words, and include paths. A build never consults the ambient system again, so a build in CI and a build on a laptop agree or refuse instead of silently differing.
 - **Cross-compilation.** A lock holds one resolution per target. `cinch pkg install --target aarch64-apple-darwin` adds that target's record beside the others, and building for a target without a record is an error naming the target.
@@ -188,7 +209,9 @@ Target shape, following Go's split:
 | --- | --- | --- |
 | `linux/x86_64`, `linux/aarch64` | `syscall` instruction, numbers pinned per architecture in our own table | Stable ABI; this is what lets a static binary drop glibc |
 | `darwin/arm64`, `darwin/x86_64` | direct `libSystem` symbols declared in our own module | Darwin syscall numbers are unsupported ABI and move between releases; Go also goes through libSystem on darwin |
-| later targets | one module each, same interface | The interface is the contract; the target is an implementation detail |
+| `windows/x86_64`, `windows/aarch64` | `kernel32.dll` and `ntdll.dll` entry points declared by us, resolved at load | The NT syscall numbers change between Windows builds, so a raw `syscall` instruction is not a portable interface; Go links the same DLL entry points |
+| `wasm32/wasi` | WASI preview 2 imports | The component target has no kernel, only the adapter's imports |
+| FreeBSD, NetBSD, OpenBSD | `kqueue` plus per-BSD constants, one module each | The interfaces are POSIX-shaped but the numbers and struct layouts are per system |
 
 - `runtime/src/sys/mod.rs` defines the interface in words and bytes: `fn openat(dir: i64, path: &[u8], flags: i64, mode: i64) -> (i64, i64)`, returning the result and the platform error number as data. No `std::io`, no `io::Error`, no libc types in the signature.
 - `sys/linux.rs` and `sys/darwin.rs` are the only files allowed to name a kernel entry point. A test greps the runtime sources and fails the build when `unsafe extern "C"` appears outside `sys/`.
@@ -196,6 +219,46 @@ Target shape, following Go's split:
 - The first milestone keeps Rust's std for allocation, threads, and mutexes, because std links libc anyway. "No libc at all" is a later rung (`#![no_std]`, our allocator, our panic, our `_start`), and the honest goal now is: our own bindings, our own numbers, no wrapper crates, one auditable place for the OS.
 
 What it unlocks, in order: `-nostdlib` static Linux binaries with our own `_start`; `poll`/`epoll`/`kqueue` as first-class capabilities instead of threads parked in blocking reads; and a single audit surface for the no-faults rules, where every kernel call is in `sys/` and every failure becomes a named value.
+
+## 5.1 The seams that actually differ, and nothing else
+
+The word "syscall layer" hides the fact that the differences between these systems are not one interface with different numbers. There are five seams, and every OS package crosses at most these:
+
+| Seam | Linux | Darwin | Windows |
+| --- | --- | --- | --- |
+| Paths | bytes, `/` | bytes, `/` (HFS normalisation quirks) | UTF-16, `\`, drive letters, `\\?\` long paths, reserved names (`CON`, `NUL`, trailing dot and space) |
+| Handles | fd, `i32`, close on exec flag | fd, `i32` | `HANDLE`, not interchangeable with a file descriptor, closed by `CloseHandle` |
+| Readiness | `epoll` | `kqueue` | IOCP, or `WaitForMultipleObjects` for small sets; completion based, not readiness based |
+| Process control | `fork`/`execve`, signals, `waitpid` | `posix_spawn`, signals, `waitpid` | `CreateProcessW`, job objects, console control events; no signals, no `fork`, no `waitpid` |
+| Stack trap | `sigaltstack` plus a `SIGSEGV` handler (`compiler/runtime/src/stack.rs` already does this with per-OS constants) | the same with Darwin constants | `VirtualAlloc` guard pages plus a vectored exception handler; `stack.rs`'s approach does not port |
+
+`runtime/src/sys/` therefore exposes five traits or modules, not one, and each target implements the five. The stack trap is the one already written per OS today, and it is the clearest evidence that the port is real work rather than a constant table: `stack.rs` uses `mmap`, `sigaltstack`, `SIGSEGV`, and `SIGBUS` numbers that differ between Darwin and Linux, and Windows has none of those calls.
+
+## 5.2 What Windows specifically changes
+
+- **No stable syscall numbers.** `NtCreateFile` and friends exist, but their numbers are chosen per Windows build, so calling them directly is a compatibility bet. The runtime declares `kernel32`/`ntdll` exports and resolves them at load, the way the Go runtime does, and the "we own our bindings" property survives: the declarations and the struct layouts are ours, only the entry point is dynamic.
+- **Effect vocabulary has to admit absence.** `Effect.Signal` has no Windows equivalent beyond console control events, `Effect.Pty` needs `ConPTY`, and `Cancel` is a job object rather than a signal. A package must be able to say "this operation exists on these targets" without lying on the others, which is the `select` and `available_for` machinery in section 4.2.
+- **Case-insensitive, reserved, and separators.** `Data.Path` cannot treat `.` and `..` as the only special components, and the checker's module file discovery (`dir_index`) assumes case-sensitive exact names today. Duplicate module names that differ only by case are legal on Linux and impossible on Windows, so the resolution rule needs a per-target stance.
+- **Exit statuses differ, and the docs depend on it.** POSIX truncates to the low eight bits, which the guide documents with `300` becoming `44`. `ExitProcess` takes a full 32-bit code and a shell reports it differently, so the documented rule has to be per-target, and the example suite needs a target-conditioned expectation rather than one global claim.
+- **Binary stdout.** `ioWrite` must write bytes with no newline translation and no console encoding, or every documented `stdout=` assertion becomes platform-dependent. That means binary mode on the handle, explicitly, in the runtime rather than in each program.
+- **No `rpath`.** A DLL is found next to the executable, in `System32`, or through `AddDllDirectory`. The manifest's `rpaths` field has no Windows meaning, so the semantic tier needs an equivalent (`dll_dirs`) rather than a silently ignored field.
+
+## 5.3 The manifest fields each platform needs
+
+The semantic tier of section 4.3 is not portable either, so the fields should say what they mean per system:
+
+| Concept | Darwin | Linux | Windows |
+| --- | --- | --- | --- |
+| Link a library | `libs` (`-l`), `frameworks` (`-framework`) | `libs`, plus `soname` for the produced object | `import_libs` (`.lib`), `system_libs` (`ws2_32`, `advapi32`, `bcrypt`, `ntdll`) |
+| Find it at run time | `rpaths` (`@loader_path`, `@rpath`) | `rpaths` (`$ORIGIN`) | `dll_dirs` (applied with `AddDllDirectory`), or copy beside the executable |
+| Read it at build time | `pkgconfig` | `pkgconfig` | `pkgconfig` when present, otherwise explicit paths; vcpkg and CMake config files are the common case and are not `pkg-config` |
+| Pick the toolchain | one | `glibc` or `musl` | `msvc` or `gnu` (mingw), which decides `.lib` versus `.a` and the C runtime |
+
+So the condition vocabulary of section 4.1 gains `toolchain` (`msvc`, `gnu`, `glibc`, `musl`), keeps `libc` for the Linux split, and `arch` grows `arm64` for Windows. A package that binds a native library on all three systems writes three `select` entries, and the resolver produces three lock records.
+
+## 5.4 What the compiler itself has to grow
+
+The checker and codegen are platform independent, so the work sits in four places: the driver's link step (it shells `clang`, which works as `clang-cl`, plus `cargo` for the runtime staticlib), the runtime's five seams, `cinchdoc.rs`'s one `cfg(unix)` branch, and the test suite, where every exact-stdout and exit-status expectation becomes target-conditioned. Until those exist, the honest status is what the support matrix should say: native is macOS and Linux, Windows and WASI are planned, and a package that declares them is declaring its intent rather than a passing build.
 
 # 6 The packages the sys layer makes possible
 
@@ -228,7 +291,7 @@ Ordering by what unblocks the most: `sys` socket and event calls, then `Net.Tcp`
 - **The embedded cut.** The proposal above is "modules the checker's builtins mention". The user has a different line in mind and will state it; this section is where it lands.
 - **Offline bootstrap.** Registry delivery plus an optional vendored snapshot, as in section 2, or strict network-on-first-use.
 - **Prelude diagnostics.** The mechanism is settled (section 3): injected import, identity by declaring module, re-exports tracked. What remains is message quality: a mismatch or an ambiguous instance should resolve through the re-export chain and name the two preludes and the two declaring modules.
-- **Link policy.** Whether `link` and `pkgconfig` are open to any namespace or gated to vetted ones, and whether `cinch pkg verify` refuses a lock whose resolved link record is missing.
+- **Link policy.** Whether `libs` and `pkgconfig` are open to any namespace or gated to vetted ones, and whether `cinch pkg verify` refuses a lock whose resolved link record is missing. The semantic, raw, and local tiers are settled in section 4.3; what remains is who may publish each tier.
 
 # 8 Aspects this design has not yet faced
 
