@@ -17873,13 +17873,13 @@
     "active": [
       {
         "title": "Verify build manifests and original module tests in Rust and Cinch",
-        "source": "dabfc9c105d4d9f7458cc43c5336dbb252efb40f4bb6161a0bb58982240ab8dc",
+        "source": "583d5159fe93d33d81ed7b3353830cbb066a97de873312ee87ba43a3ddce67f2",
         "unit": "checks",
-        "passed": 7,
+        "passed": 4,
         "failed": 0,
         "total": 7,
-        "status": "passed-module-manifest-and-original-tests",
-        "phase": "run all original module tests through the rebuilt Cinch frontend",
+        "status": "running",
+        "phase": "build Cinch Stage 1 with the checked build manifest",
         "evidence": null
       },
       {
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:16:41.815472+00:00"
+  "updatedAt": "2026-11-09T01:17:44.302095+00:00"
 }
