@@ -5165,10 +5165,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 34,
+          "verified": 35,
           "blocked": 2,
           "running": 1,
-          "pending": 125,
+          "pending": 124,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -6532,6 +6532,28 @@
           {
             "id": "stage3:bootstrap_guarded_association",
             "title": "bootstrap_guarded_association",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "4d0f9cbb3749bab5429441d799b8115c13dcb1ecb6e7b76e135f560e3220570e",
+              "cases": [
+                {
+                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:bootstrap_guarded_bodies",
+            "title": "bootstrap_guarded_bodies",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -6543,22 +6565,8 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": [
-                {
-                  "name": "guarded_calls_recheck_actual_body_declarations_and_stale_aliases",
-                  "status": "running"
-                }
-              ]
+              "cases": []
             }
-          },
-          {
-            "id": "stage3:bootstrap_guarded_bodies",
-            "title": "bootstrap_guarded_bodies",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_guarded_calls",
@@ -15678,10 +15686,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 34,
+        "passed": 35,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_guarded_association with the combined Stage 3",
+        "phase": "Replay bootstrap_guarded_bodies with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -16302,10 +16310,10 @@
       }
     ],
     "counts": {
-      "verified": 332,
+      "verified": 333,
       "blocked": 28,
       "running": 3,
-      "pending": 422,
+      "pending": 421,
       "recheck": 21
     },
     "total": 806,
@@ -16314,5 +16322,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T13:13:52.134557+00:00"
+  "updatedAt": "2026-11-09T13:15:56.402929+00:00"
 }
