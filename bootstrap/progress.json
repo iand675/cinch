@@ -10669,6 +10669,26 @@
                 },
                 {
                   "name": "numeric_literals_use_actual_scoped_refinement_facts",
+                  "status": "failed"
+                },
+                {
+                  "name": "refined_values_project_explicitly",
+                  "status": "failed"
+                },
+                {
+                  "name": "semigroup_nonempty_passes_its_law_samples",
+                  "status": "failed"
+                },
+                {
+                  "name": "separate_effectful_refined_arguments_do_not_share_a_value_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "signature_preconditions_keep_quantified_value_parameters_in_scope",
+                  "status": "failed"
+                },
+                {
+                  "name": "signature_predicates_keep_checked_index_carrier_kinds",
                   "status": "running"
                 }
               ]
@@ -15276,5 +15296,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:02:16.076881+00:00"
+  "updatedAt": "2026-11-09T11:03:19.287194+00:00"
 }
