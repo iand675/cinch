@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10253,9 +10253,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 12,
+          "blocked": 13,
           "running": 1,
-          "pending": 31,
+          "pending": 30,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11381,17 +11381,17 @@
           {
             "id": "additional:syntax_declaration_composition",
             "title": "syntax_declaration_composition",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "6f88d01be78113767f729565de2933ed824e8a33e4d7a1eaf3b4fd49700560b6",
               "cases": [
                 {
                   "name": "captured_type_constructors_specialize_higher_kinded_slots_under_forall",
@@ -11419,7 +11419,27 @@
                 },
                 {
                   "name": "machine_payload_types_and_transition_handlers_keep_caller_bindings",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "native_syntax_readers_and_errors_keep_the_compile_time_boundary",
+                  "status": "failed"
+                },
+                {
+                  "name": "opaque_type_quotation_renames_owned_uses_without_capturing_source_names",
+                  "status": "failed"
+                },
+                {
+                  "name": "specializing_owned_types_preserves_private_source_types_across_insertions",
+                  "status": "failed"
+                },
+                {
+                  "name": "syntax_name_is_descriptive_and_does_not_acquire_a_private_definition",
+                  "status": "failed"
+                },
+                {
+                  "name": "syntax_sequence_readers_preserve_lexical_captures_and_nested_delimiters",
+                  "status": "failed"
                 }
               ]
             }
@@ -11427,11 +11447,28 @@
           {
             "id": "additional:syntax_effect_declarations",
             "title": "syntax_effect_declarations",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_visible_owned_effect_can_be_selected_by_its_qualified_name",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_operation_cannot_be_handled_by_another_owned_effect",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:syntax_index_evidence",
@@ -15027,10 +15064,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "checks",
         "total": 14,
-        "passed": 2,
+        "passed": 13,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "mixed-link",
+        "status": "waiting-native-harness",
+        "phase": "Wait for the matching class-identity harness",
         "evidence": null
       },
       {
@@ -15160,9 +15197,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay original syntax_declaration_composition target on Stage 3",
+        "phase": "Replay original syntax_effect_declarations target on Stage 3",
         "evidence": null
       },
       {
@@ -15315,8 +15352,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -15531,9 +15568,9 @@
     ],
     "counts": {
       "verified": 311,
-      "blocked": 16,
+      "blocked": 17,
       "running": 4,
-      "pending": 454,
+      "pending": 453,
       "recheck": 21
     },
     "total": 806,
@@ -15542,5 +15579,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:15:35.133343+00:00"
+  "updatedAt": "2026-11-09T11:16:38.603986+00:00"
 }
