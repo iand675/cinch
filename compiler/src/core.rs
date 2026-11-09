@@ -3727,8 +3727,27 @@ pub struct TargetProfile {
     /// The target triple (the identity cross-compilation keys on; the
     /// `when arch <name>` platform predicates match its arch component,
     /// primitive operations and inline target IR specification
-    /// section 13).
+    /// section 13). A real triple, `arch-vendor-os[-abi]`, because a
+    /// package manifest selects modules and link words by operating
+    /// system, architecture, and version (design/base-as-a-package.md
+    /// section 4.1).
     pub triple: String,
+    /// The triple's operating-system component: `darwin`, `linux`, or
+    /// `windows`. Evaluated against the compile TARGET, never the build
+    /// host, so a cross compile cannot pick up the laptop's conditions.
+    pub os: String,
+    /// The triple's architecture component: `aarch64`, `x86_64`, `wasm32`.
+    pub arch: String,
+    /// The C library the target links: `libSystem`, `glibc`, `musl`,
+    /// `none` for a kernel-only or Wasm target. A package condition on
+    /// `libc` distinguishes the Linux splits.
+    pub libc: String,
+    /// The target platform version (`14.0` on Darwin, `6.8` as a kernel
+    /// version on Linux), or `None` when the caller did not state one.
+    /// A manifest condition on `os_version` cannot be evaluated against
+    /// `None`, and the resolver refuses rather than guessing, because a
+    /// host-derived version would make the lock machine-specific.
+    pub os_version: Option<String>,
     /// Pointer and word width in bits (`Usize`/`Isize` width).
     pub word_size: u32,
     /// `"little"` or `"big"`.
@@ -3771,13 +3790,75 @@ pub struct TargetProfile {
     pub reclaim: bool,
 }
 
+/// The build host's `(os, arch, libc)` as last-resort defaults for the
+/// native profile. `os` is the manifest's spelling (`darwin`, `linux`,
+/// `windows`), `arch` is the triple spelling (`arm64`, `x86_64`), and
+/// `libc` names the C library the host links.
+fn host_target_components() -> (&'static str, &'static str, &'static str) {
+    let os = match std::env::consts::OS {
+        "macos" => "darwin",
+        "linux" => "linux",
+        "windows" => "windows",
+        "freebsd" => "freebsd",
+        other => other,
+    };
+    // Kept in the triple spelling (`aarch64`, `x86_64`) so `--target`
+    // compares against a real triple; manifest conditions normalise the
+    // friendly `arm64` to it.
+    let arch = match std::env::consts::ARCH {
+        "x86" => "x86_64",
+        other => other,
+    };
+    let libc = match os {
+        "darwin" => "libSystem",
+        "linux" => "glibc",
+        "windows" => "msvcrt",
+        _ => "none",
+    };
+    (os, arch, libc)
+}
+
+/// The vendor component a triple of this operating system carries.
+fn host_vendor(os: &str) -> &'static str {
+    match os {
+        "darwin" => "apple",
+        "windows" => "pc",
+        _ => "unknown",
+    }
+}
+
+/// The triple's operating-system component for a host OS name.
+fn host_os_component(os: &str) -> String {
+    match os {
+        "darwin" => "darwin".to_string(),
+        "linux" => "linux-gnu".to_string(),
+        "windows" => "windows-msvc".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// The triple's operating-system component for a Wasm artifact shape.
+fn wasm_os(artifact: ArtifactProfile) -> &'static str {
+    match artifact {
+        ArtifactProfile::WasiComponent | ArtifactProfile::Wasi02Compat => "wasi",
+        _ => "unknown",
+    }
+}
+
 impl TargetProfile {
     /// The profile of the build host's own 64-bit target: little endian,
     /// fixed 8-lane 32-bit vectors, the bootstrap's driving defaults.
     pub fn native() -> Self {
+        let (os, arch, libc) = host_target_components();
         TargetProfile {
             name: "native64".to_string(),
-            triple: format!("{}-unknown-unknown", std::env::consts::ARCH),
+            triple: format!("{arch}-{vendor}-{os_family}",
+                vendor = host_vendor(os),
+                os_family = host_os_component(os)),
+            os: os.to_string(),
+            arch: arch.to_string(),
+            libc: libc.to_string(),
+            os_version: None,
             word_size: 64,
             endian: "little".to_string(),
             vector_shape: VectorShape::Fixed(8),
@@ -3813,7 +3894,11 @@ impl TargetProfile {
         }
         TargetProfile {
             name: format!("wasm32-{}", artifact.spelling()),
-            triple: "wasm32-unknown-unknown".to_string(),
+            triple: format!("wasm32-unknown-{}", wasm_os(artifact)),
+            os: wasm_os(artifact).to_string(),
+            arch: "wasm32".to_string(),
+            libc: "none".to_string(),
+            os_version: None,
             word_size: 32,
             endian: "little".to_string(),
             vector_shape: VectorShape::Fixed(4),

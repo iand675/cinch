@@ -30,7 +30,8 @@ const USAGE: &str = "usage:
   cinch pkg add URL --git-rev REV | --git URL --git-rev REV [--project DIR]
   cinch pkg install [--project DIR] [--registry URL] [--token TOKEN] [--locked]
   cinch pkg publish [--registry URL] [--project DIR] [--token TOKEN] [--visibility public|private]
-  cinch pkg verify [--slsa] [--project DIR]";
+  cinch pkg verify [--slsa] [--project DIR]
+  cinch pkg info NAME [--project DIR] [--target TRIPLE] [--target-version VERSION]";
 
 /// What one install produced.
 #[derive(Debug)]
@@ -62,6 +63,7 @@ enum Output {
     InstalledList(Vec<Installed>),
     Published(Published),
     Verified(Verified),
+    Info(String),
 }
 
 /// `cinch pkg ...`.
@@ -75,6 +77,10 @@ pub fn cli(args: &[String]) -> i32 {
             for package in &installed {
                 report(package);
             }
+            0
+        }
+        Ok(Output::Info(text)) => {
+            print!("{text}");
             0
         }
         Ok(Output::Published(published)) => {
@@ -105,6 +111,118 @@ fn report(installed: &Installed) {
     println!("  object: {}", installed.object.display());
     println!("  execution interface: {}", installed.abi.display());
     println!("  interfaces: {}", installed.interfaces.display());
+}
+
+/// `cinch pkg info NAME`: what one installed package resolves to for this
+/// target, before anything is compiled (design/base-as-a-package.md
+/// sections 4.2 and 4.3). It answers the questions a build would
+/// otherwise answer silently: which modules the target selects, which of
+/// them are internal, which prelude the package injects, what the link
+/// plan will add, and whether raw words will need consent.
+fn info(project: &Path, name: &str, facts: &crate::driver::TargetFacts) -> Result<String> {
+    let (namespace, package) = name
+        .split_once('/')
+        .ok_or_else(|| Error::plain(format!("{name}: a package name is namespace/name")))?;
+    let lock = read_lock(project)?;
+    let row = lock
+        .get(name)
+        .ok_or_else(|| Error::plain(format!("{name} is not installed in this project")))?;
+    let version = row
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::plain(format!("{name}: the lock entry has no version")))?;
+    let source_dir = project.join("vendor").join(namespace).join(package).join(version);
+    let manifest_path = source_dir.join(".cinchpkg");
+    let text = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+    let declared = crate::driver::Package::parse(&text)?;
+    let resolved = declared.resolve(facts)?;
+
+    let mut out = String::new();
+    out.push_str(&format!("{} {}\n", resolved.name, resolved.version));
+    out.push_str(&format!("target: {}\n", facts.triple));
+    if let Some(platform) = &facts.os_version {
+        out.push_str(&format!("target version: {platform}\n"));
+    }
+    out.push_str(&format!("schema: {}\n", declared.schema));
+    match &resolved.prelude {
+        crate::driver::PreludeSpec::Default => out.push_str("prelude: default\n"),
+        crate::driver::PreludeSpec::None => out.push_str("prelude: none\n"),
+        crate::driver::PreludeSpec::Module(m) => out.push_str(&format!("prelude: {m}\n")),
+    }
+    out.push_str("modules:\n");
+    for m in &resolved.modules {
+        let exposure = if m.exposed { "" } else { " (internal)" };
+        let facade = if m.facade { " (facade)" } else { "" };
+        out.push_str(&format!("  {}{}{} from {}\n", m.name, exposure, facade, m.path));
+    }
+    if declared.select.is_empty() {
+        out.push_str("select: no conditions\n");
+    } else {
+        out.push_str("select:\n");
+        for (i, entry) in declared.select.iter().enumerate() {
+            let state = if resolved.matched.contains(&i) {
+                "applies"
+            } else {
+                "does not apply"
+            };
+            let mut keys: Vec<String> = Vec::new();
+            if !entry.when.os.is_empty() {
+                keys.push(format!("os={}", entry.when.os.join("|")));
+            }
+            if !entry.when.arch.is_empty() {
+                keys.push(format!("arch={}", entry.when.arch.join("|")));
+            }
+            if !entry.when.libc.is_empty() {
+                keys.push(format!("libc={}", entry.when.libc.join("|")));
+            }
+            if let Some(v) = &entry.when.os_version {
+                keys.push(format!("os_version {v}"));
+            }
+            if !entry.when.target.is_empty() {
+                keys.push(format!("target={}", entry.when.target.join("|")));
+            }
+            if keys.is_empty() {
+                keys.push("always".to_string());
+            }
+            out.push_str(&format!(
+                "  {i}: {} ({}, {} module(s)){}\n",
+                keys.join(", "),
+                state,
+                entry.modules.len(),
+                if entry.link.has_raw() { ", raw link words" } else { "" }
+            ));
+        }
+    }
+    let words = resolved.link.words_for(crate::driver::LinkTier::Semantic, &facts.os);
+    if words.is_empty() && resolved.link.pkgconfig.is_empty() {
+        out.push_str("link: nothing\n");
+    } else {
+        out.push_str(&format!("link: {}\n", words.join(" ")));
+        for pc in &resolved.link.pkgconfig {
+            let min = pc.min.clone().unwrap_or_else(|| "any".to_string());
+            out.push_str(&format!("  pkgconfig {} (min {min})\n", pc.name));
+        }
+        if !resolved.link.pkgconfig.is_empty() {
+            match row.get("native").and_then(|n| n.get("words")) {
+                Some(serde_json::Value::Array(words)) => {
+                    let recorded: Vec<String> = words
+                        .iter()
+                        .filter_map(|w| w.as_str().map(str::to_string))
+                        .collect();
+                    out.push_str(&format!("  recorded at install: {}\n", recorded.join(" ")));
+                }
+                _ => out.push_str("  recorded at install: nothing yet, run `cinch pkg install`\n"),
+            }
+        }
+    }
+    if resolved.link.has_raw() {
+        out.push_str(&format!(
+            "raw link words: {} (the consuming project must consent)\n",
+            resolved.link.raw_ldflags.join(" ")
+        ));
+    }
+    Ok(out)
 }
 
 fn run(args: &[String]) -> Result<Output> {
@@ -155,6 +273,13 @@ fn run(args: &[String]) -> Result<Output> {
                 .ok_or_else(|| Error::plain("publish needs --token or CINCH_REGISTRY_TOKEN"))?;
             let visibility = flags.visibility.as_deref().unwrap_or("public");
             publish(&flags.project, &flags.registry, token, visibility).map(Output::Published)
+        }
+        "info" => {
+            let (flags, positional) = Flags::parse(&args[1..], false)?;
+            let name = positional
+                .ok_or_else(|| Error::plain("cinch pkg info needs a package name"))?;
+            let facts = flags.facts()?;
+            info(&flags.project, &name, &facts).map(Output::Info)
         }
         "verify" => {
             let (flags, _) = Flags::parse(&args[1..], false)?;
@@ -292,9 +417,26 @@ struct Flags {
     git_rev: Option<String>,
     locked: bool,
     slsa: bool,
+    /// `--target <triple>` and `--target-version <version>`: the facts a
+    /// package's `select` conditions resolve against (design section
+    /// 4.1). A build uses the same two flags.
+    target: Option<String>,
+    target_version: Option<String>,
 }
 
 impl Flags {
+    /// The target facts `select` conditions resolve against, from the
+    /// same two flags a build uses. An unusable triple or an empty
+    /// version is refused here rather than inside resolution.
+    fn facts(&self) -> Result<crate::driver::TargetFacts> {
+        let profile = crate::driver::target_profile(&crate::driver::DriverOptions {
+            target: self.target.clone(),
+            target_version: self.target_version.clone(),
+            ..crate::driver::DriverOptions::default()
+        })?;
+        Ok(crate::driver::TargetFacts::of(&profile))
+    }
+
     fn parse(args: &[String], allow_visibility: bool) -> Result<(Flags, Option<String>)> {
         let mut flags = Flags {
             registry: std::env::var("CINCH_REGISTRY").unwrap_or_else(|_| DEFAULT_REGISTRY.into()),
@@ -309,6 +451,8 @@ impl Flags {
             git_rev: None,
             locked: false,
             slsa: false,
+            target: None,
+            target_version: None,
         };
         let mut positional: Option<String> = None;
         let mut i = 0;
@@ -361,6 +505,22 @@ impl Flags {
                     );
                 }
                 "--locked" => flags.locked = true,
+                "--target" => {
+                    i += 1;
+                    flags.target = Some(
+                        args.get(i)
+                            .cloned()
+                            .ok_or_else(|| Error::plain("--target needs a triple"))?,
+                    );
+                }
+                "--target-version" => {
+                    i += 1;
+                    flags.target_version = Some(
+                        args.get(i)
+                            .cloned()
+                            .ok_or_else(|| Error::plain("--target-version needs a version"))?,
+                    );
+                }
                 "--slsa" => flags.slsa = true,
                 "--visibility" if allow_visibility => {
                     i += 1;
@@ -1780,10 +1940,24 @@ fn materialize(
         .map_err(|e| Error::plain(format!("{}: {e}", entry.display())))?;
     let object = source_dir.join("package.o");
     let abi = package_execution_path(&object);
-    let options = DriverOptions {
+    // A package that needs system libraries has its `pkgconfig` entries
+    // resolved here, before the object is built, because the build's link
+    // plan refuses a package whose words are not recorded anywhere
+    // (design/base-as-a-package.md section 4.4). The record lands in the
+    // lock afterwards.
+    let mut options = DriverOptions {
         emit_modules: module_names.clone(),
         ..DriverOptions::default()
     };
+    if let Some(native) = native_record(&source_dir)? {
+        if let Some(words) = native.get("words").and_then(|w| w.as_array()) {
+            let words: Vec<String> = words
+                .iter()
+                .filter_map(|w| w.as_str().map(str::to_string))
+                .collect();
+            options.native_words.insert(name.to_string(), words);
+        }
+    }
     let built = driver_opts(Mode::EmitObject, &entry, Some(&object), &options);
     let _ = std::fs::remove_file(&entry);
     built.map_err(|e| Error::plain(format!("build package object: {e}")))?;
@@ -1909,6 +2083,81 @@ fn verify_identity(
     Ok(())
 }
 
+/// Resolve a package's native requirements once, at install time, and
+/// return what the lock has to record so a later build never consults the
+/// ambient system (design/base-as-a-package.md section 4.4): the target
+/// triple, each `pkgconfig` entry's resolved version and words, and the
+/// semantic link words that do not depend on the host.
+fn native_record(source_dir: &Path) -> Result<Option<serde_json::Value>> {
+    let manifest_path = source_dir.join(".cinchpkg");
+    if !manifest_path.is_file() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+    let package = crate::driver::Package::parse(&text)?;
+    let facts = crate::driver::TargetFacts::of(&crate::core::TargetProfile::native());
+    let resolved = package.resolve(&facts)?;
+    let mut semantic = resolved.link.clone();
+    // The pkgconfig entries must not survive into the recorded semantic
+    // words: their words come from the resolution below, which is the
+    // whole point of recording it.
+    semantic.pkgconfig.clear();
+    let mut pkgconfig: Vec<serde_json::Value> = Vec::new();
+    let mut resolved_words: Vec<String> =
+        semantic.words_for(crate::driver::LinkTier::Semantic, &facts.os);
+    for entry in &resolved.link.pkgconfig {
+        let version = pkg_config(&["--modversion", &entry.name], source_dir)?;
+        if let Some(min) = &entry.min {
+            if !crate::driver::version_matches(version.trim(), &format!(">={min}")) {
+                return Err(Error::plain(format!(
+                    "{}: pkg-config reports {} {}, but the manifest needs at least {min}",
+                    resolved.name, entry.name, version.trim()
+                )));
+            }
+        }
+        let libs = pkg_config(&["--libs", &entry.name], source_dir)?;
+        let cflags = pkg_config(&["--cflags", &entry.name], source_dir)?;
+        for word in libs.split_whitespace() {
+            if !resolved_words.iter().any(|w| w == word) {
+                resolved_words.push(word.to_string());
+            }
+        }
+        pkgconfig.push(serde_json::json!({
+            "name": entry.name,
+            "version": version.trim(),
+            "libs": libs.trim(),
+            "cflags": cflags.trim(),
+        }));
+    }
+    if resolved_words.is_empty() && pkgconfig.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(serde_json::json!({
+        "target": facts.triple,
+        "words": resolved_words,
+        "pkgconfig": pkgconfig,
+    })))
+}
+
+/// One `pkg-config` invocation, with stderr folded into the error so a
+/// missing module reads as the tool's own message.
+fn pkg_config(args: &[&str], dir: &Path) -> Result<String> {
+    let output = std::process::Command::new("pkg-config")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .map_err(|e| Error::plain(format!("pkg-config {}: {e}", args.join(" "))))?;
+    if !output.status.success() {
+        return Err(Error::plain(format!(
+            "pkg-config {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 fn relative_text(project: &Path, path: &Path) -> String {
     path.strip_prefix(project)
         .unwrap_or(path)
@@ -1940,7 +2189,7 @@ fn update_lock(
         .and_then(Value::as_array_mut)
         .ok_or_else(|| Error::plain(".cinchlock has no packages array"))?;
     packages.retain(|row| row.get("name").and_then(Value::as_str) != Some(name));
-    packages.push(json!({
+    let mut row = json!({
         "name": name,
         "version": version,
         "package_id": package_id,
@@ -1948,7 +2197,13 @@ fn update_lock(
         "source_dir": relative_text(project, source_dir),
         "object": relative_text(project, object),
         "interfaces": relative_text(project, interfaces)
-    }));
+    });
+    if let Some(native) = native_record(&source_dir)? {
+        row.as_object_mut()
+            .expect("a lock row is an object")
+            .insert("native".into(), native);
+    }
+    packages.push(row);
     std::fs::write(&path, canonical(&lock)?)
         .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
     Ok(())

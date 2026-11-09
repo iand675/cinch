@@ -37,6 +37,10 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
+  --target <triple>  the target to build for (this compiler's own triple)
+  --target-version <version>  the platform version package conditions see
+  --print-link-plan  report every contribution to the final link
+  --allow-raw-link NAME  consent to one package's raw link words
   --          everything after it is a program argument (run), so an
               argument that looks like a flag can still be passed
 
@@ -216,6 +220,37 @@ fn main() {
                 }
             }
             "--rebuild" => opts.rebuild_store = true,
+            "--print-link-plan" => opts.print_link_plan = true,
+            "--allow-raw-link" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(name) => opts.allow_raw_link.push(name.to_string()),
+                    None => {
+                        eprintln!("cinch: --allow-raw-link needs a package name");
+                        exit(2);
+                    }
+                }
+            }
+            "--target" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(triple) => opts.target = Some(triple.to_string()),
+                    None => {
+                        eprintln!("cinch: --target needs a triple such as aarch64-apple-darwin");
+                        exit(2);
+                    }
+                }
+            }
+            "--target-version" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(version) => opts.target_version = Some(version.to_string()),
+                    None => {
+                        eprintln!("cinch: --target-version needs a version such as 14.0");
+                        exit(2);
+                    }
+                }
+            }
             "--package-object" if matches!(mode, Mode::Build | Mode::Run) => {
                 i += 1;
                 match rest.get(i) {

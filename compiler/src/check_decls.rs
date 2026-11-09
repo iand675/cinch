@@ -16952,10 +16952,22 @@ fn interface_module_order<'a>(
         .into_iter()
         .map(|module| -> Result<_> {
             let mut imports = imports_of(module);
-            if !family_names.contains(module.name.text.as_str())
-                && !imports.iter().any(|name| name == facade)
+            // The injected prelude is a dependency
+            // (design/base-as-a-package.md section 3): the interface has
+            // to record it, or a consumer's closure check rejects a value
+            // whose body came from it. A module's own package decides
+            // which prelude that is; the embedded facade is the default.
+            let injected = checker
+                .module_preludes
+                .get(&module.name.text)
+                .filter(|named| *named != &module.name.text)
+                .cloned()
+                .unwrap_or_else(|| facade.to_string());
+            if !injected.is_empty()
+                && !family_names.contains(module.name.text.as_str())
+                && !imports.iter().any(|name| name == &injected)
             {
-                imports.push(facade.to_string());
+                imports.push(injected);
             }
             // Probe with no prior homes: cyclic/forward instance heads remain
             // explicitly nonportable. Required value, constructor and class
@@ -17064,6 +17076,33 @@ pub fn check_program_multi_diag(
 /// source, decision D145's rule extended to module declarations), which
 /// is what keeps the tests that assemble the shipped module sources
 /// checking unchanged. The facade's own name is reserved.
+/// [`check_program_multi_full`] with per-package preludes
+/// (design/base-as-a-package.md section 3): a module listed in
+/// `module_preludes` sees that module injected instead of the default
+/// facade.
+pub fn check_program_multi_full_with_preludes(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+    module_preludes: &HashMap<String, String>,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
+    let (program, ifaces, report, diags, _) = check_program_multi_full_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        None,
+        None,
+        module_preludes,
+    )?;
+    Ok((program, ifaces, report, diags))
+}
+
 pub fn check_program_multi_full(
     prelude: &[ast::Module],
     modules: &[ast::Module],
@@ -17182,7 +17221,17 @@ pub fn check_program_multi_full_probe(
     Vec<Diagnostic>,
     Option<ProbeResult>,
 )> {
-    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe, None)
+    check_program_multi_full_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        probe,
+        None,
+        &HashMap::new(),
+    )
 }
 
 /// The editor uses the same check and receives the actual binding targets of
@@ -17192,7 +17241,17 @@ pub(crate) fn check_program_multi_full_probe_indexed(
     scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
-    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe, Some(references))
+    check_program_multi_full_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        probe,
+        Some(references),
+        &HashMap::new(),
+    )
 }
 
 /// The number of parameters a type's arrow spine declares: what an
@@ -17254,6 +17313,7 @@ fn check_program_multi_full_prepared_impl(
     profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>,
     reference_sink: Option<&mut Vec<CheckedReference>>,
+    module_preludes: &HashMap<String, String>,
 ) -> Result<(
     PreparedCheck,
     Vec<crate::interface::Iface>,
@@ -17325,7 +17385,9 @@ fn check_program_multi_full_prepared_impl(
         c.stage_mode = scx.mode;
         c.module_files = scx.files.clone();
         c.fold_scx = Some(scx.clone());
+        c.prelude_default = prelude_name.clone();
         c.prelude_module = prelude_name.clone();
+        c.module_preludes = module_preludes.clone();
         Ok(c)
     };
     let user_names: std::collections::HashSet<&str> =
@@ -17604,7 +17666,43 @@ pub(crate) fn check_program_multi_full_prepared(
     probe: Option<&ProbeTerm<'_>>, references: &mut Vec<CheckedReference>,
 ) -> Result<(PreparedCheck, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
     check_program_multi_full_prepared_impl(
-        prelude, modules, source_hashes, scx, wit, profile, probe, Some(references),
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        probe,
+        Some(references),
+        &HashMap::new(),
+    )
+}
+
+/// [`check_program_multi_full_prepared`] with per-package preludes
+/// (design/base-as-a-package.md section 3): a module whose package names
+/// a prelude sees that module injected instead of the default facade.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn check_program_multi_full_prepared_with_preludes(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>,
+    references: &mut Vec<CheckedReference>,
+    module_preludes: &HashMap<String, String>,
+) -> Result<(PreparedCheck, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
+    check_program_multi_full_prepared_impl(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        wit,
+        profile,
+        probe,
+        Some(references),
+        module_preludes,
     )
 }
 
@@ -17613,6 +17711,7 @@ fn check_program_multi_full_impl(
     prelude: &[ast::Module], modules: &[ast::Module], source_hashes: &HashMap<String, String>,
     scx: &StagingCx, wit: &[crate::interface::WitAdapter], profile: &crate::core::TargetProfile,
     probe: Option<&ProbeTerm<'_>>, reference_sink: Option<&mut Vec<CheckedReference>>,
+    module_preludes: &HashMap<String, String>,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>, Option<ProbeResult>)> {
     // The preparation only needs to know whether editor references are
     // requested; the actual references travel back inside the prepared
@@ -17620,7 +17719,7 @@ fn check_program_multi_full_impl(
     let mut editor_refs = Vec::new();
     let editor_sink = reference_sink.is_some().then_some(&mut editor_refs);
     let (prepared, ifaces, mut report, diags, probe_out) = check_program_multi_full_prepared_impl(
-        prelude, modules, source_hashes, scx, wit, profile, probe, editor_sink,
+        prelude, modules, source_hashes, scx, wit, profile, probe, editor_sink, module_preludes,
     )?;
     // `finish` consumes the checker; the preparation captured the safety
     // records and checked references that the final program needs.
@@ -18301,6 +18400,16 @@ impl Checker {
     /// generators; ordinary collection keeps them out).
     fn build_scope(&mut self, module: &str, include_stage: bool) {
         self.current_module = module.to_string();
+        // The module's own package decides its prelude
+        // (design/base-as-a-package.md section 3): an explicit setting in
+        // that package's manifest wins over the compilation default.
+        self.prelude_module = match self.module_preludes.get(module) {
+            // A prelude does not import itself, and it is written against
+            // the default prelude so an author does not lose `+` and
+            // friends while defining one.
+            Some(named) if named != module => named.clone(),
+            _ => self.prelude_default.clone(),
+        };
         let mut views: Vec<ImportView> = Vec::new();
         if let Some(vs) = self.module_views.get(module).cloned() {
             for v in vs {
@@ -18310,7 +18419,7 @@ impl Checker {
                 views.push(v);
             }
         }
-        if self.prelude_module != module {
+        if self.prelude_module != module && !self.prelude_module.is_empty() {
             views.push(ImportView {
                 target: self.prelude_module.clone(),
                 alias: self.prelude_module.clone(),
@@ -18338,7 +18447,15 @@ impl Checker {
     /// an error naming both sources (renaming is the fix).
     fn finish_module_surface(&mut self, module: &str) -> Result<()> {
         // Import hygiene: each import's bare contribution, by local name.
-        let mut seen: Vec<(String, String)> = Vec::new();
+        // Each imported local name, the module it came through, and the
+        // declaration it finally names. Two paths to one declaration are
+        // one name (a re-export reached twice, or a prelude that
+        // re-exports what a module also imports); two different
+        // declarations under one local name are the error. The origin is
+        // resolved only when a duplicate turns up, because resolving it
+        // for every imported name costs a scan of the instance tables and
+        // the bootstrap program has thousands of them.
+        let mut seen: Vec<(String, String, Option<crate::check::SurfaceName>)> = Vec::new();
         for v in self.module_views.get(module).cloned().unwrap_or_default() {
             if v.applied {
                 continue;
@@ -18367,13 +18484,59 @@ impl Checker {
                     .unwrap_or_else(|| self.declared_names(&v.target)),
             };
             for n in names {
-                if let Some((_, prev_target)) = seen.iter().find(|(l, _)| *l == n).cloned() {
-                    return Err(Error::plain(format!(
-                        "the name `{n}` is imported from both {prev_target} and {}: rename one (a selection like `import {} ({n} as ...)`)",
-                        v.target, v.target
-                    )));
+                let origin = || {
+                    self.surface_def(&v.target, &n).unwrap_or_else(|| {
+                        // A name with no surface entry yet (a generated
+                        // header, or a module still collecting) keeps the
+                        // old conservative rule.
+                        crate::check::SurfaceName {
+                            module: v.target.clone(),
+                            name: n.clone(),
+                        }
+                    })
+                };
+                if let Some((_, prev_target, prev_origin)) =
+                    seen.iter().find(|(l, _, _)| *l == n).cloned()
+                {
+                    let origin = origin();
+                    // The previous side is resolved now too: its path and
+                    // its declaring module differ only for a re-export,
+                    // and the message prints both only when they do.
+                    let prev_origin = prev_origin.unwrap_or_else(|| {
+                        self.surface_def(&prev_target, &n).unwrap_or_else(|| {
+                            crate::check::SurfaceName {
+                                module: prev_target.clone(),
+                                name: n.clone(),
+                            }
+                        })
+                    });
+                    let same_declaration = prev_origin == origin;
+                    if !same_declaration {
+                        // The path is the useful name; the origin is
+                        // added only when it differs, so a plain
+                        // two-module conflict reads as it always has and a
+                        // re-export conflict says where each name really
+                        // comes from.
+                        let side = |path: &str, origin: &crate::check::SurfaceName| {
+                            if origin.module == path {
+                                path.to_string()
+                            } else {
+                                format!("{path} ({})", origin.module)
+                            }
+                        };
+                        return Err(Error::plain(format!(
+                            "the name `{n}` is imported from both {} and {}: \
+                             rename one (a selection like `import {} ({n} as ...)`)",
+                            side(&prev_target, &prev_origin),
+                            side(&v.target, &origin),
+                            v.target
+                        )));
+                    }
+                    // Same declaration through two paths: one name, no
+                    // ambiguity (design/base-as-a-package.md section 3).
+                    continue;
                 }
-                seen.push((n, v.target.clone()));
+                seen.push((n, v.target.clone(), None));
             }
         }
         // The export surface (empty items: the declared names, as before).

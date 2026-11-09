@@ -2965,9 +2965,18 @@ struct Checker {
     perf: EffRow,
     /// Fresh-name counter for memo regions.
     region_counter: Cell<usize>,
-    /// The prelude module, home of `List`, `Cons` and `Nil` for list
-    /// literal and list pattern desugaring.
+    /// The current module's prelude: the module imported implicitly, home
+    /// of `List`, `Cons` and `Nil` for list literal and list pattern
+    /// desugaring (design/base-as-a-package.md section 3). `build_scope`
+    /// refreshes it from `module_preludes` for the module being checked.
     prelude_module: String,
+    /// The prelude a module sees when its own package set none: the
+    /// embedded facade today, `cinch/base`'s facade after the cut.
+    prelude_default: String,
+    /// Per-package preludes: a module whose package names a prelude gets
+    /// that module injected instead of the default. Empty means every
+    /// module sees the default.
+    module_preludes: std::collections::HashMap<String, String>,
     /// Tuple constructor code generation units already synthesized, by
     /// arity.
     /// Integer literals awaiting type determination, in creation order.
@@ -3678,6 +3687,8 @@ impl Checker {
             perf: EffRow::pure(),
             region_counter: Cell::new(0),
             prelude_module: String::new(),
+            prelude_default: String::new(),
+            module_preludes: std::collections::HashMap::new(),
             literal_pends: Vec::new(),
             literal_folds: Vec::new(),
             fold_scx: None,

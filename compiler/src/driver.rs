@@ -266,6 +266,12 @@ pub struct PackageModule {
     pub name: String,
     pub path: String,
     pub facade: bool,
+    /// Whether another package may import this module
+    /// (design/base-as-a-package.md section 4.2). A module without the
+    /// flag is compiled as part of its package and is invisible to
+    /// consumers; a manifest that predates the field means every module it
+    /// lists is exposed.
+    pub exposed: bool,
 }
 
 /// Every embedded family module's `(name, source hash)`, so a produced
@@ -291,8 +297,30 @@ pub fn family_source_hashes() -> Vec<(String, String)> {
 pub struct Package {
     pub name: String,
     pub version: String,
+    /// The manifest's schema number: 1 for a fixed module list, 2 when
+    /// the manifest carries `select` conditions, a `prelude` setting, or
+    /// a `link` block.
+    pub schema: u64,
     pub modules: Vec<PackageModule>,
     pub order: Vec<String>,
+    /// The package's prelude setting (design/base-as-a-package.md
+    /// section 3): the compiler's default, no prelude, or a named module
+    /// injected as an implicit import into every module of this package.
+    pub prelude: PreludeSpec,
+    /// Conditional entries: modules and link words that apply only when a
+    /// condition on the target holds (sections 4.1 and 4.2).
+    pub select: Vec<SelectEntry>,
+    /// Link requirements that apply on every target.
+    pub link: LinkSpec,
+    /// The packages whose raw link words this project consents to
+    /// (design/base-as-a-package.md section 4.3). Only a root project's
+    /// list is consulted, so a transitive dependency cannot smuggle raw
+    /// words in behind a package the consumer trusted.
+    pub raw_link: Vec<String>,
+    /// Machine-specific link words: project configuration, never package
+    /// metadata. Applied last, excluded from the lock, and recorded in
+    /// the build so a reproducibility check can refuse the artifact.
+    pub local_link: LinkSpec,
     /// The manifest bytes' content hash, recorded by [`Package::parse`].
     /// The package store keys on it (see `crate::store::package_key`), so
     /// an edit to the manifest that changes the module set, the paths or
@@ -318,37 +346,83 @@ impl Package {
         let version = str_of(field("version")?, "version")?;
         let mut modules: Vec<PackageModule> = Vec::new();
         for m in field("modules")?.as_array().map_err(wrap)? {
-            let o = m.as_object().map_err(wrap)?;
-            let name = match o.get("name").map(|v| v.as_str()) {
-                Some(Ok(s)) => s.to_string(),
-                _ => {
-                    return Err(Error::plain(
-                        "package manifest: a module entry needs `name`",
-                    ))
-                }
-            };
-            let path = match o.get("path").map(|v| v.as_str()) {
-                Some(Ok(s)) => s.to_string(),
-                _ => {
-                    return Err(Error::plain(
-                        "package manifest: a module entry needs `path`",
-                    ))
-                }
-            };
-            // `embedded` is recorded for a reader's benefit; the source
-            // table is what decides whether a path has bytes.
-            let facade = matches!(o.get("facade"), Some(JsonValue::Bool(true)));
-            modules.push(PackageModule { name, path, facade });
+            modules.push(parse_module(m)?);
         }
         let mut order: Vec<String> = Vec::new();
         for n in field("order")?.as_array().map_err(wrap)? {
             order.push(str_of(n, "an order entry")?);
         }
+        let schema = match obj.get("schema") {
+            None => 1,
+            Some(v) => v.as_num().unwrap_or(1),
+        };
+        let prelude = match obj.get("prelude") {
+            None => PreludeSpec::Default,
+            Some(v) => match v.as_str() {
+                Ok("none") => PreludeSpec::None,
+                Ok("default") => PreludeSpec::Default,
+                Ok(name) if !name.is_empty() => PreludeSpec::Module(name.to_string()),
+                _ => {
+                    return Err(Error::plain(
+                        "package manifest: `prelude` takes a module name, `default`, or `none`",
+                    ))
+                }
+            },
+        };
+        let link = match obj.get("link") {
+            None => LinkSpec::default(),
+            Some(v) => LinkSpec::parse(v)?,
+        };
+        let mut raw_link: Vec<String> = Vec::new();
+        if let Some(v) = obj.get("raw_link") {
+            for item in v.as_array().map_err(wrap)? {
+                raw_link.push(str_of(item, "a raw_link entry")?);
+            }
+        }
+        let local_link = match obj.get("local_link") {
+            None => LinkSpec::default(),
+            Some(v) => LinkSpec::parse(v)?,
+        };
+        let mut select: Vec<SelectEntry> = Vec::new();
+        match obj.get("select") {
+            None => {}
+            Some(v) => {
+                for (i, entry) in v.as_array().map_err(wrap)?.iter().enumerate() {
+                    let o = entry.as_object().map_err(wrap)?;
+                    let when = match o.get("when") {
+                        None => When::default(),
+                        Some(w) => When::parse(w)?,
+                    };
+                    let mut mods: Vec<PackageModule> = Vec::new();
+                    if let Some(ms) = o.get("modules") {
+                        for m in ms.as_array().map_err(wrap)? {
+                            mods.push(parse_module(m)?);
+                        }
+                    }
+                    let link = match o.get("link") {
+                        None => LinkSpec::default(),
+                        Some(v) => LinkSpec::parse(v)?,
+                    };
+                    if mods.is_empty() && link.is_empty() {
+                        return Err(Error::plain(format!(
+                            "package manifest: `select` entry {i} changes nothing (no modules, no link words)"
+                        )));
+                    }
+                    select.push(SelectEntry { when, modules: mods, link });
+                }
+            }
+        }
         Ok(Package {
             name,
             version,
+            schema,
             modules,
             order,
+            prelude,
+            select,
+            link,
+            raw_link,
+            local_link,
             manifest_hash: crate::interface::content_hash(text),
         })
     }
@@ -389,6 +463,550 @@ impl Package {
     /// Every module name, in check order.
     pub fn module_names(&self) -> Vec<String> {
         self.order.clone()
+    }
+}
+
+/// A package's prelude setting (design/base-as-a-package.md section 3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PreludeSpec {
+    /// No `prelude` field: the compiler's built-in prelude, which is the
+    /// embedded facade today and `cinch/base`'s facade after the cut.
+    Default,
+    /// `"prelude": "none"`: nothing is injected. The preregistered type
+    /// names remain in scope, because a signature needs them.
+    None,
+    /// `"prelude": "Some.Module"`: that module is imported implicitly at
+    /// the top of every module in this package.
+    Module(String),
+}
+
+/// A condition on the target (section 4.1). Inside one `When`, keys are
+/// ANDed; a list value is ORed; a missing key matches anything.
+#[derive(Debug, Clone, Default)]
+pub struct When {
+    pub os: Vec<String>,
+    pub arch: Vec<String>,
+    pub os_version: Option<String>,
+    pub libc: Vec<String>,
+    pub compiler: Option<String>,
+    pub runtime_abi: Option<String>,
+    pub target: Vec<String>,
+}
+
+/// The facts a condition is evaluated against: the compile TARGET, never
+/// the build host.
+#[derive(Debug, Clone)]
+pub struct TargetFacts {
+    pub triple: String,
+    pub os: String,
+    pub arch: String,
+    pub libc: String,
+    /// `None` when the caller stated no platform version. A condition on
+    /// `os_version` then refuses instead of guessing, because a
+    /// host-derived version makes the lock machine-specific.
+    pub os_version: Option<String>,
+    pub compiler: String,
+    pub runtime_abi: String,
+}
+
+impl TargetFacts {
+    /// The facts of a target profile, with the compiler's own version and
+    /// runtime ABI.
+    pub fn of(profile: &crate::core::TargetProfile) -> TargetFacts {
+        TargetFacts {
+            triple: profile.triple.clone(),
+            os: profile.os.clone(),
+            arch: profile.arch.clone(),
+            libc: profile.libc.clone(),
+            os_version: profile.os_version.clone(),
+            compiler: env!("CARGO_PKG_VERSION").to_string(),
+            runtime_abi: crate::interface::RUNTIME_ABI_VERSION.to_string(),
+        }
+    }
+}
+
+/// One `select` entry: the modules and link words that apply when
+/// `when` holds.
+#[derive(Debug, Clone)]
+pub struct SelectEntry {
+    pub when: When,
+    pub modules: Vec<PackageModule>,
+    pub link: LinkSpec,
+}
+
+/// One `pkgconfig` requirement: the module name and an optional minimum
+/// version. Resolution runs `pkg-config` once at install time and the
+/// resolved words are recorded in the lock.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PkgConfigReq {
+    pub name: String,
+    pub min: Option<String>,
+}
+
+/// What a package needs from the final link, in semantic fields
+/// (section 4.3) plus the raw escape hatch.
+#[derive(Debug, Clone, Default)]
+pub struct LinkSpec {
+    pub libs: Vec<String>,
+    pub frameworks: Vec<String>,
+    pub rpaths: Vec<String>,
+    pub libdirs: Vec<String>,
+    pub dll_dirs: Vec<String>,
+    pub soname: Option<String>,
+    pub whole_archive: Vec<String>,
+    pub import_libs: Vec<String>,
+    pub system_libs: Vec<String>,
+    pub pkgconfig: Vec<PkgConfigReq>,
+    /// The escape hatch: words recorded verbatim, refused unless the
+    /// consuming root consents, and reported by `cinch pkg verify`.
+    pub raw_ldflags: Vec<String>,
+    pub raw_cflags: Vec<String>,
+}
+
+/// A package resolved for one target: the module list the compiler
+/// builds, the link requirements that apply, and the prelude setting.
+#[derive(Debug, Clone)]
+pub struct ResolvedPackage {
+    pub name: String,
+    pub version: String,
+    pub modules: Vec<PackageModule>,
+    pub order: Vec<String>,
+    pub link: LinkSpec,
+    pub prelude: PreludeSpec,
+    /// The indices of the `select` entries that applied, so a report can
+    /// name what the target chose.
+    pub matched: Vec<usize>,
+}
+
+impl LinkSpec {
+    /// Parse a `link` object. Unknown keys are refused: a typo in a link
+    /// field would otherwise silently drop a requirement.
+    pub fn parse(v: &crate::interface::JsonValue) -> Result<LinkSpec> {
+        let wrap = |e: crate::interface::ParseError| Error::plain(format!("package manifest: link: {e}"));
+        let obj = v.as_object().map_err(wrap)?;
+        let mut none = LinkSpec::default();
+        let mut strings = |key: &str| -> Result<Vec<String>> {
+            match obj.get(key) {
+                None => Ok(Vec::new()),
+                Some(v) => {
+                    let mut out = Vec::new();
+                    for item in v.as_array().map_err(wrap)? {
+                        out.push(str_of(item, key)?);
+                    }
+                    Ok(out)
+                }
+            }
+        };
+        none.libs = strings("libs")?;
+        none.frameworks = strings("frameworks")?;
+        none.rpaths = strings("rpaths")?;
+        none.libdirs = strings("libdirs")?;
+        none.dll_dirs = strings("dll_dirs")?;
+        none.whole_archive = strings("whole_archive")?;
+        none.import_libs = strings("import_libs")?;
+        none.system_libs = strings("system_libs")?;
+        none.soname = match obj.get("soname") {
+            None => None,
+            Some(v) => Some(str_of(v, "soname")?),
+        };
+        if let Some(pc) = obj.get("pkgconfig") {
+            for entry in pc.as_array().map_err(wrap)? {
+                let o = entry.as_object().map_err(wrap)?;
+                let name = match o.get("name") {
+                    Some(v) => str_of(v, "a pkgconfig entry needs `name`")?,
+                    None => {
+                        return Err(Error::plain(
+                            "package manifest: a pkgconfig entry needs `name`",
+                        ))
+                    }
+                };
+                let min = match o.get("min") {
+                    None => None,
+                    Some(v) => Some(str_of(v, "pkgconfig min")?),
+                };
+                none.pkgconfig.push(PkgConfigReq { name, min });
+            }
+        }
+        if let Some(raw) = obj.get("raw") {
+            let raw = raw.as_object().map_err(wrap)?;
+            for (key, slot) in [
+                ("ldflags", &mut none.raw_ldflags),
+                ("cflags", &mut none.raw_cflags),
+            ] {
+                if let Some(v) = raw.get(key) {
+                    for item in v.as_array().map_err(wrap)? {
+                        slot.push(str_of(item, key)?);
+                    }
+                }
+            }
+            for key in raw.keys() {
+                if key != "ldflags" && key != "cflags" {
+                    return Err(Error::plain(format!(
+                        "package manifest: link.raw: unknown key `{key}` (allowed: ldflags, cflags)"
+                    )));
+                }
+            }
+        }
+        for key in obj.keys() {
+            if !matches!(
+                key.as_str(),
+                "libs"
+                    | "frameworks"
+                    | "rpaths"
+                    | "libdirs"
+                    | "dll_dirs"
+                    | "soname"
+                    | "whole_archive"
+                    | "import_libs"
+                    | "system_libs"
+                    | "pkgconfig"
+                    | "raw"
+            ) {
+                return Err(Error::plain(format!(
+                    "package manifest: link: unknown key `{key}` (allowed: libs, frameworks, rpaths, \
+                     libdirs, dll_dirs, soname, whole_archive, import_libs, system_libs, pkgconfig, raw)"
+                )));
+            }
+        }
+        Ok(none)
+    }
+
+    /// Whether this contribution is empty in every tier.
+    pub fn is_empty(&self) -> bool {
+        self.libs.is_empty()
+            && self.frameworks.is_empty()
+            && self.rpaths.is_empty()
+            && self.libdirs.is_empty()
+            && self.dll_dirs.is_empty()
+            && self.soname.is_none()
+            && self.whole_archive.is_empty()
+            && self.import_libs.is_empty()
+            && self.system_libs.is_empty()
+            && self.pkgconfig.is_empty()
+            && self.raw_ldflags.is_empty()
+            && self.raw_cflags.is_empty()
+    }
+
+    /// Union another contribution into this one, keeping order and
+    /// dropping exact duplicates so a base entry plus a version override
+    /// does not link the same library twice.
+    pub fn merge(&mut self, other: &LinkSpec) {
+        fn add(dst: &mut Vec<String>, src: &[String]) {
+            for s in src {
+                if !dst.contains(s) {
+                    dst.push(s.clone());
+                }
+            }
+        }
+        add(&mut self.libs, &other.libs);
+        add(&mut self.frameworks, &other.frameworks);
+        add(&mut self.rpaths, &other.rpaths);
+        add(&mut self.libdirs, &other.libdirs);
+        add(&mut self.dll_dirs, &other.dll_dirs);
+        add(&mut self.whole_archive, &other.whole_archive);
+        add(&mut self.import_libs, &other.import_libs);
+        add(&mut self.system_libs, &other.system_libs);
+        add(&mut self.raw_ldflags, &other.raw_ldflags);
+        add(&mut self.raw_cflags, &other.raw_cflags);
+        for pc in &other.pkgconfig {
+            if !self.pkgconfig.contains(pc) {
+                self.pkgconfig.push(pc.clone());
+            }
+        }
+        if self.soname.is_none() {
+            self.soname = other.soname.clone();
+        }
+    }
+
+    /// Whether any contribution is the raw escape hatch.
+    pub fn has_raw(&self) -> bool {
+        !self.raw_ldflags.is_empty() || !self.raw_cflags.is_empty()
+    }
+}
+
+impl When {
+    /// Parse a `when` object. An unknown key is an error: a misspelled
+    /// condition would otherwise match everything and silently select a
+    /// platform branch.
+    pub fn parse(v: &crate::interface::JsonValue) -> Result<When> {
+        let wrap = |e: crate::interface::ParseError| Error::plain(format!("package manifest: when: {e}"));
+        let obj = v.as_object().map_err(wrap)?;
+        let mut when = When::default();
+        for (key, value) in obj {
+            let mut list = |value: &crate::interface::JsonValue| -> Result<Vec<String>> {
+                match value.as_str() {
+                    Ok(s) => Ok(vec![s.to_string()]),
+                    Err(_) => {
+                        let mut out = Vec::new();
+                        for item in value.as_array().map_err(wrap)? {
+                            out.push(str_of(item, key)?);
+                        }
+                        Ok(out)
+                    }
+                }
+            };
+            match key.as_str() {
+                "os" => when.os = list(value)?,
+                "arch" => when.arch = list(value)?,
+                "libc" => when.libc = list(value)?,
+                "target" => when.target = list(value)?,
+                "os_version" => when.os_version = Some(str_of(value, "os_version")?),
+                "compiler" => when.compiler = Some(str_of(value, "compiler")?),
+                "runtime_abi" => when.runtime_abi = Some(str_of(value, "runtime_abi")?),
+                other => {
+                    return Err(Error::plain(format!(
+                        "package manifest: when: unknown condition `{other}` (allowed: os, arch, \
+                         os_version, libc, compiler, runtime_abi, target)"
+                    )))
+                }
+            }
+        }
+        Ok(when)
+    }
+
+    /// Whether this condition holds for `facts`. `os_version` refuses when
+    /// the target states no version rather than guessing.
+    pub fn matches(&self, facts: &TargetFacts, pkg: &str) -> Result<bool> {
+        fn any_of(list: &[String], value: &str, normalise: fn(&str) -> String) -> bool {
+            list.is_empty() || list.iter().any(|v| normalise(v) == normalise(value))
+        }
+        if !any_of(&self.os, &facts.os, normalise_os) {
+            return Ok(false);
+        }
+        if !any_of(&self.arch, &facts.arch, normalise_arch) {
+            return Ok(false);
+        }
+        if !any_of(&self.libc, &facts.libc, |s| s.to_ascii_lowercase()) {
+            return Ok(false);
+        }
+        if !self.target.is_empty()
+            && !self
+                .target
+                .iter()
+                .any(|t| normalise_arch(t) == normalise_arch(&facts.triple))
+        {
+            return Ok(false);
+        }
+        if let Some(want) = &self.runtime_abi {
+            if want != &facts.runtime_abi {
+                return Ok(false);
+            }
+        }
+        if let Some(want) = &self.compiler {
+            if !version_matches(&facts.compiler, want) {
+                return Ok(false);
+            }
+        }
+        if let Some(want) = &self.os_version {
+            let Some(have) = facts.os_version.as_deref() else {
+                return Err(Error::plain(format!(
+                    "{pkg}: the manifest selects on `os_version {want}`, and the target states no \
+                     platform version; pass --target-version (for example --target-version 14.0)"
+                )));
+            };
+            if !version_matches(have, want) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// `darwin` is the manifest's spelling; a caller may write `macos`.
+fn normalise_os(s: &str) -> String {
+    match s.to_ascii_lowercase().as_str() {
+        "macos" | "osx" | "darwin" => "darwin".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// A triple writes `aarch64`, a manifest may write `arm64`.
+fn normalise_arch(s: &str) -> String {
+    match s.to_ascii_lowercase().as_str() {
+        "arm64" | "aarch64" => "aarch64".to_string(),
+        "amd64" | "x86_64" | "x64" => "x86_64".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Compare a dotted version against a constraint such as `>=14.0`,
+/// `=13.4`, `<12`, or a bare `14.0` (exact).
+pub fn version_matches(have: &str, want: &str) -> bool {
+    let want = want.trim();
+    let (op, rest) = if let Some(r) = want.strip_prefix(">=") {
+        (">=", r)
+    } else if let Some(r) = want.strip_prefix("<=") {
+        ("<=", r)
+    } else if let Some(r) = want.strip_prefix("==") {
+        ("=", r)
+    } else if let Some(r) = want.strip_prefix('>') {
+        (">", r)
+    } else if let Some(r) = want.strip_prefix('<') {
+        ("<", r)
+    } else if let Some(r) = want.strip_prefix('=') {
+        ("=", r)
+    } else {
+        ("=", want)
+    };
+    let order = compare_versions(have, rest.trim());
+    match op {
+        ">=" => order != std::cmp::Ordering::Less,
+        ">" => order == std::cmp::Ordering::Greater,
+        "<=" => order != std::cmp::Ordering::Greater,
+        "<" => order == std::cmp::Ordering::Less,
+        _ => order == std::cmp::Ordering::Equal,
+    }
+}
+
+/// Numeric segment comparison of two dotted versions, so `14.10` is
+/// greater than `14.9` (a string compare gets that wrong).
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    let mut left = a.split(['.', '-', '+']);
+    let mut right = b.split(['.', '-', '+']);
+    loop {
+        match (left.next(), right.next()) {
+            (None, None) => return std::cmp::Ordering::Equal,
+            (None, Some(r)) => {
+                return if r.parse::<u64>().unwrap_or(0) == 0 {
+                    std::cmp::Ordering::Equal
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            }
+            (Some(l), None) => {
+                return if l.parse::<u64>().unwrap_or(0) == 0 {
+                    std::cmp::Ordering::Equal
+                } else {
+                    std::cmp::Ordering::Greater
+                }
+            }
+            (Some(l), Some(r)) => {
+                let (Ok(l), Ok(r)) = (l.parse::<u64>(), r.parse::<u64>()) else {
+                    return l.cmp(r);
+                };
+                match l.cmp(&r) {
+                    std::cmp::Ordering::Equal => continue,
+                    other => return other,
+                }
+            }
+        }
+    }
+}
+
+/// One module entry of a manifest, shared by the unconditional list and
+/// the `select` entries.
+fn parse_module(m: &crate::interface::JsonValue) -> Result<PackageModule> {
+    let wrap = |e: crate::interface::ParseError| Error::plain(format!("package manifest: {e}"));
+    let o = m.as_object().map_err(wrap)?;
+    let name = match o.get("name") {
+        Some(v) => str_of(v, "a module entry needs `name`")?,
+        None => return Err(Error::plain("package manifest: a module entry needs `name`")),
+    };
+    let path = match o.get("path") {
+        Some(v) => str_of(v, "a module entry needs `path`")?,
+        None => return Err(Error::plain("package manifest: a module entry needs `path`")),
+    };
+    // `embedded` is recorded for a reader's benefit; the source table is
+    // what decides whether a path has bytes.
+    let facade = matches!(o.get("facade"), Some(crate::interface::JsonValue::Bool(true)));
+    let exposed = match o.get("exposed") {
+        None => true,
+        Some(v) => v
+            .as_bool()
+            .map_err(|_| Error::plain("package manifest: `exposed` takes true or false"))?,
+    };
+    for key in o.keys() {
+        if !matches!(key.as_str(), "name" | "path" | "embedded" | "facade" | "exposed") {
+            return Err(Error::plain(format!(
+                "package manifest: unknown module key `{key}` (allowed: name, path, embedded, facade, exposed)"
+            )));
+        }
+    }
+    Ok(PackageModule {
+        name,
+        path,
+        facade,
+        exposed,
+    })
+}
+
+impl Package {
+    /// Resolve this package for one target: the module list the compiler
+    /// builds, the link requirements that apply, and the prelude setting
+    /// (design/base-as-a-package.md sections 4.1 to 4.4).
+    pub fn resolve(&self, facts: &TargetFacts) -> Result<ResolvedPackage> {
+        let mut modules = self.modules.clone();
+        let mut link = self.link.clone();
+        let mut matched: Vec<usize> = Vec::new();
+        for (i, entry) in self.select.iter().enumerate() {
+            if !entry.when.matches(facts, &self.name)? {
+                continue;
+            }
+            matched.push(i);
+            for m in &entry.modules {
+                match modules.iter().find(|existing| existing.name == m.name) {
+                    None => modules.push(m.clone()),
+                    Some(existing) if existing.path == m.path => {
+                        // The same module named twice with one path is
+                        // additive, so a base set plus an override works.
+                    }
+                    Some(existing) => {
+                        return Err(Error::plain(format!(
+                            "{}: module `{}` is selected twice with different paths (`{}` and `{}`) \
+                             for target {}",
+                            self.name, m.name, existing.path, m.path, facts.triple
+                        )))
+                    }
+                }
+            }
+            link.merge(&entry.link);
+        }
+        // The check order: the manifest's own order, filtered to what the
+        // target resolved, with any newly selected module appended in
+        // manifest order. An order entry that the target did not resolve
+        // is a manifest error, because it means the two lists disagree.
+        let mut order: Vec<String> = Vec::new();
+        for name in &self.order {
+            match modules.iter().find(|m| &m.name == name) {
+                Some(_) => order.push(name.clone()),
+                None => {
+                    return Err(Error::plain(format!(
+                        "{}: `order` names `{name}`, which the target {} does not resolve",
+                        self.name, facts.triple
+                    )))
+                }
+            }
+        }
+        for m in &modules {
+            if !order.contains(&m.name) {
+                order.push(m.name.clone());
+            }
+        }
+        Ok(ResolvedPackage {
+            name: self.name.clone(),
+            version: self.version.clone(),
+            modules,
+            order,
+            link,
+            prelude: self.prelude.clone(),
+            matched,
+        })
+    }
+}
+
+impl ResolvedPackage {
+    /// The module names another package may import.
+    pub fn exposed_names(&self) -> Vec<String> {
+        self.modules
+            .iter()
+            .filter(|m| m.exposed)
+            .map(|m| m.name.clone())
+            .collect()
+    }
+
+    /// Whether a module is part of the resolution at all.
+    pub fn owns(&self, module: &str) -> bool {
+        self.modules.iter().any(|m| m.name == module)
     }
 }
 
@@ -650,6 +1268,18 @@ pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
 struct Project {
     /// Module name to the file declaring it (a file may declare several).
     module_file: HashMap<String, PathBuf>,
+    /// Every resolved package the project contains: the root project's
+    /// own `.cinchpkg` and each vendored dependency, resolved for the
+    /// target (design/base-as-a-package.md sections 4.1 to 4.4).
+    packages: Vec<(PathBuf, Package, ResolvedPackage)>,
+    /// Module to the package that declares it. A module outside every
+    /// manifest has no owner, which keeps single-file projects working.
+    owner: HashMap<String, String>,
+    /// Modules another package may import (section 4.2).
+    exposed: HashMap<String, bool>,
+    /// Per-package preludes: a module whose package names one sees that
+    /// module injected instead of the default facade (section 3).
+    module_preludes: HashMap<String, String>,
     /// File to source text.
     sources: HashMap<String, String>,
     /// Module to its import names.
@@ -699,12 +1329,386 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
     Ok(index)
 }
 
+/// One contribution to the final link, tagged with where it came from so
+/// a report can name it (design/base-as-a-package.md section 4.3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkEntry {
+    /// The package that asked for it, or `project-local` for an override.
+    pub origin: String,
+    pub tier: LinkTier,
+    /// The words this contribution adds, in order.
+    pub words: Vec<String>,
+}
+
+/// Which tier of section 4.3 a contribution belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkTier {
+    /// A semantic field: validated, ordered, and reported per package.
+    Semantic,
+    /// The escape hatch: recorded verbatim, refused without consent.
+    Raw,
+    /// Machine-local configuration: applied last, never locked.
+    Local,
+}
+
+/// The final link's arguments, built from the resolved package closure
+/// plus the root project's consent list and local overrides.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkPlan {
+    pub entries: Vec<LinkEntry>,
+    /// Whether any local override took part, which the build records so a
+    /// reproducibility check can refuse the artifact.
+    pub local: bool,
+}
+
+impl LinkPlan {
+    /// Build the plan for a closure. Raw words are refused unless the
+    /// root project consented to that package by name, and the words that
+    /// change what the binary *is* are refused even then: a package that
+    /// needs those needs a different mechanism.
+    pub fn build(
+        packages: &[(PathBuf, ResolvedPackage)],
+        consent: &[String],
+        local: &LinkSpec,
+        lock_native: &std::collections::BTreeMap<String, Vec<String>>,
+        facts: &TargetFacts,
+    ) -> Result<LinkPlan> {
+        let mut plan = LinkPlan::default();
+        for (_, package) in packages {
+            // A field that belongs to one platform's linker is a manifest
+            // bug on another: `-framework` is ld64's and `-soname` is
+            // GNU ld's, and silently dropping either would link without
+            // what the package asked for.
+            if !package.link.frameworks.is_empty() && facts.os != "darwin" {
+                return Err(Error::plain(format!(
+                    "{}: asks for the framework(s) {}, and frameworks belong to the Darwin \
+                     linker; select that entry on `os: [\"darwin\"]`",
+                    package.name,
+                    package.link.frameworks.join(", ")
+                )));
+            }
+            if package.link.soname.is_some() && facts.os != "linux" {
+                return Err(Error::plain(format!(
+                    "{}: asks for soname {}, which belongs to the GNU linker; select that \
+                     entry on `os: [\"linux\"]`",
+                    package.name,
+                    package.link.soname.as_deref().unwrap_or("")
+                )));
+            }
+            // A package that asked for a system library through
+            // pkg-config gets its words from the lock, resolved once at
+            // install time, so a build never re-reads the ambient system
+            // (section 4.4). A missing record is a refusal, not a silent
+            // link without the library.
+            if !package.link.pkgconfig.is_empty() {
+                match lock_native.get(&package.name) {
+                    Some(words) => plan.entries.push(LinkEntry {
+                        origin: package.name.clone(),
+                        tier: LinkTier::Semantic,
+                        words: words.clone(),
+                    }),
+                    None => {
+                        return Err(Error::plain(format!(
+                            "{} needs native libraries recorded in .cinchlock ({}), and this \
+                             project has no record for it; run `cinch pkg install`",
+                            package.name,
+                            package
+                                .link
+                                .pkgconfig
+                                .iter()
+                                .map(|p| p.name.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )))
+                    }
+                }
+            }
+            let mut semantic = package.link.words_for(LinkTier::Semantic, &facts.os);
+            semantic.retain(|w| !w.is_empty());
+            if !semantic.is_empty() {
+                plan.entries.push(LinkEntry {
+                    origin: package.name.clone(),
+                    tier: LinkTier::Semantic,
+                    words: semantic,
+                });
+            }
+            if package.link.has_raw() {
+                if let Some(bad) = package.link.forbidden_raw().first() {
+                    return Err(Error::plain(format!(
+                        "{}: raw link word `{bad}` is refused even with consent; \
+                         it changes what the produced binary is, not how a library is found",
+                        package.name
+                    )));
+                }
+                if !consent.iter().any(|c| c == &package.name) {
+                    return Err(Error::plain(format!(
+                        "{}: the manifest asks for raw link words ({}); this project has not \
+                         consented. Add \"raw_link\": [\"{}\"] to the root .cinchpkg, or pass \
+                         --allow-raw-link {}",
+                        package.name,
+                        package.link.raw_ldflags.join(" "),
+                        package.name,
+                        package.name
+                    )));
+                }
+                let mut words = package.link.words_for(LinkTier::Raw, &facts.os);
+                words.retain(|w| !w.is_empty());
+                if !words.is_empty() {
+                    plan.entries.push(LinkEntry {
+                        origin: package.name.clone(),
+                        tier: LinkTier::Raw,
+                        words,
+                    });
+                }
+            }
+        }
+        let local_words = local.words_for(LinkTier::Local, &facts.os);
+        if !local_words.is_empty() {
+            plan.local = true;
+            plan.entries.push(LinkEntry {
+                origin: "project-local".to_string(),
+                tier: LinkTier::Local,
+                words: local_words,
+            });
+        }
+        Ok(plan)
+    }
+
+    /// The words the linker receives, in dependency order.
+    pub fn words(&self) -> Vec<String> {
+        self.entries.iter().flat_map(|e| e.words.clone()).collect()
+    }
+
+    /// One line per contribution, for `--print-link-plan` and the build
+    /// log: the origin, the tier, and the words.
+    pub fn describe(&self) -> String {
+        let mut out = String::new();
+        if self.entries.is_empty() {
+            out.push_str("link plan: no package asked for anything\n");
+            return out;
+        }
+        for entry in &self.entries {
+            let tier = match entry.tier {
+                LinkTier::Semantic => "semantic",
+                LinkTier::Raw => "raw",
+                LinkTier::Local => "local",
+            };
+            out.push_str(&format!(
+                "link plan: {:<12} {:<24} {}\n",
+                tier,
+                entry.origin,
+                entry.words.join(" ")
+            ));
+        }
+        out
+    }
+
+    /// The packages that contributed raw words, for the build record.
+    pub fn raw_origins(&self) -> Vec<String> {
+        self.entries
+            .iter()
+            .filter(|e| e.tier == LinkTier::Raw)
+            .map(|e| e.origin.clone())
+            .collect()
+    }
+}
+
+impl LinkSpec {
+    /// The linker words this spec contributes at one tier. `Semantic`
+    /// turns the fields into clang arguments; `Local` passes raw words
+    /// through; `Raw` is the escape hatch, whose consent gate lives in
+    /// [`LinkPlan::build`]. `os` is the compile target's operating
+    /// system, because `-framework` and `-soname` belong to one linker
+    /// each.
+    pub fn words_for(&self, tier: LinkTier, os: &str) -> Vec<String> {
+        let mut words: Vec<String> = Vec::new();
+        match tier {
+            LinkTier::Semantic => {
+                for dir in &self.libdirs {
+                    words.push(format!("-L{dir}"));
+                }
+                for path in &self.rpaths {
+                    words.push(format!("-Wl,-rpath,{path}"));
+                }
+                if let Some(soname) = &self.soname {
+                    if os == "linux" {
+                        words.push(format!("-Wl,-soname,{soname}"));
+                    }
+                }
+                for lib in self.libs.iter().chain(&self.system_libs).chain(&self.import_libs) {
+                    words.push(format!("-l{lib}"));
+                }
+                if os == "darwin" {
+                    for framework in &self.frameworks {
+                        words.push("-framework".to_string());
+                        words.push(framework.clone());
+                    }
+                }
+                for lib in &self.whole_archive {
+                    words.push("-Wl,-whole-archive".to_string());
+                    words.push(format!("-l{lib}"));
+                    words.push("-Wl,-no-whole-archive".to_string());
+                }
+            }
+            LinkTier::Raw => {
+                words.extend(self.raw_ldflags.iter().cloned());
+            }
+            LinkTier::Local => {
+                for dir in &self.libdirs {
+                    words.push(format!("-L{dir}"));
+                }
+                words.extend(self.raw_ldflags.iter().cloned());
+            }
+        }
+        words
+    }
+
+    /// Raw words that are refused even under consent, because they change
+    /// what the produced binary is rather than how a library is found.
+    pub fn forbidden_raw(&self) -> Vec<String> {
+        self.raw_ldflags
+            .iter()
+            .filter(|word| {
+                let w = word.as_str();
+                w.starts_with("-Wl,--script")
+                    || w.starts_with("--script")
+                    || w == "-nostdlib"
+                    || w == "-nostartfiles"
+                    || w.starts_with("-Wl,-e")
+                    || w == "-Xlinker"
+                    || w.starts_with('@')
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+/// The native words each locked package recorded at install time
+/// (`.cinchlock`'s `native.words`), so a build links exactly what the
+/// install resolved instead of re-reading the ambient system.
+fn lock_native_words(
+    project_dir: &Path,
+) -> std::collections::BTreeMap<String, Vec<String>> {
+    let mut out = std::collections::BTreeMap::new();
+    let text = match std::fs::read_to_string(project_dir.join(".cinchlock")) {
+        Ok(text) => text,
+        Err(_) => return out,
+    };
+    let Ok(lock) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return out;
+    };
+    let Some(rows) = lock.get("packages").and_then(|p| p.as_array()) else {
+        return out;
+    };
+    for row in rows {
+        let Some(name) = row.get("name").and_then(|n| n.as_str()) else {
+            continue;
+        };
+        let Some(words) = row
+            .get("native")
+            .and_then(|n| n.get("words"))
+            .and_then(|w| w.as_array())
+        else {
+            continue;
+        };
+        out.insert(
+            name.to_string(),
+            words
+                .iter()
+                .filter_map(|w| w.as_str().map(str::to_string))
+                .collect(),
+        );
+    }
+    out
+}
+
+/// Every package manifest a project contains: the project's own
+/// `.cinchpkg`, then each vendored dependency's. A manifest that sits
+/// under `vendor/` is a dependency; anything else is the project.
+fn discover_manifests(dir: &Path) -> Result<Vec<(PathBuf, String)>> {
+    let mut found: Vec<(PathBuf, String)> = Vec::new();
+    let root = dir.join(".cinchpkg");
+    if root.is_file() {
+        let text = std::fs::read_to_string(&root)
+            .map_err(|e| Error::plain(format!("{}: {e}", root.display())))?;
+        found.push((dir.to_path_buf(), text));
+    }
+    let vendor = dir.join("vendor");
+    if vendor.is_dir() {
+        let mut stack = vec![vendor];
+        while let Some(current) = stack.pop() {
+            let entries = match std::fs::read_dir(&current) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.file_name().and_then(|n| n.to_str()) == Some(".cinchpkg") {
+                    let text = std::fs::read_to_string(&path)
+                        .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+                    let package_dir = path
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| current.clone());
+                    found.push((package_dir, text));
+                }
+            }
+        }
+    }
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(found)
+}
+
+/// Resolve every package in a project for one target, and refuse two
+/// packages that claim one module name (the duplicate-module rule the
+/// registry also enforces).
+fn resolve_project_packages(
+    dir: &Path,
+    facts: &TargetFacts,
+) -> Result<Vec<(PathBuf, Package, ResolvedPackage)>> {
+    let mut resolved: Vec<(PathBuf, Package, ResolvedPackage)> = Vec::new();
+    for (package_dir, text) in discover_manifests(dir)? {
+        let pkg = Package::parse(&text).map_err(|e| {
+            Error::plain(format!("{}: {e}", package_dir.join(".cinchpkg").display()))
+        })?;
+        let package = pkg.resolve(facts).map_err(|e| {
+            Error::plain(format!("{}: {e}", package_dir.join(".cinchpkg").display()))
+        })?;
+        for m in &package.modules {
+            if let Some((other_dir, _, other)) = resolved
+                .iter()
+                .find(|(_, _, r)| r.owns(&m.name))
+            {
+                return Err(Error::plain(format!(
+                    "module {} is declared by both package {} ({}) and package {} ({})",
+                    m.name,
+                    other.name,
+                    other_dir.display(),
+                    package.name,
+                    package_dir.display()
+                )));
+            }
+        }
+        resolved.push((package_dir, pkg, package));
+    }
+    Ok(resolved)
+}
+
 /// Load the entry file and every module it imports, transitively. A source
 /// file may declare any number of modules (the staging slice supersedes the
 /// one-module-per-file rule); `import X` resolves to a module of an already
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
+    load_project_for(entry_path, &TargetFacts::of(&crate::core::TargetProfile::native()))
+}
+
+/// [`load_project`] with the compile target's facts, so a package's
+/// `select` conditions resolve against the target being built rather than
+/// the host.
+fn load_project_for(entry_path: &Path, facts: &TargetFacts) -> Result<Project> {
     let dir = entry_path
         .parent()
         .map(|p| p.to_path_buf())
@@ -715,6 +1719,51 @@ fn load_project(entry_path: &Path) -> Result<Project> {
     let mut entry_modules: Vec<String> = Vec::new();
     let mut queue: Vec<PathBuf> = vec![entry_path.to_path_buf()];
     let dir_index = index_dir_modules(&dir)?;
+    // Packages: the root project's manifest plus every vendored
+    // dependency, resolved for this target (design/base-as-a-package.md
+    // sections 2 and 4). A project with no manifest resolves none, which
+    // keeps single-file programs and the test fixtures unchanged.
+    let packages = resolve_project_packages(&dir, facts)?;
+    let mut owner: HashMap<String, String> = HashMap::new();
+    let mut exposed: HashMap<String, bool> = HashMap::new();
+    let mut module_preludes: HashMap<String, String> = HashMap::new();
+    for (package_dir, _declared, package) in &packages {
+        for m in &package.modules {
+            owner.insert(m.name.clone(), package.name.clone());
+            exposed.insert(m.name.clone(), m.exposed);
+        }
+        if let PreludeSpec::Module(prelude) = &package.prelude {
+            // The injected module has to exist somewhere in the closure:
+            // a package naming a prelude nobody declares would otherwise
+            // fail much later as an unknown name in every module of the
+            // package.
+            let declared_here = package.modules.iter().any(|m| &m.name == prelude);
+            if !declared_here {
+                let elsewhere = packages
+                    .iter()
+                    .any(|(_, _, other)| other.owns(prelude));
+                if !elsewhere {
+                    return Err(Error::plain(format!(
+                        "{}: the manifest names prelude `{prelude}`, and no package in this \
+                         project declares that module",
+                        package.name
+                    )));
+                }
+            }
+            for m in &package.modules {
+                module_preludes.insert(m.name.clone(), prelude.clone());
+            }
+            // The injected module has to be part of the compilation: a
+            // prelude the target resolves but nothing imports would
+            // otherwise never load.
+            if let Some(m) = package.modules.iter().find(|m| &m.name == prelude) {
+                let path = package_dir.join(&m.path);
+                if path.exists() {
+                    queue.push(path);
+                }
+            }
+        }
+    }
     while let Some(path) = queue.pop() {
         let key = path.display().to_string();
         if sources.contains_key(&key) {
@@ -746,8 +1795,24 @@ fn load_project(entry_path: &Path) -> Result<Project> {
         }
         sources.insert(key, src);
         let prelude_names = prelude_module_names();
-        for (_, imps) in &scanned.modules {
+        for (owner_module, imps) in &scanned.modules {
             for (imp, _stage) in imps {
+                // A module another package owns is importable only when
+                // that package exposed it (section 4.2): an internal
+                // module is compiled as part of its package and is not
+                // part of the surface.
+                if let (Some(declarer), Some(package_is_exposed)) =
+                    (owner.get(imp), exposed.get(imp))
+                {
+                    let importer_package = owner.get(owner_module);
+                    let crosses = importer_package != Some(declarer);
+                    if crosses && !*package_is_exposed {
+                        return Err(Error::plain(format!(
+                            "module {imp} is declared by package {declarer} and is not exposed; \
+                             the package's internal module cannot be imported from {owner_module}"
+                        )));
+                    }
+                }
                 if module_file.contains_key(imp) {
                     continue;
                 }
@@ -791,6 +1856,21 @@ fn load_project(entry_path: &Path) -> Result<Project> {
             }
         }
     }
+    // The injected prelude is a real dependency (design/base-as-a-package.md
+    // section 3): it belongs in the module's import set, so the check
+    // order and the interface closure see it. Without the edge a module
+    // would name things it never imported and the coherence check would
+    // reject the result.
+    for (module, prelude) in &module_preludes {
+        if module == prelude {
+            continue;
+        }
+        if let Some(list) = imports.get_mut(module) {
+            if !list.iter().any(|i| i == prelude) {
+                list.push(prelude.clone());
+            }
+        }
+    }
     // Keep dependency order within a file too: its first module may
     // import one declared later in the same file. Entry membership is
     // recorded separately and must not undo the graph's ordering.
@@ -818,6 +1898,10 @@ fn load_project(entry_path: &Path) -> Result<Project> {
         imports,
         entry_modules,
         order,
+        packages,
+        owner,
+        exposed,
+        module_preludes,
     })
 }
 
@@ -900,6 +1984,7 @@ fn write_artifacts(
     profile: &crate::core::TargetProfile,
     wit: &[crate::interface::WitAdapter],
     opts: &DriverOptions,
+    link_plan: &LinkPlan,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -1025,6 +2110,22 @@ fn write_artifacts(
     });
     let target = J::obj([
         ("profile", (&profile.name).into()),
+        // The target the artifact was built for, recorded because a
+        // package manifest's conditions resolve against it
+        // (design/base-as-a-package.md section 4.1) and a consumer has to
+        // be able to read which target an artifact answers for.
+        ("triple", profile.triple.as_str().into()),
+        ("os", profile.os.as_str().into()),
+        ("arch", profile.arch.as_str().into()),
+        ("libc", profile.libc.as_str().into()),
+        (
+            "os_version",
+            profile
+                .os_version
+                .as_deref()
+                .map(J::from)
+                .unwrap_or(J::Null),
+        ),
         ("word_size", profile.word_size.into()),
         ("endian", (&profile.endian).into()),
         (
@@ -1341,6 +2442,17 @@ fn write_artifacts(
         ("trust", trust),
         ("lowering", lowering),
         ("staging", staging),
+        (
+            "link",
+            J::obj([
+                ("local", link_plan.local.into()),
+                (
+                    "raw",
+                    J::arr(&link_plan.raw_origins(), |origin| origin.as_str().into()),
+                ),
+                ("words", J::arr(&link_plan.words(), |word| word.as_str().into())),
+            ]),
+        ),
     ]);
     std::fs::write(manifest_path, doc.to_canonical_string())
         .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
@@ -1832,13 +2944,13 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
 }
 
 fn link(ir_path: &Path, out: &Path) -> Result<()> {
-    link_with(ir_path, out, &[])
+    link_with(ir_path, out, &[], &LinkPlan::default())
 }
 
 /// [`link`] with extra objects (the C fixtures of the foreign binding
 /// tests; foreign function interface specification section 7: the linker
 /// checks the compatible symbols).
-fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
+fn link_with(ir_path: &Path, out: &Path, objects: &[&str], plan: &LinkPlan) -> Result<()> {
     let runtime = ensure_runtime()?;
     // Shared, so a concurrent rebuild of the archive waits for this link
     // instead of truncating the file under clang.
@@ -1849,6 +2961,9 @@ fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
         cmd.arg(o);
     }
     cmd.arg(&runtime).arg("-o").arg(out);
+    for word in plan.words() {
+        cmd.arg(word);
+    }
     // Rust staticlibs need the usual system libraries on Linux.
     if cfg!(target_os = "linux") {
         cmd.args(["-ldl", "-lpthread", "-lm"]);
@@ -1917,6 +3032,27 @@ pub struct DriverOptions {
     /// `crate::store`), so this is the explicit way to force a rewrite,
     /// and the escape for an entry a consumer reported as corrupt.
     pub rebuild_store: bool,
+    /// Native words the caller has already resolved for a package it is
+    /// installing: merged over the lock's `native` records, so a package
+    /// whose `pkgconfig` entries were just resolved can be built before
+    /// its lock row exists. Only `cinch pkg` sets it.
+    pub native_words: std::collections::BTreeMap<String, Vec<String>>,
+    /// `--print-link-plan`: report every contribution to the final link
+    /// with the package that asked for it (design/base-as-a-package.md
+    /// section 4.3).
+    pub print_link_plan: bool,
+    /// `--allow-raw-link NAME`: consent to one package's raw link words
+    /// for this build, the flag form of the root manifest's `raw_link`.
+    pub allow_raw_link: Vec<String>,
+    /// `--target <triple>`: the target to build for. Only the host's own
+    /// triple is accepted today; anything else is refused with the reason
+    /// instead of silently producing a host binary under a foreign name.
+    pub target: Option<String>,
+    /// `--target-version <version>`: the target platform version a
+    /// package's `os_version` conditions are evaluated against. It is an
+    /// explicit parameter rather than the host's version, because a
+    /// host-derived value makes the lock machine-specific.
+    pub target_version: Option<String>,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -1956,14 +3092,34 @@ pub fn driver_opts(
     out: Option<&Path>,
     opts: &DriverOptions,
 ) -> Result<i32> {
-    driver_with_profile_opts(
-        mode,
-        stage_mode_from_env(),
-        path,
-        out,
-        &crate::core::TargetProfile::native(),
-        opts,
-    )
+    let profile = target_profile(opts)?;
+    driver_with_profile_opts(mode, stage_mode_from_env(), path, out, &profile, opts)
+}
+
+/// The target profile a caller asked for: the host's own target with an
+/// optional explicit platform version. `--target` is accepted only for
+/// the host triple, because a cross compile needs a runtime built for the
+/// target and a sysroot, and pretending otherwise would produce a host
+/// binary under a foreign name.
+pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile> {
+    let mut profile = crate::core::TargetProfile::native();
+    if let Some(requested) = &opts.target {
+        let host = profile.triple.clone();
+        if *requested != host {
+            return Err(Error::plain(format!(
+                "target `{requested}` is not this compiler's host target `{host}`; \
+                 cross compilation needs a runtime built for the target and is not implemented"
+            )));
+        }
+    }
+    if let Some(version) = &opts.target_version {
+        if version.trim().is_empty() {
+            return Err(Error::plain("--target-version needs a version such as 14.0"));
+        }
+        profile.os_version = Some(version.trim().to_string());
+        profile.name = format!("{}-os{}", profile.name, profile.os_version.as_deref().unwrap_or("-"));
+    }
+    Ok(profile)
 }
 
 /// [`driver`] with an explicit compile-time I/O mode (modules
@@ -2143,7 +3299,49 @@ pub fn driver_with_profile_opts(
         return Err(Error::plain("package objects require build or run mode"));
     }
     let mut emit_modules = opts.emit_modules.clone();
-    let project = load_project(path)?;
+    let project = load_project_for(path, &TargetFacts::of(profile))?;
+    // The final link is built from the closure, not from a string: every
+    // contribution is tagged with the package that asked for it, raw
+    // words need the root project's consent, and machine-local overrides
+    // are applied last and recorded (section 4.3).
+    let root_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let root_manifest = project
+        .packages
+        .iter()
+        .find(|(dir, _, _)| dir == &root_dir)
+        .map(|(_, declared, _)| declared);
+    let mut consent: Vec<String> = root_manifest
+        .map(|declared| declared.raw_link.clone())
+        .unwrap_or_default();
+    for name in &opts.allow_raw_link {
+        if !consent.contains(name) {
+            consent.push(name.clone());
+        }
+    }
+    let local_link = root_manifest
+        .map(|declared| declared.local_link.clone())
+        .unwrap_or_default();
+    let resolved_packages: Vec<(PathBuf, ResolvedPackage)> = project
+        .packages
+        .iter()
+        .map(|(dir, _, resolved)| (dir.clone(), resolved.clone()))
+        .collect();
+    let link_plan = LinkPlan::build(
+        &resolved_packages,
+        &consent,
+        &local_link,
+        &{
+            let mut words = lock_native_words(&root_dir);
+            for (name, resolved) in &opts.native_words {
+                words.insert(name.clone(), resolved.clone());
+            }
+            words
+        },
+        &TargetFacts::of(profile),
+    )?;
+    if opts.print_link_plan {
+        eprint!("{}", link_plan.describe());
+    }
     if !opts.package_objects.is_empty() {
         let mut excluded = Vec::new();
         for object in &opts.package_objects {
@@ -2228,13 +3426,14 @@ pub fn driver_with_profile_opts(
         entry_modules: project.entry_modules.clone(),
         schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
     };
-    let (program, ifaces, report, _diags) = check::check_program_multi_full(
+    let (program, ifaces, report, _diags) = check::check_program_multi_full_with_preludes(
         &prelude.modules,
         &modules,
         &hashes,
         &scx,
         &adapters,
         profile,
+        &project.module_preludes,
     )?;
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
@@ -2259,6 +3458,7 @@ pub fn driver_with_profile_opts(
         profile,
         &adapters,
         opts,
+        &link_plan,
     )?;
     if mode == Mode::Check {
         return Ok(0);
@@ -2309,7 +3509,7 @@ pub fn driver_with_profile_opts(
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             let objects = object_paths(&opts.package_objects);
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
-            link_with(&ir_path, &out, &refs)?;
+            link_with(&ir_path, &out, &refs, &link_plan)?;
             Ok(0)
         }
         Mode::Run => {
@@ -2320,7 +3520,7 @@ pub fn driver_with_profile_opts(
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             let objects = object_paths(&opts.package_objects);
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
-            link_with(&ir_path, &exe, &refs)?;
+            link_with(&ir_path, &exe, &refs, &link_plan)?;
             // The program's own command line (the CLI's forwarded
             // words): the entry glue captures them, so the built
             // program reads them with `process-args`.
@@ -2493,7 +3693,7 @@ pub fn run_program_objects(
     let exe = tmp.join("program");
     std::fs::write(&ir_path, ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    link_with(&ir_path, &exe, objects)?;
+    link_with(&ir_path, &exe, objects, &LinkPlan::default())?;
     let status = std::process::Command::new(&exe)
         .status()
         .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
@@ -2573,7 +3773,7 @@ pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<(
     let ir_path = out.with_extension("ll");
     std::fs::write(&ir_path, &ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    link_with(&ir_path, out, objects)
+    link_with(&ir_path, out, objects, &LinkPlan::default())
 }
 
 /// Compile and run a source string with the runtime's input source fed
@@ -2598,7 +3798,7 @@ pub fn run_program_io(
     let exe = tmp.join("program");
     std::fs::write(&ir_path, ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    link_with(&ir_path, &exe, &[])?;
+    link_with(&ir_path, &exe, &[], &LinkPlan::default())?;
     use std::io::Write;
     let mut child = std::process::Command::new(&exe)
         .stdin(std::process::Stdio::piped())

@@ -1099,6 +1099,7 @@ impl Session {
             // flag is the driver's. A store entry that disagrees with the
             // session's interfaces is still a hard error here.
             &crate::driver::DriverOptions::default(),
+                    &crate::driver::LinkPlan::default(),
         )?;
         report.chain_ok = self.chain_ok();
 

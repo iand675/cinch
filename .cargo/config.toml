@@ -1,0 +1,8 @@
+# The checker recurses over a module graph, and a few suites (the base
+# family end-to-end check is the loudest) need more than the 2 MiB stack
+# libtest gives a test thread by default. The default overflowed on a
+# cold build and looks like a crash rather than a depth limit, so the
+# suite runs each test with the same reserve the driver's own program
+# thread gets.
+[env]
+RUST_MIN_STACK = "33554432"

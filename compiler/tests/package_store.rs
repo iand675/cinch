@@ -86,20 +86,29 @@ fn sample_package() -> Package {
                 name: "Alpha".to_string(),
                 path: "Alpha.cinch".to_string(),
                 facade: false,
+                exposed: true,
             },
             PackageModule {
                 name: "Beta".to_string(),
                 path: "Beta.cinch".to_string(),
                 facade: false,
+                exposed: true,
             },
             PackageModule {
                 name: "Facade".to_string(),
                 path: "Facade.cinch".to_string(),
                 facade: true,
+                exposed: true,
             },
         ],
         order: vec!["Alpha".to_string(), "Beta".to_string(), "Facade".to_string()],
         manifest_hash: content_hash(SAMPLE_MANIFEST),
+        schema: 1,
+        prelude: cinch::driver::PreludeSpec::Default,
+        select: Vec::new(),
+        link: cinch::driver::LinkSpec::default(),
+        raw_link: Vec::new(),
+        local_link: cinch::driver::LinkSpec::default(),
     }
 }
 
@@ -192,6 +201,7 @@ fn the_package_key_is_stable_and_covers_its_inputs() {
         name: "Gamma".to_string(),
         path: "Gamma.cinch".to_string(),
         facade: false,
+        exposed: true,
     });
     p.order.push("Gamma".to_string());
     variants.push(("the module set", package_key_for(&p, &srcs, &profile, &[])));

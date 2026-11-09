@@ -147,3 +147,237 @@ fn the_family_still_checks_with_the_manifest_order() {
         "the embedded manifest is the canonical JSON document itself"
     );
 }
+
+// ---------------------------------------------------------------------
+// Schema 2: select conditions, exposed modules, the prelude setting, and
+// the semantic / raw link tiers (design/base-as-a-package.md 4.1 to 4.4).
+// ---------------------------------------------------------------------
+
+use cinch::driver::{
+    version_matches, LinkSpec, Package, PreludeSpec, TargetFacts,
+};
+
+fn facts(os: &str, arch: &str) -> TargetFacts {
+    TargetFacts {
+        triple: format!("{arch}-unknown-{os}"),
+        os: os.to_string(),
+        arch: arch.to_string(),
+        libc: if os == "darwin" { "libSystem" } else { "glibc" }.to_string(),
+        os_version: None,
+        compiler: env!("CARGO_PKG_VERSION").to_string(),
+        runtime_abi: cinch::interface::RUNTIME_ABI_VERSION.to_string(),
+    }
+}
+
+const SCHEMA2: &str = r#"{
+  "schema": 2,
+  "name": "acme/watch",
+  "version": "0.1.0",
+  "prelude": "Acme.Prelude",
+  "modules": [
+    { "name": "Watch", "path": "Watch.cinch" }
+  ],
+  "order": ["Watch"],
+  "link": { "libs": ["base-lib"], "pkgconfig": [ { "name": "gio", "min": "2.70" } ] },
+  "select": [
+    {
+      "when": { "os": ["darwin"] },
+      "modules": [
+        { "name": "Watch.Kqueue", "path": "darwin/kqueue.cinch" },
+        { "name": "Watch.Kevent", "path": "darwin/kevent.cinch", "exposed": true }
+      ],
+      "link": { "frameworks": ["CoreServices"] }
+    },
+    {
+      "when": { "os": ["linux"], "libc": ["glibc"] },
+      "modules": [ { "name": "Watch.Inotify", "path": "linux/inotify.cinch", "exposed": false } ],
+      "link": { "raw": { "ldflags": ["-Wl,--as-needed"] } }
+    }
+  ]
+}"#;
+
+#[test]
+fn schema_two_parses_its_fields() {
+    let pkg = Package::parse(SCHEMA2).expect("schema 2 parses");
+    assert_eq!(pkg.schema, 2);
+    assert_eq!(pkg.prelude, PreludeSpec::Module("Acme.Prelude".to_string()));
+    assert_eq!(pkg.select.len(), 2);
+    assert_eq!(pkg.link.libs, vec!["base-lib".to_string()]);
+    assert_eq!(pkg.link.pkgconfig[0].name, "gio");
+    assert_eq!(pkg.link.pkgconfig[0].min.as_deref(), Some("2.70"));
+    assert!(pkg.modules[0].exposed, "a module without the flag is exposed");
+    assert!(!pkg.select[1].modules[0].exposed);
+}
+
+#[test]
+fn resolve_selects_one_platform_and_keeps_the_rest_out() {
+    let pkg = Package::parse(SCHEMA2).expect("parses");
+    let darwin = pkg.resolve(&facts("darwin", "aarch64")).expect("darwin resolves");
+    assert!(darwin.owns("Watch.Kevent"));
+    assert!(!darwin.owns("Watch.Inotify"), "the linux branch does not apply");
+    assert_eq!(darwin.matched, vec![0]);
+    assert!(darwin.link.frameworks.contains(&"CoreServices".to_string()));
+    assert!(!darwin.link.has_raw());
+    assert_eq!(darwin.exposed_names(), vec![
+        "Watch".to_string(),
+        "Watch.Kqueue".to_string(),
+        "Watch.Kevent".to_string(),
+    ]);
+
+    let linux = pkg.resolve(&facts("linux", "x86_64")).expect("linux resolves");
+    assert!(linux.owns("Watch.Inotify"));
+    assert!(!linux.owns("Watch.Kevent"));
+    assert!(linux.link.has_raw(), "the linux branch carries raw words");
+    assert_eq!(linux.exposed_names(), vec!["Watch".to_string()], "Inotify is internal");
+}
+
+#[test]
+fn the_order_grows_with_the_selected_modules() {
+    let pkg = Package::parse(SCHEMA2).expect("parses");
+    let darwin = pkg.resolve(&facts("darwin", "aarch64")).expect("resolves");
+    assert_eq!(darwin.order, vec![
+        "Watch".to_string(),
+        "Watch.Kqueue".to_string(),
+        "Watch.Kevent".to_string(),
+    ]);
+}
+
+#[test]
+fn an_order_entry_the_target_drops_is_an_error() {
+    let text = r#"{
+      "schema": 2,
+      "name": "acme/oops",
+      "version": "0.1.0",
+      "modules": [ { "name": "Keep", "path": "Keep.cinch", "exposed": false } ],
+      "order": ["Keep"],
+      "select": [ { "when": { "os": ["darwin"] }, "modules": [] } ]
+    }"#;
+    // An entry with neither modules nor link words is refused outright.
+    let err = Package::parse(text).expect_err("an empty select entry is a manifest bug");
+    assert!(format!("{err}").contains("changes nothing"), "{err}");
+}
+
+#[test]
+fn arch_spellings_are_normalised() {
+    let pkg = Package::parse(SCHEMA2).expect("parses");
+    // The manifest writes `arm64`, the triple writes `aarch64`.
+    let arm = pkg.resolve(&facts("darwin", "arm64")).expect("arm64 resolves");
+    assert!(arm.owns("Watch.Kevent"), "arm64 matches the darwin branch");
+}
+
+#[test]
+fn an_os_version_condition_refuses_without_a_target_version() {
+    let text = r#"{
+      "schema": 2,
+      "name": "acme/ver",
+      "version": "0.1.0",
+      "modules": [ { "name": "V", "path": "V.cinch" } ],
+      "order": ["V"],
+      "select": [ { "when": { "os_version": ">=15.0" }, "link": { "libs": ["extra"] } } ]
+    }"#;
+    let pkg = Package::parse(text).expect("parses");
+    let err = pkg
+        .resolve(&facts("darwin", "aarch64"))
+        .expect_err("no version means no guess");
+    assert!(format!("{err}").contains("--target-version"), "{err}");
+
+    let mut with_version = facts("darwin", "aarch64");
+    with_version.os_version = Some("15.2".to_string());
+    let resolved = pkg.resolve(&with_version).expect("15.2 satisfies >=15.0");
+    assert!(resolved.link.libs.contains(&"extra".to_string()));
+}
+
+#[test]
+fn version_comparison_is_numeric_not_lexicographic() {
+    assert!(version_matches("14.10", ">14.9"), "14.10 is greater than 14.9");
+    assert!(version_matches("14.0", ">=14"));
+    assert!(version_matches("14.0", "=14.0"));
+    assert!(version_matches("14.0", "14.0"));
+    assert!(!version_matches("13.9", ">=14"));
+    assert!(version_matches("12", "<13"));
+}
+
+#[test]
+fn duplicate_module_paths_across_entries_are_refused() {
+    let text = r#"{
+      "schema": 2,
+      "name": "acme/dup",
+      "version": "0.1.0",
+      "modules": [ { "name": "M", "path": "one.cinch" } ],
+      "order": ["M"],
+      "select": [ { "when": {}, "modules": [ { "name": "M", "path": "two.cinch" } ] } ]
+    }"#;
+    let pkg = Package::parse(text).expect("parses");
+    let err = pkg.resolve(&facts("darwin", "aarch64")).expect_err("two paths, one name");
+    assert!(format!("{err}").contains("different paths"), "{err}");
+}
+
+#[test]
+fn the_same_module_path_twice_is_additive() {
+    let text = r#"{
+      "schema": 2,
+      "name": "acme/add",
+      "version": "0.1.0",
+      "modules": [ { "name": "M", "path": "one.cinch" } ],
+      "order": ["M"],
+      "select": [ { "when": {}, "modules": [ { "name": "M", "path": "one.cinch" } ],
+                    "link": { "libs": ["only-once"] } } ]
+    }"#;
+    let pkg = Package::parse(text).expect("parses");
+    let resolved = pkg.resolve(&facts("darwin", "aarch64")).expect("additive");
+    assert_eq!(resolved.modules.len(), 1);
+    assert_eq!(resolved.link.libs, vec!["only-once".to_string()]);
+}
+
+#[test]
+fn unknown_condition_and_link_keys_are_refused() {
+    let bad_when = r#"{
+      "schema": 2, "name": "a/b", "version": "0.1.0",
+      "modules": [ { "name": "M", "path": "M.cinch" } ], "order": ["M"],
+      "select": [ { "when": { "ostype": ["darwin"] }, "link": { "libs": ["x"] } } ]
+    }"#;
+    let err = Package::parse(bad_when).expect_err("a misspelled condition key");
+    assert!(format!("{err}").contains("unknown condition"), "{err}");
+
+    let bad_link = r#"{
+      "schema": 2, "name": "a/b", "version": "0.1.0",
+      "modules": [ { "name": "M", "path": "M.cinch" } ], "order": ["M"],
+      "link": { "librarys": ["x"] }
+    }"#;
+    let err = Package::parse(bad_link).expect_err("a misspelled link key");
+    assert!(format!("{err}").contains("unknown key"), "{err}");
+}
+
+#[test]
+fn prelude_takes_a_module_default_or_none() {
+    let with = |value: &str| {
+        format!(
+            r#"{{"schema": 2, "name": "a/b", "version": "0.1.0",
+                 "prelude": {value},
+                 "modules": [ {{ "name": "M", "path": "M.cinch" }} ], "order": ["M"]}}"#
+        )
+    };
+    assert_eq!(
+        Package::parse(&with("\"none\"")).expect("none").prelude,
+        PreludeSpec::None
+    );
+    assert_eq!(
+        Package::parse(&with("\"default\"")).expect("default").prelude,
+        PreludeSpec::Default
+    );
+    let err = Package::parse(&with("42")).expect_err("a number is not a prelude");
+    assert!(format!("{err}").contains("`prelude`"), "{err}");
+}
+
+#[test]
+fn a_schema_one_manifest_keeps_its_meaning() {
+    let pkg = Package::parse(&format!("{BASE_PACKAGE}")).expect("the base manifest parses");
+    assert_eq!(pkg.schema, 1);
+    assert_eq!(pkg.prelude, PreludeSpec::Default);
+    assert!(pkg.select.is_empty());
+    assert!(LinkSpec::default().is_empty());
+    let resolved = pkg
+        .resolve(&facts("darwin", "aarch64"))
+        .expect("a schema 1 manifest resolves to itself");
+    assert_eq!(resolved.order, pkg.order);
+}

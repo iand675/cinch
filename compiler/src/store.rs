@@ -439,9 +439,13 @@ pub fn package_key_for(
 /// renames.
 fn profile_identity(p: &TargetProfile) -> String {
     format!(
-        "{}\t{}\t{}\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{}	{}	{}	{}	{}	{}	{}	{}	{:?}	{}	{}	{}	{}	{}	{}	{}",
         p.name,
         p.triple,
+        p.os,
+        p.arch,
+        p.libc,
+        p.os_version.as_deref().unwrap_or("-"),
         p.word_size,
         p.endian,
         p.vector_shape,
