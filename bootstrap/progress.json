@@ -10559,6 +10559,38 @@
                 },
                 {
                   "name": "probe2_ctor_field_var_headed_application",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe3_applied_class_arg_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe4_function_typed_methods_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe5_capitalized_sig_param",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe6_kind_annotated_data_params",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe7_instance_head_variable_must_be_declared",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe8_dotted_import_single_file",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe9_single_segment_import_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "shipped_category_functor_imports_across_files",
                   "status": "running"
                 }
               ]
@@ -14738,9 +14770,9 @@
         "unit": "targets",
         "total": 3,
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay original ffi target on Stage 3",
+        "phase": "Replay original ownership target on Stage 3",
         "evidence": null
       },
       {
@@ -15175,5 +15207,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:57:01.766784+00:00"
+  "updatedAt": "2026-11-09T10:58:04.625577+00:00"
 }
