@@ -1,0 +1,69 @@
+{
+  "artifact_agreement_sha256": "1f27c1e951a3099661f1215a22b1d77f0add8f51fd9d892c9f7e79b6ed6a853d",
+  "changed_diagnostic": "bootstrap.check.changed-source:3:10: type mismatch: expected Int, found Bool\n",
+  "changed_source": {
+    "compiler_sha256": "4516707ea9da178e3b1610d31e11ec37d2940e7a7e82441af775b231cab49414",
+    "diagnostics_sha256": "f141beff8826d369b35167f6648aef03679bed8e6ff326446a1c8950fdb04b48",
+    "source_sha256": "4cdffd00afff84cb6d8dd3cd2ffd0776526e22cea7c130fbfb5bdfe9709e4576"
+  },
+  "changed_stage_receipt_sha256": "fea94e757e33d6baa815be274989708df96dd8aacce2f8ff69ac54f2b5a54d1b",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "full_goal_complete": false,
+  "laws": {
+    "cases": [
+      {
+        "name": "checked_class_laws_travel_with_the_defining_interfaces",
+        "status": "passed"
+      },
+      {
+        "name": "class_laws_state_the_equations",
+        "status": "passed"
+      },
+      {
+        "name": "law_abiding_instance_passes_sample_wise",
+        "status": "passed"
+      },
+      {
+        "name": "law_breaking_instance_is_rejected_naming_the_law",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_indices_promote_integer_literals",
+        "status": "passed"
+      },
+      {
+        "name": "mathematical_law_samples_use_the_checked_numeric_representation",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
+        "status": "passed"
+      },
+      {
+        "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
+        "status": "passed"
+      }
+    ],
+    "invocations": {
+      "95560-0.json": "1c1b4d04043b4673f08ad514d58d0b887f6dfd81332e779581efcbba788c2fad",
+      "95560-1.json": "d5342b356e00ec81c103c296e96fb46e29c9fbb8edacc273883fc1c8fd5c64ae",
+      "95560-10.json": "7c7e10f2386a620d09b836eb109959f32e50cd4e09dd6e0ab0952b76d1b592a4",
+      "95560-11.json": "dc397416a77f41c901942b822e08056c8997a6a695f2bbea15d6a100c74d2109",
+      "95560-12.json": "05096a01cb7b7132ad0b80de12906959ac382eb3a7b7497bb9ff140081eff6fc",
+      "95560-13.json": "167ba7f6b5c694ae05f88ebb797ad28e7002106aecc9b6ec0698398ab8a8751c",
+      "95560-2.json": "5a3beb7916f1c6457ec0f72bcc544ce55e18e345c05693cc60ef16adde7b2c57",
+      "95560-3.json": "eae484de2ddb8aa61a2f6ce35a47d397271c2adcc20f2843d1004647ad1e6a95",
+      "95560-4.json": "ea7af7e182969db5b3eba4159475173e20a47aa0de73219070a789446e03d6f1",
+      "95560-5.json": "7f70b3f90dd713880dcc40c137bdf6b2e0ca9bf8ded8166bb8fc224399d030e8",
+      "95560-6.json": "86a04e282f265a25a3713aa4b2dae48f54433749243342eee2eb7e00f501b48f",
+      "95560-7.json": "478c261a26159119fed7d6737d580b0eb10c08d23003f2e2a9a554df967f7a47",
+      "95560-8.json": "dc6b7186ee78614769d349e5b47c7f484b50b2b47d0dd75405a56b30a5deadf0",
+      "95560-9.json": "0a7beba49b79f57653a9efe1fc7002e89af8b6833dc39504bb7192089fe734b3"
+    },
+    "log_sha256": "da00e136ae72ad02912c9fafeb56025314d49b838cad2923c036ef5db0df06e3",
+    "test_source_sha256": "9bee84913a9f7e1bb76fca7d6acc9a995e2c871eb18fc853d6fa96d354f796d7"
+  },
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "status": "audited-merged-fixed-point-and-stage3-laws"
+}

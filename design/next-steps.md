@@ -8,7 +8,7 @@ Stage 3 codata and argument-scope checks passed. The full Rust and
 self-built test suites remain open.
 See [the published compiler receipt](../bootstrap/current-abi7-published-codata-index-compiler.json).
 
-The published Cinch compiler now includes the checked task-capture
+The preceding published compiler included the checked task-capture
 repair and the pinned tagged `Data.List.drop` variant. Its exact
 Stage 2 and Stage 3 artifacts agree, the changed-source and separate
 interface consumer checks pass, and all 20 original concurrency
@@ -138,6 +138,10 @@ and [the changed-source audit](../bootstrap/current-abi7-codata-index-fixed-poin
 All ten original codata source cases passed on the merged Stage 3.
 The audit records 22 selected-compiler invocations.
 See [the merged codata replay](../bootstrap/current-abi7-codata-index-stage3-codata.json).
+
+All eight original law cases passed on the published Stage 3, with
+14 matching invocations. The case outcomes agree with the Stage 1 replay.
+See [the merged law audit](../bootstrap/current-abi7-codata-index-stage3-laws.json).
 
 All three original byte-observation tests passed on the preceding
 combined Stage 3, including input scope, the declared primitive
