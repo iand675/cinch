@@ -17920,10 +17920,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
         "total": 16,
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 with the preceding compiler",
+        "phase": "Build Stage 2 with the preceding compiler",
         "evidence": null
       },
       {
@@ -21015,10 +21015,10 @@
         "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
         "unit": "checks",
         "total": 11,
-        "passed": 9,
+        "passed": 10,
         "failed": 1,
-        "status": "running",
-        "phase": "Audit exported method slots and refuse a malformed uncited equation",
+        "status": "completed-with-failures",
+        "phase": "Checked equality-method replay finished",
         "evidence": null
       },
       {
@@ -21079,5 +21079,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:49:04.666018+00:00"
+  "updatedAt": "2026-11-09T03:50:07.237934+00:00"
 }
