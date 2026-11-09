@@ -6,11 +6,11 @@ Mid-clause in the user's note: "tbc i don't want embedded to be ..." followed by
 
 # 1 The embedded core is `cinch/prim`
 
-The only source that ships inside the compiler is one package, `cinch/prim`, holding primitive types and the primops that make them usable. Nothing else is embedded.
+The only source that ships inside the compiler is one package, `cinch/prim`, holding the primops that make the predeclared primitive types usable. Nothing else is embedded.
 
 The rule that decides membership, and it is a rule rather than a list: **if the checker or codegen must know its representation, its declaration lives in `cinch/prim`.** That covers:
 
-- the primitive types: `Nat`, `Int`, `Bool`, `Unit`, `Bytes`, `Char`, `Sym`, the thirteen machine scalars (`I8`..`U64`, `F32`, `F64`, `Usize`, `Isize`), and the runtime carriers the checker types by fiat (`Io r`, `Scope`, `Task`, `Array`, `Tensor`, `Columnar`, `Ref`, `Mut`, `Code`, `Syntax`, and the builtin index families `Vec`, `Fin`, `Dec`);
+- the predeclared types: `Nat`, `Int`, `Bool`, `Unit`, `Bytes`, `Char`, `Sym`, the thirteen machine scalars (`I8`..`U64`, `F32`, `F64`, `Usize`, `Isize`), and the runtime carriers the checker types by fiat (`Io r`, `Scope`, `Task`, `Array`, `Tensor`, `Columnar`, `Ref`, `Mut`, `Code`, `Syntax`, and the builtin index families `Vec`, `Fin`, `Dec`). No module declares these, which is what `Int is a builtin primitive type and cannot be redefined` means; the checker owns the names and `cinch/prim` owns the operations over them;
 - the primops: the `cinch.prim.*` and `cinch.runtime.*` bindings that make those types usable, which is what `Data/Nat.cinch`, `Data/Int.cinch`, `Data/Bool.cinch`, `Data/Bytes.cinch`, `Data/Char.cinch`, `Data/Machine.cinch`, and `Data/Sym.cinch` contain today, minus everything operator-shaped;
 - the effect and capability vocabulary the checker enforces: the label names and the `Unit ->{IO r}` entry shape.
 
@@ -20,15 +20,17 @@ Module naming follows from that split, and it collides with the current layout, 
 
 | Today | After |
 | --- | --- |
-| `Data.Nat`, `Data.Int`, `Data.Bool`, `Data.Bytes`, `Data.Char`, `Data.Machine`, `Data.Sym` declare both the type and its instances | `Prim.Nat`, `Prim.Int`, ... in `cinch/prim` declare the type and the primops; `Data.Nat`, `Data.Int`, ... in `cinch/base` re-export the primitives and declare the instances, which is the "a type's INSTANCE family stays in its public home" rule in `design/base-library.md` |
+| `Data.Nat`, `Data.Int`, ... carry the primops for a type the checker predeclares, and also carry that type's instances | `Prim.Nat`, `Prim.Int`, ... in `cinch/prim` carry the primops only; `Data.Nat`, `Data.Int`, ... in `cinch/base` re-export them and declare the instances, which is the "a type's INSTANCE family stays in its public home" rule in `design/base-library.md` |
 
-`cinch/prim` is the one package whose modules are implicitly in scope, because the checker installs the names they declare as builtins and a `prelude: none` package still needs `Int` to have a type at all. That is the whole privilege, and it is one package.
+`cinch/prim` gets no implicit module scope either. Its modules are imported like any other, so `import Prim.Machine` is how a program reaches `u8-to-i32`, and a package with `prelude: none` and no imports has nothing but the predeclared type names. What stays privileged is narrower than a module: the primitive *type* names are universe scope, because a signature cannot be written without them, and the checker already enforces it (`data Int where` is `Int is a builtin primitive type and cannot be redefined`). That is the whole privilege: about twenty type names, no modules, no values.
+
+The installed-value table should shrink to match. Today the checker also installs values such as `ioWrite`, `ioRead`, `ioSleep`, and `pollCancel`, and a module may quietly define its own `ioWrite` (verified). Once `cinch/prim` exists those wrappers are ordinary declarations in a module that a prelude imports, so they obey the same import and shadowing rules as anything else, and what remains installed is primops and the handful of names codegen itself emits.
 
 Nothing else stays embedded, including every module that reaches these primitives and builds on them: `Data.List`, `Data.Map`, `Data.HashMap`, `Data.Set`, `Data.NonEmpty`, `Data.Rational`, `Data.BigDecimal`, `Category.*`, `Algebra.*`, `Relation.*`, `Text.*`, `Effect.Fs`, `Effect.Net`, `Effect.Http`, and the facade.
 
 Two consequences worth naming:
 
-- The embedded set must be closed under what the checker's installed names mention. A test should assert exactly that closure: take the installed name table, resolve each name's home module, and require every home to be in `cinch/prim`'s manifest. That test is the guard against the cut drifting.
+- The embedded set must be closed under what the checker's installed names mention, in two parts. An installed type name has no home module, so nothing outside the checker may claim it; an installed value has a home, and that home must be a module in `cinch/prim`'s manifest. Two assertions, and together they are the guard against the cut drifting.
 - `library/` generation splits: `cinch/prim` pages keep coming from `include_str!`; pages for base and every other package come from resolved package interfaces.
 
 # 2 The base as registry packages
@@ -59,7 +61,7 @@ A prelude needs no new semantics. It is an ordinary module, injected as an impli
 - **Instances follow the same rule, and the selection rule already matches.** `implicit` instances are the only candidates for automatic resolution (`check_dictionary.rs` skips every instance without the flag unless it is the module's own), and a non-implicit instance is reachable by name through a module-argument import (`named_instance_arg` in `check_decls.rs`, documented as explicit dictionary selection). So overlapping explicit instances cannot make anything ambiguous: nothing selects them silently. What is missing is provenance on the candidate list, and it is missing one level up: names, instance names included, are deduplicated by name text and module rather than by declaring origin. `import A` beside `import B` where B re-exports A fails with ``the name `x` is imported from both A and B``, verified for a value and for an instance name alike. Deduplicating by origin fixes the diamond, makes two preludes that re-export one `Data.List` coherent, and reduces instance ambiguity to its real case: two different origins, both implicit, one head. Under a parameterized module the origin has to be the origin plus its instantiation, because each instantiation publishes its own copy of the module's instances.
 - **Re-export chains are already tracked**, because `export module` and export lists record origins for the interface. So "do these two preludes share `List` and its instances" is a query over module dependencies and export origins, not a special prelude check. `cinch pkg verify` can print it for any closure.
 - **The injection is a dependency.** The implicit import belongs in the module's dependency set, in the interface, and in the check order, because the family's `order` list is load-bearing for fixity, eager references, and the check/interface split. A prelude that is an ordinary module slots into that list like any other.
-- **`.cinchpkg` gains one field**, `prelude`: a module name, or `none`. The root project's setting applies to its own modules; a dependency's setting applies to that dependency's modules. Nothing global is assumed, and nothing about the root's choice reaches a dependency. `none` still leaves `cinch/prim` in scope, because the primitive types have to exist for any declaration to be written.
+- **`.cinchpkg` gains one field**, `prelude`: a module name, or `none`. The root project's setting applies to its own modules; a dependency's setting applies to that dependency's modules. Nothing global is assumed, and nothing about the root's choice reaches a dependency. `none` leaves the predeclared type names and nothing else, so a module with no imports can write `main :: Int` and cannot call `int-add`.
 - **Explicit imports win over the injected one**, matching the existing rule that explicit source wins over the embedded layer. A module-level redeclaration of a prelude module's name is an error, not a replacement.
 
 What this removes that exists today: the accidental behaviour where a sibling file named `Effect.Net.cinch` silently replaces the whole embedded module. Verified on the current compiler while writing this note:
