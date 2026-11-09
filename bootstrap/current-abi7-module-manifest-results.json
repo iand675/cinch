@@ -1,0 +1,99 @@
+{
+  "base_interfaces_sha256": "ca19f760f656206b7638cc9b328e9f4a268619eaecf9fa4668106f81701d2532",
+  "cinch_log_sha256": "9f43a298cd2998e50566ad82429ae7aa71c9dc98c6398864f7029f3e2252d3bf",
+  "cinch_module_tests": 12,
+  "cinch_tests": [
+    {
+      "name": "a_failure_in_a_sibling_module_names_its_file",
+      "status": "passed"
+    },
+    {
+      "name": "a_module_can_import_a_signature_declared_later_in_the_same_file",
+      "status": "passed"
+    },
+    {
+      "name": "entry_module_name_is_free",
+      "status": "passed"
+    },
+    {
+      "name": "import_cycle_is_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "imported_fixity_is_visible",
+      "status": "passed"
+    },
+    {
+      "name": "imported_instance_is_used_by_the_importer",
+      "status": "passed"
+    },
+    {
+      "name": "imported_module_is_resolved_by_declaration",
+      "status": "passed"
+    },
+    {
+      "name": "instance_coherence_across_modules",
+      "status": "passed"
+    },
+    {
+      "name": "interface_round_trips_through_disk",
+      "status": "passed"
+    },
+    {
+      "name": "missing_import_file_is_named",
+      "status": "passed"
+    },
+    {
+      "name": "multi_file_module_links_and_runs",
+      "status": "passed"
+    },
+    {
+      "name": "multi_module_file_links_and_runs",
+      "status": "passed"
+    }
+  ],
+  "compiler_source_sha256": "dabfc9c105d4d9f7458cc43c5336dbb252efb40f4bb6161a0bb58982240ab8dc",
+  "full_goal_complete": false,
+  "invocation_receipts": {
+    "50216-0.json": "211bf6c7ea202e155c827007cb023606fcba887445eb0cbd684ad5eb9971a440",
+    "50216-1.json": "44563b18348b867120a2c922dce51c36b14515aa54624b5944754a3ee12cb775",
+    "50216-10.json": "680605965536fbfe4f8fbc2d0443e3b8944c7d759480a2956eceff9898dad99d",
+    "50216-11.json": "bacdd3c08a267700e9dd18e05eb6263179406a7382ac1ff7727593c9f5713a98",
+    "50216-12.json": "0871d4c59d220f7748c8ab4896286838644958a1b7bf00b2132ea74bfe202674",
+    "50216-2.json": "0ae4b013799c74a4ff15abce1db9ffe46cb2ffd1781e391db19bcc4444c5612c",
+    "50216-3.json": "e1bc725bc0c943fbbb498c86dd0fa3ca62f2213283345e7c5e52606d0d45d726",
+    "50216-4.json": "f64e4aab0db5c8c7c586f389705581a00cacb7a5a810c34ee88a96e2ba2a5129",
+    "50216-5.json": "ef9b98f510bc2014192b1bd2c1fcf3fd7fa0d22d1e1e29b79017432018cd6a36",
+    "50216-6.json": "6d000d4aeeeca7bed89002851ebdf15c4a2e895d3877576c9c8799b8a1b233b8",
+    "50216-7.json": "71ed840cece0768c44317223ae3b76921d3fc0efe36c338ae6564d250c45bb5d",
+    "50216-8.json": "0c3fa26e8132f3317f24864865fa3bf552708f615ca7aa6c2554925ce6040e13",
+    "50216-9.json": "5e097ed7eadd6ef088437fc1866ac21635ad3b10061e70c0fdb444fcbb2eb123"
+  },
+  "manifest_control": {
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "manifest_sha256": "e591480d46554f36893ad2ad93b0738330b5b367ca10dc3c92e24e2bd9c4194b",
+    "name": "cinch-build-manifest-and-stale-refusal",
+    "refusal_exit": 4,
+    "status": "passed",
+    "success_exit": 0
+  },
+  "native_log_sha256": "79c8a73c6bde5be74e64a5a31c9b6e42309f30e50f223e3b07713a3738af59d6",
+  "native_module_tests": 12,
+  "native_source_sha256": "77a6627bcc1d6f15e79e0967b2b4f797a24c7671c0cee8efcccb7d9463572708",
+  "origin_log_sha256": "54afb99b1f0cd0aece1375973786c44a3e53bf735bc155456aee7168550982f5",
+  "remaining": [
+    "artifact cleanup on interface and object admission failure",
+    "exact integrated Stage 3 replay"
+  ],
+  "resolver_log_sha256": "df50eb0d0409c1fffbac297e35d1ddc72e508af34bc1988273120401dcfb3d2b",
+  "schema": 1,
+  "stage1": {
+    "compiler_sha256": "e3146dea58bed124ceccd982da0351908746a006dd81632ff5ded82ad7a4732e",
+    "name": "stage1",
+    "stage_receipt_sha256": "d21e1bf556c4e8801d4bde35f68ad5b0b2bff0cf64e8c3b6fd5b59279a986566",
+    "status": "passed"
+  },
+  "status": "audited-isolated-module-manifest-and-original-tests",
+  "test_source_sha256": "3f8218916d1aa14529919e46aa5c74b7d2c2847ac52310b7322cc2500918db35",
+  "wrapper_sha256": "931c0126e6099ea6b7c5bb30fed593eb87cf97ce2e6e0bb5eec0fa269851bb19"
+}

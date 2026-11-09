@@ -166,6 +166,14 @@ compiler interfaces verified. Stage 2 is compiling Stage 3. The standard
 harness separately passed all 39 integration cases on the earlier
 combined Stage 1. See [the provider and integration audit](../bootstrap/current-abi7-stage2-drop-provider-results.json).
 
+All twelve original module tests passed through the isolated Cinch
+Stage 1, including qualified import overlap, concrete cycle paths
+and the actual build manifest. Its source-refusal control clears
+both the previous IR and manifest. All twelve Rust cases and both
+component controls also passed. The candidate still needs early
+admission failure cleanup and a matching Stage 3 replay.
+See [the module and manifest audit](../bootstrap/current-abi7-module-manifest-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
