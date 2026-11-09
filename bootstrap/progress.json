@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10253,9 +10253,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 11,
+          "blocked": 12,
           "running": 1,
-          "pending": 32,
+          "pending": 31,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11331,17 +11331,17 @@
           {
             "id": "additional:syntax_choreography",
             "title": "syntax_choreography",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "d29117f49ef3c3f00fc891a68eee0ec5e3cb7ac08a437708cbd29796a71a85dd",
               "cases": [
                 {
                   "name": "definition_site_wire_helpers_survive_a_caller_alias_decoy",
@@ -11369,7 +11369,11 @@
                 },
                 {
                   "name": "two_role_projection_choice_offer_and_private_constructor_control_execute",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "wrong_state_wire_branch_replay_and_private_constructor_are_refused",
+                  "status": "failed"
                 }
               ]
             }
@@ -11377,11 +11381,48 @@
           {
             "id": "additional:syntax_declaration_composition",
             "title": "syntax_declaration_composition",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "captured_type_constructors_specialize_higher_kinded_slots_under_forall",
+                  "status": "failed"
+                },
+                {
+                  "name": "combined_groups_can_be_reused_and_renamed_without_retargeting_other_instances",
+                  "status": "failed"
+                },
+                {
+                  "name": "composed_protocol_states_and_transitions_use_actual_owned_members",
+                  "status": "failed"
+                },
+                {
+                  "name": "linking_a_type_refuses_dangling_constructor_references_instead_of_rebinding_them",
+                  "status": "failed"
+                },
+                {
+                  "name": "linking_refuses_ambiguous_context_members",
+                  "status": "failed"
+                },
+                {
+                  "name": "linking_within_one_possessed_group_follows_its_instantiated_anchors",
+                  "status": "failed"
+                },
+                {
+                  "name": "machine_payload_types_and_transition_handlers_keep_caller_bindings",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:syntax_effect_declarations",
@@ -15119,9 +15160,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay original syntax_choreography target on Stage 3",
+        "phase": "Replay original syntax_declaration_composition target on Stage 3",
         "evidence": null
       },
       {
@@ -15383,9 +15424,9 @@
         "unit": "gates",
         "total": 10,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build the exact Rust compiler and exercise the entropy success and fault paths",
+        "failed": 1,
+        "status": "failed",
+        "phase": "AssertionError()",
         "evidence": null
       },
       {
@@ -15490,9 +15531,9 @@
     ],
     "counts": {
       "verified": 311,
-      "blocked": 15,
+      "blocked": 16,
       "running": 4,
-      "pending": 455,
+      "pending": 454,
       "recheck": 21
     },
     "total": 806,
@@ -15501,5 +15542,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:14:31.679833+00:00"
+  "updatedAt": "2026-11-09T11:15:35.133343+00:00"
 }
