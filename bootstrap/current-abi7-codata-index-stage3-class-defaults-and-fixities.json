@@ -1,0 +1,93 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-published-stage3-class-defaults-and-fixities",
+  "targets": {
+    "class_defaults": {
+      "cases": [
+        {
+          "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+          "status": "passed"
+        },
+        {
+          "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+          "status": "passed"
+        },
+        {
+          "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+          "status": "passed"
+        },
+        {
+          "name": "an_omitted_method_without_a_default_is_still_refused",
+          "status": "passed"
+        },
+        {
+          "name": "annotations_keep_definition_and_default_parameter_identities",
+          "status": "passed"
+        },
+        {
+          "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "17698-0.json": "a790142f0586ac9ca6885c5fdcbadf52861767c0a6bd2ec88659e018bbbb70aa",
+        "17698-1.json": "dd421084a6c9889197357086bd8c55975879e417d409234296324fe9b9e3f3d1",
+        "17698-10.json": "9de70531bb67706a133b93244a82a6e9955a6187de7107c7081cdbed4c0b3461",
+        "17698-11.json": "a0e71ce1ef2a3deeb32aa83890dcfce2931b12849029701625a882408cc88c00",
+        "17698-12.json": "d8edcf3b919ae73022e21466e476300d2a1605904cf8ecf5c73d55f4420cb1ff",
+        "17698-13.json": "f04062daced47ac574cd64b3afbb565d17aaae799ab86365c7855f9ae54874cd",
+        "17698-14.json": "1cb191f6b0c5e0417aa3a60553a21440afba131be0360baa5b8b0e9edf8671c8",
+        "17698-15.json": "ddcceda1c4726fc5ce3953c191a58f8f2d884e5473177cce9d4ca498e04c6790",
+        "17698-16.json": "3120d7b650907e1796c7092ecbd3576b13f64c012fc370568fb971e2fd3e5e26",
+        "17698-17.json": "38ff504415343bcefb60cbc62a1728b8183e184cc1d990f2261bc73c069ca6c2",
+        "17698-18.json": "facc12dac7cc6424442f72d700fd523a5e47485e64cf7cde1c3b111401683777",
+        "17698-2.json": "5df0f20d11b9e67a3c1d32cab5353327dbf95d43affa833c1522a8d709f0212c",
+        "17698-3.json": "bb18040fe2c3ac885fcf46b6ffec198b73cd6e6afa7d0f99a1fc6d0b46c73f8f",
+        "17698-4.json": "fe102c8ce1a87ec067d2f02be4e887e9ecc76684d9c85cc8a99759855cd79be5",
+        "17698-5.json": "8fa1e880ad5844eb6c365ccaa34b78d9b2a9578116cd4e012a403975103f8450",
+        "17698-6.json": "d7a74adee25fe124072ae8f34e47dc129b9b17a79107a53fa5e663409145a43f",
+        "17698-7.json": "843fbd8f11f92958a3e0b689590a4829d15b6be3ad44c96d92400a1761835cb3",
+        "17698-8.json": "cd51208b3e70943f4930fc20c3f9fe106ec154ae0c33f45cc8991d6864284db4",
+        "17698-9.json": "4824fd0aae91dc76aed4c207150e5f5dedbd7b31fea4b36504e821f89a518d2a"
+      },
+      "log_sha256": "9e5e91bee8d568843091469d9152c8d2a3bfb8dbc2acb30a4ba8f0f7e42a96d8",
+      "passed": 7,
+      "test_source_sha256": "fc75cc31bfc7fd80a2d9abd6f3290240bba50def5c962f6abaa2d50dcb066e6b",
+      "total": 7
+    },
+    "fixity_interfaces": {
+      "cases": [
+        {
+          "name": "imported_fixity_parses_in_a_single_source_program",
+          "status": "passed"
+        },
+        {
+          "name": "project_consumer_parses_imported_operator_and_iface_records_it",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "22442-0.json": "3e5d577daf89fac8f32f50ab2d6f01a1d6361628b7d8cd3e9a10ffd8f86ca06e",
+        "22442-1.json": "cfda34693a95b7d18b6e8a434eed64f9e025eda5ffeb966bfe24c4af137ef1e6"
+      },
+      "log_sha256": "f57f21640e428acdc2d1245f7df83645a9ce62d8a6f8cad1d71d90368a26954a",
+      "passed": 2,
+      "test_source_sha256": "20e88bfaac347e2d87d3207495dfdf52c6a06b817638632222a39b2126e9698e",
+      "total": 2
+    }
+  }
+}
