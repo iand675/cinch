@@ -11531,6 +11531,34 @@
                 },
                 {
                   "name": "declaration_evidence_can_determine_a_type_from_multiple_constraints",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_evidence_can_select_a_later_user_instance",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_evidence_cannot_turn_recursive_instances_into_proofs",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_evidence_does_not_discard_proof_obligations",
+                  "status": "passed"
+                },
+                {
+                  "name": "declaration_evidence_is_shared_consistently_across_dependent_headers",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_evidence_selects_the_later_refinement_specific_instance",
+                  "status": "failed"
+                },
+                {
+                  "name": "index_applications_cannot_discard_false_proof_obligations",
+                  "status": "passed"
+                },
+                {
+                  "name": "index_applications_require_their_dictionary_even_outside_macros",
                   "status": "running"
                 }
               ]
@@ -15199,9 +15227,9 @@
         "unit": "targets",
         "total": 3,
         "passed": 0,
-        "failed": 2,
-        "status": "running",
-        "phase": "Replay original primitives target on Stage 3",
+        "failed": 3,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished Original case outcomes on this compiler: 40 passed, 36 failed.",
         "evidence": null
       },
       {
@@ -15552,8 +15580,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "Build declaration-kind Stage 1 with the pinned Rust seed",
         "evidence": null
       },
       {
@@ -15636,5 +15664,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:18:44.864319+00:00"
+  "updatedAt": "2026-11-09T11:19:48.118913+00:00"
 }
