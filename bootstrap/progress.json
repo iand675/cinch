@@ -14406,9 +14406,9 @@
         "unit": "gates",
         "total": 6,
         "passed": 1,
-        "failed": 1,
+        "failed": 2,
         "status": "running",
-        "phase": "Replay the original goal_tactics tests",
+        "phase": "Replay the original nominal_identity tests",
         "evidence": null
       },
       {
@@ -14557,5 +14557,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:08:01.346236+00:00"
+  "updatedAt": "2026-11-09T10:09:04.164696+00:00"
 }
