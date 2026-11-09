@@ -17920,10 +17920,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "gates",
         "total": 8,
-        "passed": 7,
+        "passed": 8,
         "failed": 0,
         "status": "running",
-        "phase": "Stage 2 and Stage 3 artifacts match. Smoke tests and a separate interface consumer passed. The changed-source rebuild is running.",
+        "phase": "Replay codata with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-agreement.json"
       },
       {
@@ -21253,14 +21253,25 @@
         "evidence": null
       },
       {
+        "title": "Replay all 162 preserved targets on the merged Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 162,
+        "passed": 0,
+        "failed": 0,
+        "status": "running",
+        "phase": "Replay codata with the combined Stage 3",
+        "evidence": null
+      },
+      {
         "title": "Run the complete matching Rust compiler inventory",
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 17,
+        "passed": 18,
         "failed": 0,
         "status": "running",
-        "phase": "case_evidence Audited 383 passing cases across the first 14 complete targets.",
+        "phase": "bootstrap_source_instances Audited 383 passing cases across the first 14 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-fourteen-targets.json"
       },
       {
@@ -21270,7 +21281,7 @@
         "total": 14,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
+        "status": "waiting-worker",
         "phase": "Wait for the matching fixed point.",
         "evidence": null
       },
@@ -21281,7 +21292,7 @@
         "total": 34,
         "passed": 0,
         "failed": 0,
-        "status": "checking-stage3-agreement",
+        "status": "waiting-shared-worker",
         "phase": "Wait for the matching fixed point.",
         "evidence": null
       },
@@ -21303,8 +21314,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21380,8 +21391,8 @@
         "total": 22,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21391,8 +21402,8 @@
         "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21402,8 +21413,8 @@
         "total": 11,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-stage3",
-        "phase": "Wait for the combined Stage 3 fixed point",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21684,5 +21695,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:45:02.806380+00:00"
+  "updatedAt": "2026-11-09T08:46:06.257646+00:00"
 }
