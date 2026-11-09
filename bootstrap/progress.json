@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 8,
+        "passed": 9,
         "failed": 2,
         "status": "running",
-        "phase": "Replay argv with the combined Stage 3",
+        "phase": "Replay arrays with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21387,5 +21387,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:38:26.699960+00:00"
+  "updatedAt": "2026-11-09T06:40:10.438147+00:00"
 }
