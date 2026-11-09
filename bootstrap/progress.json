@@ -4779,10 +4779,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 3,
+          "verified": 4,
           "blocked": 0,
           "running": 1,
-          "pending": 158,
+          "pending": 157,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -4920,17 +4920,17 @@
           {
             "id": "stage3:concurrency",
             "title": "concurrency",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "a77e54c5906d2b6bac651b1bea22d73b211efd424c44277c64952d44921b98d6",
               "cases": [
                 {
                   "name": "a_linear_capture_transfers_into_a_task_exactly_once",
@@ -5006,7 +5006,11 @@
                 },
                 {
                   "name": "task_handles_cannot_escape_their_scope",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "task_shared_ref_requires_a_shareable_referent",
+                  "status": "passed"
                 }
               ]
             }
@@ -5014,11 +5018,28 @@
           {
             "id": "stage3:letrec",
             "title": "letrec",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "eager_call_cycle_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "eager_cycle_is_rejected_naming_the_variable",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:modules",
@@ -13106,10 +13127,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 3,
+        "passed": 4,
         "failed": 0,
         "status": "running",
-        "phase": "Replay concurrency with the combined Stage 3",
+        "phase": "Replay letrec with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13370,10 +13391,10 @@
         "source": "c998c4eaec569483f8c1f22c9fa1ddc37616ef9494fbbd6223c477102fe6915b",
         "unit": "checks",
         "total": 6,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build the checked Native CLI",
         "evidence": null
       },
       {
@@ -13382,9 +13403,9 @@
         "unit": "gates",
         "total": 2,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "failed": 1,
+        "status": "failed",
+        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 3775:3: top-level value infer-local-group-with is part of an eager reference cycle; wrap its reference in a lambda or use letrec\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-2/build/stage1/build.log')",
         "evidence": null
       },
       {
@@ -13598,10 +13619,10 @@
       }
     ],
     "counts": {
-      "verified": 289,
+      "verified": 290,
       "blocked": 0,
       "running": 4,
-      "pending": 489,
+      "pending": 488,
       "recheck": 21
     },
     "total": 803,
@@ -13610,5 +13631,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:06:08.261359+00:00"
+  "updatedAt": "2026-11-09T09:07:11.481816+00:00"
 }
