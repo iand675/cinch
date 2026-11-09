@@ -21060,9 +21060,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 4,
+        "failed": 5,
         "status": "running",
-        "phase": "Replay original prelude_lib target on Stage 3",
+        "phase": "Replay original proof_guarded_lets target on Stage 3",
         "evidence": null
       },
       {
@@ -21266,5 +21266,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:55:49.361539+00:00"
+  "updatedAt": "2026-11-09T05:56:52.073744+00:00"
 }
