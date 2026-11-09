@@ -11329,7 +11329,16 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "definition_site_wire_helpers_survive_a_caller_alias_decoy",
+                  "status": "failed"
+                },
+                {
+                  "name": "direct_native_calls_validate_roles_messages_and_branch_shapes",
+                  "status": "running"
+                }
+              ]
             }
           },
           {
@@ -15459,5 +15468,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:12:25.214576+00:00"
+  "updatedAt": "2026-11-09T11:13:28.435372+00:00"
 }
