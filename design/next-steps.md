@@ -155,6 +155,14 @@ name lookup, and the checker accepts 129 nested lets. The eight ported
 targets passed 112 cases through the Rust frontend.
 See [the standard harness replay](../bootstrap/current-abi7-standard-stage1-portable-results.json).
 
+The integrated Stage 1 emitted all 46 checked compiler interfaces while
+building Stage 2. Their dependency chain passed. Code generation needed
+the tagged `Data.List.drop@T` variant from the pinned library object.
+The expanded object defines it and preserves all 55 base interfaces.
+Stage 2 is retrying with the exact same Stage 1 executable. The standard
+harness separately passed all 39 integration cases on the earlier
+combined Stage 1. See [the provider and integration audit](../bootstrap/current-abi7-stage2-drop-provider-results.json).
+
 Schema 10 is the compiled-interface format on `main`. Rust, Cinch and the
 bootstrap verifier require it. The pinned library producer rebuilt all 55
 library interfaces. Rebuild old compiled interfaces and their dependent
