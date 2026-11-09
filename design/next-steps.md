@@ -24,6 +24,13 @@ All six tail-call controls passed on the exact Stage 3, including the
 three million-call fixtures and the non-tail stack exhaustion control.
 See [the guarded-recursion and tail-call audit](../bootstrap/current-abi7-guarded-recursion-fixed-point-results.json).
 
+That exact Stage 3 also passed 20 concurrency, 39 integration, five guard
+coverage and all 11 preserved recursive-binding tests. The original
+type-syntax component stopped at module resolution because its harness
+passed the entry file on its own. The corrected replay passes the complete
+compiler source bundle with the unchanged type-syntax entry.
+See [the original replay audit](../bootstrap/current-abi7-guarded-recursion-stage3-replay-results.json).
+
 The combined manifest and typed-law candidate rebuilt from Stage 0
 through Stage 3. Its executable, LLVM IR and all 46 compiler interfaces
 match between Stage 2 and Stage 3. The 55 base interfaces, 12 smoke
