@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 15,
+        "passed": 16,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_body_bindings with the combined Stage 3",
+        "phase": "Replay bootstrap_boolean_branches with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
@@ -21541,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:54:46.067308+00:00"
+  "updatedAt": "2026-11-09T07:58:10.449071+00:00"
 }
