@@ -21257,10 +21257,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 14,
+        "passed": 15,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_nominals Audited 383 passing cases across the first 14 complete targets.",
+        "phase": "repl Audited 383 passing cases across the first 14 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-fourteen-targets.json"
       },
       {
@@ -21684,5 +21684,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:41:34.358081+00:00"
+  "updatedAt": "2026-11-09T08:43:59.069068+00:00"
 }
