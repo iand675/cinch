@@ -17901,7 +17901,7 @@
         "total": 110,
         "failed": 0,
         "status": "waiting-stage3",
-        "phase": "build Stage 2 with the preceding compiler",
+        "phase": "build Stage 3 with the preceding compiler",
         "evidence": null
       },
       {
@@ -20882,8 +20882,8 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
-        "passed": 2,
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 3 with the preceding compiler",
+        "passed": 3,
         "total": 5,
         "failed": 0,
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:59:06.180025+00:00"
+  "updatedAt": "2026-11-09T01:01:10.005649+00:00"
 }
