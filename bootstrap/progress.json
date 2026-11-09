@@ -10040,8 +10040,8 @@
         "counts": {
           "verified": 0,
           "blocked": 4,
-          "running": 0,
-          "pending": 40,
+          "running": 1,
+          "pending": 39,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -10345,11 +10345,19 @@
           {
             "id": "additional:evolution",
             "title": "evolution",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
+            }
           },
           {
             "id": "additional:lattice",
@@ -14345,7 +14353,7 @@
         "passed": 0,
         "failed": 0,
         "status": "running",
-        "phase": "Check the 3 exact original Rust harnesses",
+        "phase": "Replay original evolution target on Stage 3",
         "evidence": null
       },
       {
@@ -14693,8 +14701,8 @@
     "counts": {
       "verified": 305,
       "blocked": 8,
-      "running": 3,
-      "pending": 469,
+      "running": 4,
+      "pending": 468,
       "recheck": 21
     },
     "total": 806,
@@ -14703,5 +14711,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:40:00.394768+00:00"
+  "updatedAt": "2026-11-09T10:41:05.258710+00:00"
 }
