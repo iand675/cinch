@@ -21577,9 +21577,9 @@
         "unit": "gates",
         "total": 7,
         "passed": 1,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay the original range_facts tests",
+        "phase": "Replay the original small_nats tests",
         "evidence": null
       },
       {
@@ -21739,5 +21739,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:52:18.960154+00:00"
+  "updatedAt": "2026-11-09T08:55:43.707805+00:00"
 }
