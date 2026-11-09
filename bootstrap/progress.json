@@ -17873,13 +17873,13 @@
     "active": [
       {
         "title": "Verify build manifests and original module tests in Rust and Cinch",
-        "source": "20c76ab4b0423a5cf790060bcdaa5c487acbd8ea7b769d8ec25575423b82a447",
+        "source": "dabfc9c105d4d9f7458cc43c5336dbb252efb40f4bb6161a0bb58982240ab8dc",
         "unit": "checks",
         "passed": 4,
-        "failed": 1,
+        "failed": 0,
         "total": 7,
-        "status": "failed",
-        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-2/build/stage1/sources/Bootstrap.Export.cinch: 728:9: expected a local declaration, found Target\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-module-manifest-validation-2/build/stage1/build.log')",
+        "status": "running",
+        "phase": "build Cinch Stage 1 with the checked build manifest",
         "evidence": null
       },
       {
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:48:30.007029+00:00"
+  "updatedAt": "2026-11-09T00:49:32.779273+00:00"
 }
