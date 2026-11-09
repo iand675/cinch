@@ -21268,10 +21268,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "status": "running",
-        "phase": "Replay laws with the combined Stage 3",
+        "phase": "Replay concurrency with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -21739,5 +21739,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:00:12.396749+00:00"
+  "updatedAt": "2026-11-09T09:01:15.722616+00:00"
 }
