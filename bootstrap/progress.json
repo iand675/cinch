@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | letrec | intrinsic_objects | syntax_declaration_groups",
+        "detail": "bootstrap_source_instances | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -9880,9 +9880,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 2,
+          "blocked": 3,
           "running": 1,
-          "pending": 41,
+          "pending": 40,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -9974,17 +9974,17 @@
           {
             "id": "additional:syntax_declaration_namespaces",
             "title": "syntax_declaration_namespaces",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "f49189e317de7d95bc2fa6e80122344e531a694bf72e0ff75dd26616ea3ad4f2",
               "cases": [
                 {
                   "name": "foreign_export_renames_its_cinch_definition_without_changing_the_c_entry",
@@ -10008,7 +10008,15 @@
                 },
                 {
                   "name": "primitive_group_instances_keep_sibling_bindings_and_ir_containment",
-                  "status": "running"
+                  "status": "failed"
+                },
+                {
+                  "name": "quoted_builtin_forms_keep_definition_site_selection_under_caller_decoys",
+                  "status": "failed"
+                },
+                {
+                  "name": "refinement_group_keeps_private_definition_types_separate_from_owned_members",
+                  "status": "failed"
                 }
               ]
             }
@@ -10016,11 +10024,32 @@
           {
             "id": "additional:syntax_declarations",
             "title": "syntax_declarations",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "declaration_generation_keeps_stage_and_macro_phase_barriers_under_attributes",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_builtin_propositions_keep_their_native_reading",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_capitalized_constructor_parameters_are_bound",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:hk",
@@ -14048,9 +14077,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original syntax_declaration_namespaces target on Stage 3",
+        "phase": "Replay original syntax_declarations target on Stage 3",
         "evidence": null
       },
       {
@@ -14408,9 +14437,9 @@
     ],
     "counts": {
       "verified": 298,
-      "blocked": 5,
+      "blocked": 6,
       "running": 4,
-      "pending": 478,
+      "pending": 477,
       "recheck": 21
     },
     "total": 806,
@@ -14419,5 +14448,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:57:27.236315+00:00"
+  "updatedAt": "2026-11-09T09:58:30.416303+00:00"
 }
