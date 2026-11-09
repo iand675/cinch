@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10253,9 +10253,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 13,
+          "blocked": 14,
           "running": 1,
-          "pending": 30,
+          "pending": 29,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11447,6 +11447,52 @@
           {
             "id": "additional:syntax_effect_declarations",
             "title": "syntax_effect_declarations",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "failed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 101,
+              "logSha256": "e8871d174246ac40fd123f09315f71d16c20572eac1d0eb856353168e705eeb9",
+              "cases": [
+                {
+                  "name": "a_visible_owned_effect_can_be_selected_by_its_qualified_name",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_operation_cannot_be_handled_by_another_owned_effect",
+                  "status": "passed"
+                },
+                {
+                  "name": "owned_effect_names_must_remain_valid_source_constructor_names",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_effect_references_do_not_depend_on_header_order",
+                  "status": "failed"
+                },
+                {
+                  "name": "owned_effect_renaming_keeps_rows_operations_and_handler_members_together",
+                  "status": "failed"
+                },
+                {
+                  "name": "two_owned_effect_instantiations_keep_independent_operation_tables",
+                  "status": "failed"
+                },
+                {
+                  "name": "type_and_effect_names_share_spelling_without_sharing_binding_authority",
+                  "status": "failed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "additional:syntax_index_evidence",
+            "title": "syntax_index_evidence",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -11460,24 +11506,15 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "a_visible_owned_effect_can_be_selected_by_its_qualified_name",
+                  "name": "captured_index_applications_accept_available_dictionary_evidence",
                   "status": "failed"
                 },
                 {
-                  "name": "an_operation_cannot_be_handled_by_another_owned_effect",
+                  "name": "captured_index_applications_discharge_true_proof_obligations",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "additional:syntax_index_evidence",
-            "title": "syntax_index_evidence",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "additional:syntax_index_lambdas",
@@ -15197,9 +15234,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original syntax_effect_declarations target on Stage 3",
+        "phase": "Replay original syntax_index_evidence target on Stage 3",
         "evidence": null
       },
       {
@@ -15568,9 +15605,9 @@
     ],
     "counts": {
       "verified": 311,
-      "blocked": 17,
+      "blocked": 18,
       "running": 4,
-      "pending": 453,
+      "pending": 452,
       "recheck": 21
     },
     "total": 806,
@@ -15579,5 +15616,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:16:38.603986+00:00"
+  "updatedAt": "2026-11-09T11:17:42.019463+00:00"
 }
