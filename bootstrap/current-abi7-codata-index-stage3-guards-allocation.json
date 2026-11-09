@@ -1,0 +1,121 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-published-stage3-guards-allocation",
+  "targets": {
+    "alloc_accounting": {
+      "cases": [
+        {
+          "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+          "status": "passed"
+        },
+        {
+          "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+          "status": "passed"
+        },
+        {
+          "name": "header_blocks_count_constructor_cells_with_their_header",
+          "status": "passed"
+        },
+        {
+          "name": "interned_symbols_are_counted_immortal_once_per_name",
+          "status": "passed"
+        },
+        {
+          "name": "normal_program_is_quiet_under_the_guarded_cap",
+          "status": "passed"
+        },
+        {
+          "name": "stats_line_counts_list_cells_only_when_asked",
+          "status": "passed"
+        },
+        {
+          "name": "the_cap_bounds_live_bytes_not_the_lifetime_total",
+          "status": "passed"
+        },
+        {
+          "name": "unbounded_allocation_hits_the_named_cap",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "45964-0.json": "10783e5c20594bd4b8bdbd00663c1e28bb4b21f8a8732991447fc26e26556cb6",
+        "45964-1.json": "06ecf76358a93a1a2e1b401a302ac73b3deebe06630b069f41f952814f41ad64",
+        "45964-10.json": "33a543cbaf6fd8dafbaa4143fd208baf138cef2ac179ff07e9940e247d23ddd8",
+        "45964-2.json": "ed04b230a83056cdbd3abb8b2494cd1deae8338d1fe48c36ac2fc5e894681944",
+        "45964-3.json": "c12e4052edec6a95eeda1f747b05c52819455b2dff72416cb7abbf10e5229612",
+        "45964-4.json": "538df739aad56a797f17d0233b6f02022efa7d7a4e65dc78e41f74d7361ab7f6",
+        "45964-5.json": "2f31872c7c127423ed85d083daf8d84ba51382ad0eb2240ce7d83c83038d0222",
+        "45964-6.json": "cc29f40481dbe444e723997149fc549eb89ffeef9a430e1e0035473e7c7c53a3",
+        "45964-7.json": "26cf41609fa4798d0d0601ff1d77ee73d6c55748f9c43d96f18895282eb739e3",
+        "45964-8.json": "d7c9ad93226db6c0b39b27d79f2f1c86ba36ceb024f899d547917b7103732eea",
+        "45964-9.json": "38518d27d3f8aedd5fdb6439a8f18a4faebda28c23000dedada682928ed9e51b"
+      },
+      "log_sha256": "8d16260abe7f222474607542284631b17cc5cb842d539c5257cfc8fe54ff5acf",
+      "passed": 8,
+      "test_source_sha256": "8f40dfbf2c2cdddb8691eb7e6ba2d4742709ffdda4fe64ba5f385e51b05e45a2",
+      "total": 8
+    },
+    "guard_coverage": {
+      "cases": [
+        {
+          "name": "all_guarded_match_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+          "status": "passed"
+        },
+        {
+          "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+          "status": "passed"
+        },
+        {
+          "name": "true_guard_counts_as_unguarded",
+          "status": "passed"
+        },
+        {
+          "name": "unguarded_final_row_compiles_and_runs_every_row",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "39462-0.json": "c4f5e36ff7e4a396c19030bef09c2f8d58b0c69e5fdb118fc3ea6092d0bc172a",
+        "39462-1.json": "58b3431cae51a877b15183438e1fdd7fd66c6511c466ddd5f1b99b3f8c057b10",
+        "39462-10.json": "70f5bcd3a3bde6a43ae75065e607e9b9acd95f030bfe42a1a7c6f3c8b5ed70f5",
+        "39462-11.json": "d0aa3ba8780c178d765e54f464280cfae22bfa0f6f5940a0714ddddbbe426052",
+        "39462-12.json": "32504f636d4bd7cdd43ae58aaa914ced784b427840a5b7ae4b893f1940f8a432",
+        "39462-13.json": "6f763a7fe88cc6391c3c693fd079847e358515e482349be232f612c421b619ac",
+        "39462-14.json": "d2cb04f5dc6c5e39c0ae6c8c4cc7f52a73623faa51bbfa87697862ffdee2dedc",
+        "39462-15.json": "ee16a394e65e9946b5bc05b8e48ad37af95ba074329fe526fc662fbbc02420a0",
+        "39462-16.json": "69080035cee60e9060a1713bf8bd56eb5c1a5c668c317b91548003acad9c095b",
+        "39462-17.json": "47126570e80cb033ed44f09744ee573189aabf2602e314ae2f71c5bbbd7c5fe7",
+        "39462-18.json": "955302e40a2759aece6aee954594f176a52e8bcaa7621785599b4a8ef047f48d",
+        "39462-19.json": "da3784dd057ff0d3efb4db19fc21975c89235f578f7fe027d0c55975a897862a",
+        "39462-2.json": "f25f2f7b50cf614e59f9fcbb84a336060b09a6cfcac44f5de86a02f9a135085f",
+        "39462-20.json": "ffed1d3fd22049c068ee1a8a46c83c2465ea22629a8a26c81e0a5dc375e1ce1d",
+        "39462-21.json": "17f303abcfc90125e876b9fb3864831af62691f30e93a5afdcb7fabe087e2037",
+        "39462-3.json": "889f5aa086b2d7c3861fa70af5ba8fc1068129251f03cd775a7beceec163f936",
+        "39462-4.json": "d3e08e757d99d4942f3d186fe6fdd8e0bbaa5fdff63d47b6c046b558956cb5aa",
+        "39462-5.json": "32d96c628a554486becaba05f97f0144e1bf297d52f0e33c4d41521a3937f67d",
+        "39462-6.json": "56a0167dd8a82cc71d0fa95f1d80d6906073a5f97820b1f93e1fb4f6091def9b",
+        "39462-7.json": "6632a98c714ed9ecabcfd18f6f43165e364ecfd6f529190dc6dacbf29d81306f",
+        "39462-8.json": "d4f867740270bbbec87d54b938ba3beb798d89ef94c164a0b61a8893c122a91e",
+        "39462-9.json": "e64dece397712db6984c56db6b08175474f80dbef32f77e0e6552726b6829112"
+      },
+      "log_sha256": "c6e196cfebc025424967af2d7e47326abdfc742c797f1acd5337bfc220fce7a3",
+      "passed": 5,
+      "test_source_sha256": "59a882f070b86612e195c906b2f6deec721721ec67577fc1cc09b86ab520f3a0",
+      "total": 5
+    }
+  }
+}

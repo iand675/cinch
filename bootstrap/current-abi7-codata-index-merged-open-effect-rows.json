@@ -1,0 +1,71 @@
+{
+  "compiler_source_sha256": "c998c4eaec569483f8c1f22c9fa1ddc37616ef9494fbbd6223c477102fe6915b",
+  "controls": {
+    "cinch-row-object": {
+      "abi_sha256": "a9d2012ac60493c1bc271a204c906a88a7df19a4f497ba937293720ff85081bf",
+      "interface_sha256": "0112d755ac604058358e076c5452ff2b1c052d0fb0d5f72cfcaa5f259a0988bb",
+      "name": "cinch-row-object",
+      "object_sha256": "d2f339b77e48a2b8b775ef2310e3cf6103623311ac70959d6109a5f73473a1f2",
+      "status": "passed"
+    },
+    "native-interface-region-effects": {
+      "log_sha256": "a725d72e87a730c502862f756dfd3c6662e84020fec91a9bfa5db0a501cc7273",
+      "name": "native-interface-region-effects",
+      "status": "passed"
+    },
+    "native-sequencing-contracts": {
+      "interface_sha256": "b53b5f1c72612ea4626dd87dc9985bdc0e1283ea324e162f26cd656fb48a5b4d",
+      "name": "native-sequencing-contracts",
+      "providers": [
+        "DirectSequencing",
+        "OptionSequencing",
+        "ResultSequencing"
+      ],
+      "status": "passed"
+    },
+    "row-label-remains-required": {
+      "diagnostics_sha256": "a3db0b3b421ed7be05173dbcffd7af23d77a0bc5c0869d6eb86c68d4ad43dec4",
+      "name": "row-label-remains-required",
+      "status": "passed"
+    },
+    "source-free-row-instantiation": {
+      "executable_sha256": "d59eb296a3f38b7ab75238b98b5a9c00f4dc765a831364c822838d7faf83a16f",
+      "name": "source-free-row-instantiation",
+      "source_sha256": "b830c0cc7ffc06b75ea6931013feb2ec85090f826d19afb9207bb31dd490746c",
+      "status": "passed"
+    },
+    "stage1": {
+      "compiler_sha256": "16240edafb3bb2a2a6439439f2f21ba77c99ccdcc461255f5d1f9e8734dc95b7",
+      "name": "stage1",
+      "stage_receipt_sha256": "c8e943156726d0366ab25a6ff9e5d07e414f70905d7d28289875cba7a1082d54",
+      "status": "passed"
+    }
+  },
+  "full_goal_complete": false,
+  "native_cases": [
+    {
+      "name": "resolved_contracts_keep_region_binders_and_closed_kernel_effects",
+      "status": "passed"
+    },
+    {
+      "name": "scope_and_task_contracts_preserve_kernel_and_source_type_owners",
+      "status": "passed"
+    }
+  ],
+  "native_sequencing_schemes": {
+    "DirectSequencing": "forall (a :: Type) (b :: Type) (ef :: Row). using (dict :: Effect.Sequencing.DirectSequencing) => (a -> ((a ->{ | ef} b) ->{ | ef} b))",
+    "OptionSequencing": "forall (a :: Type) (b :: Type) (ef :: Row). using (dict :: Effect.Sequencing.OptionSequencing) => ((Data.Core.Option a) -> ((a ->{ | ef} (Data.Core.Option b)) ->{ | ef} (Data.Core.Option b)))",
+    "ResultSequencing": "forall (e :: Type) (a :: Type) (b :: Type) (ef :: Row). using (dict :: Effect.Sequencing.ResultSequencing e) => (((Data.Core.Result e) a) -> ((a ->{ | ef} ((Data.Core.Result e) b)) ->{ | ef} ((Data.Core.Result e) b)))"
+  },
+  "native_source_sha256": "753d4c08c66a2b06970cbcadc743c29f34445d645dc4c7d7cc055720a3d41960",
+  "refusal": "bootstrap.check:5:10: effect rows do not match: performed effects exceed the declared row (performed {Blocking}, declared {})\nbootstrap.check:5:10: effect inclusion needs resolved rows\nbootstrap.check:5:10: a nullary definition must be pure\n",
+  "row_schemes": {
+    "run-blocking": "forall (e :: Row). ((Unit ->{Blocking | e} Int) ->{Blocking | e} Int)",
+    "run-callback": "forall (e :: Row). ((Unit ->{ | e} Int) ->{ | e} Int)"
+  },
+  "source_free_runtime_log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+  "source_snapshot_sha256": "856d5177a2198510ebdfaf8bc59d2621374fd4c8b6825315d93817cd59230239",
+  "stage1_compiler_sha256": "16240edafb3bb2a2a6439439f2f21ba77c99ccdcc461255f5d1f9e8734dc95b7",
+  "state_sha256": "db9ef8c25f1a4b308648f0389f076512af774c75b4c5a8d9448ad1da444fef27",
+  "status": "audited-merged-stage1-open-effect-row-contracts"
+}

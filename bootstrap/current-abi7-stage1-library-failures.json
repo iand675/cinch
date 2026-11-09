@@ -1,0 +1,199 @@
+{
+  "compiler_sha256": "f3913e9ecc19e29b2dcf0e4aeb1c884282512045187d678d4477996cab6c1616",
+  "compiler_source_sha256": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "source_snapshot_sha256": "09df2b31223abd0fd69df4f391c23684b2017c3cc2ea74053fe4a863d87aa4ee",
+  "status": "audited-abi7-stage1-library-failures",
+  "targets": {
+    "lib_base64": {
+      "adapted_source_sha256": "5408a4805d2c762aaac3ae74c03c2bf463e8fb0bcf517c81fda47092004e9c0c",
+      "cases": [
+        {
+          "name": "invalid_character_is_refused",
+          "status": "failed"
+        },
+        {
+          "name": "invalid_length_is_refused",
+          "status": "failed"
+        },
+        {
+          "name": "invalid_padding_is_refused",
+          "status": "failed"
+        },
+        {
+          "name": "lenient_decode_ignores_whitespace_and_junk",
+          "status": "failed"
+        },
+        {
+          "name": "rfc4648_vectors_both_directions",
+          "status": "failed"
+        },
+        {
+          "name": "round_trip_all_byte_values",
+          "status": "failed"
+        },
+        {
+          "name": "urlsafe_alphabet",
+          "status": "failed"
+        }
+      ],
+      "common_diagnostic": "refinement predicate is not established for this value (undischarged refinement obligation) (in Base64.cinch:88:53)",
+      "diagnostic_sha256": {
+        "invalid_character_is_refused": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "invalid_length_is_refused": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "invalid_padding_is_refused": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "lenient_decode_ignores_whitespace_and_junk": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "rfc4648_vectors_both_directions": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "round_trip_all_byte_values": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18",
+        "urlsafe_alphabet": "68ca34931eb4d3c1e90d663ab8c7fb6bbbc972a83678a1cf4f14f89f6ada8f18"
+      },
+      "failed": 7,
+      "harness_sha256": "20e18016a5b2e7ae8006428eed71f84c1ff10d52a54fd06a18a9cf2f0ce5b3dd",
+      "invocations": {
+        "30034-0.json": "7512948cb7d292c4e4b0e9836c2baf044db29e2713ef5aad746d503c934b120f",
+        "30034-1.json": "1238a06e30a0359a7a0f5afef6fce4c6f35c60734d187860b6f98fbe7ef16d69",
+        "30034-2.json": "3e12dd50bdd0b242b191a6449a8115523878c149e33366ea27f7ee5619d4b2cc",
+        "30034-3.json": "7086b6f23da09c0ac7b2406e5e446e7055ccdede6aac887f0539761c8c1323c3",
+        "30034-4.json": "7e957c444f2630b7640e5ace938486842ac20cf9a6e73da5b307580f96bbcc09",
+        "30034-5.json": "41fdfb2b43af02aa59ed9fd519f3f4b93bb00cc5f1837643abaa341b9c69e30d",
+        "30034-6.json": "0c766f143d7ddbc522178cec7e47f949594d623ae41c081a2bffa51b11f5cbc6"
+      },
+      "log_sha256": "c0ebfa766c6faa1336332a828c53d3800c7a86ff01bccc66818128f3943cf2ed",
+      "original_source_sha256": "c860839c67c74e7323604de734cd1aaedf8a8d93754d9f35b97a1d0a311479ac",
+      "passed": 0,
+      "total": 7
+    },
+    "lib_bigdecimal": {
+      "adapted_source_sha256": "9915e3fd5665b9af17d8b11b09ad4f466433d70b66e2e4c04e5c4fae09b3a8cb",
+      "cases": [
+        {
+          "name": "cmp_agrees_with_the_sign_of_subtraction",
+          "status": "failed"
+        },
+        {
+          "name": "division_by_zero_is_none",
+          "status": "failed"
+        },
+        {
+          "name": "division_takes_an_explicit_precision_and_carries",
+          "status": "failed"
+        },
+        {
+          "name": "exact_add_and_mul_over_values_binary_floats_cannot_represent",
+          "status": "failed"
+        },
+        {
+          "name": "malformed_literals_are_named_errors_never_a_silent_zero",
+          "status": "failed"
+        },
+        {
+          "name": "normalisation_makes_equal_values_equal",
+          "status": "failed"
+        },
+        {
+          "name": "rounding_modes_at_fractional_precision",
+          "status": "failed"
+        },
+        {
+          "name": "rounding_modes_at_the_units_place",
+          "status": "failed"
+        },
+        {
+          "name": "text_round_trip_and_plain_decimal_rendering",
+          "status": "failed"
+        },
+        {
+          "name": "to_f64_is_the_correctly_rounded_conversion",
+          "status": "failed"
+        }
+      ],
+      "common_diagnostic": "typed core contains an unresolved scheme or error term",
+      "diagnostic_sha256": {
+        "cmp_agrees_with_the_sign_of_subtraction": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "division_by_zero_is_none": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "division_takes_an_explicit_precision_and_carries": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "exact_add_and_mul_over_values_binary_floats_cannot_represent": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "malformed_literals_are_named_errors_never_a_silent_zero": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "normalisation_makes_equal_values_equal": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "rounding_modes_at_fractional_precision": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "rounding_modes_at_the_units_place": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "text_round_trip_and_plain_decimal_rendering": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c",
+        "to_f64_is_the_correctly_rounded_conversion": "e1881d89e87b3ebedfbc70c487a8ebaec3fc2ae7d7c05f7ed885e9453280375c"
+      },
+      "failed": 10,
+      "harness_sha256": "4c67155f3658ec3472fa820793ff17d692e94de98be9e11ca39d79a55ad4c359",
+      "invocations": {
+        "6310-0.json": "55768199b96ef36e1a03b76468e14e9b03216b68b2f4828bd26fc4a7b27c893c",
+        "6310-1.json": "89f1ed4c38b7cf7bbb217d466c5746912a32c4ae35be7f1392bdae0bb2ebca93",
+        "6310-2.json": "6e8e754a43c74c07d83fdbfe616ffa6dd802d134b86851cb462d3e3bd59206eb",
+        "6310-3.json": "20ab6a9207c13a1666670d559f5d328d8c8ce16d7aac9fadc0675bb34626f115",
+        "6310-4.json": "94842d2f1f9d8a51824fd86c8a03010171d97f7b8f89896f3d98d2b26a6746a2",
+        "6310-5.json": "5b5849b96403f03094933d75c1751be6683ce5a013b226c829c2ed1c981bd2c7",
+        "6310-6.json": "5ba4444deb8d93a28e54e2675e85decefe5e99ea767ad1ad05325c47fc779b2e",
+        "6310-7.json": "e4aa9da6035d8b25495e14841d77e02d7fdad25ddb2b7d87a2d6b3ecd166de31",
+        "6310-8.json": "046649dab1c95a6c0bbdedeb16db3ec7303f3ca923579ae6ff655cf4806cef28",
+        "6310-9.json": "c30d5857e2d894541c5c3a446c21ef2e9fb5b6b60b46a4d1f65bda6fba82c099"
+      },
+      "log_sha256": "e4966cad32331a6c5493bb27891a78cdaf5445d2c87f72a7f7edf1bc818ea503",
+      "original_source_sha256": "cc8326d6cf68e6ba126fc85eed019981f504ed871683a123968804df0e0b948e",
+      "passed": 0,
+      "total": 10
+    },
+    "lib_matrix": {
+      "adapted_source_sha256": "3c73505271d43ee5afa4fc9fd99178ca56c93b51ff4e9ece84df1b0723e517e8",
+      "cases": [
+        {
+          "name": "determinant_hand_computed_identity_and_singular",
+          "status": "failed"
+        },
+        {
+          "name": "dimension_mismatches_are_named_errors",
+          "status": "failed"
+        },
+        {
+          "name": "identity_laws",
+          "status": "failed"
+        },
+        {
+          "name": "ragged_input_is_rejected_at_construction",
+          "status": "failed"
+        },
+        {
+          "name": "surface_operations_scale_within_and_tostring",
+          "status": "failed"
+        },
+        {
+          "name": "transpose_involution_and_anti_distributivity",
+          "status": "failed"
+        }
+      ],
+      "common_diagnostic": "function precondition is not established at this call because the obligation `#dependent-argument <= w` needs evidence",
+      "diagnostic_sha256": {
+        "determinant_hand_computed_identity_and_singular": "72992644d1b734ad34375a68550bcd10f9cfd37dfbe5fec34aceaacf1540eb55",
+        "dimension_mismatches_are_named_errors": "5eae84adbf4e813dfb57dce14f8086905c49d30a09d3017160eaca60d81ad103",
+        "identity_laws": "2b8781c9d6ae20f7b4670c59d9155987dca9140f976327bf29800e06964c4f56",
+        "ragged_input_is_rejected_at_construction": "9c2aae4f9568e56e901899a2ba78ebd2c5be7a3dd99d2ec18ff5ae69bf6662c1",
+        "surface_operations_scale_within_and_tostring": "5eae84adbf4e813dfb57dce14f8086905c49d30a09d3017160eaca60d81ad103",
+        "transpose_involution_and_anti_distributivity": "966ee3e8d9716995d639a5dff53df0b8437e8003ed5d6442fa821a245b8b9b0d"
+      },
+      "failed": 6,
+      "harness_sha256": "42804814bab9620f9d8ed83d207a2d622d69a7a5ae1078e52d7f16fd324866b5",
+      "invocations": {
+        "44397-0.json": "8addccfa968fe1831d5920a54e7c52021a3a092e9fc255d24f8bac00ed5b775e",
+        "44397-1.json": "4ff011cc066d18cf7ec58463a6d253dd78f904b2232dae3f683b4c5a22796f43",
+        "44397-2.json": "8387cff3d95af59e22c77e07b0d7b1f444772af207823f027f52273c513afc73",
+        "44397-3.json": "67ad67963a5e92bb345669cbaa326934506a2df6ea869800248f001a24a8efdc",
+        "44397-4.json": "6e7ffb97f59c75e66290bb20dcb62f97016018aa4eb8373cc1bae8e9d5b0319f",
+        "44397-5.json": "04d417873f18ed19433850f6056c6248e5782b90cb31e3312449c7498a898a54"
+      },
+      "log_sha256": "196e1b419fdb63eb4112baa47d8c619dbc1a3f080bafd6dc72a12bbb83887ea7",
+      "original_source_sha256": "ba62c93eff1921ca61149f7e541b6bbea1a33d24ab6d894547b76da49c505634",
+      "passed": 0,
+      "total": 6
+    }
+  }
+}
