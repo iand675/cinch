@@ -17932,9 +17932,9 @@
         "unit": "checks",
         "total": 16,
         "passed": 8,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay original modules target on Stage 3",
+        "phase": "Replay original laws target on Stage 3",
         "evidence": null
       },
       {
@@ -21110,6 +21110,28 @@
         "evidence": null
       },
       {
+        "title": "Verify target-based primitive selection in Cinch",
+        "source": "2da684bd135bd3fc95bac3288029ea71554aa9904eeff5552d09676417347b46",
+        "unit": "checks",
+        "total": 8,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released worker slot",
+        "evidence": null
+      },
+      {
+        "title": "Replay original modules with both manifest harness fixes",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 12,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 modules harness",
+        "evidence": null
+      },
+      {
         "title": "Check source equality methods and replay the original laws",
         "source": "cc78aaf06222437105e506750b95cb793158d6d78f869b72f519e8c3e29fd72d",
         "unit": "checks",
@@ -21178,5 +21200,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:57:30.364662+00:00"
+  "updatedAt": "2026-11-09T05:00:33.986824+00:00"
 }
