@@ -5438,6 +5438,10 @@
                 },
                 {
                   "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+                  "status": "passed"
+                },
+                {
+                  "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
                   "status": "running"
                 }
               ]
@@ -13843,5 +13847,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:27:43.004506+00:00"
+  "updatedAt": "2026-11-09T09:28:45.794703+00:00"
 }
