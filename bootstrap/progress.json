@@ -10490,6 +10490,30 @@
               "cases": [
                 {
                   "name": "capture_avoiding_instance_context",
+                  "status": "passed"
+                },
+                {
+                  "name": "hk_surface_fixture_checks",
+                  "status": "failed"
+                },
+                {
+                  "name": "kind_inference_matches_annotation",
+                  "status": "failed"
+                },
+                {
+                  "name": "lib_category_check_runs",
+                  "status": "failed"
+                },
+                {
+                  "name": "nullary_method_round_trip",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe10_do_parses_probe_type_error_stays",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe11_instance_params_control",
                   "status": "running"
                 }
               ]
@@ -15106,5 +15130,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:54:55.462078+00:00"
+  "updatedAt": "2026-11-09T10:55:58.915496+00:00"
 }
