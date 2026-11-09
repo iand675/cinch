@@ -21292,8 +21292,8 @@
         "total": 2,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build Stage 1 from the frozen candidate",
         "evidence": null
       },
       {
@@ -21420,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:00:42.345933+00:00"
+  "updatedAt": "2026-11-09T07:01:45.685234+00:00"
 }
