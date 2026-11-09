@@ -10046,6 +10046,22 @@
                 },
                 {
                   "name": "declaration_quotation_capitalized_constructor_parameters_are_bound",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_effect_parameters_scope_their_operation_types",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_field_telescopes_keep_local_binders",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_index_helpers_keep_definition_site_authority",
+                  "status": "failed"
+                },
+                {
+                  "name": "declaration_quotation_rows_and_regions_follow_their_renamed_binders",
                   "status": "running"
                 }
               ]
@@ -14448,5 +14464,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:58:30.416303+00:00"
+  "updatedAt": "2026-11-09T09:59:33.261909+00:00"
 }
