@@ -5053,10 +5053,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 17,
+          "verified": 18,
           "blocked": 1,
           "running": 1,
-          "pending": 143,
+          "pending": 142,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -6004,6 +6004,28 @@
           {
             "id": "stage3:bootstrap_buffer_aliases",
             "title": "bootstrap_buffer_aliases",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "022fcfdce8999ee09033375e38c0b37cc7bae8bc2f0c68e695c99038a3789f32",
+              "cases": [
+                {
+                  "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:bootstrap_byte_observations",
+            "title": "bootstrap_byte_observations",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -6017,20 +6039,11 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "buffer_aliases_keep_identity_and_do_not_borrow_other_buffer_facts",
+                  "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "stage3:bootstrap_byte_observations",
-            "title": "bootstrap_byte_observations",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_check",
@@ -10514,6 +10527,38 @@
                 },
                 {
                   "name": "probe11_instance_params_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe12_dotted_import_multi_file",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe13_do_with_provider_control",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe14_dotted_import_aliased",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe15_module_type_ctor_names_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe16_char_nat_literals_control",
+                  "status": "passed"
+                },
+                {
+                  "name": "probe17_unimported_name_stays_unknown",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe1_class_method_var_headed_application",
+                  "status": "failed"
+                },
+                {
+                  "name": "probe2_ctor_field_var_headed_application",
                   "status": "running"
                 }
               ]
@@ -14494,10 +14539,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 17,
+        "passed": 18,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_buffer_aliases with the combined Stage 3",
+        "phase": "Replay bootstrap_byte_observations with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -15118,10 +15163,10 @@
       }
     ],
     "counts": {
-      "verified": 308,
+      "verified": 309,
       "blocked": 11,
       "running": 4,
-      "pending": 462,
+      "pending": 461,
       "recheck": 21
     },
     "total": 806,
@@ -15130,5 +15175,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:55:58.915496+00:00"
+  "updatedAt": "2026-11-09T10:57:01.766784+00:00"
 }
