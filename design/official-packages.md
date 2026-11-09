@@ -28,6 +28,7 @@ Grouped by the packages that want them, in the order worth building. Each is a `
 
 | Primitive group | Calls | Serves |
 | --- | --- | --- |
+| Kernel entry | the `syscall` instruction on x86_64 and aarch64, `libSystem` entries on Darwin | `cinch/prim`'s per-architecture modules, which every other primitive group builds on |
 | Socket listen and accept | `socket`, `bind`, `listen`, `accept4`, `setsockopt`, `getsockopt`, `shutdown` | `Net.Tcp` |
 | Datagram and local sockets | `sendto`, `recvfrom`, `socketpair` | `Net.Udp`, `Net.Unix` |
 | Readiness | `poll`, `epoll_create1`/`epoll_ctl`/`epoll_wait`, `kqueue`/`kevent`, IOCP on Windows | `Net.Event`, and every server package |
@@ -42,6 +43,8 @@ Grouped by the packages that want them, in the order worth building. Each is a `
 | Hashing and AEAD hot loops | our own implementations behind thin primitives | `Crypto.*` |
 
 Everything above is small, testable, and already has a shape in `compiler/runtime/src/platform.rs` or `net.rs` to copy.
+
+The kernel-entry row is the one that changed shape during implementation: a prim body's `when` clause is a capability condition, not a target condition, so the x86_64 and aarch64 stubs cannot share one prim. They live in `Prim.Sys.X86_64` and `Prim.Sys.Aarch64`, and `cinch/prim`'s manifest selects the module by `arch`, which is the same machinery that lets `Unix.Watch` ship a kqueue and an inotify implementation in one package.
 
 # 4 The catalogue
 
