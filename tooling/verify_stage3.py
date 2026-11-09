@@ -55,6 +55,12 @@ def compile_client(compiler, objects, runtime, args):
         link.extend(["-ldl", "-lpthread", "-lm"])
     code = subprocess.call(link, env=env)
     report.write_text(f"clang-exit: {code}\n")
+    build_manifest = ir.with_name(ir.name + ".manifest.json")
+    if code == 0 and api and build_manifest.is_file():
+        entry = bootstrap.read_json(build_manifest)["entry"]
+        if not isinstance(entry, str) or not entry or Path(entry).name != entry or entry in (".", ".."):
+            raise ValueError("invalid entry name in the staged build manifest")
+        shutil.copyfile(build_manifest, source.parents[2] / "build" / (entry + ".manifest.json"))
     return code
 
 

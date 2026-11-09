@@ -9,6 +9,17 @@ interface consumer checks pass, and all 20 original concurrency
 tests passed on Stage 3. The matching full suites remain open.
 See [the published compiler receipt](../bootstrap/current-abi7-published-task-capture-compiler.json).
 
+The combined manifest and typed-law candidate rebuilt from Stage 0
+through Stage 3. Its executable, LLVM IR and all 46 compiler interfaces
+match between Stage 2 and Stage 3. The 55 base interfaces, 12 smoke
+checks, separate interface consumer, changed-source rebuild and four
+manifest controls passed. Ten of the 12 original module tests passed.
+The other two compiled and ran, then failed to find their build
+manifests. Both manifests were emitted in the compiler scratch directory.
+The test adapter now publishes each emitted manifest under its declared
+entry after linking. The original module replay with this adapter remains
+open. See [the candidate audit](../bootstrap/current-abi7-candidate5-fixed-point-results.json).
+
 The current Cinch source rebuilt from Stage 0 through Stage 3. Stage 2 and
 Stage 3 agree on the executable, LLVM IR and all 46 compiler interfaces.
 The 55 base interfaces, 12 smoke tests, separate interface consumer and

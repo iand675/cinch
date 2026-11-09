@@ -206,6 +206,31 @@ class FrozenVerification(unittest.TestCase):
             self.assertEqual(link[:6], ["clang", ir, str(library), str(runtime), "-o", exe])
             self.assertEqual(report.read_text(), "clang-exit: 0\n")
 
+    def test_stage3_adapter_publishes_the_emitted_manifest_under_its_entry(self):
+        for link_code in (0, 2):
+            with self.subTest(link_code=link_code), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                work = root / ".cinch-self-tests" / "1"
+                work.mkdir(parents=True)
+                compiler, interfaces, objects, runtime = [
+                    root / name for name in ("cinch", "interfaces.json", "objects.json", "runtime.a")
+                ]
+                interfaces.write_text(json.dumps({"interfaces": []}))
+                objects.write_text(json.dumps({"object": str(root / "library.o")}))
+                source, ir, exe, report = [work / name for name in ("source.cinch", "output.ll", "program", "link-report")]
+                manifest = b'{"entry":"Entry.Project","runtime_abi":7}\n'
+                (work / "output.ll.manifest.json").write_bytes(manifest)
+                args = ["--compile-only", "--interfaces", *(str(path) for path in (interfaces, source, ir, exe, report))]
+                with patch.object(verify_stage3.subprocess, "call", side_effect=[0, link_code]), \
+                        patch.dict(verify_stage3.os.environ, {"CINCH_TEST_API_EMIT_INTERFACES": "1"}):
+                    self.assertEqual(verify_stage3.compile_client(str(compiler), str(objects), str(runtime), args), link_code)
+                published = root / "build" / "Entry.Project.manifest.json"
+                if link_code:
+                    self.assertFalse(published.exists())
+                else:
+                    self.assertEqual(published.read_bytes(), manifest)
+                self.assertFalse((root / "build" / "source.manifest.json").exists())
+
     def test_existing_cache_directory_cannot_be_reused_as_fresh_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
             evidence = Path(temp) / "evidence"
