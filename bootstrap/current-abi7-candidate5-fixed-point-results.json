@@ -273,5 +273,442 @@
       "status": "passed"
     }
   ],
-  "status": "passed-abi7-candidate5-fixed-point-and-manifest-controls"
+  "status": "passed-abi7-candidate5-fixed-point-and-manifest-controls",
+  "additional_original_targets": {
+    "concurrency": {
+      "binary_sha256": "0494f2e4ae1d613f739796cd3996e77f6d4dd6296be004aa3f413bb0549a2bdb",
+      "compiler_sha256": "a17b16faafd1d0e91dcc1da07cc73e036aaa438d249ce99f94cadddee401a273",
+      "exit_code": 0,
+      "invocation_receipts": {
+        "33240-0.json": "9448435aad2ff3bf8db781708d7e2aa775c7ccba37928658772280df6491e7cf",
+        "33240-1.json": "80667a39dce65a36b4de6a6369a6ab6792dca085f4d2e3069e251dc1ee816638",
+        "33240-10.json": "bbfc0d062a111789eefaf179ecaae5a8b8832b870fca4e09989ae3cecd62c63d",
+        "33240-11.json": "710d2f528093dbe68f7d37294c57977279f374e31474e8f72a8db69b65c39121",
+        "33240-12.json": "011a7d0034b732a1cc00ea8543c769587f1ac6d80e2f0e18981e095eaf55f55a",
+        "33240-13.json": "757cf0491603f683049b8a83899b7d1ebdb56d3811639083b07e90027d89b199",
+        "33240-14.json": "3e5c925266d10a52cb2fb4cb7becd651f6c8b7b32c2d27871565d042d47f1d47",
+        "33240-15.json": "2d419ec06890081d98826ff15e333eebc833a6dbf3232b7f55b8a3f9f3e47aea",
+        "33240-16.json": "2bafc13b09d926aee0be9ac7e0195bd225a146468978c7aa2d5e15ec14cd1d03",
+        "33240-17.json": "2f14d6b5264ffe53a7641b45601c29948f20e62118723b7cc3235d6cb0067e5b",
+        "33240-18.json": "2d33ffdbb135e6ffac19e908adea4a332fe6070306ccd6202ccef26de70c9327",
+        "33240-19.json": "69b872acf8966e7567fd889dfea284a5314ecbc7afaba3ade642540962890b58",
+        "33240-2.json": "379591af378f593b36e3b22425d82a2355675f3bf8766606d74e005b62e2636b",
+        "33240-20.json": "75825e08ac024a6e3a4a867d8f72f2aeddef9dc918c361b51009c5d98ee7cb25",
+        "33240-21.json": "288544477797cecaa9672ac7d74c7102887e2544243855740ebe4595559c8715",
+        "33240-22.json": "17a4f8062df41bd92a82f618eb8a1bd2fbfcf8d8a805ce4d4fd240aaaa7e08df",
+        "33240-23.json": "86b5c6c855efc01ff9284af52e8249a7e4d4980e214884c0af0ed499e81e63d1",
+        "33240-24.json": "5211335a03f8ec12d73582f5180b3e41f6571fd3bfbf20e2087ca8017cb23297",
+        "33240-25.json": "17b695c866a9d3ab5c5511f02fae927d0ae77d1297c89c126c8539993aeaa208",
+        "33240-26.json": "6fe07fec75b059f0c2008348e5f79378178dd64a46d1a38e46fd3955bb84f872",
+        "33240-27.json": "8069e639f42caee052bfb8731b511c19e074d3b77ba084116f61f55ba65ac230",
+        "33240-28.json": "22f2598138fda7f3d4dbee92cc381b29126fccd6bc116f4d1da658ce726f6a30",
+        "33240-29.json": "bf1d5388a6610e042b06b1ba170720b81aabbb99facb67290235f206108fe915",
+        "33240-3.json": "9d4ba00e3ed3d0d9506fc30318831856e8a32cbf15521ccd9063591ef68b7c00",
+        "33240-30.json": "9ad817457910df9ff3474975124154d0b06dbc83a6e63cad2bb99c27b4c86636",
+        "33240-31.json": "056458372393bc2d4ebb25e3c9cbcacaf4ae2b5a43effac9c7abbc41fa6b6ad1",
+        "33240-32.json": "4fcc39967127e139e2fbd592cab5d019f72fbefd6a019eabc20beab1a3137e6c",
+        "33240-33.json": "39910ff3c64623393cc9855b24c7ad5ad67b414dfd02a173016fc92b04bd5638",
+        "33240-34.json": "c2f5c5a888194e3a0ad6e202f82d584aabaec4d688f2d2764935a56d897dd796",
+        "33240-35.json": "9f2d148ecc799d648d9751517b8758914ba6f9ecbf7083781bdb0ec2220ec1c0",
+        "33240-36.json": "1d6bab608526a348b642e106e4d2a40911f5ffec6a67164adf34cba623463e74",
+        "33240-37.json": "d3fd480f322e35188fbef814f5d32301c1b32c692a9a416038f183620540dd46",
+        "33240-38.json": "48055facf62b2f64a97e5c02bb4aa91f2d7e78441f079860c0ab54da9d158611",
+        "33240-39.json": "178b49722482195623467b494e77ebd4abaa990b8e754a2811a8a308ded81385",
+        "33240-4.json": "9d0cf3d8831e83e14221d14d4fe87bd7061f1377bf27808b083cd3edad916634",
+        "33240-40.json": "ae4b03dfd52eb8184c673abca36b1c3d756841074b6118f9f696d6a107a3386f",
+        "33240-41.json": "36ce4f05a92ca6d5f200b106692be879a21c0429a3c9bc19f26463a9f8136a2f",
+        "33240-5.json": "fb49aebbe1483234cf1b2e1d275cc8d4b2a8ddcc3a946c7c17b3fe26119636a9",
+        "33240-6.json": "c6896599213d3177824bf0901c62f8d9415276fdb331c878b7b33e97b8b78fdd",
+        "33240-7.json": "546a8ca0def03f96697974a2ba114531418d2a488321acacc73863031b55eeab",
+        "33240-8.json": "037af586b6ff889103fff340e024335bb73b6e7f492e601fbe2f271f80a4e756",
+        "33240-9.json": "de4b86656a51d4c5ba002673b1e0d56aab2bb40f7e91ab0515e6fd2e23325a66"
+      },
+      "log_sha256": "0bc37f4fc1e65c78972d3a29b18a9e88c3ebfac6d9e72b5ae3c801514b475b0e",
+      "name": "concurrency",
+      "source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c",
+      "status": "passed",
+      "tests": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "passed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "passed"
+        },
+        {
+          "name": "task_shared_ref_requires_a_shareable_referent",
+          "status": "passed"
+        }
+      ]
+    },
+    "integration": {
+      "binary_sha256": "fb1cd0bcb32e18a9d6371e4a232da9443e5234577fe4e0f5bb04337ab151f369",
+      "compiler_sha256": "a17b16faafd1d0e91dcc1da07cc73e036aaa438d249ce99f94cadddee401a273",
+      "exit_code": 0,
+      "invocation_receipts": {
+        "43311-0.json": "41c897a83c30f6f0a85c96204b5c3f6abc410b56cf97107fafb9b58bd583ba91",
+        "43311-1.json": "85e444b21a8ed843abf210c03416de44bdf8b0ae4bbdcf6665b3dfe8b2f8455c",
+        "43311-10.json": "593ecd2306b5fd1bd9366a60fac4f1b199235f2af3d9d1389e43cbcb3b2bc6ae",
+        "43311-11.json": "d578ce274133605a134f96da0701e7f928b63d8fd5be2f78147c29fb2e5fc6fb",
+        "43311-12.json": "d21223abddfe206f136ed2360c6c3c409cad75415783ec3b8110fbab9da0d35f",
+        "43311-13.json": "23142623f6907b568f7f4d35011c7765223f0e181be503d0a6f4d5e5a4f8685b",
+        "43311-14.json": "3112e42e51a7f070ef3e90a493dd4cd78cd91df26ec1793e7292e3ed1c61cab8",
+        "43311-15.json": "701b1b2d1bee5db87709a1faf0ac989670fd8a14fda4bbe8eecc51a8b84f04c0",
+        "43311-16.json": "a60632542764aaa51f510d3f7c9c80f9ae17e2a21736d27793ba5ad3a6fc1870",
+        "43311-17.json": "b65d6c80e49c43e9b87f1cffa819ff6d96049b30ca38b477d599f523fe39ac4b",
+        "43311-18.json": "092b34f80cafa12bf2867204f150159bb8a9f72fa4d45c1c2bbd17f20a918c34",
+        "43311-19.json": "ccd3ad0170d53677c3ed2fb05f21762a05e1e0ce65dc56286add8d1b78062558",
+        "43311-2.json": "49968f9fc20ee9b29c6b31db9859de9e3836ab5bb320ea84bef82154de461817",
+        "43311-20.json": "7ae8a7e3706cbcfd53b683bba2be3ac0fabbca7685530bfc7a862f21b5050e89",
+        "43311-21.json": "a58c0aa5a77ba0e745df6697148e5815d2ac1abbef354824c8cbc591d666e2d4",
+        "43311-22.json": "8e7c789c8c1ec2b2f2dfc884ec2e5230a9b622c54e5aaffa221ed3ae872a6cf6",
+        "43311-23.json": "6dd28e6da4c2a8ad9c36e71186f423658d91769aa6717cdf4984b7227d5b3eeb",
+        "43311-24.json": "75e62a6bfe4ab79cfe1ff51ccecf0791a8fd7872fefad2938848b3e373b06424",
+        "43311-25.json": "eaca27fa67d7a49b6f64458778b26a06b01803e76e50e9a9bf3088f64b4592ff",
+        "43311-26.json": "bd7e193e3a5cc9a2ba962d391f43e0357a754ce407b86c4ea81ae8258fd92c61",
+        "43311-27.json": "b7f07c212426a84d98dac0582702d83bf837e0e41809ec0e536f86c529f4070c",
+        "43311-28.json": "575d929d53d480033a0c4d140decb146d16a8392158e5541de732fa19675ab03",
+        "43311-29.json": "46e721fe236bda352fafac34f5ff3f93aeb620a0b9306f52fae57fd7b87e2f63",
+        "43311-3.json": "b568886593b5dfd8c955e39b41dae38faeed5a97c5cd45009982d64b1f767e74",
+        "43311-30.json": "46b89a2d9fe174ec3cfcfa87de739e8bfd03532c04414bd0f5a87995b3a38c6f",
+        "43311-31.json": "05738907ccbced78acda0631278906e5fda119df064ab9efcf91c7184c4b2fd8",
+        "43311-32.json": "cb7dbe34b20bb39f1d3ec25446e668e3f49bcbfbec6ed9afd058be8161e44377",
+        "43311-33.json": "f275abc3092d0fdd9fbf8885796a2d21f31a1c62ecde46ee5160f099a2f33de7",
+        "43311-34.json": "fd296c956e402241fca79cba2add18f8cbf91d8c7d5a98e20fafe3320c3dbf32",
+        "43311-35.json": "5fb3d15f8e82f264e20a07984646b6178997b492ed3095cd05aefe6bd1ae813f",
+        "43311-36.json": "09997163b5ca99ef870ccbca71cbef54abef7911b5d7be83b2204caf5620d171",
+        "43311-37.json": "e5d98e9cdfce4c3f61e31b9a985dac0d7a987da814bc373f254bf40fb0c4a0fd",
+        "43311-38.json": "2e82e5360bff4471a00a14387c62600d4fa0ae182bbb410eb099c265ab72dad2",
+        "43311-39.json": "b8d62d7ef43ca60ffb5ad36c6a4c7e380466f0d16604c500ff22b038d90c8c09",
+        "43311-4.json": "b73cbfcaadc5671e8bcfafd6851e5c6024f4637296b8c8855357e2916ae276fa",
+        "43311-40.json": "2c07cd45ccffe0dacaed89859f2ed3ab31800e08da7ffa53b8f0a909845f8f30",
+        "43311-41.json": "601d9632dc05c4382355bfd1231d2b03bae941170455b1a8fcfb5bf85d3ad262",
+        "43311-42.json": "e2056de7b546f252b885fa05ee8556aba97ca0bac53d8dc804d99c7ba336e94b",
+        "43311-43.json": "92bf40d0dbecf8887bdf48c5cf55aeaf9b6e0c8f208530578d935a00c319f738",
+        "43311-44.json": "4f5ca83030594297f3e74ec3e02600d2d24ab404915f5d1289074cf66d81a3ba",
+        "43311-45.json": "99fe596c453e1f608e35b353ea2beab1558597d7e0dc17f64b83d325b545390d",
+        "43311-46.json": "7ba42de8ff51fd22b67a724756642fe75d3485eab627d670380e8a142fde923f",
+        "43311-47.json": "a96e22589003253dd1d3d2a437249cc26e18941ccfd1db4d190905b7d6af9d84",
+        "43311-48.json": "a742ae658428d876c8a4c4764986207a428e7c286f7afe62e9a64c106171749a",
+        "43311-49.json": "a9dd27c133e1af7284d804ae065a64d24449d32e98ebfd3866acdc478ba0e211",
+        "43311-5.json": "b920766cc776492cf7ec20a4ac0f06c38f647c45b33713ea3533267b3ba47ccc",
+        "43311-50.json": "9fd3b41b3c7e50278742da8a407a14901ef9ddac58a0712ea9780e361814bf71",
+        "43311-51.json": "2a6a08e0d8c941452131278d2af02a5ac9b6939103048a2001bd633d7ffff3f5",
+        "43311-52.json": "b502316c03b671ab2dc08d1d4a93eee31d3000a4dcb3ec9eb45fa5a8f3ab186b",
+        "43311-53.json": "20bda9259be9a021636663b0419b3ee08ca03abbbd569e74a296c7df1133edf4",
+        "43311-54.json": "d54f90d6320d9ef7ab5e30e93064a75c66703f0307fc1ec583d5570fa7e343b6",
+        "43311-55.json": "5d3119fb6bbcb850a789d484e8ccade5d98b23591fb937b90237a93d4317933b",
+        "43311-56.json": "6ff9f585613821b5aced6f17db383dc888bb4897a2f7f186eff95f05f4dd2f02",
+        "43311-6.json": "ff2836a66b3fc3a050a2e1447aefd12e0116d191e1cc3099e5fc631a48984d45",
+        "43311-7.json": "aee6f6097823f2e9b0de4909350c5275bab8b8b946a2b89de5587f364fa9ddf5",
+        "43311-8.json": "66a008aff9c99d33fd0865bb541b48fe2e620e8a2597988a0f3dbed76303ac81",
+        "43311-9.json": "effb842d3b76a54d4b0d5f96449c407a4aec09d36b0925781357483531c7226a"
+      },
+      "log_sha256": "4c9555521e3d23ae993af4b22f1223b96254df80a1a98a75ec147da14502fe57",
+      "name": "integration",
+      "source_sha256": "30a2d61bed9b6510f44bf01c3b319e4f31e72345f7730ecb3e77e291eec56833",
+      "status": "passed",
+      "tests": [
+        {
+          "name": "arithmetic_through_class_methods",
+          "status": "passed"
+        },
+        {
+          "name": "case_guards_fall_through_to_later_rows",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_from_another_type_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "constructor_patterns_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "custom_class_custom_operator_custom_instance",
+          "status": "passed"
+        },
+        {
+          "name": "duplicate_binders_in_one_pattern_are_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "effect_rows_are_typed_and_honest",
+          "status": "passed"
+        },
+        {
+          "name": "generic_constraint_and_partial_application",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_on_boxed_result_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "guard_failure_with_covered_patterns_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "integer_match_without_catch_all_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "lambdas_capture_and_prelude_folds",
+          "status": "passed"
+        },
+        {
+          "name": "library_modules_check_without_an_entry_point",
+          "status": "passed"
+        },
+        {
+          "name": "list_literals_and_list_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "literal_patterns_fall_through_in_source_order",
+          "status": "passed"
+        },
+        {
+          "name": "local_let_polymorphism",
+          "status": "passed"
+        },
+        {
+          "name": "memo_bindings_demand_on_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_cells_with_signatures_and_shared_use",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_black_hole_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "memo_group_mutual_demand_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "nested_constructor_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "nested_patterns_keep_source_order_fall_through",
+          "status": "passed"
+        },
+        {
+          "name": "prelude_sum_list_generic",
+          "status": "passed"
+        },
+        {
+          "name": "record_rejections",
+          "status": "passed"
+        },
+        {
+          "name": "records_construction_projection_and_patterns",
+          "status": "passed"
+        },
+        {
+          "name": "recursion_negation_and_bool_operators",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_missing_instance",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_non_exhaustive_match",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_type_mismatch",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_undeclared_operator",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_unknown_name",
+          "status": "passed"
+        },
+        {
+          "name": "rejects_wrong_main_type",
+          "status": "passed"
+        },
+        {
+          "name": "surface_and_or_short_circuit",
+          "status": "passed"
+        },
+        {
+          "name": "thunks_delay_and_force",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_arity_mismatch_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "tuple_let_destructuring_and_types",
+          "status": "passed"
+        },
+        {
+          "name": "tuples_through_functions",
+          "status": "passed"
+        },
+        {
+          "name": "where_clauses_in_equations",
+          "status": "passed"
+        },
+        {
+          "name": "wrong_main_type_still_rejected",
+          "status": "passed"
+        }
+      ]
+    },
+    "codata": {
+      "binary_sha256": "1229c7e94a51f2b7eaae22f745d190340cdbddf0e0e8d47ce762dd415b3cdc2f",
+      "compiler_sha256": "a17b16faafd1d0e91dcc1da07cc73e036aaa438d249ce99f94cadddee401a273",
+      "exit_code": 101,
+      "invocation_receipts": {
+        "62819-0.json": "5a63e85bcf597d6d03ef14b7c2d1972ac004014f5f4956d48963a6b00f83aab6",
+        "62819-1.json": "4170960db7497b616f1dc1f4bc46144c2a4c487c56fa39ea8f19aa36399dbf5c",
+        "62819-10.json": "945e0b4e251faa5a19f18985670f57bdf6ac1dde7ace5aaf233ce7c45b2eb2ae",
+        "62819-11.json": "ba250fd99456904476c5eb768fa85935d96268b02b50949f245d95b806f6c405",
+        "62819-12.json": "592f378a793597766681e59fa868b402b763f64aa77a2daa344f2a1c2e463be7",
+        "62819-13.json": "9400f4c12c64c7f007e59b6f0f04721b85e6f29033092b9cfa2c19b73695f6cd",
+        "62819-14.json": "2adbade8278c7136a1c4a8bd34f192923c84f93c38e3194251be84a9482c9ada",
+        "62819-15.json": "6a530a16dbff479ec18da34dc99ab7d41c3b95a62699ec185fa0c578b6616947",
+        "62819-16.json": "68a8effc7aba0d952ae0c2ee851a071636258aed0ad94b076f675ddae9568f07",
+        "62819-17.json": "496a6ca11a824c4aa9e7f67e895d1ec8ac89ad2bf9458347adde90a85bbf54b2",
+        "62819-18.json": "5054e4478a4d1cd963f468add144795b3006bda065966b15e3693bc025cb476e",
+        "62819-19.json": "4c0eb42a8c147dd6098448bfead5fbf088045a4d13ca381a10d508fb24592a80",
+        "62819-2.json": "79b657bf4c43a2d9d2b1e2a4bad5dd6d969cb32bb546a91b8628f151f7749289",
+        "62819-20.json": "1c7c2301a5b98ba4c7a3db8f856f64c67bed6f3a236a66599a70ca0035bc76f7",
+        "62819-3.json": "ecfc13ce1cf93152200899357a486abb3931ec397ac01b578e7bcfc9a775d4ee",
+        "62819-4.json": "b6987c806cdd02a75914245fd02e628bb1b162981bdb0033444012048916cba9",
+        "62819-5.json": "0ff29c24dd22980368ad40fac3c7481923843c52ee7c4bac63cd6ce056deb437",
+        "62819-6.json": "ea71647fe4559989b582d6d8e17f29441d3cb742e29461fd63b4cefdb34818b9",
+        "62819-7.json": "5ade594440c068494214e6c5e3cd830c42cb57be72d8cb939abd5b063a6a62bd",
+        "62819-8.json": "d8225e719ebd419d2a967f9238c2dbb82ec404a32e1fc838598fa987aec06387",
+        "62819-9.json": "3e75ff8604ba00b18d24d77c0f8a180197f79dbd5ea19293d24abdf82c579a26"
+      },
+      "log_sha256": "8f5da6e2142112c9f982a4c8240952b6b87bf019eda65ee17a86379862dae5ca",
+      "name": "codata",
+      "source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+      "status": "failed",
+      "tests": [
+        {
+          "name": "acceptance_example_04_productive_stream_checks",
+          "status": "failed"
+        },
+        {
+          "name": "codata_is_observed_not_destructured",
+          "status": "passed"
+        },
+        {
+          "name": "codata_keeps_thunk_and_memo_discipline",
+          "status": "passed"
+        },
+        {
+          "name": "corec_needs_an_observation_layer_per_step",
+          "status": "passed"
+        },
+        {
+          "name": "corec_stream_observes_head_and_tail",
+          "status": "failed"
+        },
+        {
+          "name": "guarded_delay_and_force_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "later_is_not_interchangeable_with_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "later_must_not_be_an_unrestricted_thunk",
+          "status": "passed"
+        },
+        {
+          "name": "unproductive_corec_is_rejected_naming_the_call",
+          "status": "passed"
+        },
+        {
+          "name": "unrestricted_filter_loses_productivity",
+          "status": "failed"
+        }
+      ]
+    }
+  }
 }
