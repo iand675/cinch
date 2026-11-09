@@ -111,9 +111,13 @@ The matching Stage 1 executable passed all eight original law cases with
 equation methods under their declaring class and checked slots. Stage 1
 then built Stage 2 from those same inputs. The Stage 2 audit verifies all
 46 compiler interfaces and their closure with the 55 library interfaces.
-Stage 3 is building from the audited Stage 2 executable.
-See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json)
-and [the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json).
+Stage 2 and Stage 3 produced byte-identical executables, LLVM IR and all
+46 compiler interfaces. Both passed their smoke tests. The Stage 3
+compiler checked a separate entry using the emitted interfaces. The
+changed-source rebuild is running.
+See [the merged Stage 1 audit](../bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json),
+[the Stage 2 audit](../bootstrap/current-abi7-codata-index-stage2.json), and
+[the Stage 3 agreement audit](../bootstrap/current-abi7-codata-index-stage3-agreement.json).
 
 The pinned producer emitted the five requested Bits variants and the two
 Map variants without changing any of the 55 library interface files. The
