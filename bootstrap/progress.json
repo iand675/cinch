@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "8/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
+  "activity": "9/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17908,11 +17908,11 @@
         "title": "Run all 105 Stage 3 targets on the preceding memo revision",
         "source": "281436e8d2531bf360b0a7cea8b6ee206f3bb3040362794a1faed0156951a9d3",
         "unit": "targets",
-        "passed": 8,
+        "passed": 9,
         "total": 105,
         "failed": 1,
         "status": "running",
-        "phase": "argv",
+        "phase": "arrays",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-cinch-memo-fixed-point-results.json"
       },
       {
@@ -20805,10 +20805,10 @@
         "title": "Check rewrite equations against cited laws and record assumptions",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. replay all eight original class-law tests",
-        "passed": 1,
+        "phase": "Isolated Stage 1 candidate. link and run U32 overflow and underflow controls",
+        "passed": 8,
         "total": 11,
-        "failed": 0,
+        "failed": 2,
         "source": "700c7085062d0c69411d41ad10b88ec1e39245f95be1725558b40e4ac786b7e3",
         "evidence": null
       },
@@ -20892,5 +20892,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-08T23:59:24.593309+00:00"
+  "updatedAt": "2026-11-09T00:00:27.338290+00:00"
 }
