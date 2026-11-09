@@ -6040,6 +6040,10 @@
               "cases": [
                 {
                   "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_observation_identity_survives_a_renamed_facade",
                   "status": "running"
                 }
               ]
@@ -10621,6 +10625,26 @@
                 },
                 {
                   "name": "anonymous_numeric_literals_use_the_checked_refinement_binder",
+                  "status": "failed"
+                },
+                {
+                  "name": "anonymous_refinement_display_does_not_capture_an_outer_r",
+                  "status": "passed"
+                },
+                {
+                  "name": "direct_construction_checks_and_erases",
+                  "status": "passed"
+                },
+                {
+                  "name": "erased_representation_is_the_container",
+                  "status": "failed"
+                },
+                {
+                  "name": "forged_witness_cannot_be_constructed",
+                  "status": "failed"
+                },
+                {
+                  "name": "inline_effectful_refined_arguments_keep_the_checked_value",
                   "status": "running"
                 }
               ]
@@ -15228,5 +15252,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:59:08.023097+00:00"
+  "updatedAt": "2026-11-09T11:00:10.690559+00:00"
 }
