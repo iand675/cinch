@@ -531,8 +531,8 @@
       {
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
-        "state": "running",
-        "detail": "The published Rust and Stage 3 suites are running. Earlier failures have separate replay records.",
+        "state": "blocked",
+        "detail": "letrec",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -4780,9 +4780,9 @@
         "total": 162,
         "counts": {
           "verified": 4,
-          "blocked": 0,
+          "blocked": 1,
           "running": 1,
-          "pending": 157,
+          "pending": 156,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5018,17 +5018,17 @@
           {
             "id": "stage3:letrec",
             "title": "letrec",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "ff92a80530fc6dfd41336e831beaae408e82f9534dad8f2d1e23c42c5c8d7250",
               "cases": [
                 {
                   "name": "eager_call_cycle_is_rejected",
@@ -5092,7 +5092,15 @@
                 },
                 {
                   "name": "recursive_value_cannot_escape_its_region",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "value_knot_read_under_a_lambda_yields_the_value",
+                  "status": "passed"
+                },
+                {
+                  "name": "values_independent_of_the_knot_can_escape",
+                  "status": "passed"
                 }
               ]
             }
@@ -5100,11 +5108,32 @@
           {
             "id": "stage3:modules",
             "title": "modules",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_failure_in_a_sibling_module_names_its_file",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_module_can_import_a_signature_declared_later_in_the_same_file",
+                  "status": "passed"
+                },
+                {
+                  "name": "entry_module_name_is_free",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:class_defaults",
@@ -13184,9 +13213,9 @@
         "unit": "targets",
         "total": 162,
         "passed": 4,
-        "failed": 0,
+        "failed": 1,
         "status": "running",
-        "phase": "Replay letrec with the combined Stage 3",
+        "phase": "Replay modules with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13676,9 +13705,9 @@
     ],
     "counts": {
       "verified": 290,
-      "blocked": 0,
-      "running": 4,
-      "pending": 488,
+      "blocked": 2,
+      "running": 3,
+      "pending": 487,
       "recheck": 21
     },
     "total": 803,
@@ -13687,5 +13716,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:10:21.294094+00:00"
+  "updatedAt": "2026-11-09T09:11:23.970938+00:00"
 }
