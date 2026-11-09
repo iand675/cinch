@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "11/105 Stage 3 targets verified and 13/236 Rust targets verified on the preceding memo revision.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 8/110 Cinch Stage 3 targets passed and 22/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17927,6 +17927,28 @@
         "evidence": null
       },
       {
+        "title": "Run all 236 Rust targets on the integrated candidate 3",
+        "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
+        "unit": "targets",
+        "passed": 22,
+        "total": 236,
+        "failed": 0,
+        "status": "running",
+        "phase": "bootstrap_anonymous_contracts",
+        "evidence": null
+      },
+      {
+        "title": "Run all 110 Cinch Stage 3 targets on the integrated candidate 3",
+        "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+        "unit": "targets",
+        "passed": 8,
+        "total": 110,
+        "failed": 2,
+        "status": "running",
+        "phase": "bootstrap_body_bindings",
+        "evidence": null
+      },
+      {
         "title": "Run all 236 Rust targets on the preceding memo revision",
         "source": "d458a8c6eafb2324853b1983e41280daa7bddfee3983e34f01df7327583fffe0",
         "unit": "targets",
@@ -20923,6 +20945,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
       },
       {
+        "title": "Replay the nominal task-capture failure on the integrated Stage 1",
+        "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
+        "unit": "tests",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "status": "passed",
+        "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
+        "evidence": null
+      },
+      {
+        "title": "Replay all original concurrency cases on the successor Stage 3",
+        "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
+        "unit": "tests",
+        "passed": 0,
+        "failed": 0,
+        "total": 20,
+        "status": "pending",
+        "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
+        "evidence": null
+      },
+      {
         "title": "Verify scoped recursive value teardown in Rust",
         "source": "99c8189c0125ff49aa992d7665f9fa619ed88cda825edc2803c298a94de8abb7",
         "unit": "targets",
@@ -20980,5 +21024,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:22:19.824602+00:00"
+  "updatedAt": "2026-11-09T03:23:23.132968+00:00"
 }
