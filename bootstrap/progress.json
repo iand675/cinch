@@ -17943,9 +17943,9 @@
         "unit": "checks",
         "total": 12,
         "passed": 8,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original codata target on Stage 3",
+        "phase": "Replay original guard_coverage target on Stage 3",
         "evidence": null
       },
       {
@@ -21200,5 +21200,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:02:39.699296+00:00"
+  "updatedAt": "2026-11-09T05:06:03.806122+00:00"
 }
