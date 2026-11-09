@@ -141,8 +141,10 @@ The resource-corrected rewrite Stage 1 passed six of eight cases in the
 earlier harness. It accepted the shipped equations and refused the false
 equation with the required justification diagnostic. The lawful Box
 fixture emitted the exact eight-sample observation in its typed interface
-row. The earlier text assertion still failed. The proposition-valued
-signature method remains open, including its lambda equation.
+row. Replaying the same Stage 1 with the typed law assertion passed
+seven of eight original tests. The remaining test needs checked
+proposition-valued signature methods, including a lambda operand.
+The full matching Stage 3 suite remains open.
 See [the corrected Stage 1 replay](../bootstrap/current-abi7-rewrite-resource-results.json).
 
 The standard selected-Cinch harness verified all five guard coverage,
