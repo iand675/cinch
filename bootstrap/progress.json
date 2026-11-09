@@ -5573,6 +5573,14 @@
                 },
                 {
                   "name": "array_intrinsic_signatures_and_primitive_kinds_cannot_be_forged",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_library_objects_stamp_matching_abi_and_owned_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "array_runtime_aliases_are_alpha_equivalent_and_first_class",
                   "status": "running"
                 }
               ]
@@ -14222,5 +14230,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:35:55.316968+00:00"
+  "updatedAt": "2026-11-09T09:37:19.551195+00:00"
 }
