@@ -1,0 +1,113 @@
+{
+  "compiler_sha256": "a9adb9b6bef013d352619ba7c758bc24a5b8baa57c196a11169d1cadd467845c",
+  "compiler_source_sha256": "457c24d7e5436cdcc682f8b9c017c412447c1303afb03286b148a4f74563cb97",
+  "full_goal_complete": false,
+  "interface_manifest_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
+  "object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+  "original_passed": 4,
+  "original_total": 4,
+  "passed": 6,
+  "previous_stage3": {
+    "compiler_sha256": "718e8f6e9672c1182a67117c449fcb1bc28fc5ce3c40d3adc1c3b14b965c6d8c",
+    "log_sha256": "2023cb0ccf566f3fffbe7686a3d3ff610334dbabd5c37e0ea6f2650477a1a559",
+    "passed": 1,
+    "total": 4
+  },
+  "runtime_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "schema": 1,
+  "scope": "The compiler and linker use their normal stack. The generated executables use the exact test stack. This tests the original program sources and two additional controls on an isolated Stage 1. Integration and the matching Stage 3 suite remain open.",
+  "stage_receipt_sha256": "1b2a1a7161f69713c82a0db96a1dcc4759764289617366ab7a5c3f5f15394edf",
+  "status": "audited-stage1-tail-fixtures",
+  "test_source_sha256": "54d0f20a4d2243267020cac65d16a3fb86bdd7f5d02b82d4514c8f14ac8ab20c",
+  "tests": [
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 42,
+      "llvm_sha256": "05f61d77835840009a9dad2544c3a34d2f77f985483fc552512cd85991acbb51",
+      "name": "local-nontail-and-partial",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "2d18866d12e9a22c1d6aa8e865add986c380b56249d84b55e3cc4cb38f82f6ff",
+      "stack": "512K",
+      "status": "passed",
+      "tail_calls": []
+    },
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 42,
+      "llvm_sha256": "cb59b6fecf934ddda89fe43157fc865e6d99119eb75bf83ea7298ce8b300cbec",
+      "name": "local-mixed-arity-tail",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "fd5b3ca3d3eff2c45f48b0e380bdf5962aee60730822c7a2ba1dd8e7604c765e",
+      "stack": "512K",
+      "status": "passed",
+      "tail_calls": [
+        "  %v82 = musttail call i64 @\"cinch.typed..rec6#tail\"(i64 %arg0, i64 %arg1, i64 %v81)",
+        "  %v102 = musttail call i64 @\"cinch.typed..rec7#tail\"(i64 %arg0, i64 %v101, i64 0)"
+      ]
+    },
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 0,
+      "llvm_sha256": "c14cdb3ef0a811bf25ef7bd8af6fbdd9224da08014a26fab575fe4418ee4b4d9",
+      "name": "self-tail-1m",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "5925f58fa4b5d379f9257274a9d598548b629c83d9d53d58aa165f4a5b956ccb",
+      "stack": "8M",
+      "status": "passed",
+      "tail_calls": [
+        "  %v31 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.115_117_109_45_116_111_#tail\"(i64 %v27, i64 %v30)"
+      ]
+    },
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 0,
+      "llvm_sha256": "48d7b573b39d50617e57cbeb39ab118d38299ac147ec266174bbb9dd312e3540",
+      "name": "mutual-tail-1m",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "703cf1a4b4a81a26b053282f624fc2759d51dc0a14b552ba931162c7f77d4691",
+      "stack": "8M",
+      "status": "passed",
+      "tail_calls": [
+        "  %v30 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.112_111_110_103_#tail\"(i64 %v29)",
+        "  %v44 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.112_105_110_103_#tail\"(i64 %v43)"
+      ]
+    },
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 0,
+      "llvm_sha256": "d2081800044964fcab238abcd118eac3895c31a88a3a28e2b5d9f1fe3d6c4563",
+      "name": "mixed-arity-tail-1m",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c",
+      "source_sha256": "87791111d77f89740926d611481a9ac2cbe29d3413b8ac8705d54d226aa0653c",
+      "stack": "8M",
+      "status": "passed",
+      "tail_calls": [
+        "  %v30 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.115_116_101_112_#tail\"(i64 %v29, i64 0)",
+        "  %v43 = musttail call i64 @\"cinch.typed.m.77_97_105_110_.119_97_108_107_#tail\"(i64 %arg0, i64 %v42)"
+      ]
+    },
+    {
+      "compile_exit": 0,
+      "compile_sha256": "75a156468474599ee4afdde654f0ed2b4a79e946a423bc73f2e142f4f116715e",
+      "exit_code": 73,
+      "llvm_sha256": "37cf8c04d05cbab188c45d88cfc73624e5c5245ead83eab8740194ae7f46c3f8",
+      "name": "deep-recursion-control",
+      "previous_run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "run_sha256": "9520fe7eb015421ce883b884b3aff18295e4fca9b2cd5779844489bd7238bb32",
+      "source_sha256": "d16b5f70fd653d16402fcc7ef490099487c67f8999a6fc08a0c3732c965e97f8",
+      "stack": "8M",
+      "status": "passed",
+      "tail_calls": []
+    }
+  ]
+}

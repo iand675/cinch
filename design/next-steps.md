@@ -215,6 +215,16 @@ refusals and the nested let depth limit also passed. Both remaining cases
 require region-scoped value knots. Constant-stack lowering has a
 separate validation. See [the recursive function audit](../bootstrap/current-abi7-guarded-function-letrec-results.json).
 
+An isolated Cinch Stage 1 passed all four original tail-call programs.
+The three million-call programs ran on 8 MiB stacks and emitted LLVM
+`musttail` calls. The original non-tail control exhausted its stack
+as expected. Two additional local controls passed at 512 KiB, including
+mixed arity with a heap capture and ordinary partial application.
+The compiler and linker used their normal stack. The earlier replay
+applied the program stack limit to the compiler and exhausted it
+before emitting LLVM IR. The integrated Stage 3 replay remains open.
+See [the tail-call audit](../bootstrap/current-abi7-tail-stage1-results.json).
+
 An isolated Cinch Stage 1 now passes all twenty original concurrency
 cases through the standard test harness. The checker follows a moved
 nominal wrapper's instantiated fields to the borrowed referent. The
