@@ -17920,10 +17920,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "gates",
         "total": 8,
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "status": "running",
-        "phase": "Check default public exports for erased equality methods",
+        "phase": "Build combined Stage 2",
         "evidence": null
       },
       {
@@ -21213,10 +21213,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 8,
+        "passed": 9,
         "failed": 0,
         "status": "running",
-        "phase": "ownership",
+        "phase": "lib",
         "evidence": null
       },
       {
@@ -21541,5 +21541,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:52:39.295748+00:00"
+  "updatedAt": "2026-11-09T07:53:42.677399+00:00"
 }
