@@ -162,7 +162,10 @@ building Stage 2. Their dependency chain passed. Code generation needed
 the tagged `Data.List.drop@T` variant from the pinned library object.
 The expanded object defines it and preserves all 55 base interfaces.
 Stage 2 then linked with the exact same Stage 1 executable and all 46
-compiler interfaces verified. Stage 2 is compiling Stage 3. The standard
+compiler interfaces verified. Stage 3 reproduced the executable, LLVM IR
+and all 46 interfaces byte for byte. All twelve smoke tests and the
+separate interface consumer passed. The changed-source rebuild is
+running before the exact Stage 3 suite starts. The standard
 harness separately passed all 39 integration cases on the earlier
 combined Stage 1. See [the provider and integration audit](../bootstrap/current-abi7-stage2-drop-provider-results.json).
 
