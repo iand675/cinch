@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "status": "audited-d396-knot-baseline",
+  "full_goal_complete": false,
+  "compatibility_scan": {
+    "status": "audited-source-corpus-letrec-inventory",
+    "base_revision": "fbd1c24b0d2bb7f580377dd34d17ddd82305e649",
+    "source_roots": [
+      "bootstrap",
+      "examples",
+      "compiler/prelude"
+    ],
+    "tracked_cinch_files": 253,
+    "files_containing_spelling": {
+      "bootstrap/Bootstrap.Parse.cinch": 0,
+      "compiler/prelude/Text/Lex.cinch": 0
+    },
+    "actual_letrec_uses": 0,
+    "lexer_rlib_sha256": "ab5f54dcb0ca30f1559697eef4689de8f131959612ba8f4667fdc8b19925771c",
+    "full_goal_complete": false
+  },
+  "rust_escape_controls": {
+    "schema": 1,
+    "status": "audited-d396-escape-baseline",
+    "full_goal_complete": false,
+    "frontends": {
+      "seed": "746ceb2b78f8ea3343b02a6020813f22b4fe7146425cf47c737c5cffd5ca6265",
+      "initializer_order_candidate": "5a0eccf048b9d90f4ecac3da00bf8dbc02aee8007202ca0a47439accd7e2dbae"
+    },
+    "cases": {
+      "return-knot": {
+        "source_sha256": "29106ea9ebe1aec53eecff9ff0c6af8e45d47d7e0f4327fcf1f7a88c15c81cec",
+        "expected_check_exit": 1,
+        "observed_check_exit": {
+          "seed": 0,
+          "initializer_order_candidate": 0
+        }
+      },
+      "return-knot-closure": {
+        "source_sha256": "e8cd899b2b038bede4a78a234d9dfcd5f7c96710460ad474e682408247cb7901",
+        "expected_check_exit": 1,
+        "observed_check_exit": {
+          "seed": 0,
+          "initializer_order_candidate": 0
+        }
+      },
+      "return-independent-scalar": {
+        "source_sha256": "bee1ff94778b69d38ef5dfcdccd108766364d363fca880ee5b11e3e63fb4b131",
+        "expected_check_exit": 0,
+        "observed_check_exit": {
+          "seed": 0,
+          "initializer_order_candidate": 0
+        }
+      },
+      "store-knot-closure": {
+        "source_sha256": "5c7bfc6be861ecca935012311e467743753e02ae3d43f4959d6578e9a6617a55",
+        "expected_check_exit": 1,
+        "observed_check_exit": {
+          "seed": 0,
+          "initializer_order_candidate": 0
+        }
+      }
+    }
+  },
+  "existing_rust_knot_leak": {
+    "exit_code": 74,
+    "live": 3,
+    "log_sha256": "f4ebec47621a1a4aeed7acef072b051faee43c1b43535e562eae0318e01a1fd0"
+  },
+  "initializer_order_source_sha256": "4a412f8bdc8083da583161180710ea714c61910e63406693b1ec1ceb5795e9f3"
+}

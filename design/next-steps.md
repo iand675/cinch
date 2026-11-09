@@ -190,6 +190,15 @@ leak-checked run passes thirteen, with the existing three-block
 guarded value knot still requiring region-scoped teardown.
 See [the Rust ordering audit](../bootstrap/current-native-letrec-initializer-order-results.json).
 
+The D396 compatibility scan covered 253 tracked Cinch files in the
+bootstrap, prelude and examples and found zero `letrec` expressions.
+Both the pinned Rust seed and the initializer-order build still accept
+returning a recursive value, returning its projected closure and
+storing the closure in an outer mutable cell. They also accept
+returning the tuple's independent scalar. The three escapes need a
+binding-specific diagnostic before teardown can be enabled.
+See [the escape baseline](../bootstrap/current-abi7-knot-escape-baseline.json).
+
 The guarded-function Stage 1 passed nine of eleven original recursive
 binding cases. Self and mutual recursion, delayed function calls and the
 shared capture control ran without leaks. Forward bindings, eager cycle
