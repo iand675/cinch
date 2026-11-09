@@ -15849,9 +15849,9 @@
         "unit": "gates",
         "total": 3,
         "passed": 1,
-        "failed": 1,
-        "status": "running",
-        "phase": "Replay the original concurrency tests on Stage 1 and the current pinned provider",
+        "failed": 2,
+        "status": "completed-with-failures",
+        "phase": "Original source replays finished",
         "evidence": null
       },
       {
@@ -16077,5 +16077,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:04:56.757900+00:00"
+  "updatedAt": "2026-11-09T12:07:00.695759+00:00"
 }
