@@ -17920,10 +17920,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
         "total": 7,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Build combined Stage 1",
         "evidence": null
       },
       {
@@ -21156,5 +21156,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:16:38.063024+00:00"
+  "updatedAt": "2026-11-09T04:19:02.025767+00:00"
 }
