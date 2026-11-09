@@ -20838,10 +20838,10 @@
         "title": "Verify the five original targets through the standard Rust and Cinch harness",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run the selected Cinch concurrency target",
+        "phase": "Isolated Stage 1 candidate. run the selected Cinch laws target",
         "passed": 8,
         "total": 10,
-        "failed": 0,
+        "failed": 1,
         "source": "bebcba423fba45d03dbb0a6bee1019d6a6b832b39649bfec4132c82619842ce1",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-standard-stage1-portable-results.json"
       },
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:37:20.765510+00:00"
+  "updatedAt": "2026-11-09T00:38:23.877583+00:00"
 }
