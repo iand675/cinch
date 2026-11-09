@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published task-capture compiler has a verified fixed point and passed all 20 original concurrency cases. Complete matching suites remain open.",
-  "activity": "The integrated candidate 3 passed the changed-source check. 18/110 Cinch Stage 3 targets passed and 30/236 Rust targets passed. Newer candidates have separate rebuilds.",
+  "activity": "The integrated candidate 3 passed the changed-source check. 19/110 Cinch Stage 3 targets passed and 30/236 Rust targets passed. Newer candidates have separate rebuilds.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17963,11 +17963,11 @@
         "title": "Run all 110 Cinch Stage 3 targets on the integrated candidate 3",
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
         "unit": "targets",
-        "passed": 18,
+        "passed": 19,
         "total": 110,
         "failed": 2,
         "status": "running",
-        "phase": "bootstrap_byte_observations",
+        "phase": "bootstrap_check",
         "evidence": null
       },
       {
@@ -21233,5 +21233,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T05:38:13.716825+00:00"
+  "updatedAt": "2026-11-09T05:40:17.710754+00:00"
 }
