@@ -1,0 +1,591 @@
+{
+  "full_goal_complete": false,
+  "remaining": [
+    "successor Stage 3 concurrency",
+    "integrated law fixes",
+    "complete matching suites"
+  ],
+  "schema": 1,
+  "stage3": {
+    "compiler_sha256": "718e8f6e9672c1182a67117c449fcb1bc28fc5ce3c40d3adc1c3b14b965c6d8c",
+    "compiler_source_sha256": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+    "interface_sha256": "6d836eb3ae22ee921d147a5cb0eb480dd8295d37e94ad9c3b65fcbc606bd123a",
+    "targets": {
+      "bootstrap_load": {
+        "invocations": {
+          "43403-0.json": "ef2ca68ed5890f335a6b747e8072cddeebe85fda0ee8f4fe527a073f61f72fd6",
+          "43403-1.json": "1046a005ce14255a289f27453f4c292aee78267552a6d287f50e7e4650de9a9b"
+        },
+        "log_sha256": "c55ea6cf34a6e924923ed51b1e56ab25b562cce130e700e46e73082029140e91",
+        "passed": 2,
+        "test_source_sha256": "5fcc30af49623d242b34b5a7d51662cab685764b837ffa8407ffbbc0c6923506",
+        "tests": [
+          {
+            "name": "body_owners_keep_longest_dot_boundary_prefixes_for_utf8_identities",
+            "status": "passed"
+          },
+          {
+            "name": "the_loader_checks_emitted_interfaces_and_dependency_identities",
+            "status": "passed"
+          }
+        ],
+        "total": 2
+      },
+      "codata": {
+        "invocations": {
+          "4867-0.json": "658b415b17040054766247f1e8fdd87807e800325e224a72c217c6df13ab212c",
+          "4867-1.json": "7e01d4795918090c6be44fe341d9342484ba01916b6543791617cf4f39dbaaf0",
+          "4867-10.json": "408c11e594d4d5becc694159cdbf6cab04476df400e4f8ce0422c475963b66d9",
+          "4867-11.json": "66e9c644c22c01b427f11b59d1eb8a204f6f3432b15610fcc445c65fe09b435a",
+          "4867-12.json": "227cc601417232a6fd0de0c8935c12d7ad436b322f7ab07566899801a7569cae",
+          "4867-13.json": "148e97808e2a1d2e9b4ca2dd1d27d7c3355523cb83c0fc313ed86f9e58ebc935",
+          "4867-14.json": "337b2e395677604e7410b1abe9c1f25001a97523497a6861e405cdb658c05d52",
+          "4867-15.json": "cbc8d1792aea59ac1b29f07c9218f64a94c06ca92180157cd078d7639b88cb7d",
+          "4867-16.json": "4d3ebc7240cfe4c747bd0fa14de2d5531307db9812985074dda55889b43cef84",
+          "4867-17.json": "d24ca201b9ec3f2f5842aab181c24e0db66e7b73b48e567e154d57e78672c09f",
+          "4867-18.json": "cea2384804af8b5f4e77233d85f99ea385d46901eeade3e0a38aa4cdf706c1dc",
+          "4867-19.json": "95e399934ec99c8ff5005809c7da1ef55fabb7091ef80552eaf66386dd920dd4",
+          "4867-2.json": "aa59a2e97c2a5379c59024bd86e4630fa1c4dcd0467f6e2f6b137b7d875fd240",
+          "4867-20.json": "a7a3408cae4fc4a95956689a26398b60112ce40ee1227275b1b13039f0016e99",
+          "4867-21.json": "29e6791727baf30cf461912aa9af74651464cffebd382332757636da7352ce3c",
+          "4867-3.json": "a28feefa283768e68092c6c792eac26f307b97152f5b0c2a687b6f4340c2f1f0",
+          "4867-4.json": "758a79c4f4910bb72c57910c97d8a1c80698b00680663addc3d395e60670a5be",
+          "4867-5.json": "6e39d6c79741222dbfdc63ca0d4f613e7a474237e5ae680e60a30e21acd5189d",
+          "4867-6.json": "9766534110fb27b81ce531ed99d7c0cdd42cffea4f05735b1249cc21d766a4b5",
+          "4867-7.json": "8492fc1ef6021235544392011ac9b195d18b451826d7f7bc0e884b46ec1a9768",
+          "4867-8.json": "5354aab073c8b94cac3c16f3cb71e97f6cd0931491789c51671f1d9cd12d24d1",
+          "4867-9.json": "2084a00f4de96361aca7aac106bcb587e513742d74d9d625a57495cbd0cff94d"
+        },
+        "log_sha256": "206b2076868b4c982433379b9a3abfa4a2de26d075150275ace0a8f5a4135594",
+        "passed": 10,
+        "test_source_sha256": "f7e1d2e18d4f46d58a712cdd663f86494d0ef838677571439e533453ab9230df",
+        "tests": [
+          {
+            "name": "acceptance_example_04_productive_stream_checks",
+            "status": "passed"
+          },
+          {
+            "name": "codata_is_observed_not_destructured",
+            "status": "passed"
+          },
+          {
+            "name": "codata_keeps_thunk_and_memo_discipline",
+            "status": "passed"
+          },
+          {
+            "name": "corec_needs_an_observation_layer_per_step",
+            "status": "passed"
+          },
+          {
+            "name": "corec_stream_observes_head_and_tail",
+            "status": "passed"
+          },
+          {
+            "name": "guarded_delay_and_force_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "later_is_not_interchangeable_with_thunk",
+            "status": "passed"
+          },
+          {
+            "name": "later_must_not_be_an_unrestricted_thunk",
+            "status": "passed"
+          },
+          {
+            "name": "unproductive_corec_is_rejected_naming_the_call",
+            "status": "passed"
+          },
+          {
+            "name": "unrestricted_filter_loses_productivity",
+            "status": "passed"
+          }
+        ],
+        "total": 10
+      },
+      "concurrency": {
+        "invocations": {
+          "11319-0.json": "2c18c1cb3e39843e7f56b9802f2a12fb40192360e1be001b890ad7325e64cdbd",
+          "11319-1.json": "0e3e77e60ac8f568c54c2b83ba8d25a2d89192315ca3cabbd5fecc18ffab0cd1",
+          "11319-10.json": "6db372e11f6f7630cf0ed662997fc1e01f5fff72398ae4af7b3f295a2935e32d",
+          "11319-11.json": "8ee040c70c15178df1fd1811323b612a8e639e9dc84a51cf1c01af92d1563bbc",
+          "11319-12.json": "444ff933ef6418a33d2ddc60e3d25379b713fba65006875b909a33129d853edb",
+          "11319-13.json": "1be483cbdd91c2b63c0b452304febb97ea6d16feb1851e8c5bb1640aac236c8a",
+          "11319-14.json": "ddeafa6f24016a048b91b15dea45c028b660917cddfcda91b222a84682e62f63",
+          "11319-15.json": "47e2bd33b800a589cb26f918845606c585ac9e3578cf40419fb3108adc9676fb",
+          "11319-16.json": "c9bc35a0025ceebc32d157b1442c39bbb3dcb713e0868e3207fa4d6a9a61ea86",
+          "11319-17.json": "3fc855309a90ec1c2a89bbd9b36eeae6b1463a3c8d188044c8352b7df7f78fee",
+          "11319-18.json": "73eec1cf8c54e90d2d594efb6ef73a042841d132b7ec25026b0516eece7343a1",
+          "11319-19.json": "6e123735371e8ff6b78b079657d47e5b2ae5025574515d5333fd9d11893b7176",
+          "11319-2.json": "16e7f6bd1a3c17c5f2c4b60bb6efdbf8c6488ed20f13ab9c4d48a06be80a52d6",
+          "11319-20.json": "5ae9bc609753cce4973abf1bf72c73f91887ba5b3464e8a85e7ca8090981a03c",
+          "11319-21.json": "2f484c7969b11f5de912d422f22d6d4a677381a59b90088d40c8cf426f0b4ab2",
+          "11319-22.json": "b67a224245842d8dee44d302c7158dc98292ce240830b9b821d688a1548fe4c4",
+          "11319-23.json": "1814b3deb9cf93447f9a8d91ee632946cc332145e49ba203ee345c1122856aa6",
+          "11319-24.json": "9138199b80ba1711f88b75876a548bc2b7a52d2e14d570eb1bdc21aabf643ad9",
+          "11319-25.json": "f1b54dd7185e10b386d85dac9d2a98c16b5578a3eebdff21addce92f8528aa52",
+          "11319-26.json": "f86ccdb160ab0737558e7ba36b39459d13b0d9a7ea408baebaad3291eae57d59",
+          "11319-27.json": "615a8dafa4365e93b3e41d6443eb1eb9c23f378ea006ffecf253b579b1d9c9f0",
+          "11319-28.json": "670226847eacf0da0705a782571d89a6804cde26cc3c2fae68975bcf328e18f4",
+          "11319-29.json": "cd4e61937dbc3bc11459615b2535c064086dc75d12cc9055f32ee1b3f6813498",
+          "11319-3.json": "a5251a08a2ce1a852f53ef9dd4b2d8139db96125ba973a6d307fa16c83072a17",
+          "11319-30.json": "51b6b4a2d1bebb60aa51b74534a3e8b15f6e56f90e4447cfa7d21ee9c1a51360",
+          "11319-31.json": "e6d3e6b22ce9e7257426aed215f3f915cbff1c984566ba4ae109c15f055da287",
+          "11319-32.json": "f1d037707f16d7143ce87e3954d74619a327c3629d7ce1de2ddbb52d8bc29bcd",
+          "11319-33.json": "bdfac2d4b0229426582e1f1af377b1ce3d57b084b6e756506110d71f01942b36",
+          "11319-34.json": "47073b868099a6e141acf2390c142c0d648478bab91d4fdd2ffaaca68aa6d54d",
+          "11319-35.json": "b6ee3c74456037a48ce793d26603a9387f35161da8dd9830199d43b3c2e1442b",
+          "11319-36.json": "c146bca6876461044008d210fcd1546ccf6f255e0091071161a155b1a6490845",
+          "11319-37.json": "9064a908d28749784080b576540ebb5c2b1618188f576a601e20e1fd75cf607b",
+          "11319-38.json": "5e436704ab10a2abb36acbfb5fb63f45bb39e4dc673c9db6ed7c663af78099f6",
+          "11319-39.json": "2bb2c9e0706b6dc7bc42b2b9ce1149139496a2a9fd33c393b2a847c026c8a0f4",
+          "11319-4.json": "fb9bd6a2589f20f0baafcd421353c74dc05c99b810befb3a08a3101a372364d9",
+          "11319-40.json": "9cf333d906f82181c8610d35a2173a46e27b60e6153ee271aa0c6db55cbf14d5",
+          "11319-5.json": "6a71546f270b80c16217b71ff529012a34a33fb017bf4ab1790baf837ef427fa",
+          "11319-6.json": "2eb07f0b1ddf8ae3aac9a44c3dec24fa7cfcb6a5b46980bed1e11f98b1afb00e",
+          "11319-7.json": "e9cf7b6ee60adaa320fc7bf9a2526d9c470b002d255121b20a066605c82fe0c9",
+          "11319-8.json": "d5c9abdd9742a2adeb900941e8ee1c51369424c895567ca6abaef4cc03708e8f",
+          "11319-9.json": "3a9aef6462e32a01df5ed37493fd3bb8891a1cee5eaf5891ec8a40df0e843127"
+        },
+        "log_sha256": "c450fbebbefe7cc9bf72bb18a9ab47af3a48269d98bfc3957495f4f6ad13082c",
+        "passed": 19,
+        "test_source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c",
+        "tests": [
+          {
+            "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+            "status": "passed"
+          },
+          {
+            "name": "a_mut_borrow_capture_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "a_thread_shared_memo_cell_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+            "status": "passed"
+          },
+          {
+            "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+            "status": "passed"
+          },
+          {
+            "name": "an_unshared_mutable_capture_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+            "status": "passed"
+          },
+          {
+            "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+            "status": "passed"
+          },
+          {
+            "name": "double_capture_of_a_linear_value_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "dropping_a_handle_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "example_11_structured_tasks_accepts",
+            "status": "passed"
+          },
+          {
+            "name": "io_read_and_write_round_trip",
+            "status": "passed"
+          },
+          {
+            "name": "join_all_or_cancel_cancels_siblings_on_failure",
+            "status": "passed"
+          },
+          {
+            "name": "local_task_callbacks_retain_their_captures_through_aliases",
+            "status": "passed"
+          },
+          {
+            "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+            "status": "passed"
+          },
+          {
+            "name": "ref_and_copy_captures_are_accepted",
+            "status": "passed"
+          },
+          {
+            "name": "source_task_forwarders_check_actual_captures",
+            "status": "passed"
+          },
+          {
+            "name": "spawned_task_results_join_correctly",
+            "status": "passed"
+          },
+          {
+            "name": "task_handles_cannot_escape_their_scope",
+            "status": "passed"
+          },
+          {
+            "name": "task_shared_ref_requires_a_shareable_referent",
+            "status": "failed"
+          }
+        ],
+        "total": 20
+      },
+      "guard_coverage": {
+        "invocations": {
+          "94832-0.json": "637cf5a304c3c47dc44f329b63607ecf9cdaa64e4ae7c739dbd15c6239938ed3",
+          "94832-1.json": "05a7c9222a7d1f91d30e5f7629b601eb3dc232981848fe622e866477407a1e4e",
+          "94832-10.json": "3874f9283218e196bc0a582497eaebe85e341fdf4456ea2462679d9eaf295a53",
+          "94832-11.json": "4a78136a5d360c201db6ce2cfb1245d26c2765d9acec0d6df9beb57475b21f68",
+          "94832-12.json": "da1c6c7862b5a3a677d03efce162e4d36943911ae5f0e727e477a0ad7431a261",
+          "94832-13.json": "b71c7ba18e32d8d24713b7c1666501255c72bf469e44db4094fe381c57019cb0",
+          "94832-14.json": "90f635fd32ea36a872b33941e20c98b3cef3f8d7af3ece8b0198a638e8235352",
+          "94832-15.json": "846fb57c1ab27b33e721230f51cc6b76ba201f4a19ba37aee9b5644931d37fae",
+          "94832-16.json": "d64c400d77da2b552e9a4cf3b2e75793f7e8a21b0b5e9b99973983da45f8501a",
+          "94832-17.json": "317bad131eeefe2330600e3fbbdec9e48d8bd2a50c393913c311b0d3da8b97e0",
+          "94832-18.json": "217efda74441019fe6be8a288048d417ad66d3d74be82c6ec7bfc57554749407",
+          "94832-19.json": "51596d3f8ee711d03aed31c364823a6293410630b2b32054beb33ff0af3b3c50",
+          "94832-2.json": "d6b48c0f68cb2b7ce846bcfa632e794f82fb7e1dcd8791d1e60a284abc588f48",
+          "94832-20.json": "08824576763898ff99f7307e429c818f35babc6c61f5761ed2595963024a7d20",
+          "94832-21.json": "53929a95ec72c29021a23b1ae0cf8d55fbe3bd3a54e4024d7d27e29d68cbf3e2",
+          "94832-3.json": "3bf6e49bc3a37fb4028eccafaf051ddefe853c150449e525f76f2cc3ca35f783",
+          "94832-4.json": "6305200a7a2c906f89bf249a0ad3abe3e148f123ea2ad0a4df3a1b00e014a7dc",
+          "94832-5.json": "796be20c7c8e73a4efb6923ae8b32bedc9d4d20012a773a0bb215d1b84cfc094",
+          "94832-6.json": "6f82bc1e3ed5f0bfcfb2ae947a71dcd8662114a1cca98574c4e3d553d39927cd",
+          "94832-7.json": "236748173b5487c2cd196ca4c797672739fa5107e15ef0175e2bf6d7d71abce6",
+          "94832-8.json": "7b35592b2862d29c03d612556044dbf658c671e36a1911a17650627b2af0849b",
+          "94832-9.json": "2e956b4ffb8dce24817b862726f0f43bbdbd2d6cf50c99499da63c6cbcfdb4ce"
+        },
+        "log_sha256": "580478bc376fdc0f60d6b89bc7e2282a9d7896488d4a16803fef5829e09737c8",
+        "passed": 5,
+        "test_source_sha256": "59a882f070b86612e195c906b2f6deec721721ec67577fc1cc09b86ab520f3a0",
+        "tests": [
+          {
+            "name": "all_guarded_match_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+            "status": "passed"
+          },
+          {
+            "name": "mixed_rows_are_rejected_exactly_when_unguarded_rows_miss_a_constructor",
+            "status": "passed"
+          },
+          {
+            "name": "true_guard_counts_as_unguarded",
+            "status": "passed"
+          },
+          {
+            "name": "unguarded_final_row_compiles_and_runs_every_row",
+            "status": "passed"
+          }
+        ],
+        "total": 5
+      },
+      "integration": {
+        "invocations": {
+          "21612-0.json": "6a194535fc0a9a5c7453fd65a0cc45fe131248c3c7b1358b7c1c9ab95f4039c7",
+          "21612-1.json": "b80f89bf04b6a0d24b71d8c62bc9c75fc7694853f08c6e984ac98db58acd552e",
+          "21612-10.json": "0dc2df29ed12352cf1822f14fd39b8e2dab14c7cf6c4e7b8c16cb881761bb449",
+          "21612-11.json": "534d216dc4fe65f0963b449b9466e596ed8854c715ec1e08e9b831facc2f1ace",
+          "21612-12.json": "c1fa14b836dff53871358310dfa146e471d8abf653eabe675da7bec191e51ee9",
+          "21612-13.json": "b70f4869e8de905a47a64f14b130c88de2a2528fbf1b4f61a1910edce2e52820",
+          "21612-14.json": "0ddc1d6eeac099c4ba93b998e4755bee2d89340defbdb46bcf30864bc26165be",
+          "21612-15.json": "91b8ddde3004e6354ac042cd502a7f109202c910103b2847287f477e1553dc9d",
+          "21612-16.json": "27579ebb18475297864356bc86c8271063dda717a8a96edaa5836d30213e02d2",
+          "21612-17.json": "d42f5cc52d59c53c35b4db54d4b38f4b20fbdc20b188dad34a94e36f9383a642",
+          "21612-18.json": "cae2f7328baad3267958b532043b29a6d8c1a88a050f01dff09fea598ce1dd8b",
+          "21612-19.json": "dc27d471c3110c96a99e29bfc69efd1fdb4a20203a4f2c28ca0bba0f436d4afd",
+          "21612-2.json": "534810f73181943d9cf38e7434b98bc79b44931fc6c46cf20e78f0984ea0f9d2",
+          "21612-20.json": "1b230fef2b0c25376d31cce1ff890d5990e3ea4d0b61d04551600ff3e940e5be",
+          "21612-21.json": "2d6d3f35ce6bf67ac657e08a59a87470e310bf7a2fe409937ae4e25aee4a6bd0",
+          "21612-22.json": "a632bcefbd78318217070067a9f3a66a68ff726ddf872cd6b2b036d09f0eeb6c",
+          "21612-23.json": "aabe477d23ea69575098bbc567cb860befad3a69241680b7ce3b8bebe39df6d6",
+          "21612-24.json": "e4460f7a9921c104f101b6d92ba455d7634c944955535f6942144f3cfaac267b",
+          "21612-25.json": "9dc28acab1114d3c285ffd26f917eade1e00186fac01cf286f2f3c774be8f7aa",
+          "21612-26.json": "a3fccb1b8b4fcb91e5143ff8e8280907f0962e1700ccc356798108b04dfd9764",
+          "21612-27.json": "6a57ae2679efe854ff641a892df93ffd71be2f7a6b5285144a71c655f9c00798",
+          "21612-28.json": "7c40ff5fe812df7673e3690ee690df42635f34602f0d8fecd9d6f579901f221e",
+          "21612-29.json": "1a35768b3cf2d1125eaee06337370dfb1c2d1f0e6ecee8b91500ce87df65b892",
+          "21612-3.json": "34f9fbd519e47e52c0f44a3d11222d008700403ecb396ab0bd375291064a1ea0",
+          "21612-30.json": "e390d3ab8222075b1ab5ece99070910e8308ae50b55e3408e9a2cc68c174bef6",
+          "21612-31.json": "fd429b1ebef753eb10b0fe740692fcee7fd7122bbe130f6f4f5402b758140f1b",
+          "21612-32.json": "8477be942ab7df0bfeffb29e81eb5f209c362f7b6edbc7ffd77fddd8614dc793",
+          "21612-33.json": "000d6de9f5c290d4408b67405273e3e17ca0f9e258deb0e92a9e0d69ba9b2cb8",
+          "21612-34.json": "5527aa0de11a444290c51acc7d576ff5e3e4017a5f6cb7ab6211262da6dc77d4",
+          "21612-35.json": "87d959bf7b808a723231a98bf7c61cb4d4b5aafae50bdf20aad2376213272310",
+          "21612-36.json": "3496a36942d0b59dc9ead80ec5f7b78b95033b79e0a3a8785117a24f5b4e82bf",
+          "21612-37.json": "9a2651cdd65bd0fcc432a2793e40607efdf2b9708888570c2ca02680233a66e5",
+          "21612-38.json": "a270daae7f1def09878b9aba5b3399b2126fc1c7ccfe253bd56c74b441ae011d",
+          "21612-39.json": "73b9841aca0ef5544eaabf94cb57fd59e074e698d59a4b663ebdaa7f7f5f0d87",
+          "21612-4.json": "b5930064842529df30f34dd35a7743933509294f4af67c9da7c76d6fc75be154",
+          "21612-40.json": "ab1967d393341cab2d5f0dc7b83809c405cf39e6f938e14eb2463e1ab6a2da89",
+          "21612-41.json": "0d2d4dd92c5e3aec4372a2bf2f3b161d92465220ad6f2dd50fcd51e768e852aa",
+          "21612-42.json": "0eb675632dd6fcfc44221eaef911df6b3b252905f028654f4401c0215becab37",
+          "21612-43.json": "227321d9ff46db4f1be4567f9e775411631efbd0abc83ff8ffdbd41d19055403",
+          "21612-44.json": "4d544c09081cd14de7e4b9de4441de8775484e15d9688412318e1ea077c45fe7",
+          "21612-45.json": "032d84bd1735d9d2885c13f8cd15ee32b984312f485f2cbc2dc76c0efad96c21",
+          "21612-46.json": "51fc6f533948caba9cb6d51540f265398decf5300a8b7738938e1325b80b1d5a",
+          "21612-47.json": "aef6a4e7dd6491dde458190b3efa73e6e75b0c689328d9d6d67dd04413eaf3a2",
+          "21612-48.json": "c9ad7a36e0653d94b6ed390abba6f0698c53b56bebfa3df5e36a7a2e3ec9dcc9",
+          "21612-49.json": "4f84732d06e49e4bd7b005f028a40b303aba0933db2f4d27e6a9c4e3e2c2899b",
+          "21612-5.json": "b3355a9ad6fef96abd9814b1fa12a1da64430939543b82689679df16408da77b",
+          "21612-50.json": "40c2e405dacec34fcaef6ffbd8dffe90bfbd67e9576f4b412d8ccab3b2d79661",
+          "21612-51.json": "96c291c500f77c2ad229fbb0d1c5ec9fa53bb0cce677c49601cbda7a956198d3",
+          "21612-52.json": "5096722c0ce917df22fd57e88d5617c8cde719a8aba332d6ccd143e2b7b30350",
+          "21612-53.json": "fe86aca63927817aeb01522d83042fc2cf36025b50d837e54cc8ca250eb695df",
+          "21612-54.json": "a56c2cd44a423f7ea45a7cf4f9b5beaa74146581888af9f5a4ac15b5a67d244a",
+          "21612-55.json": "e75d1ccbc656e6b0533be00ffb6439b5686167f82990591485cbdeb280d0cd4c",
+          "21612-56.json": "85dc8ecc8b08995dd2af27d2cd10114ef8b3bd9be19ccca1989d490bbd5cdaf0",
+          "21612-6.json": "0e781d80dccfcd3e8263334a95b93e55819acbe8557440d83b54a64ab01fff5b",
+          "21612-7.json": "c78f6f6947fe080991b542280c6dfbb3c730c08aea5eae90657d009250e06684",
+          "21612-8.json": "221a3983d4f10618654d16e95ef3d15ba87dfa96580db51d10e81c567d186c80",
+          "21612-9.json": "7f5db757027dea44899d254508837ef2deb55c33f2002df0b2c30c62dee41710"
+        },
+        "log_sha256": "e1ce82d71fd1a52390357c93ded3589c74cf3ff6873e62a9e4896b8bf879e185",
+        "passed": 39,
+        "test_source_sha256": "30a2d61bed9b6510f44bf01c3b319e4f31e72345f7730ecb3e77e291eec56833",
+        "tests": [
+          {
+            "name": "arithmetic_through_class_methods",
+            "status": "passed"
+          },
+          {
+            "name": "case_guards_fall_through_to_later_rows",
+            "status": "passed"
+          },
+          {
+            "name": "constructor_from_another_type_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "constructor_patterns_in_equations",
+            "status": "passed"
+          },
+          {
+            "name": "custom_class_custom_operator_custom_instance",
+            "status": "passed"
+          },
+          {
+            "name": "duplicate_binders_in_one_pattern_are_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "effect_rows_are_typed_and_honest",
+            "status": "passed"
+          },
+          {
+            "name": "generic_constraint_and_partial_application",
+            "status": "passed"
+          },
+          {
+            "name": "guard_failure_on_boxed_result_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "guard_failure_with_covered_patterns_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "integer_match_without_catch_all_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "lambdas_capture_and_prelude_folds",
+            "status": "passed"
+          },
+          {
+            "name": "library_modules_check_without_an_entry_point",
+            "status": "passed"
+          },
+          {
+            "name": "list_literals_and_list_patterns",
+            "status": "passed"
+          },
+          {
+            "name": "literal_patterns_fall_through_in_source_order",
+            "status": "passed"
+          },
+          {
+            "name": "local_let_polymorphism",
+            "status": "passed"
+          },
+          {
+            "name": "memo_bindings_demand_on_use",
+            "status": "passed"
+          },
+          {
+            "name": "memo_cells_with_signatures_and_shared_use",
+            "status": "passed"
+          },
+          {
+            "name": "memo_group_black_hole_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "memo_group_mutual_demand_is_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "nested_constructor_patterns",
+            "status": "passed"
+          },
+          {
+            "name": "nested_patterns_keep_source_order_fall_through",
+            "status": "passed"
+          },
+          {
+            "name": "prelude_sum_list_generic",
+            "status": "passed"
+          },
+          {
+            "name": "record_rejections",
+            "status": "passed"
+          },
+          {
+            "name": "records_construction_projection_and_patterns",
+            "status": "passed"
+          },
+          {
+            "name": "recursion_negation_and_bool_operators",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_missing_instance",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_non_exhaustive_match",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_type_mismatch",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_undeclared_operator",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_unknown_name",
+            "status": "passed"
+          },
+          {
+            "name": "rejects_wrong_main_type",
+            "status": "passed"
+          },
+          {
+            "name": "surface_and_or_short_circuit",
+            "status": "passed"
+          },
+          {
+            "name": "thunks_delay_and_force",
+            "status": "passed"
+          },
+          {
+            "name": "tuple_arity_mismatch_rejected",
+            "status": "passed"
+          },
+          {
+            "name": "tuple_let_destructuring_and_types",
+            "status": "passed"
+          },
+          {
+            "name": "tuples_through_functions",
+            "status": "passed"
+          },
+          {
+            "name": "where_clauses_in_equations",
+            "status": "passed"
+          },
+          {
+            "name": "wrong_main_type_still_rejected",
+            "status": "passed"
+          }
+        ],
+        "total": 39
+      },
+      "laws": {
+        "invocations": {
+          "41612-0.json": "3c6e49ddb5b7848a465270e30c1e3d8ca5297b51ea0a3d5ff744cb6813ed0c62",
+          "41612-1.json": "a31fc34ea44c7cceb83fd2cfa8c85a551847deed932569008267344c01e0ebdf",
+          "41612-2.json": "5f9d1bcac0f27ab07715b59018cb3111269ed19cb9bee746b6a214651d7a9a34",
+          "41612-3.json": "b9de7a3b52d629a095a07a255b817955735a3abe539bfee9e7e6c108db73b606",
+          "41612-4.json": "9335a4dc9405ebbfecdcf6786389ac1297e0812afebc8b80d3113700031ca27a",
+          "41612-5.json": "39018610f9a02e2b98830962505ab8cb46ed378c982bf74fa7c6e31ddb3f37c7",
+          "41612-6.json": "1aa088712a6e128b8eb442b8f77fa317caf0e5b911c7b17e8afdd14af0f02bb1",
+          "41612-7.json": "434798c29afa9b0ad1ff6732b18249529d8c20e682251a59554feaeb8e88a139"
+        },
+        "log_sha256": "ba04b45075660e1d6f58ff66bd8c3cd2cd3a518d1905fae8363ac4cbea8a1f28",
+        "passed": 1,
+        "test_source_sha256": "9bee84913a9f7e1bb76fca7d6acc9a995e2c871eb18fc853d6fa96d354f796d7",
+        "tests": [
+          {
+            "name": "checked_class_laws_travel_with_the_defining_interfaces",
+            "status": "passed"
+          },
+          {
+            "name": "class_laws_state_the_equations",
+            "status": "failed"
+          },
+          {
+            "name": "law_abiding_instance_passes_sample_wise",
+            "status": "failed"
+          },
+          {
+            "name": "law_breaking_instance_is_rejected_naming_the_law",
+            "status": "failed"
+          },
+          {
+            "name": "mathematical_law_indices_promote_integer_literals",
+            "status": "failed"
+          },
+          {
+            "name": "mathematical_law_samples_use_the_checked_numeric_representation",
+            "status": "failed"
+          },
+          {
+            "name": "rewrite_citing_a_law_by_identity_records_the_assumption",
+            "status": "failed"
+          },
+          {
+            "name": "rewrite_equations_retain_generic_instantiations_and_explicit_annotations",
+            "status": "failed"
+          }
+        ],
+        "total": 8
+      }
+    },
+    "wrapper_sha256": "9a5ec1dc11513d9e9114a7e55bc3d4b88e465dbd963da0ed14c493eba67467d1"
+  },
+  "status": "audited-scoped-integrated-stage3-targets",
+  "successor_stage1": {
+    "compiler_source_sha256": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
+    "harness_sha256": "0494f2e4ae1d613f739796cd3996e77f6d4dd6296be004aa3f413bb0549a2bdb",
+    "probe": {
+      "compiler_sha256": "7e30882aaebfa9318ba9cd78ed2734c8f1fd7d44a95774a05c6b5262680f6771",
+      "exit_code": 0,
+      "interface_sha256": "8aee093fb2c575410064dcb85dbd6b9bd7d924afb64f3ce84aff4815b9a6c102",
+      "invocations": {
+        "48797-0.json": "c95e3329f475a2cdd32f68f075c522450593c23ad86f5f2e52d693cbcc0223d0",
+        "48797-1.json": "f6418bf4fdcd83a4faf64b2293b181ff73b93ae105a1978025f7f0beee3034f5",
+        "48797-2.json": "832887634329e5a3ea5a3fc119e7b0c72de8fa820b865f31e5b261048ed97cd4",
+        "48797-3.json": "8c52775378846dfb73a813e0013e18f068251efeb8f411bb1d9a0d5b2d91823f",
+        "48797-4.json": "4571ed576ab496de1d6c6fe2af43f8613c021c749a747ebf5c5242760cbf346b"
+      },
+      "log_sha256": "ff30e6c104f96c32ba0901062971ad0836a464a1fc05b9595fe17ce18f4eca97",
+      "tests": [
+        {
+          "name": "task_shared_ref_requires_a_shareable_referent",
+          "status": "passed"
+        }
+      ],
+      "wrapper_sha256": "d5ae8edbf5da3d3fd6005d377bf49e80f39ae26b4bfffe410688ef107a1c7b4d"
+    },
+    "test_source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c"
+  }
+}

@@ -171,6 +171,15 @@ suite is running. The standard
 harness separately passed all 39 integration cases on the earlier
 combined Stage 1. See [the provider and integration audit](../bootstrap/current-abi7-stage2-drop-provider-results.json).
 
+The exact integrated Stage 3 passed all 39 integration, ten codata,
+five guard and two bootstrap loading cases. Concurrency passed 19 of
+20. The remaining case accepted a transferred nominal wrapper around
+`Ref g Bytes`. The successor Stage 1 passed that exact case. Its
+matching Stage 3 replay is queued behind the rebuild. The integrated
+law target passed one of eight. The separately verified law repairs
+still need to be included in this chain.
+See [the matching invocation audit](../bootstrap/current-abi7-integrated-stage3-target-results.json).
+
 All twelve original module tests passed through the isolated Cinch
 Stage 1, including qualified import overlap, concrete cycle paths
 and the actual build manifest. Its source-refusal control clears
