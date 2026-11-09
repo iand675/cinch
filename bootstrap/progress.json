@@ -10207,8 +10207,8 @@
         "counts": {
           "verified": 0,
           "blocked": 7,
-          "running": 0,
-          "pending": 37,
+          "running": 1,
+          "pending": 36,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -10476,11 +10476,24 @@
           {
             "id": "additional:hk",
             "title": "hk",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "capture_avoiding_instance_context",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:refinements",
@@ -14657,8 +14670,8 @@
         "total": 3,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Replay original ffi target on Stage 3",
         "evidence": null
       },
       {
@@ -14702,7 +14715,7 @@
         "passed": 0,
         "failed": 0,
         "status": "running",
-        "phase": "Check the 4 exact original Rust harnesses",
+        "phase": "Replay original hk target on Stage 3",
         "evidence": null
       },
       {
@@ -14920,9 +14933,9 @@
         "unit": "checks and targets",
         "total": 14,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build Nat refinement Stage 1 with the pinned seed",
+        "failed": 1,
+        "status": "failed",
+        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: clang failed to link /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-nat-result-refinement-1/build/stage1/cinch.ll: warning: overriding the module target triple with arm64-apple-macosx27.0.0 [-Woverride-module]\\n<unknown>:0: error: fixup value out of range\\nerror: cannot compile inline asm\\n1 warning and 1 error generated.\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-nat-result-refinement-1/build/stage1/build.log')",
         "evidence": null
       },
       {
@@ -15083,8 +15096,8 @@
     "counts": {
       "verified": 308,
       "blocked": 11,
-      "running": 3,
-      "pending": 463,
+      "running": 4,
+      "pending": 462,
       "recheck": 21
     },
     "total": 806,
@@ -15093,5 +15106,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:53:51.842630+00:00"
+  "updatedAt": "2026-11-09T10:54:55.462078+00:00"
 }
