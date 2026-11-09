@@ -10241,8 +10241,8 @@
         "counts": {
           "verified": 0,
           "blocked": 11,
-          "running": 0,
-          "pending": 33,
+          "running": 1,
+          "pending": 32,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11318,11 +11318,19 @@
           {
             "id": "additional:syntax_choreography",
             "title": "syntax_choreography",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": []
+            }
           },
           {
             "id": "additional:syntax_declaration_composition",
@@ -15070,8 +15078,8 @@
         "total": 11,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Replay original syntax_choreography target on Stage 3",
         "evidence": null
       },
       {
@@ -15441,8 +15449,8 @@
     "counts": {
       "verified": 310,
       "blocked": 15,
-      "running": 3,
-      "pending": 457,
+      "running": 4,
+      "pending": 456,
       "recheck": 21
     },
     "total": 806,
@@ -15451,5 +15459,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:11:21.768600+00:00"
+  "updatedAt": "2026-11-09T11:12:25.214576+00:00"
 }
