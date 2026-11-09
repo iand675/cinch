@@ -1,0 +1,127 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-refinement-contract-consumers",
+  "targets": {
+    "bootstrap_abstract_nonzero_types": {
+      "cases": [
+        {
+          "name": "abstract_abstract_nonzero_types_and_core_preserve_scope_and_evidence",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "40392-0.json": "b6699dd5a60fafd027e29ea312fab4c294bf92c6029eff9307ff0a64c4eeccf6"
+      },
+      "log_sha256": "3bf595200d6f6a929c91d58d433ed692dff4ff211c43cc7663f825357026f780",
+      "passed": 1,
+      "runner_input_sizes": [
+        0,
+        1,
+        17,
+        129,
+        4096
+      ],
+      "test_source_sha256": "465680137b7b3d25e9de191380c9beeac2a74ae68e02b6685214b6085a855d6a",
+      "total": 1
+    },
+    "bootstrap_anonymous_contracts": {
+      "cases": [
+        {
+          "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
+          "status": "passed"
+        }
+      ],
+      "cinch_consumer_controls": [
+        {
+          "expected_exit_code": 0,
+          "name": "result names argument"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "argument appears before result"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "result equality uses actual argument"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "fresh result avoids argument collision"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "bare structural result needs projection"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "explicit projection preserves the carrier"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "anonymous parameter accepts proven value"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "anonymous parameter rejects zero"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "negative mathematical result"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "argument-only condition keeps result independent"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "exported bound cannot strengthen"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "equality cannot change argument identity"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "negative bound cannot hold of Nat"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "positive result cannot prove stronger bound"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "result names refined argument carrier"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "refined argument still rejects zero"
+        },
+        {
+          "expected_exit_code": 0,
+          "name": "real remainder retains result bound"
+        },
+        {
+          "expected_exit_code": 4,
+          "name": "real remainder rejects zero divisor"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "47179-0.json": "0e9e5b1e1970987e776ee66953d24fcdcc7ad9b74151b515e30c03c65ba189f4"
+      },
+      "log_sha256": "0e3a61bbae749d15fcc8fcb588af1340a805604b2c5e9ecf6cda0ded3e2deb1c",
+      "passed": 1,
+      "test_source_sha256": "29f1c528b07ac7e6f3fc5eff44d882a8cf752e0f038fb3887c2eafff2d1bacbe",
+      "total": 1
+    }
+  }
+}

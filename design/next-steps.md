@@ -64,6 +64,18 @@ That consumer passed 17 controls for generic Div and Rem, their Nat
 specializations, effect and carrier boundaries, and zero divisors.
 See [the abstract method replay audit](../bootstrap/current-abi7-combined-stage3-abstract-nonzero-methods.json).
 
+All 12 original module tests passed on the same combined Stage 3 after the
+test harness began preserving the entry filename and publishing the emitted
+build manifest. The original module test source is unchanged. The independent
+audit verifies all 13 matching compiler invocations and retains the prior run.
+See [the module replay audit](../bootstrap/current-abi7-combined-stage3-modules.json).
+
+The same Stage 3 passed the original structural `NonZero` type and anonymous
+contract targets. The first exercised five runtime input sizes. The second
+built a Cinch consumer for Rust-produced interfaces and passed all 18 original
+result, argument, projection, and refusal controls.
+See [the refinement consumer audit](../bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json).
+
 A separate codata contract candidate built Stage 1. Rust and Cinch both
 emitted the canonical observation contract for `Provider.Stream`. The
 Stage 1 object and interface supported a consumer with only its own source.
