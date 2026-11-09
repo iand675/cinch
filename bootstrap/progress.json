@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 22,
+          "verified": 23,
           "blocked": 2,
           "running": 1,
-          "pending": 211,
+          "pending": 210,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -3022,21 +3022,113 @@
           {
             "id": "native:attributes",
             "title": "attributes",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T10:42:00.536897+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T10:43:10.593691+00:00",
+              "exitCode": 0,
+              "logSha256": "f7e2c18dbad5fda5c672b4f5ca09678d2770adcdce6efdc570651e4547f845de",
               "cases": [
                 {
                   "name": "hints_do_not_change_type_checking_outcomes",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "hints_never_change_the_interface_hash",
+                  "status": "passed"
+                },
+                {
+                  "name": "incoherent_weights_fire_informationally_on_wildcard_inflation",
+                  "status": "passed"
+                },
+                {
+                  "name": "inline_hint_placement_is_checked",
+                  "status": "passed"
+                },
+                {
+                  "name": "inline_hints_reach_llvm",
+                  "status": "passed"
+                },
+                {
+                  "name": "marginalization_sums_clause_weights",
+                  "status": "passed"
+                },
+                {
+                  "name": "noinline_and_inline_never_together_are_a_duplicate",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_field_borrow_is_rejected_and_copy_works",
+                  "status": "passed"
+                },
+                {
+                  "name": "partial_annotation_drops_all_weights_and_reports",
+                  "status": "passed"
+                },
+                {
+                  "name": "partial_if_annotation_drops_and_reports",
+                  "status": "passed"
+                },
+                {
+                  "name": "repr_align_only_raises",
+                  "status": "passed"
+                },
+                {
+                  "name": "repr_change_changes_the_interface_hash",
+                  "status": "passed"
+                },
+                {
+                  "name": "repr_combination_rules",
+                  "status": "passed"
+                },
+                {
+                  "name": "repr_layout_facts_recorded_in_the_abi_table",
+                  "status": "passed"
+                },
+                {
+                  "name": "repr_transparent_round_trips_layout",
+                  "status": "passed"
+                },
+                {
+                  "name": "two_same_name_attributes_are_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "weight_argument_grammar",
+                  "status": "passed"
+                },
+                {
+                  "name": "weights_on_case_alternatives",
+                  "status": "passed"
+                },
+                {
+                  "name": "weights_on_function_clauses",
+                  "status": "passed"
+                },
+                {
+                  "name": "weights_on_guards",
+                  "status": "passed"
+                },
+                {
+                  "name": "weights_on_if_branches_both_spellings",
+                  "status": "passed"
+                },
+                {
+                  "name": "worked_example_checks_cleanly",
+                  "status": "passed"
+                },
+                {
+                  "name": "worked_example_compiles_and_runs",
+                  "status": "passed"
+                },
+                {
+                  "name": "wrapper_expansions_match_manual_weights",
+                  "status": "passed"
                 }
               ]
             }
@@ -3044,11 +3136,24 @@
           {
             "id": "native:bootstrap_abstract_nonzero_methods",
             "title": "bootstrap_abstract_nonzero_methods",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T10:43:10.614558+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "real_div_and_rem_contracts_keep_abstract_carriers_until_specialization",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_abstract_nonzero_types",
@@ -10408,6 +10513,22 @@
               "cases": [
                 {
                   "name": "deopt_refuses_an_unbalanced_linear_transfer",
+                  "status": "failed"
+                },
+                {
+                  "name": "incompatible_change_without_migration_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "incomplete_update_set_is_rejected_at_activation",
+                  "status": "failed"
+                },
+                {
+                  "name": "instruction_requirement_blocks_reachability",
+                  "status": "failed"
+                },
+                {
+                  "name": "live_frames_keep_old_code_and_never_resume_over_new_state",
                   "status": "running"
                 }
               ]
@@ -14239,10 +14360,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 22,
+        "passed": 23,
         "failed": 2,
         "status": "running",
-        "phase": "attributes Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "bootstrap_abstract_nonzero_methods Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -14753,10 +14874,10 @@
       }
     ],
     "counts": {
-      "verified": 306,
+      "verified": 307,
       "blocked": 8,
       "running": 4,
-      "pending": 467,
+      "pending": 466,
       "recheck": 21
     },
     "total": 806,
@@ -14765,5 +14886,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:42:09.714117+00:00"
+  "updatedAt": "2026-11-09T10:43:13.958733+00:00"
 }
