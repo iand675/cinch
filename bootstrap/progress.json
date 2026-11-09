@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations | syntax_index_evidence",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | sym | evolution | lattice | llvm_contract | syntax_choreography | syntax_declaration_composition | syntax_effect_declarations | syntax_index_evidence | syntax_index_lambdas",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -5079,10 +5079,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 18,
+          "verified": 19,
           "blocked": 1,
           "running": 1,
-          "pending": 142,
+          "pending": 141,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -6052,6 +6052,36 @@
           {
             "id": "stage3:bootstrap_byte_observations",
             "title": "bootstrap_byte_observations",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "81163db57979c60bb4e92fed25e6088a3a21c80645b812300fc96ff9cc7e1c0f",
+              "cases": [
+                {
+                  "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+                  "status": "passed"
+                },
+                {
+                  "name": "imported_observation_identity_survives_a_renamed_facade",
+                  "status": "passed"
+                },
+                {
+                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:bootstrap_check",
+            "title": "bootstrap_check",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -6065,28 +6095,11 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
-                  "status": "passed"
-                },
-                {
-                  "name": "imported_observation_identity_survives_a_renamed_facade",
-                  "status": "passed"
-                },
-                {
-                  "name": "source_observations_use_declared_primitive_identity_and_actual_buffer",
+                  "name": "the_fragment_checker_accepts_fib_and_names_every_refusal",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "stage3:bootstrap_check",
-            "title": "bootstrap_check",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_checked_program",
@@ -10253,9 +10266,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 15,
+          "blocked": 16,
           "running": 1,
-          "pending": 28,
+          "pending": 27,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -11567,17 +11580,17 @@
           {
             "id": "additional:syntax_index_lambdas",
             "title": "syntax_index_lambdas",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "b23b3a376149ad9d39335eb1b3b370b02f9717ee603a57ea9bbba0626065090b",
               "cases": [
                 {
                   "name": "an_index_lambda_cannot_capture_an_existing_outer_subject_by_spelling",
@@ -11605,7 +11618,7 @@
                 },
                 {
                   "name": "nested_captured_index_lambdas_keep_distinct_same_spelled_binders",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             }
@@ -11613,11 +11626,44 @@
           {
             "id": "additional:syntax_lambdas",
             "title": "syntax_lambdas",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "code_macro_result_types_are_checked_at_insertion",
+                  "status": "failed"
+                },
+                {
+                  "name": "deliberate_lambda_binding_is_generic_and_nests_without_losing_outer_handles",
+                  "status": "failed"
+                },
+                {
+                  "name": "lambda_body_keeps_its_private_globals_and_source_fixities",
+                  "status": "failed"
+                },
+                {
+                  "name": "lambda_can_be_built_as_a_stage_value_and_spliced_into_a_declaration",
+                  "status": "failed"
+                },
+                {
+                  "name": "lambda_cannot_reintroduce_an_active_handle_or_escape_staging",
+                  "status": "failed"
+                },
+                {
+                  "name": "lambda_does_not_retarget_a_previously_captured_outer_reference",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:syntax_proof_patterns",
@@ -15065,10 +15111,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 18,
+        "passed": 19,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_byte_observations with the combined Stage 3",
+        "phase": "Replay bootstrap_check with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -15319,9 +15365,9 @@
         "unit": "targets",
         "total": 11,
         "passed": 0,
-        "failed": 4,
+        "failed": 5,
         "status": "running",
-        "phase": "Replay original syntax_index_lambdas target on Stage 3",
+        "phase": "Replay original syntax_lambdas target on Stage 3",
         "evidence": null
       },
       {
@@ -15689,10 +15735,10 @@
       }
     ],
     "counts": {
-      "verified": 311,
-      "blocked": 19,
+      "verified": 312,
+      "blocked": 20,
       "running": 4,
-      "pending": 451,
+      "pending": 449,
       "recheck": 21
     },
     "total": 806,
@@ -15701,5 +15747,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:20:50.920736+00:00"
+  "updatedAt": "2026-11-09T11:21:53.838003+00:00"
 }
