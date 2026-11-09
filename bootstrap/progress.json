@@ -699,10 +699,10 @@
       {
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
-        "state": "running",
-        "detail": "The merged candidate assigns 206 of 236 original targets to a run. 30 still need assertion review. Passing outcomes require separate receipts.",
+        "state": "recheck",
+        "detail": "Earlier checkpoint. 131 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-target-routing.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
       },
       {
         "id": "gap:structural-projection",
@@ -4779,10 +4779,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 7,
+          "verified": 8,
           "blocked": 1,
           "running": 1,
-          "pending": 153,
+          "pending": 152,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5246,17 +5246,17 @@
           {
             "id": "stage3:integration",
             "title": "integration",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "8e4bcea97910f4c1239900e01bb009dbec30ac19a0de42a9d8e110fb0c658b45",
               "cases": [
                 {
                   "name": "arithmetic_through_class_methods",
@@ -5412,7 +5412,7 @@
                 },
                 {
                   "name": "wrong_main_type_still_rejected",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -5420,11 +5420,28 @@
           {
             "id": "stage3:guard_coverage",
             "title": "guard_coverage",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "all_guarded_match_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "guarded_equations_use_the_same_fallthrough_and_coverage_as_case",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:alloc_accounting",
@@ -9685,386 +9702,197 @@
       },
       {
         "id": "additional",
-        "title": "Supplemental tests on the published Stage 3",
+        "title": "Additional frontend coverage",
         "unit": "targets",
-        "total": 41,
+        "total": 8,
         "counts": {
           "verified": 0,
           "blocked": 0,
           "running": 0,
-          "pending": 41,
-          "recheck": 0
+          "pending": 6,
+          "recheck": 2
         },
-        "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
+        "detail": "Earlier results are retained while the published inputs are checked.",
         "items": [
           {
-            "id": "additional:intrinsic_objects",
-            "title": "intrinsic_objects",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "id": "additional:class_defaults",
+            "title": "class_defaults / actual Cinch frontend",
+            "state": "recheck",
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Pass every original default source, runtime, identity and diagnostic/path assertion through the final matching Cinch-built compiler; classify the11 direct Rust annotation checks separately.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "observed": {
+              "status": "failed",
+              "source": "75fbd2f9a8596fa48c2ded66efa15834412b9bc478247b7c94ab048fa84774c0",
+              "cases": [
+                {
+                  "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_omitted_method_without_a_default_is_still_refused",
+                  "status": "failed"
+                },
+                {
+                  "name": "annotations_keep_definition_and_default_parameter_identities",
+                  "status": "passed"
+                },
+                {
+                  "name": "the_mconcat_default_works_at_a_function_carrier_and_a_refinement",
+                  "status": "failed"
+                }
+              ]
+            },
+            "currentTests": null
           },
           {
-            "id": "additional:syntax_declaration_groups",
-            "title": "syntax_declaration_groups",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "id": "additional:concurrency",
+            "title": "concurrency",
+            "state": "recheck",
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Run the complete original target through matching Stage3, including original runtime, I/O, foreign fixture and exact refusal reasons.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "observed": {
+              "status": "failed",
+              "source": "32abdfb8895c76cb78135aa8404d2d88fe170ccbff5bee2c981aeb5a3e4a1157",
+              "cases": [
+                {
+                  "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_mut_borrow_capture_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "a_thread_shared_memo_cell_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+                  "status": "failed"
+                },
+                {
+                  "name": "an_unshared_mutable_capture_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+                  "status": "failed"
+                },
+                {
+                  "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+                  "status": "passed"
+                },
+                {
+                  "name": "double_capture_of_a_linear_value_is_rejected",
+                  "status": "failed"
+                },
+                {
+                  "name": "dropping_a_handle_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "example_11_structured_tasks_accepts",
+                  "status": "passed"
+                },
+                {
+                  "name": "io_read_and_write_round_trip",
+                  "status": "passed"
+                },
+                {
+                  "name": "join_all_or_cancel_cancels_siblings_on_failure",
+                  "status": "passed"
+                },
+                {
+                  "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+                  "status": "failed"
+                },
+                {
+                  "name": "ref_and_copy_captures_are_accepted",
+                  "status": "failed"
+                },
+                {
+                  "name": "spawned_task_results_join_correctly",
+                  "status": "passed"
+                },
+                {
+                  "name": "task_handles_cannot_escape_their_scope",
+                  "status": "failed"
+                }
+              ]
+            },
+            "currentTests": null
           },
           {
-            "id": "additional:syntax_declaration_namespaces",
-            "title": "syntax_declaration_namespaces",
+            "id": "additional:laws",
+            "title": "laws",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Keep the full Native suite. Execute the original source checks through final Stage3, including the exact sample and manifest assertions and the three mismatched rewrite justifications.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           },
           {
-            "id": "additional:syntax_declarations",
-            "title": "syntax_declarations",
+            "id": "additional:prim",
+            "title": "prim",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Keep the complete Native harness, and replay all original Cinch inputs and portable assertions through final Stage3. Preserve profile-specific selection, stable justified identities, hashed assumptions, safety diagnostics, generated attributes and runtime results.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           },
           {
-            "id": "additional:hk",
-            "title": "hk",
+            "id": "additional:codata",
+            "title": "codata",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           },
           {
-            "id": "additional:refinements",
-            "title": "refinements",
+            "id": "additional:fixity_interfaces",
+            "title": "fixity_interfaces",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           },
           {
-            "id": "additional:stage_code_expectations",
-            "title": "stage_code_expectations",
+            "id": "additional:guard_coverage",
+            "title": "guard_coverage",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           },
           {
-            "id": "additional:sym",
-            "title": "sym",
+            "id": "additional:integration",
+            "title": "integration",
             "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:evidence_invalidation",
-            "title": "evidence_invalidation",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:ffi",
-            "title": "ffi",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:goal_tactics",
-            "title": "goal_tactics",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:index_local_carriers",
-            "title": "index_local_carriers",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:interface_conditional_methods",
-            "title": "interface_conditional_methods",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:interface_guarded_bodies",
-            "title": "interface_guarded_bodies",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:interface_method_bodies",
-            "title": "interface_method_bodies",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:interface_primitive_bodies",
-            "title": "interface_primitive_bodies",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:interface_total_bodies",
-            "title": "interface_total_bodies",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:json",
-            "title": "json",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:nominal_identity",
-            "title": "nominal_identity",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:observability",
-            "title": "observability",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:order_independence",
-            "title": "order_independence",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:ownership",
-            "title": "ownership",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:params",
-            "title": "params",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:parsers",
-            "title": "parsers",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:platform",
-            "title": "platform",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:primitives",
-            "title": "primitives",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:regex",
-            "title": "regex",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:runtime_net_prims",
-            "title": "runtime_net_prims",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:runtime_prims",
-            "title": "runtime_prims",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:surface",
-            "title": "surface",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_choreography",
-            "title": "syntax_choreography",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_declaration_composition",
-            "title": "syntax_declaration_composition",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_effect_declarations",
-            "title": "syntax_effect_declarations",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_index_evidence",
-            "title": "syntax_index_evidence",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_index_lambdas",
-            "title": "syntax_index_lambdas",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_lambdas",
-            "title": "syntax_lambdas",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_proof_patterns",
-            "title": "syntax_proof_patterns",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_quoted_macro_scope",
-            "title": "syntax_quoted_macro_scope",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_runtime_proofs",
-            "title": "syntax_runtime_proofs",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_signature_scope",
-            "title": "syntax_signature_scope",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
-          },
-          {
-            "id": "additional:syntax_structural_builders",
-            "title": "syntax_structural_builders",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
+            "detail": "Await matching case evidence on the published inputs.",
+            "doneWhen": "Pass the complete original target and retain matching compiler invocations.",
+            "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-schema10-abi7-integrated-stage3-blockers-results.json",
+            "currentTests": null
           }
         ]
       }
@@ -13467,10 +13295,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 7,
+        "passed": 8,
         "failed": 1,
         "status": "running",
-        "phase": "Replay integration with the combined Stage 3",
+        "phase": "Replay guard_coverage with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -14003,17 +13831,17 @@
       }
     ],
     "counts": {
-      "verified": 293,
+      "verified": 294,
       "blocked": 2,
-      "running": 3,
-      "pending": 484,
-      "recheck": 21
+      "running": 2,
+      "pending": 448,
+      "recheck": 24
     },
-    "total": 803,
+    "total": 770,
     "acceptanceVerified": 4,
     "acceptanceTotal": 5,
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:26:38.958077+00:00"
+  "updatedAt": "2026-11-09T09:27:43.004506+00:00"
 }
