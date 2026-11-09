@@ -5092,10 +5092,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 21,
+          "verified": 22,
           "blocked": 1,
           "running": 1,
-          "pending": 139,
+          "pending": 138,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -6143,6 +6143,28 @@
           {
             "id": "stage3:bootstrap_collections",
             "title": "bootstrap_collections",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
+            "doneWhen": "Run the complete original target and retain its matching receipt.",
+            "evidence": null,
+            "observed": {
+              "status": "passed",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": 0,
+              "logSha256": "93c3f382648e92392602554fe18fb2db4c5e227abce7ad31b312d99e1bf0f552",
+              "cases": [
+                {
+                  "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
+                  "status": "passed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "stage3:bootstrap_conditional_methods",
+            "title": "bootstrap_conditional_methods",
             "state": "running",
             "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
@@ -6156,20 +6178,11 @@
               "logSha256": null,
               "cases": [
                 {
-                  "name": "compiled_cinch_elaborates_collection_literals_and_preserves_actual_dictionaries",
+                  "name": "compiled_cinch_selects_checked_conditional_methods_with_call_proofs",
                   "status": "running"
                 }
               ]
             }
-          },
-          {
-            "id": "stage3:bootstrap_conditional_methods",
-            "title": "bootstrap_conditional_methods",
-            "state": "pending",
-            "detail": "Await the matching run.",
-            "doneWhen": "Run the complete original target and retain its matching receipt.",
-            "evidence": null,
-            "observed": null
           },
           {
             "id": "stage3:bootstrap_contract",
@@ -15415,10 +15428,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 21,
+        "passed": 22,
         "failed": 1,
         "status": "running",
-        "phase": "Replay bootstrap_collections with the combined Stage 3",
+        "phase": "Replay bootstrap_conditional_methods with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -16039,10 +16052,10 @@
       }
     ],
     "counts": {
-      "verified": 315,
+      "verified": 316,
       "blocked": 26,
       "running": 3,
-      "pending": 441,
+      "pending": 440,
       "recheck": 21
     },
     "total": 806,
@@ -16051,5 +16064,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:54:42.017391+00:00"
+  "updatedAt": "2026-11-09T11:57:27.104696+00:00"
 }
