@@ -4779,10 +4779,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 4,
+          "verified": 5,
           "blocked": 1,
           "running": 1,
-          "pending": 156,
+          "pending": 155,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5108,17 +5108,17 @@
           {
             "id": "stage3:modules",
             "title": "modules",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "d566752a1c2862bac173e802dd8c71488244a5deabc7bc5875d46454be538dc4",
               "cases": [
                 {
                   "name": "a_failure_in_a_sibling_module_names_its_file",
@@ -5154,7 +5154,19 @@
                 },
                 {
                   "name": "interface_round_trips_through_disk",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "missing_import_file_is_named",
+                  "status": "passed"
+                },
+                {
+                  "name": "multi_file_module_links_and_runs",
+                  "status": "passed"
+                },
+                {
+                  "name": "multi_module_file_links_and_runs",
+                  "status": "passed"
                 }
               ]
             }
@@ -5162,11 +5174,44 @@
           {
             "id": "stage3:class_defaults",
             "title": "class_defaults",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_changed_default_changes_the_class_contract_and_only_that_method",
+                  "status": "passed"
+                },
+                {
+                  "name": "a_default_for_an_undeclared_method_is_refused_at_the_class",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_ill_typed_default_is_reported_at_its_class_with_no_instance",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_omitted_method_takes_its_default_and_a_definition_overrides_it",
+                  "status": "passed"
+                },
+                {
+                  "name": "an_omitted_method_without_a_default_is_still_refused",
+                  "status": "passed"
+                },
+                {
+                  "name": "annotations_keep_definition_and_default_parameter_identities",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:fixity_interfaces",
@@ -12974,8 +13019,8 @@
         "total": 162,
         "passed": 20,
         "failed": 1,
-        "status": "running",
-        "phase": "Replay bootstrap_checked_program with the combined Stage 3",
+        "status": "retired-superseded-stage3",
+        "phase": "Preserved 21 completed targets and the final bootstrap_checked_program test log and receipts. The worker has been released.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-modules.json"
       },
       {
@@ -13236,10 +13281,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 4,
+        "passed": 5,
         "failed": 1,
         "status": "running",
-        "phase": "Replay modules with the combined Stage 3",
+        "phase": "Replay class_defaults with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13274,6 +13319,39 @@
         "status": "passed",
         "phase": "All original cases passed with 14 matching compiler invocations.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-laws.json"
+      },
+      {
+        "title": "Original concurrency on the published Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "total": 20,
+        "passed": 20,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All original cases passed with 42 matching compiler invocations.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-concurrency.json"
+      },
+      {
+        "title": "Original modules on the published Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "total": 12,
+        "passed": 12,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All original module cases passed, including interface manifests.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-letrec-and-modules.json"
+      },
+      {
+        "title": "Original recursive bindings on the published Stage 3",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "tests",
+        "total": 18,
+        "passed": 16,
+        "failed": 2,
+        "status": "completed-with-failures",
+        "phase": "Two initializer-order failures remain for a stored closure and a partial call.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-letrec-and-modules.json"
       },
       {
         "title": "Run the complete matching Rust compiler inventory",
@@ -13569,8 +13647,8 @@
         "passed": 2,
         "failed": 2,
         "status": "running",
-        "phase": "Replay the original lib_bigdecimal tests",
-        "evidence": null
+        "phase": "Replay the original lib_bigdecimal tests Audited outcomes are 6/6 small-integer, 4/10 range, and 5/14 dependent cases.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-small-nats-range-dependent.json"
       },
       {
         "title": "Check signed widening at both boundaries and replay the original false refinement claim",
@@ -13581,6 +13659,17 @@
         "failed": 0,
         "status": "superseded-before-build",
         "phase": "The queued widening controls moved to the combined covariance run.",
+        "evidence": null
+      },
+      {
+        "title": "Verify signed widening and function-result refinements against the original numerical suites",
+        "source": "10ca60b04d2064fd8166f0f45535c2876cea870a1c4880ad4a7441e2fa01a5b5",
+        "unit": "checks and targets",
+        "total": 9,
+        "passed": 0,
+        "failed": 0,
+        "status": "running",
+        "phase": "Build signed widening Stage 1 with the pinned seed",
         "evidence": null
       },
       {
@@ -13728,10 +13817,10 @@
       }
     ],
     "counts": {
-      "verified": 290,
+      "verified": 291,
       "blocked": 2,
       "running": 3,
-      "pending": 487,
+      "pending": 486,
       "recheck": 21
     },
     "total": 803,
@@ -13740,5 +13829,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:12:27.271028+00:00"
+  "updatedAt": "2026-11-09T09:14:58.982729+00:00"
 }
