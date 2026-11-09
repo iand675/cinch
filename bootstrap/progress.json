@@ -17922,8 +17922,8 @@
         "total": 8,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "status": "running",
+        "phase": "Compile the exact original Rust harnesses",
         "evidence": null
       },
       {
@@ -21346,9 +21346,9 @@
         "unit": "gates",
         "total": 2,
         "passed": 1,
-        "failed": 0,
-        "status": "running",
-        "phase": "Replay the original letrec tests on Stage 1 and the current pinned provider",
+        "failed": 1,
+        "status": "completed-with-failures",
+        "phase": "Original letrec replay finished",
         "evidence": null
       },
       {
@@ -21497,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:29:21.225067+00:00"
+  "updatedAt": "2026-11-09T07:31:25.273325+00:00"
 }
