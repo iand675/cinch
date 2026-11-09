@@ -6118,6 +6118,10 @@
               "cases": [
                 {
                   "name": "checked_program_constructor_is_not_an_external_authority_bypass",
+                  "status": "passed"
+                },
+                {
+                  "name": "checked_program_retains_runtime_source_core_and_its_typed_emitter_boundary",
                   "status": "running"
                 }
               ]
@@ -16021,5 +16025,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:31:23.063103+00:00"
+  "updatedAt": "2026-11-09T11:32:26.218908+00:00"
 }
