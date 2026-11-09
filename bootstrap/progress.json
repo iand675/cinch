@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "letrec",
+        "detail": "bootstrap_source_instances | letrec",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -737,8 +737,8 @@
         "total": 236,
         "counts": {
           "verified": 18,
-          "blocked": 0,
-          "running": 1,
+          "blocked": 1,
+          "running": 0,
           "pending": 217,
           "recheck": 0
         },
@@ -2791,17 +2791,17 @@
           {
             "id": "native:bootstrap_source_instances",
             "title": "bootstrap_source_instances",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T08:45:39.252119+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T09:31:19.601864+00:00",
+              "exitCode": 101,
+              "logSha256": "4f5eb6acb6f33f52ea6fa767e5bfa784cb795f38e3a823e937ea9d33b9a86a1a",
               "cases": [
                 {
                   "name": "instance_contracts_recheck_slots_captures_and_method_specialization",
@@ -2813,7 +2813,7 @@
                 },
                 {
                   "name": "source_instances_build_checked_dictionaries_from_defining_class_interfaces",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -4779,10 +4779,10 @@
         "unit": "targets",
         "total": 162,
         "counts": {
-          "verified": 8,
+          "verified": 9,
           "blocked": 1,
           "running": 1,
-          "pending": 152,
+          "pending": 151,
           "recheck": 0
         },
         "detail": "All 162 preserved Stage 3 targets. Supplemental coverage has its own runs.",
@@ -5420,17 +5420,17 @@
           {
             "id": "stage3:guard_coverage",
             "title": "guard_coverage",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 0,
+              "logSha256": "c6e196cfebc025424967af2d7e47326abdfc742c797f1acd5337bfc220fce7a3",
               "cases": [
                 {
                   "name": "all_guarded_match_is_rejected",
@@ -5450,7 +5450,7 @@
                 },
                 {
                   "name": "unguarded_final_row_compiles_and_runs_every_row",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -5458,11 +5458,28 @@
           {
             "id": "stage3:alloc_accounting",
             "title": "alloc_accounting",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_compiled_structure_drops_back_to_the_immortal_baseline",
+                  "status": "passed"
+                },
+                {
+                  "name": "escaped_constructors_match_and_carry_one_descriptor_word",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "stage3:argv",
@@ -13523,10 +13540,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 162,
-        "passed": 8,
+        "passed": 9,
         "failed": 1,
         "status": "running",
-        "phase": "Replay guard_coverage with the combined Stage 3",
+        "phase": "Replay alloc_accounting with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-codata.json"
       },
       {
@@ -13634,9 +13651,9 @@
         "unit": "targets",
         "total": 236,
         "passed": 18,
-        "failed": 0,
-        "status": "running",
-        "phase": "bootstrap_source_instances Audited 430 passing cases across the first 18 complete targets.",
+        "failed": 1,
+        "status": "waiting-worker",
+        "phase": "Wait for the reserved fifth lane after the active preceding Rust test. Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -14114,10 +14131,10 @@
       }
     ],
     "counts": {
-      "verified": 294,
-      "blocked": 2,
-      "running": 3,
-      "pending": 486,
+      "verified": 295,
+      "blocked": 3,
+      "running": 2,
+      "pending": 485,
       "recheck": 21
     },
     "total": 806,
@@ -14126,5 +14143,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:30:36.840302+00:00"
+  "updatedAt": "2026-11-09T09:31:40.224366+00:00"
 }
