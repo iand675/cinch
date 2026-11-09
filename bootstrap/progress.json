@@ -21324,9 +21324,9 @@
         "unit": "checks",
         "total": 8,
         "passed": 5,
-        "failed": 1,
-        "status": "failed",
-        "phase": "AssertionError('bootstrap.check:5:9: a codata value must use its observed construction form\\n')",
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released worker slot",
         "evidence": null
       },
       {
@@ -21420,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:46:48.958618+00:00"
+  "updatedAt": "2026-11-09T06:47:51.909453+00:00"
 }
