@@ -21,16 +21,16 @@ module Bootstrap.Pipeline where
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
-  import Bootstrap.Object (RuntimeObject, read-runtime-object, read-runtime-object-document)
+  import Bootstrap.Object (RuntimeObject, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, admit-runtime-object)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
-  import Bootstrap.Inputs (read-interfaces, embedded-library-home)
+  import Bootstrap.Inputs (read-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
   import Bootstrap.Stage (expand-stages)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Bootstrap.Export (export-interfaces, interface-hash)
+  import Bootstrap.Export (export-interfaces, interface-hash, build-manifest)
   import Bootstrap.Interface (fnv-source-hash, sha256-hex)
   import Algebra.Semigroup
   import Effect.Process (process-run, command)
@@ -38,7 +38,7 @@ module Bootstrap.Pipeline where
   import Data.List (map)
   import Text.Json (canonical-bytes)
   import Data.Nat (nat-to-int)
-  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize)
+  import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
   import Data.String (string-concat, string-to-bytes)
   import Effect.Fs (fs-read, fs-write)
   import Text.Scan (string-contains)
@@ -149,23 +149,69 @@ module Bootstrap.Pipeline where
   compile-source-with-object-interfaces :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
   compile-source-with-object-interfaces manifest object-config source ir = compile-source-object True manifest object-config source ir
   compile-source-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-source-object publish manifest object-config source ir = case read-interfaces manifest of
-    Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
-    Ok interfaces -> case read-runtime-object interfaces object-config of
-      Err message -> write-failure ir (string-concat "bootstrap.object: " message) pipeline-interface-failed
-      Ok provider -> emit-object-client publish interfaces provider source ir
-  emit-object-client :: forall r. using (io :: Io r) => Bool -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
-  emit-object-client publish interfaces provider source ir = case fs-read (path-from-string source) of
+  compile-source-object publish manifest object-config source ir =
+    if publish then publish-object-client manifest object-config source ir else
+      (case read-interfaces manifest of
+        Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+        Ok interfaces -> case read-runtime-object-document interfaces object-config of
+          Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+          Ok (provider, metadata, object-path, code) -> emit-object-client None interfaces provider source ir)
+
+  publish-object-client :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
+  publish-object-client manifest object-config source ir =
+    let output = build-manifest-path ir in
+    let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
+    let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output] in
+    let direct = map normalize-name [manifest, object-config, source] in
+    if not (object-paths-distinct (outputs <> direct)) then pipeline-bad-args else
+      let references = read-interface-references manifest in
+      let configuration = read-runtime-object-config object-config in
+      let interface-inputs = (case references of Err message -> Nil; Ok rows -> interface-input-files rows) in
+      let object-inputs = (case configuration of Err message -> Nil; Ok config -> runtime-object-input-files config) in
+      if object-input-overlaps outputs (map normalize-name (interface-inputs <> object-inputs)) then pipeline-bad-args else
+        (case fs-write output (string-to-bytes "") of
+          Err error -> pipeline-write-failed
+          Ok cleared -> case references of
+            Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+            Ok inputs -> case load-interface-references inputs of
+              Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
+              Ok interfaces -> case configuration of
+                Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+                Ok config -> case admit-runtime-object interfaces config of
+                  Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
+                  Ok (provider, metadata, object-path, code) ->
+                    emit-object-client (Some metadata) interfaces provider source ir)
+
+  interface-input-files :: List (String, String, String) -> List String
+  interface-input-files references = case references of
+    Nil -> Nil
+    Cons (name, digest, path) rest -> Cons path (interface-input-files rest)
+  object-input-overlaps :: List String -> List String -> Bool
+  object-input-overlaps outputs inputs = case inputs of
+    Nil -> False
+    Cons first rest -> object-path-member first outputs || object-input-overlaps outputs rest
+
+  build-manifest-path :: Path -> Path
+  build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
+  emit-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r} Int
+  emit-object-client metadata interfaces provider source ir = case fs-read (path-from-string source) of
     Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
     Ok src -> case parse-program-with source src (interface-headers interfaces) of
       Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
       Parsed program Nil -> (case check-object-client src program interfaces of
         Err message -> write-failure ir message pipeline-check-refused
-        Ok checked -> if publish then
-          (case write-interface-output ir (export-interfaces checked interfaces src) of
-            0 -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-            code -> code)
-          else write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)))
+        Ok checked -> case metadata of
+          None -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+          Some document -> case export-interfaces checked interfaces src of
+            Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
+            Ok rows -> case write-interface-output ir (Ok rows) of
+              0 -> case write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)) of
+                0 -> (case fs-write (build-manifest-path ir)
+                    (canonical-bytes (build-manifest (path-stem (path-from-string source)) document interfaces rows)) of
+                  Ok written -> pipeline-ok
+                  Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
+                code -> code
+              code -> code)
       Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   run-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
@@ -182,7 +228,7 @@ module Bootstrap.Pipeline where
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
         Ok (provider, metadata, object-path, object-bytes) ->
           if object-path-member (normalize-path object-path) paths then pipeline-bad-args
-          else case emit-object-client False interfaces provider source ir of
+          else case emit-object-client None interfaces provider source ir of
             0 -> (case fs-write (path-from-string object-copy) object-bytes of
               Err error -> pipeline-write-failed
               Ok written -> link-object-client ir executable object-copy runtime metadata words)

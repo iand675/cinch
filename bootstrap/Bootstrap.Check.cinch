@@ -297,6 +297,7 @@ module Bootstrap.Check where
     TName s n -> (prim-ty n, Nil)
     TIndex s n -> (TyHole, fail s "unsupported type: index literal")
     TNegate s x -> (TyHole, fail s "unsupported type: index negation")
+    TIndexLambda s name body -> (TyHole, fail s "an index lambda needs a checked proposition operand")
     TInfix s op a b -> (TyHole, fail s "unsupported type: predicate or index operation")
     TRefined s predicate carrier -> (TyHole, fail s "unsupported type: refined result")
     TApp s h args -> type-app-to-ty h args
@@ -415,6 +416,7 @@ module Bootstrap.Check where
     EIf s c t f -> check-if env s c t f expected
     ECase s scrut alts -> check-case env s scrut alts expected
     ELet s bs body -> check-let env s bs body expected
+    ELetScope sp body -> check-expr env body expected
     EAnn s x t -> check-ann-against env s x t expected
     other -> case infer-expr env other of
       (t, ds) -> ds <> (ty-compare (expr-span other) t expected)
@@ -439,6 +441,7 @@ module Bootstrap.Check where
     ECase s scrut alts -> infer-case env s scrut alts
     EGuarded s guard body -> (TyHole, fail s "a guarded body is valid only inside a case alternative")
     ELet s bs body -> infer-let env s bs body
+    ELetScope sp body -> infer-expr env body
     EAnn s x t -> check-ann env s x t
     ELam s ps body -> (TyHole, (fail s "cannot infer the type of this lambda: give it a type annotation"))
     EForall s vs body -> (TyHole, fail s "unsupported expression: forall")
@@ -461,6 +464,7 @@ module Bootstrap.Check where
     EBinding s n rhs rest -> (TyHole, fail s "unsupported expression: binding spine cell")
     EBindingsEnd s -> (TyHole, fail s "unsupported expression: binding spine end")
     ELocalGroup sp bindings body -> (TyHole, fail sp "a local binding group requires the typed checker")
+    ELetRec sp bindings body -> (TyHole, fail sp "a recursive binding group requires the typed checker")
     ELocalStrict sp pattern value rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
     ELocalMemo sp name value rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
     ELocalSignature sp name ty rest -> (TyHole, fail sp "a local binding entry requires its enclosing group")
@@ -937,6 +941,7 @@ module Bootstrap.Check where
       else fail s (string-concat-all ["imported ", kind, " needs kind, constructor or dictionary elaboration: ", name])
     DSig s n t -> Nil
     DLaw s name syntax -> fail s "class laws require checked proposition elaboration"
+    DRewrite s name syntax -> fail s "a rewrite needs a checked equation and justification"
     DMethod s label name t -> fail s "resolved signature methods require typed elaboration"
     DFun s n clauses -> check-fun tops s n clauses
     DData s n params ctors -> case params of

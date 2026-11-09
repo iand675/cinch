@@ -504,6 +504,18 @@
     },
     {
       "classes": "OO",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OO",
       "symbol": "Data.List.map"
     },
     {

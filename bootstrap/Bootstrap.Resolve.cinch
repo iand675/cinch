@@ -304,10 +304,39 @@ module Bootstrap.Resolve where
   resolve-ordered remaining done base = case remaining of
     Nil -> (reverse done, Nil)
     Cons first rest -> case pick-ready remaining done Nil of
-      None -> (reverse done, fail (module-span first) (cat ["cyclic module imports involving ", module-name first]))
+      None -> (reverse done, import-cycle first remaining)
       Some (m, pending) -> case build-scope m done base of
         (ready, errors) -> case resolve-ordered pending (Cons ready done) base of
           (ordered, more) -> (ordered, errors <> more)
+
+  -- Every remaining module has an unresolved edge into the remaining
+  -- graph. Follow one edge per module until it repeats. Drop the prefix
+  -- before the repeated module, which may just be an importer of the cycle.
+  import-cycle :: Module -> List Module -> List Diagnostic
+  import-cycle first remaining = case cycle-from (module-name first) remaining Nil of
+    Some (entry, chain) -> fail (source-span entry remaining) (cat ["module import cycle: ", render-cycle chain])
+    None -> fail (module-span first) (cat ["unresolved module imports involving ", module-name first])
+  cycle-from :: String -> List Module -> List String -> Option (String, List String)
+  cycle-from name remaining visited =
+    if has-name name visited then Some (name, reverse (cycle-prefix name visited) <> [name])
+    else case first-pending-import (module-declarations name remaining) remaining of
+      Some next -> cycle-from next remaining (Cons name visited)
+      None -> None
+  first-pending-import :: List Decl -> List Module -> Option String
+  first-pending-import declarations remaining = case declarations of
+    Nil -> None
+    Cons (DImport sp name mods alias members args) rest ->
+      if has-module name remaining then Some name else first-pending-import rest remaining
+    Cons other rest -> first-pending-import rest remaining
+  cycle-prefix :: String -> List String -> List String
+  cycle-prefix name visited = case visited of
+    Nil -> Nil
+    Cons current rest -> if same name current then [current] else Cons current (cycle-prefix name rest)
+  render-cycle :: List String -> String
+  render-cycle chain = case chain of
+    Nil -> ""
+    Cons first Nil -> first
+    Cons first rest -> cat [first, " -> ", render-cycle rest]
 
   scoped-decls :: List Scoped -> List Decl
   scoped-decls modules = case modules of
@@ -370,6 +399,7 @@ module Bootstrap.Resolve where
     TName s name -> TName s (type-name visible locals name)
     TIndex s digits -> t
     TNegate s x -> TNegate s (rename-type visible locals x)
+    TIndexLambda s name body -> TIndexLambda s name (rename-type visible (Cons name locals) body)
     TInfix s op a b -> TInfix s op (rename-type visible locals a) (rename-type visible locals b)
     TRefined s predicate carrier -> TRefined s (rename-predicate visible locals predicate) (rename-type visible locals carrier)
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
@@ -545,17 +575,18 @@ module Bootstrap.Resolve where
     ELocalSignature sp name ty rest -> (case rename-group-bindings visible strict all rest of
       (more, errors) -> (ELocalSignature sp name (rename-type visible all ty) more, errors))
     other -> (bindings, fail (expr-span bindings) "malformed local group")
-  rename-local-group :: List Binding -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
-  rename-local-group visible locals sp bindings body =
+  rename-local-group :: Bool -> List Binding -> List String -> Span -> Expr -> Expr -> (Expr, List Diagnostic)
+  rename-local-group recursive visible locals sp bindings body =
     let sites = group-binding-sites bindings in
     let declared = map group-site-name sites in
     let signatures = group-signature-sites bindings in
     let all = declared <> locals in
     let errors = (duplicate-group-sites "binding" Nil sites <> duplicate-group-sites "signature" Nil signatures
       <> orphan-group-signatures declared signatures) in
-    (case rename-group-bindings visible (group-memo-names bindings <> locals) all bindings of
+    let initial = if recursive then all else group-memo-names bindings <> locals in
+    (case rename-group-bindings visible initial all bindings of
       (renamed, more) -> (case rename-expr visible all body of
-        (value, others) -> (ELocalGroup sp renamed value, errors <> more <> others)))
+        (value, others) -> (if recursive then ELetRec sp renamed value else ELocalGroup sp renamed value, errors <> more <> others)))
 
   rename-alts :: List Binding -> List String -> Expr -> (Expr, List Diagnostic)
   rename-alts visible locals alts = case alts of
@@ -670,7 +701,10 @@ module Bootstrap.Resolve where
     ELet s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
         (rhs, more) -> (ELet s bindings rhs, errors <> more)
-    ELocalGroup sp bindings body -> rename-local-group visible locals sp bindings body
+    ELetScope sp body -> case rename-expr visible locals body of
+      (renamed, errors) -> (ELetScope sp renamed, errors)
+    ELocalGroup sp bindings body -> rename-local-group False visible locals sp bindings body
+    ELetRec sp bindings body -> rename-local-group True visible locals sp bindings body
     EDo sp statements -> (case rename-do visible locals statements of (renamed, errors) -> (EDo sp renamed, errors))
     EWith s bs body -> case rename-bindings visible locals bs of
       (bindings, names, errors) -> case rename-expr visible names body of
@@ -795,6 +829,8 @@ module Bootstrap.Resolve where
     DImport s path mods alias members args -> (Nil, Nil)
     DExport s text items -> (Nil, Nil)
     DFixity s assoc prec ops -> (Nil, Nil)
+    DRewrite s name syntax -> case rename-rewrite visible syntax of
+      (renamed, errors) -> ([DRewrite s (global-name home name) renamed], errors)
     DProof s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DProof s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a proof requires one signature or equation")
@@ -815,6 +851,52 @@ module Bootstrap.Resolve where
       (case rename-prim-bodies visible rest of
         (more, errors) -> (Cons (MkPrimBody sp family fragment unverified condition evidence
           (rename-record-fields False visible Nil uses) immediates) more, evidence-errors <> errors))
+
+  rewrite-application :: Expr -> List Expr -> Option (Span, String, List Expr)
+  rewrite-application expression args = case expression of
+    EApp sp f x -> rewrite-application f (Cons x args)
+    EVar sp name -> Some (sp, name, args)
+    ECon sp name arguments -> Some (sp, name, exprs-of arguments <> args)
+    other -> None
+  rewrite-citation :: List Binding -> Expr -> Option (Span, String, String, List Expr)
+  rewrite-citation visible expression = case rewrite-application expression Nil of
+    Some (sp, name, args) -> case lookup-binding name visible of
+      Some ordinary -> None
+      None -> let qualifier = name-qualifier name in
+        (case lookup-binding qualifier visible of
+          Some owner -> if string-length qualifier > 0 then Some (sp, binding-symbol owner, short-name name, args) else None
+          None -> None)
+    None -> None
+  rename-rewrite-evidence :: List Binding -> List String -> RewriteJustification -> (RewriteJustification, List Diagnostic)
+  rename-rewrite-evidence visible locals evidence = case evidence of
+    RewriteTerm expression -> (case rewrite-citation visible expression of
+      Some (sp, owner, member, args) -> (case rename-expr visible locals (expr-spine sp args) of
+        (renamed, errors) -> (RewriteLaw sp owner member (exprs-of renamed), errors))
+      None -> (case rename-expr visible locals expression of (renamed, errors) -> (RewriteTerm renamed, errors)))
+    RewriteLaw sp owner member args -> (evidence, Nil)
+  rewrite-parameter-sites :: List TypeParam -> List (Span, String)
+  rewrite-parameter-sites params = case params of
+    Nil -> Nil
+    Cons param rest -> Cons (param-span param, param-name param) (rewrite-parameter-sites rest)
+  rewrite-requirement-sites :: TypeExpr -> List (Span, String)
+  rewrite-requirement-sites bounds = case bounds of
+    TBound sp name ty rest -> if string-length name > 0 then Cons (sp, name) (rewrite-requirement-sites rest)
+      else rewrite-requirement-sites rest
+    other -> Nil
+  rename-rewrite :: List Binding -> RewriteSyntax -> (RewriteSyntax, List Diagnostic)
+  rename-rewrite visible syntax = case syntax of
+    MkRewriteSyntax targeted params bounds pattern replacement guard evidence ->
+      let names = parameter-names params in
+      let locals = names <> bound-names bounds in
+      let duplicates = duplicate-group-sites "rewrite binder" Nil (rewrite-parameter-sites params <> rewrite-requirement-sites bounds) in
+      let (left, left-errors) = rename-expr visible locals pattern in
+      let (right, right-errors) = rename-expr visible locals replacement in
+      let (condition, guard-errors) = (case guard of
+        None -> (None, Nil)
+        Some expression -> (case rename-expr visible locals expression of (renamed, errors) -> (Some renamed, errors))) in
+      let (justification, proof-errors) = rename-rewrite-evidence visible locals evidence in
+      (MkRewriteSyntax targeted (rename-params visible Nil params) (rename-type visible names bounds) left right condition justification,
+       duplicates <> left-errors <> right-errors <> guard-errors <> proof-errors)
 
   rename-class-members :: String -> String -> List Binding -> List String -> List Decl -> (List Decl, List Diagnostic)
   rename-class-members home owner visible locals ds = rename-class-members-with home owner visible locals ds ds
@@ -988,7 +1070,7 @@ module Bootstrap.Resolve where
     Nil -> Nil
     Cons (DExternal sp name category syntax metadata) rest ->
       let more = imported-record-symbols rest in
-      if same category "type" && (case context-field "kind" metadata of JStr kind -> same kind "record"; other -> False)
+      if same category "type" && (case context-field "kind" metadata of JStr kind -> same kind "record" || same kind "codata"; other -> False)
         && not (has-name name more) then Cons name more else more
     Cons other rest -> imported-record-symbols rest
   context-field :: String -> Json -> Json
@@ -1088,6 +1170,7 @@ module Bootstrap.Resolve where
   symbols-json :: List Decl -> Json
   symbols-json ds = case ds of
     Nil -> JArrEnd
+    Cons (DRewrite sp name syntax) rest -> JArr (JStr name) (symbols-json rest)
     Cons d rest -> case decl-name d of
       Some name -> JArr (JStr name) (symbols-json rest)
       None -> symbols-json rest

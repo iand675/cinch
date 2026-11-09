@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod external_frontend;
+pub mod source_frontend;
 
 /// The toolkit a bootstrap project ships. Order follows the modules'
 /// own imports: `Text.Parse` imports `Text.Lex` and `Text.Scan`; the
@@ -54,7 +55,7 @@ pub fn assert_source_root(compiled: &Path, active: &Path) {
         "cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot");
 }
 
-pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+fn project_directory(tag: &str) -> PathBuf {
     // A Cargo cache shared by copied checkouts can retain env! paths from
     // the previous checkout. Refuse that mixture before compiling a rung.
     let active_root = std::env::var_os("CINCH_TEST_SOURCE_ROOT")
@@ -66,6 +67,11 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("project directory");
+    dir
+}
+
+pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+    let dir = project_directory(tag);
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.RuntimeIr.cinch" | "Bootstrap.Pipeline.cinch" | "Bootstrap.Object.cinch")) {
         std::fs::write(dir.join("Bootstrap.Object.cinch"), include_str!("../../../bootstrap/Bootstrap.Object.cinch"))
             .expect("checked runtime object dependency");

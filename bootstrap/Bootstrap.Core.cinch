@@ -22,8 +22,12 @@ module Bootstrap.Core where
   export scoped-core-case-facts, scoped-core-case-rest-facts, core-alternative-covers, opening-value-types, opening-value-patterns
   export CorePattern, CPWild, CPProof, CPErasedValue, CPVar, erased-pattern, CPAs, CPConstructor, CPInt, CPString, CPChar, CPTuple, CPField, CPDone
   export CoreTerm, CUse, CLocal, CInt, CString, CChar, CUnit, CApply, CLambda, CLet, CIf, CCase, CTuple, CPrimitive, CGuard
+  export CRecursiveFunctions, CRecursiveValues, CRecursiveBinding, CRecursiveBindingsEnd
+  export recursive-functions, recursive-function-ids, map-recursive-functions, recursive-proof-scope, recursive-value-writes
+  export recursive-box-slots, recursive-member-use, recursive-captures
   export CArgument, CArgumentsEnd, CAlternative, CAlternativesEnd, CError
   export CApplyEff, CWith, core-effects
+  export rewrite-term-equal
   export core-float-literal-word
   export CScope, CSpawn, CJoin, scope-kind, scope-type, scope-callback-parts, scope-region-closed
   export CMemoScope, memo-row, memo-residual, memo-demand-type
@@ -309,6 +313,12 @@ module Bootstrap.Core where
     CHandlerEnd :: Span -> CoreTerm
     CLambda :: Span -> UType -> CorePattern -> CoreTerm -> CoreTerm
     CLet :: Span -> UType -> Nat -> String -> Scheme -> CoreTerm -> CoreTerm -> CoreTerm
+    CRecursiveFunctions :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    -- The region belongs to the storage for an explicitly guarded value
+    -- knot. It has no Eval effect or demand-time initialization.
+    CRecursiveValues :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+    CRecursiveBinding :: Nat -> String -> CoreTerm -> CoreTerm -> CoreTerm
+    CRecursiveBindingsEnd :: CoreTerm
     CIf :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm
     CCase :: Span -> UType -> CoreTerm -> CoreTerm -> CoreTerm
     CTuple :: Span -> UType -> CoreTerm -> CoreTerm
@@ -329,7 +339,55 @@ module Bootstrap.Core where
     CAlternativesEnd :: Span -> CoreTerm
     CError :: Span -> CoreTerm
 
+  recursive-functions :: CoreTerm -> List CoreTerm
+  recursive-functions members = case members of
+    CRecursiveBindingsEnd -> Nil
+    CRecursiveBinding id name value rest -> Cons value (recursive-functions rest)
+    other -> Nil
+  recursive-function-ids :: CoreTerm -> List Nat
+  recursive-function-ids members = case members of
+    CRecursiveBindingsEnd -> Nil
+    CRecursiveBinding id name value rest -> Cons id (recursive-function-ids rest)
+    other -> Nil
+  recursive-member-use :: Nat -> CoreTerm -> Bool
+  recursive-member-use id term = case term of
+    CLocal sp ty key name actuals -> id == key || recursive-index-use id actuals
+    CUse sp ty name role actuals -> recursive-index-use id actuals
+    CQualifiedUse sp ty name role actuals evidence -> recursive-index-use id actuals
+    CMethod sp ty name owner slot actuals evidence -> recursive-index-use id actuals
+    other -> recursive-child-use id (runtime-term-children term)
+  recursive-index-use :: Nat -> List UType -> Bool
+  recursive-index-use id types = case types of
+    Nil -> False
+    Cons first rest -> local-id id (type-all-ids first) || recursive-index-use id rest
+  recursive-child-use :: Nat -> List CoreTerm -> Bool
+  recursive-child-use id terms = case terms of
+    Nil -> False
+    Cons term rest -> recursive-member-use id term || recursive-child-use id rest
+  recursive-captures :: List Nat -> CoreTerm -> Bool
+  recursive-captures ids term = case ids of
+    Nil -> False
+    Cons id rest -> recursive-member-use id term || recursive-captures rest term
+  recursive-box-slots :: CoreTerm -> List Nat
+  recursive-box-slots members = recursive-slots-from members Nil
+  recursive-slots-from :: CoreTerm -> List Nat -> List Nat
+  recursive-slots-from members slots = case members of
+    CRecursiveBinding id name value rest ->
+      recursive-slots-from rest (new-recursive-slots (recursive-function-ids members) value slots)
+    other -> slots
+  new-recursive-slots :: List Nat -> CoreTerm -> List Nat -> List Nat
+  new-recursive-slots pending value slots = case pending of
+    Nil -> slots
+    Cons id rest -> if not (local-id id slots) && recursive-member-use id value then
+      new-recursive-slots rest value (Cons id slots)
+      else new-recursive-slots rest value slots
 
+  map-recursive-functions :: (CoreTerm -> CoreTerm) -> CoreTerm -> CoreTerm
+  map-recursive-functions f members = case members of
+    CRecursiveBindingsEnd -> CRecursiveBindingsEnd
+    CRecursiveBinding id name value rest ->
+      CRecursiveBinding id name (f value) (map-recursive-functions f rest)
+    other -> members
   -- The handler constructor is private to checked Core. The label is the
   -- nominal effect declaration, followed by input, output and clause effects.
   handler-kind :: Kind
@@ -428,6 +486,8 @@ module Bootstrap.Core where
     CApply sp ty f x -> handler-body-direct label names f && handler-body-direct label names x
     CErasedApply sp ty row f x -> handler-row-absent label row && handler-body-direct label names f && handler-body-direct label names x
     CLet sp ty id name sc rhs body -> handler-body-direct label names rhs && handler-body-direct label names body
+    CRecursiveFunctions sp ty members body -> handler-body-direct label names body
+    CRecursiveValues sp ty region members body -> handler-row-absent label (core-effects term)
     CIf sp ty condition yes no -> handler-body-direct label names condition && handler-body-direct label names yes && handler-body-direct label names no
     CCase sp ty value alts -> handler-body-direct label names value && handler-body-direct label names alts
     CAlternative sp pattern body rest -> handler-body-direct label names body && handler-body-direct label names rest
@@ -464,6 +524,8 @@ module Bootstrap.Core where
     CErasedApply sp ty row f witness -> resume-uses id f
     CLambda sp ty pattern body -> if resume-uses id body > 0 then 2 else 0
     CLet sp ty key name sc rhs body -> resume-uses id rhs + resume-uses id body
+    CRecursiveFunctions sp ty members body -> recursive-resume-uses id members + resume-uses id body
+    CRecursiveValues sp ty region members body -> recursive-resume-uses id members + resume-uses id body
     CIf sp ty condition yes no -> resume-uses id condition + resume-max (resume-uses id yes) (resume-uses id no)
     CCase sp ty value alts -> resume-uses id value + resume-uses id alts
     CAlternative sp pattern body rest -> resume-alternative-uses id body rest
@@ -486,6 +548,11 @@ module Bootstrap.Core where
     CHandle sp ty label residual body handled-by -> resume-uses id body + resume-uses id handled-by
     CHandler sp ty returned operations -> if resume-uses id returned + resume-uses id operations > 0 then 2 else 0
     CHandlerOperation sp slot openings row closure rest -> resume-uses id closure + resume-uses id rest
+    other -> 0
+  recursive-resume-uses :: Nat -> CoreTerm -> Nat
+  recursive-resume-uses id members = case members of
+    CRecursiveBindingsEnd -> 0
+    CRecursiveBinding key name value rest -> resume-uses id value + recursive-resume-uses id rest
     other -> 0
   -- A failed guard continues to later alternatives. Calls performed by
   -- the guard therefore add to calls in the later branch, rather than
@@ -561,6 +628,8 @@ module Bootstrap.Core where
     CHandlerOperation sp slot openings row closure rest -> [closure, rest]
     CLambda sp ty p body -> [body]
     CLet sp ty id name sc rhs body -> [rhs, body]
+    CRecursiveFunctions sp ty members body -> Cons body (recursive-functions members)
+    CRecursiveValues sp ty region members body -> recursive-functions members <> [body]
     CIf sp ty condition yes no -> [condition, yes, no]
     CCase sp ty value alts -> [value, alts]
     CTuple sp ty fields -> [fields]
@@ -720,6 +789,8 @@ module Bootstrap.Core where
     CHandle s ty label residual body handled-by -> ty
     CLambda s ty p body -> ty
     CLet s ty id name sc rhs body -> ty
+    CRecursiveFunctions s ty members body -> ty
+    CRecursiveValues s ty region members body -> ty
     CIf s ty condition yes no -> ty
     CCase s ty value alts -> ty
     CTuple s ty fields -> ty
@@ -732,6 +803,83 @@ module Bootstrap.Core where
     CDischarge s ty evidence body -> ty
     CGuard s ty guard rhs -> ty
     other -> UError
+
+  -- Compare checked equations before a rule enters the optimizer. The law's
+  -- formal parameters can stand for whole checked citation arguments. A
+  -- lambda's locals are related by binder identity, never by spelling.
+  rewrite-term-equal :: List (Nat, CoreTerm) -> CoreTerm -> CoreTerm -> Bool
+  rewrite-term-equal arguments rule equation = rewrite-equal arguments Nil rule equation
+
+  rewrite-type-equal :: UType -> UType -> Bool
+  rewrite-type-equal first second = valid-type first && valid-type second && contract-equal first second
+  rewrite-types-equal :: List UType -> List UType -> Bool
+  rewrite-types-equal first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> rewrite-type-equal a b && rewrite-types-equal rest more
+    other -> False
+  rewrite-evidences-equal :: List CoreEvidence -> List CoreEvidence -> Bool
+  rewrite-evidences-equal first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> rewrite-evidence-equal a b && rewrite-evidences-equal rest more
+    other -> False
+  rewrite-evidence-equal :: CoreEvidence -> CoreEvidence -> Bool
+  rewrite-evidence-equal first second = case (first, second) of
+    (CEGiven sp ty name, CEGiven at other symbol) ->
+      string-compare name symbol == 0 && rewrite-type-equal ty other
+    (CEInstance sp ty name types arguments, CEInstance at other symbol actuals supplied) ->
+      string-compare name symbol == 0 && rewrite-type-equal ty other && rewrite-types-equal types actuals
+        && rewrite-evidence-equal arguments supplied
+    (CEArgument sp a rest, CEArgument at b more) ->
+      rewrite-evidence-equal a b && rewrite-evidence-equal rest more
+    (CEArgumentsEnd sp, CEArgumentsEnd at) -> True
+    other -> False
+  rewrite-argument :: Nat -> List (Nat, CoreTerm) -> Option CoreTerm
+  rewrite-argument id arguments = case arguments of
+    Nil -> None
+    Cons (formal, value) rest -> if id == formal then Some value else rewrite-argument id rest
+  rewrite-local-equal :: Nat -> Nat -> List (Nat, Nat) -> Bool
+  rewrite-local-equal first second binders = case binders of
+    Nil -> first == second
+    Cons (left, right) rest ->
+      if first == left || second == right then first == left && second == right
+      else rewrite-local-equal first second rest
+  rewrite-equal :: List (Nat, CoreTerm) -> List (Nat, Nat) -> CoreTerm -> CoreTerm -> Bool
+  rewrite-equal arguments binders first second = case second of
+    CLocal sp ty id name Nil -> (case rewrite-argument id arguments of
+      Some actual -> rewrite-type-equal ty (core-type actual) && rewrite-structure Nil Nil first actual
+      None -> rewrite-structure arguments binders first second)
+    other -> rewrite-structure arguments binders first second
+  rewrite-structure :: List (Nat, CoreTerm) -> List (Nat, Nat) -> CoreTerm -> CoreTerm -> Bool
+  rewrite-structure arguments binders first second =
+    let equal = rewrite-equal arguments binders in
+    let typed = rewrite-type-equal (core-type first) (core-type second) in
+    case (first, second) of
+      (CLocal sp ty id name actuals, CLocal at other key display supplied) ->
+        typed && rewrite-local-equal id key binders && rewrite-types-equal actuals supplied
+      (CUse sp ty name role actuals, CUse at other symbol kind supplied) ->
+        typed && string-compare name symbol == 0 && string-compare role kind == 0 && rewrite-types-equal actuals supplied
+      (CQualifiedUse sp ty name role actuals evidence, CQualifiedUse at other symbol kind supplied proofs) ->
+        typed && string-compare name symbol == 0 && string-compare role kind == 0
+          && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
+      (CMethod sp ty name owner slot actuals evidence, CMethod at other symbol origin field supplied proofs) ->
+        typed && string-compare owner origin == 0 && string-compare name symbol == 0 && slot == field
+          && rewrite-types-equal actuals supplied && rewrite-evidences-equal evidence proofs
+      (CApply sp ty f x, CApply at other g y) -> typed && equal f g && equal x y
+      (CLambda sp ty (CPVar site domain id name) body, CLambda at other (CPVar source carrier key display) rhs) ->
+        typed && rewrite-type-equal domain carrier && rewrite-equal arguments (Cons (id, key) binders) body rhs
+      (CLambda sp ty (CPWild site domain) body, CLambda at other (CPWild source carrier) rhs) ->
+        typed && rewrite-type-equal domain carrier && equal body rhs
+      (CInt sp ty text, CInt at other value) -> typed && string-compare text value == 0
+      (CString sp ty text, CString at other value) -> typed && string-compare text value == 0
+      (CChar sp ty text, CChar at other value) -> typed && string-compare text value == 0
+      (CUnit sp ty, CUnit at other) -> typed
+      (CIf sp ty guard yes no, CIf at other test left right) -> typed && equal guard test && equal yes left && equal no right
+      (CPrimitive sp ty name args, CPrimitive at other symbol supplied) ->
+        typed && string-compare name symbol == 0 && equal args supplied
+      (CTuple sp ty fields, CTuple at other supplied) -> typed && equal fields supplied
+      (CArgument sp value rest, CArgument at argument more) -> equal value argument && equal rest more
+      (CArgumentsEnd sp, CArgumentsEnd at) -> True
+      other -> False
 
   -- Creating a closure is pure; invoking it contributes its latent row.
   -- Supplying a capability preserves the body's effects, never handles them.
@@ -752,6 +900,10 @@ module Bootstrap.Core where
       Some (declared-label, input, output, row) -> union-effects residual (union-effects row (core-effects handled-by))
       None -> UError
     CLet s ty id name scheme rhs body -> union-effects (core-effects rhs) (core-effects body)
+    CRecursiveFunctions s ty members body -> core-effects body
+    CRecursiveValues s ty region members body -> recursive-value-effects members (core-effects body)
+    CRecursiveBinding id name value rest -> UError
+    CRecursiveBindingsEnd -> UError
     CIf s ty condition yes no -> union-effects (core-effects condition) (union-effects (core-effects yes) (core-effects no))
     CCase s ty value alternatives -> union-effects (core-effects value) (core-effects alternatives)
     CTuple s ty fields -> core-effects fields
@@ -776,6 +928,14 @@ module Bootstrap.Core where
     CArgument s value rest -> union-effects (core-effects value) (core-effects rest)
     CAlternative s pattern body rest -> union-effects (core-effects body) (core-effects rest)
     other -> URow UEnd
+
+  recursive-value-effects :: CoreTerm -> UType -> UType
+  recursive-value-effects members continuation = case members of
+    CRecursiveBindingsEnd -> continuation
+    CRecursiveBinding id name value rest -> union-effects (core-effects value) (recursive-value-effects rest continuation)
+    other -> UError
+  recursive-value-writes :: CoreTerm -> List (Span, Option UType)
+  recursive-value-writes members = child-writes (recursive-functions members)
 
   -- Write targets belong to checked Core. A missing region is an opaque
   -- write. A closure's body is latent and cannot write while it is created.
@@ -826,6 +986,7 @@ module Bootstrap.Core where
     CLet sp ty id name sc rhs inner -> if core-alternative-covers inner then Nil
       else core-mutable-writes rhs <> guard-fallthrough-writes inner
     CMemoScope sp ty region inner -> guard-fallthrough-writes inner
+    CRecursiveValues sp ty region members inner -> recursive-value-writes members <> guard-fallthrough-writes inner
     CRequire sp ty inner -> guard-fallthrough-writes inner
     other -> Nil
   child-writes :: List CoreTerm -> List (Span, Option UType)
@@ -929,6 +1090,10 @@ module Bootstrap.Core where
     CHandlerEnd s -> term
     CLambda s ty p body -> CLambda s (f ty) (map-pattern-types f p) (map-term-types f body)
     CLet s ty id name sc rhs body -> CLet s (f ty) id name (map-scheme f sc) (map-term-types f rhs) (map-term-types f body)
+    CRecursiveFunctions s ty members body -> CRecursiveFunctions s (f ty) (map-recursive-functions (map-term-types f) members) (map-term-types f body)
+    CRecursiveValues s ty region members body -> CRecursiveValues s (f ty) (f region) (map-term-types f members) (map-term-types f body)
+    CRecursiveBinding id name value rest -> CRecursiveBinding id name (map-term-types f value) (map-term-types f rest)
+    CRecursiveBindingsEnd -> term
     CIf s ty condition yes no -> CIf s (f ty) (map-term-types f condition) (map-term-types f yes) (map-term-types f no)
     CCase s ty value alts -> CCase s (f ty) (map-term-types f value) (map-term-types f alts)
     CTuple s ty fields -> CTuple s (f ty) (map-term-types f fields)
@@ -1092,6 +1257,8 @@ module Bootstrap.Core where
     CHandlerOperation s slot openings row closure rest -> handler-opening-metas st openings <> type-metas st row <> term-metas st closure <> term-metas st rest
     CLambda s ty p body -> type-metas st ty <> pattern-metas st p <> term-metas st body
     CLet s ty id name sc rhs body -> type-metas st ty <> type-metas st (scheme-body sc) <> requirements-metas st (scheme-requirements sc) <> term-metas st rhs <> term-metas st body
+    CRecursiveFunctions s ty members body -> type-metas st ty <> recursive-function-metas st members <> term-metas st body
+    CRecursiveValues s ty region members body -> type-metas st ty <> type-metas st region <> recursive-function-metas st members <> term-metas st body
     CIf s ty condition yes no -> type-metas st ty <> term-metas st condition <> term-metas st yes <> term-metas st no
     CCase s ty value alts -> type-metas st ty <> term-metas st value <> term-metas st alts
     CTuple s ty fields -> type-metas st ty <> term-metas st fields
@@ -1266,6 +1433,12 @@ module Bootstrap.Core where
     CHandlerEnd s -> True
     CLambda s ty p body -> closed-runtime-type ty && valid-pattern p && valid-term body
     CLet s ty id name sc rhs body -> closed-runtime-type ty && scheme-closed sc && valid-term rhs && valid-term body
+    CRecursiveFunctions s ty members body -> closed-runtime-type ty && valid-recursive-functions members && valid-term body
+    CRecursiveValues s ty region members body -> closed-runtime-type ty && closed-type region
+      && scope-region-closed region ty && scope-region-closed region (core-effects term)
+      && valid-recursive-values members && valid-term body
+    CRecursiveBinding id name value rest -> False
+    CRecursiveBindingsEnd -> False
     CIf s ty condition yes no -> closed-runtime-type ty && valid-term condition && valid-term yes && valid-term no
     CCase s ty value alts -> closed-runtime-type ty && valid-term value && valid-term alts
     CTuple s ty fields -> closed-runtime-type ty && valid-term fields
@@ -1282,6 +1455,22 @@ module Bootstrap.Core where
     CAlternative s p body rest -> valid-pattern p && valid-term body && valid-term rest
     CAlternativesEnd s -> True
     CError s -> False
+  recursive-function-metas :: Store -> CoreTerm -> List (Nat, Kind)
+  recursive-function-metas st members = case members of
+    CRecursiveBindingsEnd -> Nil
+    CRecursiveBinding id name value rest -> term-metas st value <> recursive-function-metas st rest
+    other -> Nil
+  valid-recursive-values :: CoreTerm -> Bool
+  valid-recursive-values members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name value rest -> valid-term value && valid-recursive-values rest
+    other -> False
+  valid-recursive-functions :: CoreTerm -> Bool
+  valid-recursive-functions members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name (CLambda sp ty pattern body) rest ->
+      valid-term (CLambda sp ty pattern body) && valid-recursive-functions rest
+    other -> False
   valid-patterns :: List CorePattern -> Bool
   valid-patterns ps = case ps of Nil -> True; Cons p rest -> valid-pattern p && valid-patterns rest
   valid-clauses :: List CoreClause -> Bool
@@ -1293,6 +1482,12 @@ module Bootstrap.Core where
   local-id id scope = case scope of Nil -> False; Cons first rest -> id == first || local-id id rest
   bind-local-id :: Nat -> List Nat -> Option (List Nat)
   bind-local-id id scope = if local-id id scope then None else Some (Cons id scope)
+  recursive-id-scope :: List Nat -> List Nat -> Option (List Nat)
+  recursive-id-scope ids scope = case ids of
+    Nil -> Some scope
+    Cons id rest -> case bind-local-id id scope of
+      Some bound -> recursive-id-scope rest bound
+      None -> None
   -- Value indices have their own bound/rigid namespaces. Type variables
   -- do not authorize a value index with the same printed name or number.
   kind-index-scope :: List Nat -> List Nat -> Kind -> Bool
@@ -1428,6 +1623,13 @@ module Bootstrap.Core where
       CMethod s ty name owner slot actuals evidence -> types-index-scope universals rigid actuals && evidences-index-scope-with universals rigid evidence
       CLambda s ty pattern body -> (case pattern-scope-with universals values pattern scope of Some bound -> scoped-term-with universals values bound body; None -> False)
       CLet s ty id name scheme rhs body -> scheme-index-scope-with universals rigid scheme && scoped-term-with (quant-index-bounds (scheme-params scheme) universals) values scope rhs && (case bind-local-id id scope of Some bound -> scoped-term-with universals values bound body; None -> False)
+      CRecursiveFunctions s ty members body -> (case recursive-id-scope (recursive-function-ids members) scope of
+        Some bound -> scoped-recursive-functions universals values bound members && scoped-term-with universals values bound body
+        None -> False)
+      CRecursiveValues s ty region members body -> type-index-scope universals rigid region
+        && (case recursive-id-scope (recursive-function-ids members) scope of
+          Some bound -> scoped-recursive-functions universals values bound members && scoped-term-with universals values bound body
+          None -> False)
       CApply s ty f x -> scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CApplyEff s ty row f x -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope x
       CErasedApply s ty row f witness -> type-index-scope universals rigid row && scoped-term-with universals values scope f && scoped-term-with universals values scope witness
@@ -1545,6 +1747,17 @@ module Bootstrap.Core where
     CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
     CApply sp ty (CUse at function symbol role Nil) input -> byte-length-function ty function symbol role && stable-index-source input
     other -> False
+  scoped-recursive-functions :: List Nat -> List Nat -> List Nat -> CoreTerm -> Bool
+  scoped-recursive-functions universals values scope members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name value rest ->
+      scoped-term-with universals values scope value && scoped-recursive-functions universals values scope rest
+    other -> False
+  recursive-proof-scope :: ProofScope -> CoreTerm -> ProofScope
+  recursive-proof-scope scope members = case members of
+    CRecursiveBindingsEnd -> scope
+    CRecursiveBinding id name value rest -> recursive-proof-scope (scope-local id (core-type value) scope) rest
+    other -> scope
   scope-let :: ProofScope -> List Proposition -> Nat -> Scheme -> CoreTerm -> ProofScope
   scope-let scope facts id scheme rhs = let bound = scope-local id (scheme-body scheme) scope in
     case (scheme-params scheme, scheme-requirements scheme) of
@@ -2068,6 +2281,7 @@ module Bootstrap.Core where
   core-alternative-covers body = case body of
     CLet sp ty id name sc rhs inner -> core-alternative-covers inner
     CMemoScope sp ty region inner -> core-alternative-covers inner
+    CRecursiveValues sp ty region members inner -> core-alternative-covers inner
     CRequire sp ty inner -> core-alternative-covers inner
     CGuard sp ty condition rhs -> (case condition of
       CUse at actual name role Nil -> bool-type actual && string-compare name "True" == 0 && string-compare role "constructor" == 0
@@ -2229,6 +2443,11 @@ module Bootstrap.Core where
       let introduced = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
       proof-term gamma facts rhs && proof-term (proof-after-writes (scope-let gamma facts id sc rhs) writes)
         (facts-after-writes gamma introduced writes) body
+    CRecursiveFunctions s ty members body -> let bound = recursive-proof-scope gamma members in
+      recursive-proofs bound facts members && proof-term bound facts body
+    CRecursiveValues s ty region members body ->
+      let (bound, live) = recursive-value-proof-scope gamma facts members in
+      recursive-proofs bound live members && proof-term bound live body
     CIf s ty condition yes no -> proof-term gamma facts condition
       && proof-term (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) yes
       && proof-term (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) no
@@ -2240,6 +2459,16 @@ module Bootstrap.Core where
     CArgument s first rest -> proof-term gamma facts first && proof-after-term gamma facts first rest
     CAlternative s pattern body rest -> proof-term (proof-pattern pattern gamma) facts body && proof-term gamma facts rest
     other -> True
+  recursive-value-proof-scope :: ProofScope -> List Proposition -> CoreTerm -> (ProofScope, List Proposition)
+  recursive-value-proof-scope gamma facts members =
+    let writes = recursive-value-writes members in
+    (proof-after-writes (recursive-proof-scope gamma members) writes, facts-after-writes gamma facts writes)
+  recursive-proofs :: ProofScope -> List Proposition -> CoreTerm -> Bool
+  recursive-proofs gamma facts members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name value rest ->
+      proof-term gamma facts value && recursive-proofs gamma facts rest
+    other -> False
   proof-after-term :: ProofScope -> List Proposition -> CoreTerm -> CoreTerm -> Bool
   proof-after-term gamma facts first rest = let writes = core-mutable-writes first in
     proof-term (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) rest
@@ -2376,6 +2605,11 @@ module Bootstrap.Core where
       let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
       proof-expected gamma facts (scheme-body sc) rhs &&
         proof-expected (proof-after-writes (scope-let gamma facts id sc rhs) writes) (facts-after-writes gamma more writes) ty body
+    CRecursiveFunctions s ty members body -> let bound = recursive-proof-scope gamma members in
+      recursive-proofs bound facts members && proof-expected bound facts ty body
+    CRecursiveValues s ty region members body ->
+      let (bound, live) = recursive-value-proof-scope gamma facts members in
+      recursive-proofs bound live members && proof-expected bound live ty body
     CIf s ty condition yes no -> bool-type (core-type condition) && proof-term gamma facts condition
       && proof-expected (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) ty yes
       && proof-expected (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) ty no
@@ -2462,6 +2696,11 @@ module Bootstrap.Core where
       let writes = core-mutable-writes value in
       let more = case scoped-core-let-fact gamma facts id sc value of Some p -> Cons p facts; None -> facts in
       CLet s ty id name sc value (refresh-certificates (proof-after-writes (scope-let gamma facts id sc value) writes) (facts-after-writes gamma more writes) body)
+    CRecursiveFunctions s ty members body -> let bound = recursive-proof-scope gamma members in
+      CRecursiveFunctions s ty (map-recursive-functions (refresh-certificates bound facts) members) (refresh-certificates bound facts body)
+    CRecursiveValues s ty region members body ->
+      let (bound, live) = recursive-value-proof-scope gamma facts members in
+      CRecursiveValues s ty region (map-recursive-functions (refresh-certificates bound live) members) (refresh-certificates bound live body)
     CIf s ty condition yes no -> let c = refresh-certificates gamma facts condition in
       CIf s ty c (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c True)) (scoped-branch-facts gamma facts c True) yes)
         (refresh-certificates (proof-after-writes gamma (scoped-branch-writes c False)) (scoped-branch-facts gamma facts c False) no)

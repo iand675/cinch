@@ -13,11 +13,11 @@ module Main where
   original-cases :: Int
   original-cases =
     let a = check (same (rendered "module Main where\n  main = 0\n" 2) "bootstrap.check:2:9: broken\n") 1 in
-    let b = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n  broken = x\n" 3) "bootstrap.check:3:9: broken (Shapes.cinch:2:9)\n") 2 in
-    let c = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n\n-- source: Main.cinch\nmodule Main where\n  main = x\n" 6) "bootstrap.check:6:9: broken (Main.cinch:2:9)\n") 4 in
-    let d = check (same (rendered "-- source: Main.cinch\nmodule Main where\n  -- source: NotAFile.cinch\n  main = x\n" 4) "bootstrap.check:4:9: broken (Main.cinch:3:9)\n") 8 in
+    let b = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n  broken = x\n" 3) "bootstrap.check:3:9: broken (in Shapes.cinch:2:9)\n") 2 in
+    let c = check (same (rendered "-- source: Shapes.cinch\nmodule Shapes where\n\n-- source: Main.cinch\nmodule Main where\n  main = x\n" 6) "bootstrap.check:6:9: broken (in Main.cinch:2:9)\n") 4 in
+    let d = check (same (rendered "-- source: Main.cinch\nmodule Main where\n  -- source: NotAFile.cinch\n  main = x\n" 4) "bootstrap.check:4:9: broken (in Main.cinch:3:9)\n") 8 in
     let e = check (same (rendered "-- source: Main.cinch\nmodule Main where\n" 10) "bootstrap.check:10:9: broken\n") 16 in
-    let f = check (same (rendered "-- source: odd\\nfile.cinch\nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken (odd\\nfile.cinch:2:9)\n") 32 in
+    let f = check (same (rendered "-- source: odd\\nfile.cinch\nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken (in odd\\nfile.cinch:2:9)\n") 32 in
     let g = check (same (rendered "-- source: \nmodule Main where\n  main = x\n" 3) "bootstrap.check:3:9: broken\n") 64 in
     a + b + c + d + e + f + g
   render-file :: forall r. using (io :: Io r) => String -> Nat -> String ->{IO r} Int
@@ -26,6 +26,6 @@ module Main where
     Ok source -> check (same (render-source-diagnostics source [MkDiagnostic "bootstrap.check" (Span 0 0 line 9) "broken"]) expected) 1
   main :: Unit ->{IO r, Diverge} Int
   main unit = with (io = newIO ()) in
-    let large = render-file "large-bundle" 20005 "bootstrap.check:20005:9: broken (Étape.cinch:2:9)\n" in
+    let large = render-file "large-bundle" 20005 "bootstrap.check:20005:9: broken (in Étape.cinch:2:9)\n" in
     let invalid = render-file "invalid-utf8" 3 "bootstrap.check:3:9: broken\n" in
     if invalid == 0 then original-cases + large * 128 else 255

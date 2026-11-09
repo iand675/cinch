@@ -168,6 +168,7 @@ module Bootstrap.Ir where
     ENeg s x -> gen-neg g x
     EIf s c t f -> gen-if g c t f
     ELet s bs body -> gen-let g bs body
+    ELetScope sp body -> gen-expr g body
     EAnn s x t -> gen-expr g x
     EUnit s -> (g, "0")
     other -> (gen-text g "  ; unsupported expression\n", "0")
@@ -496,6 +497,7 @@ module Bootstrap.Ir where
     EAnn s x ty -> value-refusals fns locals x
     ELet s bs body -> case binding-value-refusals fns locals bs of
       (names, errors) -> append-diags errors (value-refusals fns names body)
+    ELetScope sp body -> value-refusals fns locals body
     other -> Nil
 
   call-value-refusal :: List (String, Nat) -> List String -> Expr -> List Diagnostic
@@ -576,6 +578,7 @@ module Bootstrap.Ir where
     TRefined s predicate carrier -> Some "a refined result the fragment does not lower"
     TIndex s n -> Some "an index literal the fragment does not lower"
     TNegate s x -> Some "an index negation the fragment does not lower"
+    TIndexLambda s name body -> Some "an index lambda the fragment does not lower"
     TInfix s op a b -> Some "a predicate or index operation the fragment does not lower"
     TUsing s a b -> Some "a using constraint the fragment does not lower"
     TForall s vs body -> Some "a forall the fragment does not lower"
@@ -664,6 +667,7 @@ module Bootstrap.Ir where
     ENeg s x -> expr-refusals fns x
     EIf s c t f -> append-diags (expr-refusals fns c) (append-diags (expr-refusals fns t) (expr-refusals fns f))
     ELet s bs body -> append-diags (bindings-refusals fns (bindings-of bs)) (expr-refusals fns body)
+    ELetScope sp body -> expr-refusals fns body
     EAnn s x t -> expr-refusals fns x
     EUnit s -> Nil
     other -> Cons (diag (expr-span other) (cat ["the emitter cannot lower this ", expr-node-name other])) Nil
@@ -729,7 +733,9 @@ module Bootstrap.Ir where
     ENeg s x -> "negation"
     ELam s ps body -> "lambda"
     ELet s bs body -> "let"
+    ELetScope sp body -> "let"
     ELocalGroup sp bindings body -> "local binding group"
+    ELetRec sp bindings body -> "recursive local binding group"
     ELocalStrict sp pattern value rest -> "strict group binding"
     ELocalMemo sp name value rest -> "memo group binding"
     ELocalSignature sp name ty rest -> "local signature"

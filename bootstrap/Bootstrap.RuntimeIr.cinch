@@ -8,7 +8,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.Object (RuntimeObject, RuntimeUnit, object-words, object-unit, object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit, object-string-layout, unit-symbol, unit-closure, unit-params, unit-result, llvm-object-symbol, llvm-data-bytes)
   import Bootstrap.Core
   import Bootstrap.Foreign
-  import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern)
+  import Bootstrap.Builtin (array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global)
@@ -21,6 +21,7 @@ module Bootstrap.RuntimeIr where
   import Text.Scan (string-split-on)
   import Text.Lex (Span)
   import Data.Json
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, check-runtime-entry
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
@@ -35,14 +36,23 @@ module Bootstrap.RuntimeIr where
     Local :: Nat -> UType -> String -> Local
     Discard :: UType -> String -> Local
     Borrowed :: Nat -> UType -> String -> Local
+    KnotLocal :: Nat -> UType -> UType -> String -> Local
     GivenLocal :: String -> UType -> String -> Local
     SelfValue :: String -> Nat -> UType -> String -> Local
     KnownSelf :: String -> String -> List Nat -> List CoreGiven -> Local
+
+  data RecursiveWorker where
+    RecursiveWorker :: Nat -> UType -> String -> List CorePattern -> CoreTerm -> RecursiveWorker
+
+  data TailContext where
+    LocalTail :: List RecursiveWorker -> List Local -> Nat -> TailContext
+    GlobalTail :: Nat -> Nat -> TailContext
 
   data Demand where
     Demand :: String -> List Nat -> Demand
     ConstructorDemand :: String -> List Nat -> Demand
     LambdaDemand :: String -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> CorePattern -> CoreTerm -> Demand
+    RecursiveDemand :: RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Demand
     StubDemand :: String -> List Nat -> Demand
     DictionaryDemand :: String -> List Nat -> Demand
     ArrayDemand :: String -> List Nat -> Demand
@@ -58,7 +68,7 @@ module Bootstrap.RuntimeIr where
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -97,26 +107,32 @@ module Bootstrap.RuntimeIr where
   writer-program :: Writer -> ProgramInfo
   writer-program w = case writer-context w of RuntimeContext info bounds rigids pending done -> info
   program-data :: ProgramInfo -> List CoreData
-  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> datas
+  program-data info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> datas
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> bindings
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects -> ProgramInfo datas descriptions instances bindings versions provider exposed effects
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups
+  program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups -> groups
+  with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
+  with-tail-groups groups info = case info of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -363,6 +379,7 @@ module Bootstrap.RuntimeIr where
     Demand name classes -> specialized-name name classes
     ConstructorDemand name classes -> specialized-name name classes
     LambdaDemand name bounds rigids saved parameter body -> name
+    RecursiveDemand (RecursiveWorker id ty name parameters body) group bounds rigids saved -> name
     StubDemand name classes -> cat [name, ".app"]
     DictionaryDemand name classes -> dictionary-name name classes
     ArrayDemand name classes -> array-symbol name classes
@@ -391,6 +408,7 @@ module Bootstrap.RuntimeIr where
     Cons (Local id ty value) rest -> count-op False ty value (drop-locals rest w)
     Cons (Discard ty value) rest -> count-op False ty value (drop-locals rest w)
     Cons (Borrowed id ty value) rest -> drop-locals rest w
+    Cons (KnotLocal id region ty value) rest -> drop-locals rest w
     Cons (GivenLocal name ty value) rest -> drop-locals rest w
     Cons (KnownSelf symbol name classes context) rest -> drop-locals rest w
     Cons (SelfValue owner slot ty word) rest -> drop-locals rest w
@@ -400,6 +418,7 @@ module Bootstrap.RuntimeIr where
     Cons (Local key ty value) rest -> if key == id then Some (ty, value) else local id rest
     Cons (Discard ty value) rest -> local id rest
     Cons (Borrowed key ty value) rest -> if key == id then Some (ty, value) else local id rest
+    Cons (KnotLocal key region ty value) rest -> local id rest
     Cons (GivenLocal name ty value) rest -> local id rest
     Cons (KnownSelf symbol name classes context) rest -> local id rest
     Cons (SelfValue owner slot ty word) rest -> local id rest
@@ -656,6 +675,10 @@ module Bootstrap.RuntimeIr where
     CHandlerOperation sp slot openings row closure rest -> CHandlerOperation sp slot openings row (specialize-local id scheme value closure) (specialize-local id scheme value rest)
     CLambda sp ty pattern body -> if pattern-binds id pattern then term else CLambda sp ty pattern (specialize-local id scheme value body)
     CLet sp ty key name sc rhs body -> CLet sp ty key name sc (specialize-local id scheme value rhs) (if id == key then body else specialize-local id scheme value body)
+    CRecursiveFunctions sp ty members body -> if local-in-recursive-functions id members then term else
+      CRecursiveFunctions sp ty (map-recursive-functions (specialize-local id scheme value) members) (specialize-local id scheme value body)
+    CRecursiveValues sp ty region members body -> if local-in-recursive-functions id members then term else
+      CRecursiveValues sp ty region (map-recursive-functions (specialize-local id scheme value) members) (specialize-local id scheme value body)
     CIf sp ty condition yes no -> CIf sp ty (specialize-local id scheme value condition) (specialize-local id scheme value yes) (specialize-local id scheme value no)
     CCase sp ty input alternatives -> CCase sp ty (specialize-local id scheme value input) (specialize-local id scheme value alternatives)
     CTuple sp ty fields -> CTuple sp ty (specialize-local id scheme value fields)
@@ -790,6 +813,9 @@ module Bootstrap.RuntimeIr where
           else handler-cps context sp rhs (\value fresh -> case handler-cps context sp body next fresh of
             Ok (lowered, after) -> Ok (CLet sp output id name sc value lowered, after)
             Err message -> Err message) cursor
+        CRecursiveFunctions sp ty members body -> case handler-cps context sp body next cursor of
+          Ok (lowered, fresh) -> Ok (CRecursiveFunctions sp output members lowered, fresh)
+          Err message -> Err message
         CIf sp ty condition yes no -> handler-cps context sp condition (\test fresh -> case handler-cps context sp yes next fresh of
           Err message -> Err message
           Ok (left, after) -> case handler-cps context sp no next after of
@@ -845,9 +871,11 @@ module Bootstrap.RuntimeIr where
     CChar sp ty text -> if named ty "Char" then (case char-word text of Some word -> (w, word); None -> unsupported w sp "invalid typed character literal") else unsupported w sp "character literal has no checked Char carrier"
     CString sp ty text -> string-literal w sp ty text
     CUnit sp ty -> (w, "0")
-    CLocal sp ty id name Nil -> case local id locals of
-      Some (declared, value) -> (count-op True declared value w, value)
-      None -> unsupported w sp "runtime local is absent from its lexical scope"
+    CLocal sp ty id name Nil -> case knot-local id locals of
+      Some (declared, slot) -> knot-read w declared slot
+      None -> case local id locals of
+        Some (declared, value) -> (count-op True declared value w, value)
+        None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
       if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
@@ -871,6 +899,8 @@ module Bootstrap.RuntimeIr where
     CApplyEff sp ty row f x -> application definitions locals w sp term f x
     CApply sp ty f x -> application definitions locals w sp term f x
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
+    CRecursiveFunctions sp ty members body -> recursive-expression definitions locals w sp members body
+    CRecursiveValues sp ty region members body -> knot-expression definitions locals w sp region members body
     CLet sp ty id name sc rhs body -> if (case scheme-params sc of Nil -> False; other -> True) && local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
       expression definitions locals w (specialize-local id sc rhs body)
       else if (case scheme-params sc of Nil -> True; other -> False) && scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
@@ -1201,13 +1231,27 @@ module Bootstrap.RuntimeIr where
         (made, result) -> let done = array-drop-arguments parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-i64-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
-  machine-i64-builtin :: String -> Bool
-  machine-i64-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.wrappingAddI64" || same name "cinch.prim.wrappingSubI64"
+  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal"
+  machine-integer-builtin :: String -> Bool
+  machine-integer-builtin name = same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False)
+  wrapping-worker-plan :: String -> Option (String, Bool)
+  wrapping-worker-plan name = case u32-wrapping-operation name of
+    Some operation -> Some (operation, True)
+    None -> if same name "cinch.prim.wrappingAddI64" then Some ("add", False)
+      else if same name "cinch.prim.wrappingSubI64" then Some ("sub", False)
+      else None
+  wrapping-word-worker :: Writer -> String -> Bool -> (Writer, String)
+  wrapping-word-worker w operation unsigned-narrow =
+    let (ready, value) = fresh w "%v" in
+    let computed = line ready (cat ["  ", value, " = ", operation, " i64 %arg0, %arg1"]) in
+    if unsigned-narrow then
+      (let (narrowed, result) = fresh computed "%v" in
+       (line narrowed (cat ["  ", result, " = and i64 ", value, ", 4294967295"]), result))
+    else (computed, value)
   nat-arithmetic-builtin :: String -> Bool
   nat-arithmetic-builtin name = case nat-arithmetic-extern name of Some external -> True; None -> False
   builtin-classes :: String -> List Nat
-  builtin-classes name = if machine-i64-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
+  builtin-classes name = if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else [1]
   builtin-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
   builtin-call definitions locals w sp name actuals givens args =
     let classes = builtin-classes name in
@@ -1227,10 +1271,11 @@ module Bootstrap.RuntimeIr where
     let started = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (list-length classes) 0)), ") {"])) "entry:" in
     let lowered = (if same name "b.newIO" then (started, "0")
       else if same name "cinch.prim.eqI64" then compare-word started "eq" "%arg0" "%arg1"
-      else if same name "cinch.prim.wrappingAddI64" || same name "cinch.prim.wrappingSubI64" then
-        (let (ready, result) = fresh started "%v" in
-         let operation = if same name "cinch.prim.wrappingAddI64" then "add" else "sub" in
-         (line ready (cat ["  ", result, " = ", operation, " i64 %arg0, %arg1"]), result))
+      else if same name "cinch.prim.neI64" then compare-word started "ne" "%arg0" "%arg1"
+      else if machine-integer-builtin name then
+        (case wrapping-worker-plan name of
+          Some (operation, unsigned-narrow) -> wrapping-word-worker started operation unsigned-narrow
+          None -> unsupported started (Span 0 0 1 1) "checked machine worker has no wrapping operation")
       else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
       else if same name "b.ioSleep" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
@@ -1498,9 +1543,7 @@ module Bootstrap.RuntimeIr where
       Some carrier -> index-math-expression locals w sp carrier op first second
       None -> unsupported w sp "index arithmetic has no checked carrier")
     other -> (case (value-carrier (type-kind value), index-of-type value) of
-      (Some carrier, Some (IRigid id name level)) -> (case local id locals of
-        Some (declared, word) -> if runtime-type-equal carrier declared then (count-op True declared word w, word) else unsupported w sp "runtime index local disagrees with its checked carrier"
-        None -> unsupported w sp "runtime index local is absent from its lexical scope")
+      (Some carrier, Some (IRigid id name level)) -> read-index-local locals w sp id carrier
       (Some carrier, Some (IInteger n)) -> if number carrier then decimal w carrier (int-to-string n) else if raw-integer carrier then (w, int-to-string n) else unsupported w sp "index literal needs a runtime integer carrier"
       (Some carrier, Some (IAdd first second)) -> index-math-expression locals w sp carrier "+" (UIndex carrier first) (UIndex carrier second)
       (Some carrier, Some (ISubtract first second)) -> index-math-expression locals w sp carrier "-" (UIndex carrier first) (UIndex carrier second)
@@ -1620,6 +1663,10 @@ module Bootstrap.RuntimeIr where
     CErasedApply sp ty row f witness -> term-value-dependencies w owner key seen f
     CLambda sp ty pattern body -> term-value-dependencies w owner key seen body
     CLet sp ty id name sc value body -> merge-value-fields (term-value-dependencies w owner key seen value) (term-value-dependencies w owner key seen body)
+    CRecursiveFunctions sp ty members body ->
+      recursive-value-dependencies w owner key seen (Cons body (recursive-functions members))
+    CRecursiveValues sp ty region members body ->
+      recursive-value-dependencies w owner key seen (recursive-functions members <> [body])
     CScope sp ty region evidence callback -> term-value-dependencies w owner key seen callback
     CMemoScope sp ty region body -> term-value-dependencies w owner key seen body
     CSpawn sp ty token body -> merge-value-fields (term-value-dependencies w owner key seen token) (term-value-dependencies w owner key seen body)
@@ -1638,6 +1685,11 @@ module Bootstrap.RuntimeIr where
     CArgument sp first rest -> merge-value-fields (term-value-dependencies w owner key seen first) (term-value-dependencies w owner key seen rest)
     CAlternative sp pattern body rest -> merge-value-fields (term-value-dependencies w owner key seen body) (term-value-dependencies w owner key seen rest)
     other -> Nil
+  recursive-value-dependencies :: Writer -> CoreInstance -> String -> List String -> List CoreTerm -> List CoreDictionaryField
+  recursive-value-dependencies w owner key seen terms = case terms of
+    Nil -> Nil
+    Cons first rest -> merge-value-fields (term-value-dependencies w owner key seen first)
+      (recursive-value-dependencies w owner key seen rest)
   definition-value-dependencies :: Writer -> CoreDefinition -> List CoreDictionaryField
   definition-value-dependencies w d = case field-owner (core-name d) (program-instances (writer-program w)) of
     Some owner -> value-dependencies w owner d Nil
@@ -1911,6 +1963,10 @@ module Bootstrap.RuntimeIr where
     CWith sp ty given value body -> term-uses id value || term-uses id body
     CLambda sp ty pattern body -> not (pattern-binds id pattern) && term-uses id body
     CLet sp ty key name sc rhs body -> term-uses id rhs || (id /= key && term-uses id body)
+    CRecursiveFunctions sp ty members body -> not (local-in-recursive-functions id members)
+      && index-term-uses id (Cons body (recursive-functions members))
+    CRecursiveValues sp ty region members body -> not (local-in-recursive-functions id members)
+      && index-term-uses id (Cons body (recursive-functions members))
     CIf sp ty test yes no -> term-uses id test || term-uses id yes || term-uses id no
     CCase sp ty value alternatives -> term-uses id value || term-uses id alternatives
     CTuple sp ty fields -> term-uses id fields
@@ -1924,6 +1980,11 @@ module Bootstrap.RuntimeIr where
     CArgument sp first rest -> term-uses id first || term-uses id rest
     CAlternative sp pattern body rest -> (not (pattern-binds id pattern) && term-uses id body) || term-uses id rest
     other -> index-term-uses id (runtime-term-children term)
+  local-in-recursive-functions :: Nat -> CoreTerm -> Bool
+  local-in-recursive-functions id members = case members of
+    CRecursiveBindingsEnd -> False
+    CRecursiveBinding key name value rest -> id == key || local-in-recursive-functions id rest
+    other -> False
   index-term-uses :: Nat -> List CoreTerm -> Bool
   index-term-uses id terms = case terms of Nil -> False; Cons first rest -> term-uses id first || index-term-uses id rest
   evidence-uses :: String -> CoreEvidence -> Bool
@@ -1943,6 +2004,8 @@ module Bootstrap.RuntimeIr where
     CErasedApply sp ty row f witness -> given-uses name f
     CLambda sp ty pattern body -> given-uses name body
     CLet sp ty key symbol sc rhs body -> given-uses name rhs || given-uses name body
+    CRecursiveFunctions sp ty members body -> recursive-given-uses name (Cons body (recursive-functions members))
+    CRecursiveValues sp ty region members body -> recursive-given-uses name (Cons body (recursive-functions members))
     CScope sp ty region evidence callback -> evidence-uses name evidence || given-uses name callback
     CMemoScope sp ty region body -> given-uses name body
     CSpawn sp ty token body -> given-uses name token || given-uses name body
@@ -1964,6 +2027,10 @@ module Bootstrap.RuntimeIr where
     CArgument sp first rest -> given-uses name first || given-uses name rest
     CAlternative sp pattern body rest -> given-uses name body || given-uses name rest
     other -> False
+  recursive-given-uses :: String -> List CoreTerm -> Bool
+  recursive-given-uses name terms = case terms of
+    Nil -> False
+    Cons first rest -> given-uses name first || recursive-given-uses name rest
   given-in :: String -> List CoreGiven -> Bool
   given-in name givens = case givens of Nil -> False; Cons first rest -> same name (given-symbol first) || given-in name rest
   self-context-uses :: String -> CoreTerm -> List Local -> Bool
@@ -1976,6 +2043,9 @@ module Bootstrap.RuntimeIr where
     Nil -> Nil
     Cons (Local id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (Borrowed id ty value) rest -> if not (pattern-binds id parameter) && term-uses id body then Cons (Local id ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
+    Cons (KnotLocal id region ty slot) rest -> if not (pattern-binds id parameter) && recursive-member-use id body then
+      Cons (KnotLocal id region ty slot) (captures-from parameter body all rest)
+      else captures-from parameter body all rest
     Cons (GivenLocal name ty value) rest -> if given-uses name body || self-context-uses name body all then Cons (GivenLocal name ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (KnownSelf key owner classes context) rest -> if given-uses key body then Cons (KnownSelf key owner classes context) (captures-from parameter body all rest) else captures-from parameter body all rest
     Cons (SelfValue owner slot ty value) rest -> if self-values-used owner body all then Cons (SelfValue owner slot ty value) (captures-from parameter body all rest) else captures-from parameter body all rest
@@ -1984,6 +2054,7 @@ module Bootstrap.RuntimeIr where
   capture-types locals = case locals of
     Nil -> Nil
     Cons (Local id ty value) rest -> Cons ty (capture-types rest)
+    Cons (KnotLocal id region ty slot) rest -> Cons (knot-slot-type region ty) (capture-types rest)
     Cons (GivenLocal name ty value) rest -> Cons ty (capture-types rest)
     Cons (SelfValue owner slot ty value) rest -> Cons ty (capture-types rest)
     Cons other rest -> capture-types rest
@@ -1992,6 +2063,10 @@ module Bootstrap.RuntimeIr where
     Nil -> (w, Nil)
     Cons (Local id ty value) rest -> case capture-values rest (count-op True ty value w) of
       (done, values) -> (done, Cons value values)
+    Cons (Borrowed id ty value) rest -> case capture-values rest (count-op True ty value w) of
+      (done, values) -> (done, Cons value values)
+    Cons (KnotLocal id region ty slot) rest -> case capture-values rest (count-op True (knot-slot-type region ty) slot w) of
+      (done, values) -> (done, Cons slot values)
     Cons (GivenLocal name ty value) rest -> case capture-values rest (count-op True ty value w) of
       (done, values) -> (done, Cons value values)
     Cons (SelfValue owner slot ty value) rest -> case capture-values rest (count-op True ty value w) of
@@ -2002,6 +2077,7 @@ module Bootstrap.RuntimeIr where
   captured-bindings saved index = case saved of
     Nil -> Nil
     Cons (Local id ty value) rest -> Cons (Borrowed id ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
+    Cons (KnotLocal id region ty slot) rest -> Cons (KnotLocal id region ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
     Cons (GivenLocal name ty value) rest -> Cons (GivenLocal name ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
     Cons (SelfValue owner slot ty value) rest -> Cons (SelfValue owner slot ty (cat ["%arg", nat-to-string index])) (captured-bindings rest (index + 1))
     Cons (KnownSelf key owner classes context) rest -> Cons (KnownSelf key owner classes context) (captured-bindings rest index)
@@ -2020,6 +2096,49 @@ module Bootstrap.RuntimeIr where
             let planned = request-demand (LambdaDemand name bounds rigids saved parameter body) named in
             case capture-values saved planned of
               (ready, values) -> closure sp name classes values ready)
+  recursive-parameters :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
+  recursive-parameters parameters term = case term of
+    CLambda sp ty pattern body -> if erased-pattern pattern then
+      (case parameters of Nil -> ([pattern], body); other -> (reverse parameters, term))
+      else recursive-parameters (Cons pattern parameters) body
+    other -> (reverse parameters, term)
+  plan-recursive-workers :: CoreTerm -> Writer -> (Writer, List RecursiveWorker)
+  plan-recursive-workers members w = case members of
+    CRecursiveBindingsEnd -> (w, Nil)
+    CRecursiveBinding id display value rest -> let (named, name) = fresh w ".rec" in
+      let (parameters, body) = recursive-parameters Nil value in
+      case plan-recursive-workers rest named of
+        (done, more) -> (done, Cons (RecursiveWorker id (core-type value) name parameters body) more)
+    other -> (refuse w (Span 0 0 1 1) "malformed recursive function group", Nil)
+  request-recursive-workers :: List RecursiveWorker -> List RecursiveWorker -> List Local -> Writer -> Writer
+  request-recursive-workers group pending saved w = case pending of
+    Nil -> w
+    Cons member rest -> case writer-context w of
+      RuntimeContext datas bounds rigids earlier done ->
+        request-recursive-workers group rest saved (request-demand (RecursiveDemand member group bounds rigids saved) w)
+  -- The sibling closures save only the group's outer environment. Rebuild
+  -- a closure when its worker needs that value without an owning cycle.
+  recursive-locals :: Span -> List UType -> List Local -> List RecursiveWorker -> CoreTerm -> Writer -> (Writer, List Local)
+  recursive-locals sp captures saved group used w = case group of
+    Nil -> (w, Nil)
+    Cons (RecursiveWorker id ty name patterns body) rest -> if not (term-uses id used) then
+      recursive-locals sp captures saved rest used w
+      else (case class-vector (writer-context w) (captures <> pattern-types (runtime-parameters patterns)) of
+        None -> (refuse w sp "recursive closure needs checked runtime representations", Nil)
+        Some classes -> case capture-values saved w of
+          (captured, values) -> case closure sp name classes values captured of
+            (ready, word) -> case recursive-locals sp captures saved rest used ready of
+              (done, more) -> (done, Cons (Local id ty word) more))
+  recursive-expression :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  recursive-expression definitions locals w sp members body =
+    let unit = UCon "Unit" KType in
+    let scope = CRecursiveFunctions sp unit members (CUnit sp unit) in
+    let saved = captures-from (CPWild sp unit) scope locals locals in
+    case plan-recursive-workers members w of
+      (named, group) -> let planned = request-recursive-workers group group saved named in
+        (case recursive-locals sp (capture-types saved) saved group body planned of
+          (ready, bound) -> case expression definitions (bound <> locals) ready body of
+            (done, result) -> (drop-locals bound done, result))
   -- App stubs consume the closure and argv. Saved fields are duplicated
   -- before the original closure is dropped; argv fields transfer directly.
   load-word :: Writer -> String -> String -> (Writer, String)
@@ -2300,6 +2419,88 @@ module Bootstrap.RuntimeIr where
     let joined = line (line (line second (cat ["  store i64 ", b, ", ptr ", slot])) (cat ["  br label %", end])) (cat [end, ":"]) in
     let (ready, result) = fresh joined "%v" in
     (line ready (cat ["  ", result, " = load i64, ptr ", slot]), result)
+  -- A knot slot is an owned block, irrespective of its stored value's
+  -- representation. Closures retain the slot and read it on invocation.
+  knot-slot-type :: UType -> UType -> UType
+  knot-slot-type region ty = UApp (UApp (UCon "Mut" (KFun KRegion (KFun KType KType))) region) ty
+
+  knot-local :: Nat -> List Local -> Option (UType, String)
+  knot-local id locals = case locals of
+    Nil -> None
+    Cons (KnotLocal key region ty slot) rest -> if id == key then Some (ty, slot) else knot-local id rest
+    Cons other rest -> knot-local id rest
+
+  knot-pointer :: Writer -> String -> (Writer, String)
+  knot-pointer w slot =
+    let (ready, pointer) = fresh w "%ptr" in
+    (line ready (cat ["  ", pointer, " = inttoptr i64 ", slot, " to ptr"]), pointer)
+
+  read-index-local :: List Local -> Writer -> Span -> Nat -> UType -> (Writer, String)
+  read-index-local locals w sp id carrier = case knot-local id locals of
+    Some (declared, slot) -> if runtime-type-equal carrier declared then knot-read w declared slot
+      else unsupported w sp "recursive local disagrees with its checked carrier"
+    None -> case local id locals of
+      Some (declared, value) -> if runtime-type-equal carrier declared then (count-op True declared value w, value)
+        else unsupported w sp "runtime index local disagrees with its checked carrier"
+      None -> unsupported w sp "runtime index local is absent from its lexical scope"
+
+  knot-read :: Writer -> UType -> String -> (Writer, String)
+  knot-read w ty slot = case knot-pointer w slot of
+    (pointed, pointer) -> case load-word pointed pointer "0" of
+      (loaded, state) ->
+        let (one, fault) = fresh loaded "knotfault" in
+        let (two, ready) = fresh one "knotready" in
+        let (three, predicate) = fresh two "%v" in
+        let checked = line three (cat ["  ", predicate, " = icmp eq i64 ", state, ", 1"]) in
+        let branched = line checked (cat ["  br i1 ", predicate, ", label %", ready, ", label %", fault]) in
+        let refused = line (line (line branched (cat [fault, ":"])) "  call void @cinch_blackhole()") "  unreachable" in
+        (case load-word (line refused (cat [ready, ":"])) pointer "1" of
+          (done, value) -> (count-op True ty value done, value))
+
+  allocate-knots :: UType -> List Nat -> CoreTerm -> Writer -> (Writer, List Local)
+  allocate-knots region slots members w = case members of
+    CRecursiveBindingsEnd -> (w, Nil)
+    CRecursiveBinding id name value rest -> if not (id-present id slots) then allocate-knots region slots rest w else
+      (case call w "@cinch_alloc" ["16", "5"] of
+        (allocated, slot) -> case knot-pointer allocated slot of
+          (pointed, pointer) -> case allocate-knots region slots rest (store-fields pointed pointer 0 ["0", "0"]) of
+            (done, more) -> (done, Cons (KnotLocal id region (core-type value) slot) more))
+    other -> (refuse w (Span 0 0 1 1) "malformed recursive value bindings", Nil)
+
+  evaluate-knot-members :: List CoreDefinition -> List Local -> CoreTerm -> CoreTerm -> Writer -> (Writer, String)
+  evaluate-knot-members definitions locals members body w = case members of
+    CRecursiveBindingsEnd -> expression definitions locals w body
+    CRecursiveBinding id name value rest -> case expression definitions locals w value of
+      (evaluated, word) -> case knot-local id locals of
+        Some (ty, slot) -> case knot-pointer evaluated slot of
+          (pointed, pointer) ->
+            let filled = store-fields pointed pointer 1 [word] in
+            evaluate-knot-members definitions locals rest body (store-fields filled pointer 0 ["1"])
+        None ->
+          let ty = core-type value in
+          if same name "" then evaluate-knot-members definitions locals rest body (count-op False ty word evaluated)
+          else (case evaluate-knot-members definitions (Cons (Local id ty word) locals) rest body evaluated of
+            (done, result) -> (count-op False ty word done, result))
+    other -> unsupported w (Span 0 0 1 1) "malformed recursive value bindings"
+
+  -- Invalidate the slot before dropping its stored value. That value
+  -- can own closures which themselves hold references to this slot.
+  clear-knots :: List Local -> Writer -> Writer
+  clear-knots knots w = case knots of
+    Nil -> w
+    Cons (KnotLocal id region ty slot) rest -> case knot-pointer w slot of
+      (pointed, pointer) -> case load-word pointed pointer "1" of
+        (loaded, value) ->
+          let cleared = store-fields loaded pointer 0 ["0", "0"] in
+          let released = count-op False ty value cleared in
+          clear-knots rest (count-op False (knot-slot-type region ty) slot released)
+    other -> refuse w (Span 0 0 1 1) "malformed recursive slot cleanup"
+
+  knot-expression :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  knot-expression definitions locals w sp region members body = case allocate-knots region (recursive-box-slots members) members w of
+    (allocated, knots) -> case evaluate-knot-members definitions (knots <> locals) members body allocated of
+      (done, result) -> (clear-knots (reverse knots) done, result)
+
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
   primitive definitions locals w sp ty op args = case args of
     CArgument at input (CArgumentsEnd end) -> if same op "copy-out" then copy-out-word definitions locals w ty input
@@ -2362,7 +2563,6 @@ module Bootstrap.RuntimeIr where
         (loaded, value) -> (count-op False (core-type cell) word (count-op True result value loaded), value)
   memo-worker :: Writer -> Writer
   memo-worker w = global w (cat [
-    "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "define internal i64 @cinch.typed.memo.demand(i64 %cell, i64 %counted) {\nentry:\n",
     "  %p = inttoptr i64 %cell to ptr\n  %owned = getelementptr i64, ptr %p, i64 1\n  %cache = getelementptr i64, ptr %p, i64 2\n",
     "  %state = load i64, ptr %p\n  switch i64 %state, label %bad [ i64 0, label %eval i64 2, label %done ]\n",
@@ -2474,7 +2674,9 @@ module Bootstrap.RuntimeIr where
               let parameters = runtime-parameters patterns in
               let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> runtime-index-locals indices index-offset <> parameter-roots parameters offset in
               let types = value-field-types dependencies <> given-types context <> value-types indices <> pattern-types parameters in
-              proof-worker-stages definitions classes d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
+              case hash-map-lookup name (program-tail-groups (writer-program scoped)) of
+                Some (group, width) -> global-tail-worker definitions d classes prefix roots scoped group width (list-length parameters)
+                None -> proof-worker-stages definitions classes d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
             Nil -> refuse scoped sp "runtime definition has no checked equations"
   proof-worker-stages :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
   proof-worker-stages definitions classes d prefix roots offset types arities rung w = case arities of
@@ -2522,6 +2724,188 @@ module Bootstrap.RuntimeIr where
         let roots = capture-roots types 0 <> parameter-roots [parameter] offset in
         let started = line (line scoped (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words (value-parameters (offset + 1) 0)), ") {"])) "entry:" in
         line (worker-clauses definitions (captured-bindings saved 0) roots offset [MkCoreClause (Span 0 0 1 1) [parameter] body] started) "}"
+  recursive-width :: List RecursiveWorker -> Nat
+  recursive-width group = case group of
+    Nil -> 0
+    Cons (RecursiveWorker id ty name patterns body) rest ->
+      let arity = list-length (runtime-parameters patterns) in
+      let remaining = recursive-width rest in
+      if arity > remaining then arity else remaining
+
+  tail-worker-name :: String -> String
+  tail-worker-name name = cat [name, "#tail"]
+
+  padding-words :: Nat -> List String
+  padding-words count = if count == 0 then Nil else Cons "0" (padding-words (count - 1))
+
+  recursive-target :: List RecursiveWorker -> Nat -> Nat -> Option String
+  recursive-target group id arity = case group of
+    Nil -> None
+    Cons (RecursiveWorker member ty name patterns body) rest -> if member == id then
+      (if arity == list-length (runtime-parameters patterns) then Some (tail-worker-name name) else None)
+      else recursive-target rest id arity
+
+  recursive-call :: List RecursiveWorker -> CoreTerm -> Option (String, List CoreTerm)
+  recursive-call group term = case term of
+    CErasedApply sp ty row (CLocal at function id name Nil) witness -> case recursive-target group id 0 of
+      Some callee -> Some (callee, Nil)
+      None -> None
+    other -> case head term of
+      CLocal at function id name Nil -> case arguments term Nil of
+        Nil -> None
+        args -> case recursive-target group id (list-length args) of
+          Some callee -> Some (callee, args)
+          None -> None
+      other -> None
+
+  -- A direct call transfers its new arguments and captures before it
+  -- releases this frame's roots. LLVM requires the following ret.
+  transfer-tail-call :: List CoreDefinition -> List Local -> List Local -> List Local -> Nat -> Writer -> String -> List CoreTerm -> Writer
+  transfer-tail-call definitions locals roots saved width w callee args = case expressions definitions locals w args of
+    (evaluated, values) -> case capture-values saved evaluated of
+      (copied, captures) ->
+        let count = list-length values in
+        if count <= width then
+          let passed = captures <> values <> padding-words (width - count) in
+          let (ready, result) = fresh (drop-locals roots copied) "%v" in
+          line (line ready (cat ["  ", result, " = musttail call i64 ", symbol callee, "(", join (argument-words passed), ")"])) (cat ["  ret i64 ", result])
+        else refuse copied (Span 0 0 1 1) "tail call exceeds its checked worker width"
+
+  -- Only source workers in the same direct tail cycle share a prototype.
+  -- A call that crosses an object boundary keeps the checked public ABI.
+  global-tail-call :: List CoreDefinition -> Nat -> Writer -> CoreTerm -> Option (String, List Nat, List CoreTerm)
+  global-tail-call definitions group w term = case head term of
+    CUse sp ty name role actuals -> case hash-map-lookup name (program-tail-groups (writer-program w)) of
+      Some (callee, width) -> if callee == group then
+        (case definition name definitions of
+          Some d -> let args = arguments term Nil in
+            if list-length args == list-length (definition-parameters d) then
+              (case source-scheme-classes (writer-context w) (scheme-params (core-scheme d)) actuals of
+                Some classes -> Some (name, classes, args)
+                None -> None)
+            else None
+          None -> None)
+        else None
+      None -> None
+    other -> None
+
+  tail-result :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> CoreTerm -> Writer
+  tail-result definitions locals roots context w failed term = case term of
+    CIf sp ty test yes no -> case expression definitions locals w test of
+      (tested, condition) ->
+        let (one, otherwise) = fresh tested "tailno" in
+        let selected = continue-if one condition otherwise in
+        let first = tail-result definitions locals roots context selected failed yes in
+        tail-result definitions locals roots context (line first (cat [otherwise, ":"])) failed no
+    CCase sp ty value alternatives -> case expression definitions locals w value of
+      (ready, word) -> tail-rows definitions locals roots context ready (core-type value) word alternatives
+    CGuard sp ty condition body -> if core-alternative-covers term then
+      tail-result definitions locals roots context w failed body
+      else (case expression definitions locals w condition of
+        (ready, value) -> tail-result definitions locals roots context (continue-if ready value failed) failed body)
+    CLet sp ty id name sc rhs body -> case scheme-params sc of
+      Nil -> if scheme-supported (writer-context w) sc && word-type (writer-context w) (scheme-body sc) then
+        (case expression definitions locals w rhs of
+          (ready, value) ->
+            let bound = Local id (scheme-body sc) value in
+            tail-binding definitions locals roots context ready failed bound (scheme-body sc) value body)
+        else tail-return definitions locals roots w failed term
+      other -> if local-function-value rhs && (case scheme-requirements sc of Nil -> True; other -> False) then
+        tail-result definitions locals roots context w failed (specialize-local id sc rhs body)
+        else tail-return definitions locals roots w failed term
+    CWith sp ty given value body -> case expression definitions locals w value of
+      (ready, word) ->
+        let bound = GivenLocal (given-symbol given) (given-type given) word in
+        tail-binding definitions locals roots context ready failed bound (given-type given) word body
+    CRequire sp ty body -> tail-result definitions locals roots context w failed body
+    CProved sp ty evidence body -> tail-result definitions locals roots context w failed body
+    CRefine sp ty evidence body -> tail-result definitions locals roots context w failed body
+    CRefineProof sp ty witness body -> tail-result definitions locals roots context w failed body
+    CDischarge sp ty evidence body -> tail-result definitions locals roots context w failed body
+    CForget sp ty body -> case projection-return locals roots term of
+      Some (word, remaining) -> line (drop-locals remaining w) (cat ["  ret i64 ", word])
+      None -> tail-result definitions locals roots context w failed body
+    other -> case context of
+      LocalTail group saved width -> case recursive-call group term of
+        Some (callee, args) -> transfer-tail-call definitions locals roots saved width w callee args
+        None -> tail-return definitions locals roots w failed term
+      GlobalTail group width -> case global-tail-call definitions group w term of
+        Some (name, classes, args) ->
+          transfer-tail-call definitions locals roots Nil width (demand-worker name classes w) (tail-worker-name (specialized-name name classes)) args
+        None -> tail-return definitions locals roots w failed term
+
+  tail-return :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> Writer
+  tail-return definitions locals roots w failed body = case worker-result definitions locals roots w failed body of
+    (done, word) -> line done (cat ["  ret i64 ", word])
+
+  tail-binding :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> String -> Local -> UType -> String -> CoreTerm -> Writer
+  tail-binding definitions locals roots context w failed bound ty word body =
+    let scoped = Cons bound locals in
+    let owned = Cons (Discard ty word) roots in
+    let (one, cleanup) = fresh w "tailcleanup" in
+    let emitted = tail-result definitions scoped owned context one cleanup body in
+    let released = count-op False ty word (line emitted (cat [cleanup, ":"])) in
+    line released (cat ["  br label %", failed])
+
+  tail-rows :: List CoreDefinition -> List Local -> List Local -> TailContext -> Writer -> UType -> String -> CoreTerm -> Writer
+  tail-rows definitions locals roots context w ty value alternatives = case alternatives of
+    CAlternativesEnd end -> line w "  unreachable"
+    CAlternative sp pattern body rest ->
+      let (one, failed) = fresh w "nexttailalt" in
+      case match-pattern pattern value failed one of
+        (matched, bindings) ->
+          let owned = Cons (Discard ty value) roots in
+          let done = tail-result definitions (bindings <> locals) owned context matched failed body in
+          tail-rows definitions locals roots context (line done (cat [failed, ":"])) ty value rest
+    other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine") "  unreachable"
+
+  start-tail-worker :: String -> Nat -> Nat -> Writer -> Writer
+  start-tail-worker name arity width w =
+    if arity <= width then
+      let entry = value-parameters arity 0 in
+      let callee = tail-worker-name name in
+      let widened = value-parameters width 0 in
+      let wrapper = line (line w (cat ["define ", worker-linkage w name, "i64 ", symbol name, "(", join (argument-words entry), ") {"])) "entry:" in
+      case call wrapper (symbol callee) (entry <> padding-words (width - arity)) of
+        (called, result) ->
+          let wrapped = line (line called (cat ["  ret i64 ", result])) "}" in
+          line (line wrapped (cat ["define private i64 ", symbol callee, "(", join (argument-words widened), ") {"])) "entry:"
+    else refuse w (Span 0 0 1 1) "tail wrapper exceeds its checked worker width"
+
+  global-tail-clauses :: List CoreDefinition -> List Local -> List Local -> TailContext -> List CoreClause -> Writer -> Writer
+  global-tail-clauses definitions prefix roots context clauses w = case clauses of
+    Nil -> line w "  unreachable"
+    Cons (MkCoreClause sp patterns body) rest ->
+      let (one, failed) = fresh w "nexttaileq" in
+      case match-parameters patterns 0 failed one of
+        (matched, bindings) ->
+          let returned = tail-result definitions (bindings <> prefix) roots context matched failed body in
+          global-tail-clauses definitions prefix roots context rest (line returned (cat [failed, ":"]))
+
+  global-tail-worker :: List CoreDefinition -> CoreDefinition -> List Nat -> List Local -> List Local -> Writer -> Nat -> Nat -> Nat -> Writer
+  global-tail-worker definitions d classes prefix roots w group width arity =
+    let started = start-tail-worker (specialized-name (core-name d) classes) arity width w in
+    line (global-tail-clauses definitions prefix roots (GlobalTail group width) (core-clauses d) started) "}"
+
+  recursive-worker :: List CoreDefinition -> RecursiveWorker -> List RecursiveWorker -> List (Nat, Nat) -> List (Nat, Nat) -> List Local -> Writer -> Writer
+  recursive-worker definitions member group bounds rigids saved w = case member of
+    RecursiveWorker id ty name patterns body ->
+      let sp = Span 0 0 1 1 in
+      let scoped = with-representations bounds rigids w in
+      let captures = capture-types saved in
+      let offset = list-length captures in
+      let parameters = runtime-parameters patterns in
+      let arity = list-length parameters in
+      let width = recursive-width group in
+      let prefix = captured-bindings saved 0 in
+      if not (word-type (writer-context scoped) (core-type body)) then refuse scoped sp "recursive worker result needs a runtime representation" else
+        let (started, failed) = fresh (start-tail-worker name (offset + arity) (offset + width) scoped) "tailmiss" in
+        (case match-parameters patterns offset failed started of
+          (matched, bindings) -> case recursive-locals sp captures prefix group body matched of
+            (ready, siblings) ->
+              let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
+              let done = tail-result definitions (bindings <> siblings <> prefix) roots (LocalTail group prefix width) ready failed body in
+              line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids pending done) -> case pending of
@@ -2534,6 +2918,7 @@ module Bootstrap.RuntimeIr where
             None -> workers definitions (refuse claimed (Span 0 0 1 1) "demanded runtime definition is absent")
           ConstructorDemand name classes -> workers definitions (constructor-worker name classes claimed)
           LambdaDemand name saved-bound saved-rigid saved parameter body -> workers definitions (lambda-worker definitions name saved-bound saved-rigid saved parameter body claimed)
+          RecursiveDemand member group saved-bound saved-rigid saved -> workers definitions (recursive-worker definitions member group saved-bound saved-rigid saved claimed)
           StubDemand name classes -> workers definitions (app-stub name classes claimed)
           DictionaryDemand name classes -> workers definitions (dictionary-worker definitions name classes claimed)
           ArrayDemand name classes -> workers definitions (array-worker name classes claimed)
@@ -2544,6 +2929,7 @@ module Bootstrap.RuntimeIr where
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
   declarations = cat [
+    "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
@@ -2614,10 +3000,115 @@ module Bootstrap.RuntimeIr where
     Cons (name, classes) rest -> demand-roots rest (case constructor name (writer-data w) of
       Some found -> request-demand (ConstructorDemand name classes) w
       None -> demand-worker name classes w)
+  -- Group only direct, saturated source calls in return position. An
+  -- edge through an erased stage, dictionary, or external ABI has no
+  -- shared internal worker and stays on the ordinary application path.
+  source-tail-arities :: List CoreDefinition -> Writer -> HashMap String Nat
+  source-tail-arities definitions w = case definitions of
+    Nil -> hash-map-empty
+    Cons d rest ->
+      let name = core-name d in
+      let arity = list-length (definition-parameters d) in
+      let arities = source-tail-arities rest w in
+      if arity == 0 || arity /= list-length (definition-all-parameters d) || builtin-known name then arities else
+        (case (runtime-givens w d, opening-value-types (core-openings d), field-owner name (program-instances (writer-program w))) of
+          (Nil, Nil, None) -> hash-map-insert name arity arities
+          other -> arities)
+
+  source-tail-edges :: HashMap String Nat -> CoreTerm -> List String -> List String
+  source-tail-edges arities term next = case term of
+    CIf sp ty test yes no -> source-tail-edges arities yes (source-tail-edges arities no next)
+    CCase sp ty input alternatives -> source-tail-alternatives arities alternatives next
+    CGuard sp ty test body -> source-tail-edges arities body next
+    CLet sp ty id name sc value body -> source-tail-edges arities body next
+    CWith sp ty given value body -> source-tail-edges arities body next
+    CRequire sp ty body -> source-tail-edges arities body next
+    CProved sp ty evidence body -> source-tail-edges arities body next
+    CRefine sp ty evidence body -> source-tail-edges arities body next
+    CRefineProof sp ty evidence body -> source-tail-edges arities body next
+    CForget sp ty body -> source-tail-edges arities body next
+    CDischarge sp ty evidence body -> source-tail-edges arities body next
+    other -> case head term of
+      CUse sp ty name role actuals -> (case hash-map-lookup name arities of
+        Some arity -> if arity == list-length (arguments term Nil) && not (exposed-worker name next) then Cons name next else next
+        None -> next)
+      other -> next
+
+  source-tail-alternatives :: HashMap String Nat -> CoreTerm -> List String -> List String
+  source-tail-alternatives arities alternatives next = case alternatives of
+    CAlternative sp pattern body rest -> source-tail-edges arities body (source-tail-alternatives arities rest next)
+    other -> next
+
+  source-tail-clauses :: HashMap String Nat -> List CoreClause -> List String
+  source-tail-clauses arities clauses = case clauses of
+    Nil -> Nil
+    Cons (MkCoreClause sp patterns body) rest -> source-tail-edges arities body (source-tail-clauses arities rest)
+
+  tail-neighbors :: HashMap String (List String) -> String -> List String
+  tail-neighbors graph name = case hash-map-lookup name graph of Some edges -> edges; None -> Nil
+
+  reverse-tail-edges :: String -> List String -> HashMap String (List String) -> HashMap String (List String)
+  reverse-tail-edges name edges reversed = case edges of
+    Nil -> reversed
+    Cons callee rest -> reverse-tail-edges name rest (hash-map-insert callee (Cons name (tail-neighbors reversed callee)) reversed)
+
+  source-tail-graphs :: List CoreDefinition -> HashMap String Nat -> HashMap String (List String) -> HashMap String (List String) -> List String -> (HashMap String (List String), HashMap String (List String), List String)
+  source-tail-graphs definitions arities graph reversed vertices = case definitions of
+    Nil -> (graph, reversed, vertices)
+    Cons d rest ->
+      let name = core-name d in
+      case hash-map-lookup name arities of
+        Some arity ->
+          let edges = source-tail-clauses arities (core-clauses d) in
+          source-tail-graphs rest arities (hash-map-insert name edges graph) (reverse-tail-edges name edges reversed) (Cons name vertices)
+        None -> source-tail-graphs rest arities graph reversed vertices
+
+  -- Visit the transpose in decreasing forward finish order. Each walk
+  -- then reaches exactly the members of one strongly connected component.
+  tail-finish-order :: HashMap String (List String) -> List String -> HashMap String (List String) -> List String -> (HashMap String (List String), List String)
+  tail-finish-order graph vertices seen order = case vertices of
+    Nil -> (seen, order)
+    Cons name rest -> case hash-map-lookup name seen of
+      Some ignored -> tail-finish-order graph rest seen order
+      None -> case tail-finish-order graph (tail-neighbors graph name) (hash-map-insert name Nil seen) order of
+        (visited, children) -> tail-finish-order graph rest visited (Cons name children)
+
+  tail-group-width :: HashMap String Nat -> List String -> Nat
+  tail-group-width arities members = case members of
+    Nil -> 0
+    Cons name rest ->
+      let width = tail-group-width arities rest in
+      case hash-map-lookup name arities of Some count -> if count > width then count else width; None -> width
+
+  record-tail-group :: List String -> Nat -> Nat -> HashMap String (Nat, Nat) -> HashMap String (Nat, Nat)
+  record-tail-group members group width groups = case members of
+    Nil -> groups
+    Cons name rest -> record-tail-group rest group width (hash-map-insert name (group, width) groups)
+
+  source-tail-groups :: HashMap String Nat -> HashMap String (List String) -> HashMap String (List String) -> List String -> HashMap String (List String) -> Nat -> HashMap String (Nat, Nat) -> HashMap String (Nat, Nat)
+  source-tail-groups arities graph reversed order seen group groups = case order of
+    Nil -> groups
+    Cons name rest -> case hash-map-lookup name seen of
+      Some ignored -> source-tail-groups arities graph reversed rest seen group groups
+      None -> case tail-finish-order reversed [name] seen Nil of
+        (visited, members) ->
+          let cyclic = case members of [member] -> exposed-worker member (tail-neighbors graph member); other -> True in
+          let planned = if cyclic then record-tail-group members group (tail-group-width arities members) groups else groups in
+          source-tail-groups arities graph reversed rest visited (group + 1) planned
+
+  plan-tail-groups :: List CoreDefinition -> ProgramInfo -> ProgramInfo
+  plan-tail-groups definitions info =
+    let arities = source-tail-arities definitions (empty-writer info) in
+    case source-tail-graphs definitions arities hash-map-empty hash-map-empty Nil of
+      (graph, reversed, vertices) -> case tail-finish-order graph vertices hash-map-empty Nil of
+        (seen, order) -> with-tail-groups (source-tail-groups arities graph reversed order hash-map-empty 0 hash-map-empty) info
+
   plan-root-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
-  plan-root-method-versions definitions roots info =
+  plan-root-method-versions definitions roots info = iterate-method-versions definitions roots (plan-tail-groups definitions info)
+  iterate-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
+  iterate-method-versions definitions roots info =
     let planned = writer-program (workers definitions (demand-roots roots (empty-writer info))) in
-    if list-length (program-versions planned) == list-length (program-versions info) then planned else plan-root-method-versions definitions roots planned
+    if list-length (program-versions planned) == list-length (program-versions info) then planned else iterate-method-versions definitions roots planned
   -- The caller selects checked definitions and explicit Raw/Obj/TObj
   -- specializations. Every root and reached helper uses the same checked
   -- worker/layout planner as an executable, without an entry requirement.
@@ -2628,7 +3119,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
     let initial = empty-writer (plan-root-method-versions definitions roots info) in
     case workers definitions (demand-roots roots initial) of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
@@ -2737,7 +3228,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) (elaboration-effects typed) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -2859,7 +3350,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) (elaboration-effects typed) in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
     let initial = empty-writer (plan-root-method-versions definitions selected info) in
     case library-bridges definitions roots Nil (workers definitions (demand-roots selected initial)) of
       (bridged, units) -> case workers definitions bridged of
@@ -2874,7 +3365,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None (elaboration-effects typed) in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None (elaboration-effects typed) hash-map-empty in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of

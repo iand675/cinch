@@ -4100,14 +4100,28 @@ impl Checker {
                     }
                     let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
+                    let span = rec.name.span;
+                    let mut source_ty = ast::Type::Con(ast::ConPath { segments: vec![rec.name.clone()] }, span);
+                    for param in &rec.params {
+                        source_ty = ast::Type::App(Box::new(source_ty),
+                            Box::new(ast::Type::Var(param.name.clone(), param.name.span)), span);
+                    }
                     for (i, t) in field_tys.iter().enumerate().rev() {
-                        let b = field_names[i].clone();
-                        let rest = scheme_ty;
-                        scheme_ty = if rest.mentions_idx(&b) {
-                            Ty::pi(b, t.clone(), default_mult(t), EffRow::pure(), rest)
+                        let field = &rec.fields[i];
+                        if scheme_ty.mentions_idx(&field.name.text) {
+                            scheme_ty = Ty::pi(field.name.text.clone(), t.clone(), default_mult(t), EffRow::pure(), scheme_ty);
+                            source_ty = ast::Type::DepFun(field.name.clone(), Box::new(field.ty.clone()),
+                                None, None, Box::new(source_ty), field.span);
                         } else {
-                            Ty::fun_mult(t.clone(), default_mult(t), EffRow::pure(), rest)
-                        };
+                            scheme_ty = Ty::fun_mult(t.clone(), default_mult(t), EffRow::pure(), scheme_ty);
+                            source_ty = ast::Type::Fun {
+                                arg: Box::new(field.ty.clone()),
+                                mult: None,
+                                eff: None,
+                                res: Box::new(source_ty),
+                                span: field.span,
+                            };
+                        }
                     }
                     let scheme = Scheme {
             evidence_params: Vec::new(),
@@ -4124,6 +4138,7 @@ impl Checker {
                     };
                     // A record is a single-constructor product whose
                     // constructor carries its own name.
+                    self.remember_interface_constructor(&module, &rec.name.text, &source_ty, &scheme, &rec.params);
                     self.add_value(
                         ValueInfo {
                             module: module.clone(),
@@ -4271,14 +4286,28 @@ impl Checker {
                     }
                     let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
+                    let span = rec.name.span;
+                    let mut source_ty = ast::Type::Con(ast::ConPath { segments: vec![rec.name.clone()] }, span);
+                    for param in &rec.params {
+                        source_ty = ast::Type::App(Box::new(source_ty),
+                            Box::new(ast::Type::Var(param.name.clone(), param.name.span)), span);
+                    }
                     for (i, t) in obs_tys.iter().enumerate().rev() {
-                        let b = obs_names[i].clone();
-                        let rest = scheme_ty;
-                        scheme_ty = if rest.mentions_idx(&b) {
-                            Ty::pi(b, t.clone(), default_mult(t), EffRow::pure(), rest)
+                        let field = &rec.fields[i];
+                        if scheme_ty.mentions_idx(&field.name.text) {
+                            scheme_ty = Ty::pi(field.name.text.clone(), t.clone(), default_mult(t), EffRow::pure(), scheme_ty);
+                            source_ty = ast::Type::DepFun(field.name.clone(), Box::new(field.ty.clone()),
+                                None, None, Box::new(source_ty), field.span);
                         } else {
-                            Ty::fun_mult(t.clone(), default_mult(t), EffRow::pure(), rest)
-                        };
+                            scheme_ty = Ty::fun_mult(t.clone(), default_mult(t), EffRow::pure(), scheme_ty);
+                            source_ty = ast::Type::Fun {
+                                arg: Box::new(field.ty.clone()),
+                                mult: None,
+                                eff: None,
+                                res: Box::new(source_ty),
+                                span: field.span,
+                            };
+                        }
                     }
                     let scheme = Scheme {
             evidence_params: Vec::new(),
@@ -4296,6 +4325,7 @@ impl Checker {
                     // The observations' closures occupy one block word
                     // each; the constructor exists for the block
                     // allocation and is never a callable value.
+                    self.remember_interface_constructor(&module, &rec.name.text, &source_ty, &scheme, &rec.params);
                     self.add_value(
                         ValueInfo {
                             module: module.clone(),
@@ -16547,6 +16577,7 @@ impl Checker {
                 .and_then(|ts| ts.iter().find(|t| t.module == d.module))
                 .cloned();
             if let Some(t) = t {
+                let codata = self.codata_types.contains(&(d.module.clone(), d.name.clone()));
                 let mut ctors = Vec::new();
                 let mut params: Vec<String> = Vec::new();
                 for (cname, tag) in &t.ctors {
@@ -16607,6 +16638,8 @@ impl Checker {
                         "opaque".to_string()
                     } else if self.qualified_sigs.contains_key(&(d.module.clone(), d.name.clone())) {
                         "signature".to_string()
+                    } else if codata {
+                        "codata".to_string()
                     } else if t.fields.is_some() {
                         "record".to_string()
                     } else {

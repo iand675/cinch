@@ -1154,7 +1154,12 @@ impl Iface {
             if exported.ctors.iter().any(|c| c.symbol.is_empty() || c.scheme.is_empty() || c.fields.len() != c.erased.len()) {
                 return Err(ParseError("constructor contract is incomplete".into()));
             }
-            if exported.kind == "record" {
+            if exported.kind == "codata"
+                && !matches!(exported.ctors.as_slice(), [observation] if observation.resolved.is_some())
+            {
+                return Err(ParseError("codata must publish its checked observation contract".into()));
+            }
+            if matches!(exported.kind.as_str(), "record" | "codata") {
                 let mut labels = BTreeSet::new();
                 if !exported.fields.iter().all(|name| !name.is_empty() && labels.insert(name)) {
                     return Err(ParseError("record field labels must be nonempty and unique".into()));

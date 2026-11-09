@@ -1,0 +1,88 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-merged-stage3-argument-scopes",
+  "targets": {
+    "bootstrap_argument_scopes": {
+      "argument_witness_controls": [
+        {
+          "accepted": true,
+          "name": "builder write retains an exact branch bound among related facts"
+        },
+        {
+          "accepted": false,
+          "name": "byte write still rejects the end index"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length in nested guarded subtraction"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length with explicit sum binding"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length in direct guarded subtraction"
+        },
+        {
+          "accepted": false,
+          "name": "bounded byte length does not prove reversed subtraction"
+        },
+        {
+          "accepted": false,
+          "name": "sum does not retain byte length upper bound"
+        },
+        {
+          "accepted": true,
+          "name": "nested remainder witnesses"
+        },
+        {
+          "accepted": true,
+          "name": "explicit remainder binding"
+        },
+        {
+          "accepted": false,
+          "name": "wrong remainder bound"
+        },
+        {
+          "accepted": false,
+          "name": "zero remainder divisor"
+        },
+        {
+          "accepted": true,
+          "name": "shadowed source name"
+        },
+        {
+          "accepted": true,
+          "name": "effectful function prefix"
+        },
+        {
+          "accepted": false,
+          "name": "cannot erase function effects"
+        }
+      ],
+      "cases": [
+        {
+          "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "81785-0.json": "5d29956406127d0a6d46df11455b632c87dfae73c9bccfaf3fb12117329a15ce"
+      },
+      "log_sha256": "d8f6d544e806c05e4bf5b88b550189011855da2f933152a14653090073e9a731",
+      "passed": 1,
+      "test_source_sha256": "7b3b64be01cef7ed0b612014a4f77eeb79805833da91e17a3159e94384bec113",
+      "total": 1
+    }
+  }
+}

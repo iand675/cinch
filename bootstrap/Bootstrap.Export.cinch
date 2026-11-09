@@ -5,7 +5,7 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses)
-  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Core (CoreData, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
   import Bootstrap.Instance
@@ -15,7 +15,7 @@ module Bootstrap.Export where
   import Bootstrap.ExportType
   import Bootstrap.Foreign (ForeignPlan, foreign-document, foreign-display-scheme, foreign-primitive-assumptions)
   import Bootstrap.ExportNominal
-  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry, nominal-owner)
+  import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Data.Json
@@ -23,7 +23,7 @@ module Bootstrap.Export where
   import Text.Json (canonical-bytes)
   import Text.Lex (bytes-slice)
 
-  export export-interfaces, interface-hash
+  export export-interfaces, interface-hash, build-manifest
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   field :: String -> Json -> Json
@@ -247,12 +247,12 @@ module Bootstrap.Export where
   constructor-hidden-parameters parameters visible = case parameters of
     Nil -> False
     Cons first rest -> not (constructor-id-member (quant-id first) visible) || constructor-hidden-parameters rest visible
-  constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> CoreConstructor -> Result String Json
-  constructor-row typed interfaces name tag constructor = let scheme = core-constructor-scheme constructor in
+  constructor-row :: Elaboration -> List LoadedInterface -> String -> Nat -> String -> Scheme -> Result String Json
+  constructor-row typed interfaces name tag symbol scheme =
     let hidden = constructor-hidden-parameters (scheme-params scheme) (type-free-bound (constructor-result (scheme-body scheme))) in
-    let resolved = if hidden then Ok JNull else resolved-value-scheme typed interfaces (core-constructor-name constructor) scheme in
+    let resolved = if hidden then Ok JNull else resolved-value-scheme typed interfaces symbol scheme in
     let (fields, spelling) = export-constructor-display hidden scheme in
-    case (export-global (core-constructor-name constructor), fields, resolved, spelling) of
+    case (export-global symbol, fields, resolved, spelling) of
       (Ok identity, Ok fields, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "tag" (JNum (nat-to-int tag))
           (JObj "scheme" (JStr spelling) (JObj "resolved" resolved
@@ -266,7 +266,7 @@ module Bootstrap.Export where
     Nil -> Ok JArrEnd
     Cons first rest -> case public-name (core-constructor-name first) surface of
       None -> constructor-rows typed interfaces surface (tag + 1) rest
-      Some name -> case (constructor-row typed interfaces name tag first, constructor-rows typed interfaces surface (tag + 1) rest) of
+      Some name -> case (constructor-row typed interfaces name tag (core-constructor-name first) (core-constructor-scheme first), constructor-rows typed interfaces surface (tag + 1) rest) of
         (Ok row, Ok more) -> Ok (JArr row more)
         (Err error, other) -> Err error
         (other, Err error) -> Err error
@@ -283,14 +283,59 @@ module Bootstrap.Export where
       if same symbol owner && same category "type" && same (text (field "kind" metadata)) "record" then
         Some (field "fields" metadata) else record-label-contract symbol rest
     Cons first rest -> record-label-contract symbol rest
+  codata-label-contract :: String -> List Decl -> Option Json
+  codata-label-contract owner declarations = case declarations of
+    Nil -> None
+    Cons (DCodata sp symbol params fields) rest ->
+      if same owner symbol then Some (record-label-rows fields) else codata-label-contract owner rest
+    Cons first rest -> codata-label-contract owner rest
+  -- Only the checked observation result crosses the interface. The local
+  -- storage thunk is reconstructed when the importing compiler elaborates it.
+  observation-scheme-body :: Json -> UType -> Result String UType
+  observation-scheme-body labels ty = case (labels, ty) of
+    (JArr label rest, UFun (UFun (UCon unit KType) observation) result) ->
+      if same unit "Unit" then
+        (case observation-scheme-body rest result of
+          Ok more -> Ok (UFun observation more)
+          Err error -> Err error)
+      else Err "codata observation storage does not take Unit"
+    (JArrEnd, other) -> Ok other
+    other -> Err "codata labels disagree with the checked observation scheme"
+  codata-rows :: Elaboration -> List LoadedInterface -> String -> String -> Json -> List CoreConstructor -> Result String Json
+  codata-rows typed interfaces name owner labels constructors = case constructors of
+    Cons constructor Nil ->
+      let storage = core-constructor-scheme constructor in
+      case observation-scheme-body labels (scheme-body storage) of
+        Err error -> Err error
+        Ok body -> case constructor-row typed interfaces name 0 owner (qualified (scheme-params storage) (scheme-requirements storage) body) of
+          Ok row -> Ok (JArr row JArrEnd)
+          Err error -> Err error
+    other -> Err "codata must have one checked observation layout"
+  imported-codata-row :: List LoadedInterface -> String -> Option Json
+  imported-codata-row interfaces identity = case interfaces of
+    Nil -> None
+    Cons first rest -> case loaded-entry first "type" identity of
+      Some row -> if same (text (field "kind" row)) "codata" then Some row else imported-codata-row rest identity
+      None -> imported-codata-row rest identity
   type-row :: Elaboration -> List LoadedInterface -> Json -> String -> CoreData -> Result String Json
-  type-row typed interfaces surface name declaration = case (data-nominal declaration,
-    constructor-rows typed interfaces surface 0 (core-data-constructors declaration)) of
-      (Ok nominal, Ok constructors) -> let (kind, labels) = (case record-label-contract (core-data-name declaration) (elaboration-declarations typed) of
-          Some fields -> (JStr "record", fields)
-          None -> (field "kind" nominal, JArrEnd)) in
+  type-row typed interfaces surface name declaration =
+    let owner = core-data-name declaration in
+    let declarations = elaboration-declarations typed in
+    let constructors = core-data-constructors declaration in
+    case export-global owner of
+      Err error -> Err error
+      Ok identity -> case imported-codata-row interfaces identity of
+        Some row -> Ok (set-field "name" (JStr name) row)
+        None -> case codata-label-contract owner declarations of
+          Some labels -> build-type-row name "codata" labels (data-nominal declaration) (codata-rows typed interfaces name owner labels constructors)
+          None -> case record-label-contract owner declarations of
+            Some labels -> build-type-row name "record" labels (data-nominal declaration) (constructor-rows typed interfaces surface 0 constructors)
+            None -> build-type-row name "data" JArrEnd (data-nominal declaration) (constructor-rows typed interfaces surface 0 constructors)
+  build-type-row :: String -> String -> Json -> Result String Json -> Result String Json -> Result String Json
+  build-type-row name kind labels nominal constructors = case (nominal, constructors) of
+      (Ok nominal, Ok constructors) ->
         Ok (JObj "name" (JStr name)
-        (JObj "identity" (field "identity" nominal) (JObj "kind" kind
+        (JObj "identity" (field "identity" nominal) (JObj "kind" (JStr kind)
           (JObj "params" (field "params" nominal) (JObj "parameters" (field "parameters" nominal)
             (JObj "ctors" constructors (JObj "fields" labels (JObj "refinement" JNull JObjEnd))))))))
       (Err error, other) -> Err error
@@ -301,18 +346,32 @@ module Bootstrap.Export where
     Cons declaration rest -> constructors-have symbol (core-data-constructors declaration) || constructor-present symbol rest
   constructors-have :: String -> List CoreConstructor -> Bool
   constructors-have symbol constructors = case constructors of Nil -> False; Cons constructor rest -> same symbol (core-constructor-name constructor) || constructors-have symbol rest
+  equation-method-present :: String -> List CoreClass -> Bool
+  equation-method-present symbol classes = case classes of
+    Nil -> False
+    Cons description rest -> equation-methods-have symbol (class-methods description) || equation-method-present symbol rest
+  equation-methods-have :: String -> List CoreClassMethod -> Bool
+  equation-methods-have symbol methods = case methods of
+    Nil -> False
+    Cons member rest -> case class-method-equation member of
+      Some (defining, equation) -> same symbol defining || equation-methods-have symbol rest
+      None -> equation-methods-have symbol rest
   public-names :: String -> Json -> Json
   public-names symbol rows = case rows of
     JArr row rest -> if same symbol (text (field "symbol" row)) then insert-string (text (field "name" row)) (public-names symbol rest) else public-names symbol rest
     other -> JArrEnd
   method-names :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> Json
-  method-names typed description member surface = case surface of
+  method-names typed description member surface = case class-method-equation member of
+    Some (symbol, equation) -> public-names symbol surface
+    None -> runtime-method-names typed description member surface
+  runtime-method-names :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> Json
+  runtime-method-names typed description member surface = case surface of
     JArr row rest -> let symbol = text (field "symbol" row) in
       (case find-binding symbol (elaboration-bindings typed) of
         Some binding -> if checked-method-matches binding symbol (class-name description) (class-method-slot member) then
-          insert-string (text (field "name" row)) (method-names typed description member rest)
-          else method-names typed description member rest
-        None -> method-names typed description member rest)
+          insert-string (text (field "name" row)) (runtime-method-names typed description member rest)
+          else runtime-method-names typed description member rest
+        None -> runtime-method-names typed description member rest)
     other -> JArrEnd
   defining-method-symbol :: List CheckedBinding -> String -> Nat -> Option String
   defining-method-symbol bindings owner slot = case bindings of
@@ -341,16 +400,22 @@ module Bootstrap.Export where
           Some original -> if (case field "slot" original of JNum actual -> actual == nat-to-int slot; other -> False) then
             Ok (JArr (set-field "exports" (method-names typed description member surface) original) more)
             else Err "admitted class method disagrees with its checked slot"
-          None -> case resolved-method-scheme typed interfaces description member of
-            Err error -> Err error
-            Ok resolved -> case method-default typed description member interfaces
-                (JObj "name" (JStr (class-method-name member))
-                  (JObj "slot" (JNum (nat-to-int slot))
-                    (JObj "exports" (method-names typed description member surface)
-                      (JObj "scheme" (field "scheme" resolved)
-                        (JObj "resolved" resolved JObjEnd))))) of
+          None -> case class-method-equation member of
+            Some (symbol, equation) -> case export-equation-display (class-method-scheme member) equation of
+              Ok display -> Ok (JArr (method-row typed description member surface display JNull) more)
               Err error -> Err error
-              Ok row -> Ok (JArr row more)
+            None -> case resolved-method-scheme typed interfaces description member of
+              Err error -> Err error
+              Ok resolved -> case method-default typed description member interfaces
+                  (method-row typed description member surface (text (field "scheme" resolved)) resolved) of
+                Err error -> Err error
+                Ok row -> Ok (JArr row more)
+  method-row :: Elaboration -> CoreClass -> CoreClassMethod -> Json -> String -> Json -> Json
+  method-row typed description member surface display resolved =
+    JObj "name" (JStr (class-method-name member))
+      (JObj "slot" (JNum (nat-to-int (class-method-slot member)))
+        (JObj "exports" (method-names typed description member surface)
+          (JObj "scheme" (JStr display) (JObj "resolved" resolved JObjEnd))))
   methods-public :: Json -> Bool
   methods-public rows = case rows of
     JArr row rest -> (case field "exports" row of JArr name more -> True; other -> False) || methods-public rest
@@ -554,8 +619,8 @@ module Bootstrap.Export where
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
       else instance-rows typed interfaces context rest
-  -- A constructor is recorded only in its defining type's public table.
-  -- Hidden constructors still occur in private nominal identity closures.
+  -- Constructors and erased equation methods have their own checked
+  -- tables. Neither needs an ordinary value row.
   exports :: Elaboration -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
   exports typed interfaces surface rows = case rows of
     JArr row rest -> let name = text (field "name" row) in let symbol = text (field "symbol" row) in
@@ -576,7 +641,8 @@ module Bootstrap.Export where
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
                   else case find-binding symbol (elaboration-bindings typed) of
-                    None -> Err (string-concat "export has no retained checked declaration: " name)
+                    None -> if equation-method-present symbol (elaboration-classes typed) then Ok (values, types)
+                      else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in
                       if same role "method" || same role "instance" || same role "implicit-instance" then Ok (values, types)
@@ -698,6 +764,12 @@ module Bootstrap.Export where
   foreign-assumptions rows = case rows of
     JArr row rest -> if same (text (field "kind" row)) "import" then insert-string (text (field "external" row)) (foreign-assumptions rest) else foreign-assumptions rest
     other -> JArrEnd
+  rewrite-assumptions :: Json -> List (String, String) -> Json
+  rewrite-assumptions context rows = case rows of
+    Nil -> JArrEnd
+    Cons (name, identity) rest ->
+      let more = rewrite-assumptions context rest in
+      if has-symbol name (field "declarations" context) then insert-string identity more else more
   primitive-trust-rows :: List String -> Json -> Json
   primitive-trust-rows trust rows = case trust of
     Nil -> rows
@@ -715,7 +787,8 @@ module Bootstrap.Export where
   assumptions primitives rows trust = JObj "primitives" primitives (JObj "foreign" (foreign-assumptions rows) (JObj "declared" trust JObjEnd))
   interface-assumptions :: Json -> Elaboration -> Json -> Json
   interface-assumptions context typed rows = case source-primitive-assumptions context (elaboration-bindings typed)
-    (source-primitives context (elaboration-contexts typed)) JArrEnd of
+    (source-primitives context (elaboration-contexts typed))
+    (rewrite-assumptions context (elaboration-rewrite-assumptions typed)) of
       (primitives, trust) -> assumptions primitives rows trust
   law-order :: Json -> String
   law-order row = string-concat-all [text (field "instance" row), "\n", text (field "class" row), "\n", text (field "law" row)]
@@ -758,6 +831,42 @@ module Bootstrap.Export where
   interface-hash :: Json -> String
   interface-hash doc = fnv-source-hash (canonical-bytes (set-field "units" JArrEnd
     (set-field "compiler" (JStr "") (set-field "source_hash" (JStr "") doc))))
+
+  build-manifest :: String -> Json -> List LoadedInterface -> List (String, Json) -> Json
+  build-manifest entry provider interfaces rows =
+    let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
+    let target-facts = JObj "triple" (field "target" provider)
+          (JObj "word_size" (field "word_size" provider) (JObj "endian" (field "endian" provider) JObjEnd)) in
+    let trust = JObj "primitives" (build-assumptions "primitives" contracts)
+          (JObj "foreign" (build-assumptions "foreign" contracts)
+            (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in
+    JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
+      (JObj "modules" (sort-rows "module" (build-module-rows contracts))
+        (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "target" target-facts JObjEnd)))))
+
+  source-build-contracts :: List (String, Json) -> List (String, String, Json)
+  source-build-contracts rows = case rows of
+    Nil -> Nil
+    Cons (name, doc) rest -> Cons (name, interface-hash doc, doc) (source-build-contracts rest)
+  admitted-build-contracts :: List LoadedInterface -> List (String, String, Json)
+  admitted-build-contracts interfaces = case interfaces of
+    Nil -> Nil
+    Cons first rest -> Cons (loaded-module first, loaded-hash first, loaded-contract first) (admitted-build-contracts rest)
+  build-module-rows :: List (String, String, Json) -> Json
+  build-module-rows contracts = case contracts of
+    Nil -> JArrEnd
+    Cons (name, hash, doc) rest -> JArr (JObj "module" (JStr name) (JObj "iface_hash" (JStr hash) JObjEnd)) (build-module-rows rest)
+  build-assumptions :: String -> List (String, String, Json) -> Json
+  build-assumptions key contracts = sorted-strings (build-assumption-rows key contracts)
+  build-assumption-rows :: String -> List (String, String, Json) -> Json
+  build-assumption-rows key contracts = case contracts of
+    Nil -> JArrEnd
+    Cons (name, hash, doc) rest -> append (field key (field "assumptions" doc)) (build-assumption-rows key rest)
+  build-law-rows :: List (String, String, Json) -> Json
+  build-law-rows contracts = case contracts of
+    Nil -> JArrEnd
+    Cons (name, hash, doc) rest -> append (field "laws" doc) (build-law-rows rest)
+
   export-loop :: Elaboration -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
   export-loop typed interfaces source produced contexts = case contexts of
     Nil -> Ok Nil
@@ -826,7 +935,6 @@ module Bootstrap.Export where
     Nil -> None
     Cons declaration rest -> case declaration of
       DForeign sp direction abi symbol name syntax -> if retained-intrinsic name symbol contexts || (case find-binding name bindings of Some binding -> (case checked-foreign-plan binding of Some plan -> True; None -> False); None -> False) then unsupported-declarations rest contexts bindings else Some "foreign assumption interface production is incomplete"
-      DCodata sp name parameters observations -> Some "codata interface production needs its checked observation contract"
       -- A private effect grants no public type/operation names. If a public
       -- scheme mentions it, nominal export still refuses the absent contract.
       other -> unsupported-declarations rest contexts bindings

@@ -9,6 +9,7 @@ module Bootstrap.Inputs where
   import Text.Parse (ParseOutcome, Parsed, Failed)
 
   export read-interfaces, embedded-library-home
+  export read-interface-references, load-interface-references
 
   -- Source replacement is reserved for defining homes in the pinned
   -- compiler-owned base package. Ordinary interface collisions still refuse.
@@ -57,18 +58,23 @@ module Bootstrap.Inputs where
         Err message -> Err message
         Ok others -> Ok (Cons (name, hash, src) others)
 
-  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
-  read-interfaces path = case fs-read (path-from-string path) of
+  read-interface-references :: forall r. using (io :: Io r) => String ->{IO r} Result String (List (String, String, String))
+  read-interface-references path = case fs-read (path-from-string path) of
     Err error -> Err (string-concat "cannot read interface manifest: " path)
     Ok src -> case parse-json path src of
       Parsed doc Nil -> case field "schema" doc of
         JNum version ->
-          if version == 1 then
-            case rows (field "interfaces" doc) of
-              Err message -> Err message
-              Ok inputs -> case read-files inputs of
-                Err message -> Err message
-                Ok files -> load-interface-set files
+          if version == 1 then rows (field "interfaces" doc)
           else Err "unsupported interface manifest schema"
         other -> Err "missing interface manifest schema"
       other -> Err "interface manifest is not valid JSON"
+
+  load-interface-references :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List LoadedInterface)
+  load-interface-references inputs = case read-files inputs of
+    Err message -> Err message
+    Ok files -> load-interface-set files
+
+  read-interfaces :: forall r. using (io :: Io r) => String ->{IO r} Result String (List LoadedInterface)
+  read-interfaces path = case read-interface-references path of
+    Err message -> Err message
+    Ok inputs -> load-interface-references inputs

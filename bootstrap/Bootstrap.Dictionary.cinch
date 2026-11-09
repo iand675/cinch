@@ -4,7 +4,7 @@ module Bootstrap.Dictionary where
 
   import Bootstrap.Type
   import Bootstrap.Core
-  import Bootstrap.ExportType (diagnostic-member-name)
+  import Bootstrap.ExportType (diagnostic-member-name, export-global)
   import Bootstrap.Nominal (interface-global)
   import Text.Lex (Span)
 
@@ -112,6 +112,13 @@ module Bootstrap.Dictionary where
 
   resolve-dictionary-term-in :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-dictionary-term-in context scope term st = if not (clean st) then (term, st) else resolve-term context scope term st
+  resolve-recursive-functions :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-recursive-functions context scope members st = case members of
+    CRecursiveBindingsEnd -> (CRecursiveBindingsEnd, st)
+    CRecursiveBinding id name value rest -> case resolve-term context scope value st of
+      (checked, ready) -> case resolve-recursive-functions context scope rest ready of
+        (more, done) -> (CRecursiveBinding id name checked more, done)
+    other -> (members, st)
   resolve-term :: Resolution -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-term context scope term st = case term of
     CHandler sp ty returned operations -> case resolve-term context scope returned st of
@@ -153,6 +160,12 @@ module Bootstrap.Dictionary where
     CLambda sp ty pattern body -> case resolve-term context scope body st of (out, checked) -> (CLambda sp ty pattern out, checked)
     CLet sp ty id name scheme rhs body -> case resolve-term context scope rhs st of
       (value, sr) -> case resolve-term context scope body sr of (out, done) -> (CLet sp ty id name scheme value out, done)
+    CRecursiveFunctions sp ty members body -> case resolve-recursive-functions context scope members st of
+      (values, checked) -> case resolve-term context scope body checked of
+        (result, done) -> (CRecursiveFunctions sp ty values result, done)
+    CRecursiveValues sp ty region members body -> case resolve-recursive-functions context scope members st of
+      (values, checked) -> case resolve-term context scope body checked of
+        (result, done) -> (CRecursiveValues sp ty region values result, done)
     CIf sp ty condition yes no -> case resolve-term context scope condition st of
       (c, sc) -> case resolve-term context scope yes sc of
         (a, sa) -> case resolve-term context scope no sa of (b, sb) -> (CIf sp ty c a b, sb)
@@ -317,12 +330,17 @@ module Bootstrap.Dictionary where
   overlapping-heads left right st = if not (same-head-class left right) then False else case open-qualified False left st of
     (a, ca, pa, sa) -> case open-qualified False right sa of
       (b, cb, pb, sb) -> clean (unify (Span 0 0 1 1) a b sb)
+  instance-display :: String -> String
+  instance-display symbol = case export-global symbol of
+    Ok name -> name
+    Err error -> symbol
   check-instance-pairs :: String -> Scheme -> List (String, Scheme) -> Store -> Store
   check-instance-pairs name sc rest st = case rest of
     Nil -> st
     Cons (other, candidate) more ->
       check-instance-pairs name sc more (if same name other || overlapping-heads sc candidate st then
-        add-error (Span 0 0 1 1) (string-concat-all ["overlapping implicit instance contracts: ", name, " and ", other]) st else st)
+        add-error (Span 0 0 1 1) (string-concat-all ["ambiguous instance: overlapping implicit contracts for ",
+          instance-display name, " and ", instance-display other]) st else st)
   check-instance-coherence :: List (String, Scheme) -> Store -> Store
   check-instance-coherence instances st = case instances of
     Nil -> st

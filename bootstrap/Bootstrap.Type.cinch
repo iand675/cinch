@@ -33,6 +33,7 @@ module Bootstrap.Type where
   export pending-number, pending-comparison, default-numbers-for, finish-numbers
   export Store, empty-store, store-errors, store-level, enter-level, restore-level
   export store-law-scope, with-law-scope
+  export store-let-depth, with-let-depth
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
@@ -466,26 +467,31 @@ module Bootstrap.Type where
     PendingNumber :: Span -> UType -> Int -> PendingNumber
     PendingComparison :: Span -> UType -> List String -> PendingNumber
   data Store where
-    MkStore :: String -> Nat -> Nat -> List Cell -> List Diagnostic -> List PendingNumber -> Bool -> Store
+    MkStore :: String -> Nat -> Nat -> List Cell -> List Diagnostic -> List PendingNumber -> Bool -> Nat -> Store
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 Nil Nil Nil False
+  empty-store label = MkStore label 0 0 Nil Nil Nil False 0
+  store-let-depth :: Store -> Nat
+  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth -> depth
+  with-let-depth :: Nat -> Store -> Store
+  with-let-depth depth st = case st of
+    MkStore label next level cells errors numbers in-law previous -> MkStore label next level cells errors numbers in-law depth
   store-law-scope :: Store -> Bool
-  store-law-scope st = case st of MkStore label next level cells errors numbers in-law -> in-law
+  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth -> in-law
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
-    MkStore label next level cells errors numbers in-law -> MkStore label next level cells errors numbers active
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors numbers active depth
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells errors numbers in-law -> reverse errors
+  store-errors st = case st of MkStore label next level cells errors numbers in-law depth -> reverse errors
   store-level :: Store -> Nat
-  store-level st = case st of MkStore label next level cells errors numbers in-law -> level
+  store-level st = case st of MkStore label next level cells errors numbers in-law depth -> level
   enter-level :: Store -> Store
-  enter-level st = case st of MkStore label next level cells errors numbers in-law -> MkStore label next (level + 1) cells errors numbers in-law
+  enter-level st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next (level + 1) cells errors numbers in-law depth
   restore-level :: Nat -> Store -> Store
-  restore-level level st = case st of MkStore label next old cells errors numbers in-law -> MkStore label next level cells errors numbers in-law
+  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth -> MkStore label next level cells errors numbers in-law depth
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law -> MkStore label next level cells (Cons (MkDiagnostic label sp message) errors) numbers in-law
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (Cons (MkDiagnostic label sp message) errors) numbers in-law depth
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -494,7 +500,7 @@ module Bootstrap.Type where
     else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
-    MkStore label next level cells errors numbers in-law ->
+    MkStore label next level cells errors numbers in-law depth ->
       let kind = normalize-kind st k in
       let dependencies = kind-metas st kind in
       if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
@@ -502,25 +508,25 @@ module Bootstrap.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        MkStore label next level lowered errors numbers in-law -> (UMeta next kind, MkStore label (next + 1) level (Cons (MkCell next level kind None) lowered) errors numbers in-law)
+        MkStore label next level lowered errors numbers in-law depth -> (UMeta next kind, MkStore label (next + 1) level (Cons (MkCell next level kind None) lowered) errors numbers in-law depth)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
-  fresh-id st = case st of MkStore label next level cells errors numbers in-law -> (next, MkStore label (next + 1) level cells errors numbers in-law)
+  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth -> (next, MkStore label (next + 1) level cells errors numbers in-law depth)
 
   cell :: Nat -> List Cell -> Option Cell
   cell id cells = case cells of
     Nil -> None
     Cons c rest -> case c of MkCell n lev k solution -> if n == id then Some c else cell id rest
   find-cell :: Nat -> Store -> Option Cell
-  find-cell id st = case st of MkStore label next level cells errors numbers in-law -> cell id cells
+  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth -> cell id cells
   replace-cell :: Cell -> List Cell -> List Cell
   replace-cell replacement cells = case replacement of
     MkCell id lev k solution -> case cells of
       Nil -> Cons replacement Nil
       Cons c rest -> case c of MkCell n l kind old -> if id == n then Cons replacement rest else Cons c (replace-cell replacement rest)
   put-cell :: Cell -> Store -> Store
-  put-cell c st = case st of MkStore label next level cells errors numbers in-law -> MkStore label next level (replace-cell c cells) errors numbers in-law
+  put-cell c st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level (replace-cell c cells) errors numbers in-law depth
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -1244,9 +1250,9 @@ module Bootstrap.Type where
   instantiate-ordered rigid qs earlier st = case qs of
     Nil -> (Nil, st)
     Cons q rest -> case st of
-      MkStore label next level cells errors numbers in-law ->
+      MkStore label next level cells errors numbers in-law depth ->
         let kind = map-kind-types (substitute earlier) (quant-kind q) in
-        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law) else fresh-meta kind st in
+        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth) else fresh-meta kind st in
         case instantiate-ordered rigid rest (Cons (quant-id q, ty) earlier) next-store of
           (pairs, final-store) -> (Cons (quant-id q, ty) pairs, final-store)
   instantiate :: Scheme -> Store -> (UType, Store)
@@ -1829,13 +1835,13 @@ module Bootstrap.Type where
     other -> ty
   reserve-type-ids :: UType -> UType -> Store -> Store
   reserve-type-ids first second st = case st of
-    MkStore label next level cells errors numbers in-law ->
+    MkStore label next level cells errors numbers in-law depth ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
-      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law
+      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth
   cells-level :: List Cell -> Nat
   cells-level cells = case cells of Nil -> 0; Cons (MkCell id level kind solution) rest -> let more = cells-level rest in if level > more then level else more
   pi-level :: Store -> Nat
-  pi-level st = case st of MkStore label next level cells errors numbers in-law -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  pi-level st = case st of MkStore label next level cells errors numbers in-law depth -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   unify-pi :: Span -> UType -> UType -> Store -> Store
   unify-pi sp first second st = case (first, second) of
     (UPi id name domain row result, UPi key other input effects output) ->
@@ -2003,15 +2009,15 @@ module Bootstrap.Type where
     other -> term
 
   pending-number :: Span -> UType -> Int -> Store -> Store
-  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law
+  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth
   -- Primitive equality may see a literal's still-unsolved carrier through
   -- a generic call or constructor. Check it after ordinary constraints and
   -- numeric defaulting; never invent an Eq dictionary or default a skolem.
   pending-comparison :: Span -> UType -> List String -> Store -> Store
   pending-comparison sp ty allowed st = case st of
-    MkStore label next level cells errors numbers in-law -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth
   pending-numbers :: Store -> List PendingNumber
-  pending-numbers st = case st of MkStore label next level cells errors numbers in-law -> numbers
+  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth -> numbers
   number-meta-ids :: List PendingNumber -> Store -> List Nat
   number-meta-ids checks st = case checks of
     Nil -> Nil
@@ -2042,4 +2048,4 @@ module Bootstrap.Type where
   finish-numbers st = let checks = pending-numbers st in
     let defaulted = default-number-checks (number-meta-ids checks st) checks st in
     let checked = check-number-checks checks defaulted in
-    case checked of MkStore label next level cells errors numbers in-law -> MkStore label next level cells errors Nil in-law
+    case checked of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors Nil in-law depth

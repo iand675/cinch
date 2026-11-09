@@ -8,12 +8,18 @@ module Bootstrap.Builtin where
   import Data.Json
   import Text.Lex (Span)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation
 
   nat-arithmetic-extern :: String -> Option String
   nat-arithmetic-extern symbol =
     if string-compare symbol "cinch.runtime.natAdd" == 0 then Some "cinch_nat_add"
     else if string-compare symbol "cinch.runtime.natMul" == 0 then Some "cinch_nat_mul"
+    else None
+
+  u32-wrapping-operation :: String -> Option String
+  u32-wrapping-operation symbol =
+    if string-compare symbol "cinch.prim.wrappingAddU32" == 0 then Some "add"
+    else if string-compare symbol "cinch.prim.wrappingSubU32" == 0 then Some "sub"
     else None
 
   -- The selected runtime ABI's pure intrinsics. The returned scheme is checked
@@ -23,9 +29,11 @@ module Bootstrap.Builtin where
   intrinsic-contract symbol =
     -- Machine primitives retain their canonical operation identity. They
     -- lower directly to LLVM, rather than naming an unchecked C function.
-    if string-compare symbol "cinch.prim.eqI64" == 0 then Some ("I64 -> I64 -> Bool", symbol)
+    if string-compare symbol "cinch.prim.eqI64" == 0 || string-compare symbol "cinch.prim.neI64" == 0 then
+      Some ("I64 -> I64 -> Bool", symbol)
     else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
+    else if (case u32-wrapping-operation symbol of Some operation -> True; None -> False) then Some ("U32 -> U32 -> U32", symbol)
     else if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256")
     else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512")
     else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1")

@@ -30,15 +30,17 @@ module Bootstrap.ExportNominal where
       (JObj "kind" (JStr kind) (JObj "implicit" (JBool automatic) JObjEnd))) (parameter-json rest)
   parameter-names :: List (String, String, Bool) -> Json
   parameter-names rows = case rows of Nil -> JArrEnd; Cons (name, kind, automatic) rest -> JArr (JStr name) (parameter-names rest)
-  constructor-names :: List CoreConstructor -> Result String Json
-  constructor-names rows = case rows of
+  constructor-names :: String -> List CoreConstructor -> Result String Json
+  constructor-names owner rows = case rows of
     Nil -> Ok JArrEnd
-    Cons first rest -> case (export-global (core-constructor-name first), constructor-names rest) of
-      (Ok name, Ok more) -> Ok (JArr (JStr name) more)
-      (Err error, other) -> Err error
-      (other, Err error) -> Err error
+    Cons first rest -> let name = core-constructor-name first in
+      let identity = if same name ("#codata:" <> owner) then owner else name in
+      case (export-global identity, constructor-names owner rest) of
+        (Ok name, Ok more) -> Ok (JArr (JStr name) more)
+        (Err error, other) -> Err error
+        (other, Err error) -> Err error
   data-nominal :: CoreData -> Result String Json
-  data-nominal declaration = case (export-global (core-data-name declaration), export-parameters (core-data-params declaration), constructor-names (core-data-constructors declaration)) of
+  data-nominal declaration = case (export-global (core-data-name declaration), export-parameters (core-data-params declaration), constructor-names (core-data-name declaration) (core-data-constructors declaration)) of
     (Ok name, Ok parameters, Ok constructors) -> Ok (JObj "identity" (JStr name)
       (JObj "kind" (JStr "data") (JObj "parameters" (parameter-json parameters)
         (JObj "params" (parameter-names parameters) (JObj "constructors" constructors

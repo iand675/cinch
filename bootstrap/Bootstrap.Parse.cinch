@@ -754,6 +754,10 @@ module Bootstrap.Parse where
     else if string-compare w "export" == 0 then parse-export toks src
     else if string-compare w "signature" == 0 then parse-signature toks src fix
     else if string-compare w "law" == 0 then parse-law toks src fix
+    else if string-compare w "rewrite" == 0 then parse-rewrite False toks src fix
+    else if string-compare w "target" == 0 then case toks of
+      Cons keyword rest -> parse-rewrite True rest src fix
+      Nil -> PBad
     else if string-compare w "data" == 0 then parse-data toks src fix
     else if string-compare w "type" == 0 then parse-refinement toks src
     else if string-compare w "opaque" == 0 then parse-opaque toks src
@@ -772,6 +776,54 @@ module Bootstrap.Parse where
     else if string-compare w "infixl" == 0 then parse-fixity toks
     else if string-compare w "infixr" == 0 then parse-fixity toks
     else PBad
+
+  parse-rewrite :: Bool -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-rewrite targeted toks src fix = case expect-word-t toks "rewrite" of
+    PBad -> PBad
+    POk sp header -> case parse-value-name header of
+      PBad -> PBad
+      POk name after-name -> case expect-word-t after-name "forall" of
+        PBad -> PBad
+        POk binder-start binders -> case parse-params binders src Nil of
+          POk (Cons first rest) after-binders -> case expect-punct-t after-binders "." of
+            PBad -> PBad
+            POk dot after-dot -> case parse-rewrite-context sp after-dot src of
+              PBad -> PBad
+              POk bounds after-context -> case expect-word-t after-context "where" of
+                PBad -> PBad
+                POk start clauses -> case expect-punct-t clauses "{" of
+                  PBad -> PBad
+                  POk opened body -> case parse-rewrite-clauses body src fix Nil of
+                    PBad -> PBad
+                    POk fields tail -> case (rewrite-clause "match" fields, rewrite-clause "replace" fields, rewrite-clause "justify" fields) of
+                      (Some pattern, Some replacement, Some evidence) -> POk (DRewrite sp name
+                        (MkRewriteSyntax targeted (Cons first rest) bounds pattern replacement (rewrite-clause "require" fields) (RewriteTerm evidence))) tail
+                      other -> PBad
+          other -> PBad
+  parse-rewrite-context :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  parse-rewrite-context sp toks src = case expect-word-t toks "using" of
+    POk start rest -> parse-bounds rest src
+    PBad -> POk (TBoundsEnd sp) toks
+  rewrite-clause :: String -> List (String, Expr) -> Option Expr
+  rewrite-clause name fields = case fields of
+    Nil -> None
+    Cons (key, value) rest -> if string-compare key name == 0 then Some value else rewrite-clause name rest
+  parse-rewrite-clauses :: List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps (List (String, Expr))
+  parse-rewrite-clauses toks src fix fields = case toks of
+    Nil -> PBad
+    Cons token rest -> case lt-token token of
+      TPunct punct -> if string-compare punct "}" == 0 then POk fields rest
+        else if string-compare punct ";" == 0 then parse-rewrite-clauses rest src fix fields else PBad
+      TWord name -> if string-compare name "match" == 0 || string-compare name "replace" == 0 ||
+          string-compare name "justify" == 0 || string-compare name "require" == 0 then
+        (case (rewrite-clause name fields, parse-expr rest src fix) of
+          (None, POk expression tail) -> (case tail of
+            Cons next more -> if is-punct-t (lt-token next) ";" || is-punct-t (lt-token next) "}" then
+              parse-rewrite-clauses tail src fix (Cons (name, expression) fields) else PBad
+            Nil -> PBad)
+          other -> PBad)
+        else PBad
+      other -> PBad
 
   parse-marked-decl :: (Span -> Decl -> Decl) -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-marked-decl mark toks src fix = case toks of
@@ -2170,7 +2222,7 @@ module Bootstrap.Parse where
   parse-letrec :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
   parse-letrec sp toks src fix = case toks of
     Cons t rest ->
-      if is-word-t (lt-token t) "let" then parse-let sp rest src fix else PBad
+      if is-word-t (lt-token t) "let" then parse-let-group True sp rest src fix else PBad
     Nil -> PBad
 
   parse-if :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
@@ -2187,15 +2239,17 @@ module Bootstrap.Parse where
     PBad -> PBad
 
   parse-let :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
-  parse-let sp toks src fix = case toks of
+  parse-let sp toks src fix = parse-let-group False sp toks src fix
+  parse-let-group :: Bool -> Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-let-group recursive sp toks src fix = case toks of
     Cons b rest ->
       if is-punct-t (lt-token b) "{" then
         case parse-bindings rest src fix Nil of
           POk bs rest2 -> case expect-word-t rest2 "in" of
             POk _ rest3 -> case parse-expr rest3 src fix of
-              POk body rest4 -> (case strict-locals bs of
-                Some strict -> POk (let-patterns sp strict body) rest4
-                None -> POk (ELocalGroup sp (local-spine sp bs) body) rest4)
+              POk body rest4 -> if recursive then POk (ELetRec sp (local-spine sp bs) body) rest4 else (case strict-locals bs of
+                Some strict -> POk (ELetScope sp (let-patterns sp strict body)) rest4
+                None -> POk (ELetScope sp (ELocalGroup sp (local-spine sp bs) body)) rest4)
               PBad -> PBad
             PBad -> PBad
           PBad -> PBad
@@ -2575,7 +2629,7 @@ module Bootstrap.Parse where
     TInt s -> True
     TWord w -> string-compare w "refined" == 0
     TPunct p ->
-      if string-compare p "(" == 0 then True else if string-compare p "[" == 0 then True else False
+      string-compare p "(" == 0 || string-compare p "[" == 0 || string-compare p "\\" == 0
     _ -> False
 
   parse-type-app :: List LToken -> Bytes -> Ps TypeExpr
@@ -2624,9 +2678,28 @@ module Bootstrap.Parse where
       TPunct p ->
         if string-compare p "(" == 0 then parse-paren-type (sp-of t) rest src
         else if string-compare p "[" == 0 then parse-list-type (sp-of t) rest src
+        else if string-compare p "\\" == 0 then parse-index-lambda (sp-of t) rest src Nil
         else PBad
       _ -> PBad
     Nil -> PBad
+
+  -- Like a value lambda, the body extends to the surrounding delimiter.
+  -- The type grammar keeps the binders lexical for later proof checking.
+  parse-index-lambda :: Span -> List LToken -> Bytes -> List String -> Ps TypeExpr
+  parse-index-lambda sp toks src reversed = case toks of
+    Cons token rest -> case lt-token token of
+      TVar name -> if string-compare name "_" == 0 then PBad else parse-index-lambda sp rest src (Cons name reversed)
+      TPunct arrow -> if string-compare arrow "->" /= 0 then PBad else (case reversed of
+        Nil -> PBad
+        other -> (case parse-type rest src of
+          POk body tail -> POk (index-lambda-body sp reversed body) tail
+          PBad -> PBad))
+      other -> PBad
+    Nil -> PBad
+  index-lambda-body :: Span -> List String -> TypeExpr -> TypeExpr
+  index-lambda-body sp reversed body = case reversed of
+    Nil -> body
+    Cons name rest -> index-lambda-body sp rest (TIndexLambda (span-join sp (type-expr-span body)) name body)
 
   -- The same structured tree represents index arithmetic and predicates.
   -- The parser records them; a checker must still prove their obligations.

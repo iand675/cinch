@@ -139,6 +139,7 @@ module Bootstrap.Contracts where
   type-references ty = case ty of
     TName s name -> Cons name Nil
     TNegate s x -> type-references x
+    TIndexLambda s name body -> type-references body
     TInfix s op a b -> type-references a <> type-references b
     TRefined s p t -> type-references p <> type-references t
     TApp s f args -> type-references f <> type-references args
@@ -188,7 +189,9 @@ module Bootstrap.Contracts where
     ENeg s x -> expr-references x
     ELam s ps body -> patterns-references ps <> expr-references body
     ELet s bs body -> expr-references bs <> expr-references body
+    ELetScope sp body -> expr-references body
     ELocalGroup sp bindings body -> expr-references bindings <> expr-references body
+    ELetRec sp bindings body -> expr-references bindings <> expr-references body
     ELocalStrict sp pattern value rest -> pat-references pattern <> expr-references value <> expr-references rest
     ELocalMemo sp name value rest -> expr-references value <> expr-references rest
     ELocalSignature sp name ty rest -> type-references ty <> expr-references rest
@@ -295,6 +298,11 @@ module Bootstrap.Contracts where
     LawEquation left right -> expr-references left <> expr-references right
     LawProposition ty -> type-references ty
 
+  rewrite-proof-references :: RewriteJustification -> List String
+  rewrite-proof-references evidence = case evidence of
+    RewriteTerm expression -> expr-references expression
+    RewriteLaw at owner member args -> Cons owner (expr-references (expr-spine at args))
+
   declaration-reference :: Decl -> List String
   declaration-reference d = case d of
     DProof sp body -> declaration-reference body
@@ -302,6 +310,10 @@ module Bootstrap.Contracts where
     DSig s name ty -> type-references ty
     DMethod s label name ty -> type-references ty
     DLaw s name syntax -> law-references syntax
+    DRewrite s name (MkRewriteSyntax targeted params bounds pattern replacement guard evidence) ->
+      param-references params <> type-references bounds <> expr-references pattern <> expr-references replacement
+      <> (case guard of Some condition -> expr-references condition; None -> Nil)
+      <> rewrite-proof-references evidence
     DClass s name params members -> param-references params <> declaration-references (decls-of members)
     DFun s name clauses -> clause-references clauses
     DOpaque s name params kind -> param-references params <> type-references kind

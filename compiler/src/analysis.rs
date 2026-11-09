@@ -1156,7 +1156,7 @@ impl Analysis {
                             })
                         })
                 }
-                SymKind::Ctor => iface.exports.types.iter().find_map(|t| {
+                SymKind::Ctor => iface.exports.types.iter().filter(|t| t.kind != "codata").find_map(|t| {
                     t.ctors.iter().find(|c| c.name == name).map(|c| {
                         let mut out = c
                             .fields

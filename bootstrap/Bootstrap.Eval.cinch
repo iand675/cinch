@@ -541,6 +541,7 @@ module Bootstrap.Eval where
     ENeg s x -> eval-neg globals env s x
     ELam s ps body -> Ok (VClosure ps body env)
     ELet s bs body -> eval-let globals env s bs body
+    ELetScope sp body -> eval-expr globals env body
     EIf s c t f -> eval-if globals env s c t f
     ECase s scrut alts -> eval-case globals env s scrut alts
     EGuarded s guard body -> fail s "a guarded body is valid only inside a case alternative"
@@ -562,6 +563,7 @@ module Bootstrap.Eval where
     EBinding s n rhs rest -> fail s "unsupported expression: binding spine cell"
     EBindingsEnd s -> fail s "unsupported expression: binding spine end"
     ELocalGroup sp bindings body -> fail sp "lazy local bindings are unavailable in this evaluator"
+    ELetRec sp bindings body -> fail sp "recursive local bindings require the typed evaluator"
     ELocalStrict sp pattern value rest -> fail sp "a local binding entry requires its enclosing group"
     ELocalMemo sp name value rest -> fail sp "a local binding entry requires its enclosing group"
     ELocalSignature sp name ty rest -> fail sp "a local binding entry requires its enclosing group"

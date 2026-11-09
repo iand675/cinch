@@ -95,7 +95,7 @@ module Bootstrap.Report where
   render-source-diagnostic prefix source diagnostic = case origin-at (span-line (diagnostic-span diagnostic)) prefix source 0 1 "" 0 of
     None -> render-diagnostic diagnostic
     Some (path, line) -> string-concat (render-diagnostic diagnostic)
-      (string-concat " (" (string-concat path (string-concat ":" (string-concat (nat-to-string line)
+      (string-concat " (in " (string-concat path (string-concat ":" (string-concat (nat-to-string line)
         (string-concat ":" (string-concat (nat-to-string (span-col (diagnostic-span diagnostic))) ")"))))))
   render-source-diagnostics-from :: Bytes -> Bytes -> List Diagnostic -> String
   render-source-diagnostics-from prefix source diagnostics = case diagnostics of

@@ -312,6 +312,14 @@ module Bootstrap.Global where
       && term-references globals locals (Cons given givens) body
     CLambda sp ty pattern body -> case pattern-locals globals locals pattern of Some bound -> term-references globals bound givens body; None -> False
     CLet sp ty id name sc rhs body -> term-references globals locals givens rhs && (case bind-local id sc locals of Some bound -> term-references globals bound givens body; None -> False)
+    CRecursiveFunctions sp ty members body -> (case bind-recursive-references members locals of
+      Some bound -> recursive-references globals bound givens members && term-references globals bound givens body
+      None -> False)
+    CRecursiveValues sp ty region members body -> (case bind-recursive-references members locals of
+      Some bound -> recursive-references globals bound givens members && term-references globals bound givens body
+      None -> False)
+    CRecursiveBinding id name value rest -> False
+    CRecursiveBindingsEnd -> False
     CIf sp ty condition yes no -> term-references globals locals givens condition && term-references globals locals givens yes && term-references globals locals givens no
     CCase sp ty value alternatives -> term-references globals locals givens value && term-references globals locals givens alternatives
     CTuple sp ty fields -> term-references globals locals givens fields
@@ -332,6 +340,19 @@ module Bootstrap.Global where
     CArgumentsEnd sp -> True
     CAlternativesEnd sp -> True
     CError sp -> False
+  bind-recursive-references :: CoreTerm -> List (Nat, Scheme) -> Option (List (Nat, Scheme))
+  bind-recursive-references members locals = case members of
+    CRecursiveBindingsEnd -> Some locals
+    CRecursiveBinding id name value rest -> case bind-local id (mono (core-type value)) locals of
+      Some bound -> bind-recursive-references rest bound
+      None -> None
+    other -> None
+  recursive-references :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
+  recursive-references globals locals givens members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name value rest ->
+      term-references globals locals givens value && recursive-references globals locals givens rest
+    other -> False
   clause-references :: List CoreGlobal -> List CoreGiven -> List CoreClause -> Bool
   clause-references globals givens clauses = clause-references-with globals Nil givens clauses
   value-local-schemes :: List (Nat, UType) -> List (Nat, Scheme)

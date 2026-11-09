@@ -3,10 +3,14 @@
 -- capturing that same prefix and the dictionary being constructed.
 module Bootstrap.Instance where
   import Bootstrap.Type
+  import Bootstrap.Ast (LawSyntax, source-law-document)
+  import Text.Json (canonical-bytes)
+  import Data.Bytes (bytes-compare)
   import Bootstrap.Core
-  import Bootstrap.BodyContract (BodyBindings, body-binding, body-bindings-members, binding-function)
-  import Bootstrap.Total (total-decimal-value)
-  import Bootstrap.TotalSemantics (total-boolean-reading)
+  import Bootstrap.BodyContract (BodyBindings, body-binding, body-bindings-members, binding-function, binding-matches, binding-name, selected-method-body, method-selection-matches)
+  import Bootstrap.Builtin (u32-wrapping-operation)
+  import Bootstrap.Total (TotalFunction, total-decimal-value, total-result)
+  import Bootstrap.TotalSemantics (total-boolean-reading, total-numeric-reading, arithmetic-constant)
   import Bootstrap.Proof (Arithmetic, AInteger, AArgument, AArgumentsEnd)
   import Data.Int (int-add, int-sub, int-mul)
   import Bootstrap.Index (IndexTerm, IBound)
@@ -15,10 +19,10 @@ module Bootstrap.Instance where
   import Data.Nat (nat-to-int)
   import Algebra.Semigroup
 
-  export CoreClass, MkCoreClass, CoreClassMethod, MkCoreClassMethod
+  export CoreClass, MkCoreClass, CoreClassMethod, MkCoreClassMethod, MkCoreEquationMethod
   export CoreClassContext, MkCoreClassContext, context-class-kinds, context-classes, class-context-closed, merge-class-contexts
   export class-name, class-kind, class-params, class-methods
-  export class-method-name, class-method-slot, class-method-scheme, class-closed
+  export class-method-name, class-method-slot, class-method-scheme, class-method-equation, class-closed
   export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
   export instance-name, instance-implicit, instance-scheme, instance-fields
   export dictionary-field-slot, dictionary-field-definition, instance-closed
@@ -30,6 +34,9 @@ module Bootstrap.Instance where
 
   data CoreClassMethod where
     MkCoreClassMethod :: Span -> String -> Nat -> Scheme -> CoreClassMethod
+    -- This scheme is the checked input telescope. The static conclusion
+    -- is a separately checked equation and has no runtime value ABI.
+    MkCoreEquationMethod :: Span -> String -> Nat -> Scheme -> String -> LawSyntax -> CoreClassMethod
   data CoreClass where
     MkCoreClass :: Span -> String -> Kind -> List Quant -> List CoreClassMethod -> CoreClass
   data CoreClassContext where
@@ -77,8 +84,16 @@ module Bootstrap.Instance where
   same-methods :: List CoreClassMethod -> List CoreClassMethod -> Bool
   same-methods first second = case (first, second) of
     (Nil, Nil) -> True
-    (Cons a rest, Cons b more) -> same (class-method-name a) (class-method-name b) && class-method-slot a == class-method-slot b && scheme-equivalent (class-method-scheme a) (class-method-scheme b) && same-methods rest more
+    (Cons a rest, Cons b more) -> same-method a b && same-methods rest more
     other -> False
+  same-method :: CoreClassMethod -> CoreClassMethod -> Bool
+  same-method a b = same (class-method-name a) (class-method-name b) && class-method-slot a == class-method-slot b
+    && scheme-equivalent (class-method-scheme a) (class-method-scheme b)
+    && (case (class-method-equation a, class-method-equation b) of
+      (None, None) -> True
+      (Some (name, first), Some (other, second)) -> same name other
+        && bytes-compare (canonical-bytes (source-law-document first)) (canonical-bytes (source-law-document second)) == 0
+      other -> False)
   merge-descriptions :: List CoreClass -> List CoreClass -> List CoreClass
   merge-descriptions first second = case first of
     Nil -> second
@@ -96,11 +111,21 @@ module Bootstrap.Instance where
   class-methods :: CoreClass -> List CoreClassMethod
   class-methods node = case node of MkCoreClass s name kind qs members -> members
   class-method-name :: CoreClassMethod -> String
-  class-method-name member = case member of MkCoreClassMethod s name slot sc -> name
+  class-method-name member = case member of
+    MkCoreClassMethod s name slot sc -> name
+    MkCoreEquationMethod s name slot sc symbol equation -> name
   class-method-slot :: CoreClassMethod -> Nat
-  class-method-slot member = case member of MkCoreClassMethod s name slot sc -> slot
+  class-method-slot member = case member of
+    MkCoreClassMethod s name slot sc -> slot
+    MkCoreEquationMethod s name slot sc symbol equation -> slot
   class-method-scheme :: CoreClassMethod -> Scheme
-  class-method-scheme member = case member of MkCoreClassMethod s name slot sc -> sc
+  class-method-scheme member = case member of
+    MkCoreClassMethod s name slot sc -> sc
+    MkCoreEquationMethod s name slot sc symbol equation -> sc
+  class-method-equation :: CoreClassMethod -> Option (String, LawSyntax)
+  class-method-equation member = case member of
+    MkCoreClassMethod s name slot sc -> None
+    MkCoreEquationMethod s name slot sc symbol equation -> Some (symbol, equation)
   instance-name :: CoreInstance -> String
   instance-name node = case node of MkCoreInstance s name flag sc fields -> name
   instance-implicit :: CoreInstance -> Bool
@@ -218,7 +243,7 @@ module Bootstrap.Instance where
   declared-member :: CoreClassMethod -> List CoreClassMethod -> Bool
   declared-member member methods = case methods of
     Nil -> False
-    Cons actual rest -> (class-method-slot member == class-method-slot actual && same (class-method-name member) (class-method-name actual) && scheme-equivalent (class-method-scheme member) (class-method-scheme actual)) || declared-member member rest
+    Cons actual rest -> same-method member actual || declared-member member rest
   specialized-method-bindings :: CoreClass -> Scheme -> CoreClassMethod -> Option (Scheme, List (Nat, UType))
   specialized-method-bindings description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
     case application (class-name description) (class-kind description) (scheme-body factory) of
@@ -424,6 +449,9 @@ module Bootstrap.Instance where
         (Some value, after-input) -> sample-case env dictionary self values value alternatives after-input
         failed -> failed
       CProved sp ty evidence body -> sample-term env dictionary self values body remaining
+      CLet sp ty id name scheme rhs body -> case sample-term env dictionary self values rhs remaining of
+        (Some value, after-rhs) -> sample-term env dictionary self (Cons (id, value) values) body after-rhs
+        failed -> failed
       CPrimitive sp (UCon carrier KType) op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
         if same carrier "Nat" || same carrier "Int" then
           (case sample-term env dictionary self values first remaining of
@@ -464,23 +492,56 @@ module Bootstrap.Instance where
       (case env of MkLawEnvironment instances bodies definitions -> sample-instance identity instances)
     other -> None
 
-  boolean-sample-arguments :: List LawValue -> Option Arithmetic
-  boolean-sample-arguments args = case args of
+  scalar-sample-argument :: LawValue -> Option Arithmetic
+  scalar-sample-argument value = case value of
+    LawNumber number -> Some (AInteger number)
+    other -> (case sample-truth value of
+      Some truth -> Some (AInteger (if truth then 1 else 0))
+      None -> None)
+  scalar-sample-arguments :: List LawValue -> Option Arithmetic
+  scalar-sample-arguments args = case args of
     Nil -> Some AArgumentsEnd
-    Cons first rest -> (case (sample-truth first, boolean-sample-arguments rest) of
-      (Some truth, Some more) -> Some (AArgument (AInteger (if truth then 1 else 0)) more)
+    Cons first rest -> (case (scalar-sample-argument first, scalar-sample-arguments rest) of
+      (Some value, Some more) -> Some (AArgument value more)
       other -> None)
 
-  -- Look up the verified body of the exact checked global.
+  sample-checked-body :: TotalFunction -> List LawValue -> Option LawValue
+  sample-checked-body function args = case scalar-sample-arguments args of
+    None -> None
+    Some inputs -> if same (total-result function) "Bool" then
+      (case total-boolean-reading function inputs of Some result -> Some (sample-boolean result); None -> None)
+      else (case total-numeric-reading function inputs of
+        Some reading -> (case arithmetic-constant reading of Some number -> Some (LawNumber number); None -> None)
+        None -> None)
+
+  -- The checked global identity and selected dictionary slot carry the body.
   sample-external :: LawEnvironment -> String -> List LawValue -> Option LawValue
   sample-external env name args = case env of
     MkLawEnvironment instances bodies definitions -> (case body-binding name (body-bindings-members bodies) of
-      Some binding -> (case boolean-sample-arguments args of
-        Some inputs -> (case total-boolean-reading (binding-function binding) inputs of
-          Some answer -> Some (sample-boolean answer)
-          None -> None)
-        None -> None)
+      Some binding -> sample-checked-body (binding-function binding) args
       None -> None)
+
+  sample-external-method :: LawEnvironment -> UType -> String -> String -> Nat -> List UType -> CoreEvidence -> List LawValue -> Option LawValue
+  sample-external-method env ty name owner slot actuals evidence args = case (env, evidence) of
+    (MkLawEnvironment instances bodies definitions, CEInstance at subject dictionary Nil (CEArgumentsEnd end)) ->
+      (case selected-method-body dictionary slot (body-bindings-members bodies) of
+        Some binding -> if method-selection-matches dictionary slot name owner actuals subject binding
+          && binding-matches (binding-name binding) "external" (mono ty) binding then sample-checked-body (binding-function binding) args else None
+        None -> None)
+    other -> None
+
+  sample-intrinsic :: String -> List LawValue -> Option LawValue
+  sample-intrinsic name args = case args of
+    [LawNumber left, LawNumber right] ->
+      if same name "cinch.runtime.natAdd" then sample-numeric-op "Nat" "+" left right
+      else if same name "cinch.runtime.natMul" then sample-numeric-op "Nat" "*" left right
+      else (case u32-wrapping-operation name of
+        Some operation -> if left < 0 || right < 0 || left >= 4294967296 || right >= 4294967296 then None else
+          (let result = if same operation "add" then int-add left right else int-sub left right in
+           Some (LawNumber (if result < 0 then int-add result 4294967296
+             else if result >= 4294967296 then int-sub result 4294967296 else result)))
+        None -> None)
+    other -> None
 
   sample-source-definition :: String -> List CoreDefinition -> Option CoreDefinition
   sample-source-definition name definitions = case definitions of
@@ -517,15 +578,21 @@ module Bootstrap.Instance where
       CUse sp ty name role actuals ->
         if same role "constructor" then
           (if scheme-runtime-arity (mono ty) == list-length arguments then Some (LawConstructor name (sample-field-spine arguments)) else None, remaining)
+        else if same role "intrinsic" then (sample-intrinsic name arguments, remaining)
         else sample-global env dictionary self term name role arguments remaining
       CLocal sp ty id name Nil -> (case sample-local id values of
         Some (LawFunction function) -> sample-call env dictionary self Nil function arguments remaining
         other -> (None, remaining))
       CMethod sp ty name owner slot actuals (Cons evidence Nil) -> case sample-evidence env dictionary self evidence of
         Some actual -> case target-owner (scheme-body (instance-scheme actual)) of
-          Some declaring -> if same owner declaring then sample-field env actual slot (instance-fields actual) arguments remaining else (None, remaining)
+          Some declaring -> if same owner declaring then
+            (case sample-field env actual slot (instance-fields actual) arguments remaining of
+              (None, after-method) -> if after-method == 0 then (None, 0)
+                else (sample-external-method env ty name owner slot actuals evidence arguments, after-method)
+              evaluated -> evaluated)
+            else (None, remaining)
           None -> (None, remaining)
-        None -> (None, remaining)
+        None -> (sample-external-method env ty name owner slot actuals evidence arguments, remaining)
       other -> (None, remaining)
 
   sample-field :: LawEnvironment -> CoreInstance -> Nat -> List CoreDictionaryField -> List LawValue -> Nat -> (Option LawValue, Nat)

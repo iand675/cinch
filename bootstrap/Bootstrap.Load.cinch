@@ -23,7 +23,8 @@ module Bootstrap.Load where
   export loaded-exports
   export load-interface, load-interface-set, validate-interface-set
   export loaded-entry, loaded-private-methods
-  export InterfaceSet, load-checked-interface-set, check-interface-set, interface-set-members, interface-set-body
+  export InterfaceSet, load-checked-interface-set, check-interface-set, interface-set-members
+  export interface-set-body, interface-set-has-body
 
   data ImportedValue where
     MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
@@ -50,13 +51,26 @@ module Bootstrap.Load where
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
   data InterfaceSet where
-    CheckedInterfaceSet :: List LoadedInterface -> List TotalGraph -> InterfaceSet
+    CheckedInterfaceSet :: List LoadedInterface -> List (String, TotalGraph) -> InterfaceSet
   interface-set-members :: InterfaceSet -> List LoadedInterface
   interface-set-members set = case set of CheckedInterfaceSet members bodies -> members
   interface-set-body :: String -> InterfaceSet -> Option TotalFunction
   interface-set-body native set = case set of CheckedInterfaceSet members bodies -> set-body native bodies
-  set-body :: String -> List TotalGraph -> Option TotalFunction
-  set-body native bodies = case bodies of Nil -> None; Cons first rest -> (case total-function-closure first native of Some actual -> Some actual; None -> set-body native rest)
+  interface-set-has-body :: String -> InterfaceSet -> Bool
+  interface-set-has-body native set = case set of CheckedInterfaceSet members bodies -> known-body native bodies
+  known-body :: String -> List (String, TotalGraph) -> Bool
+  known-body native bodies = case bodies of
+    Nil -> False
+    Cons (identity, graph) rest -> same native identity || known-body native rest
+  set-body :: String -> List (String, TotalGraph) -> Option TotalFunction
+  set-body native bodies = case bodies of
+    Nil -> None
+    Cons (identity, graph) rest -> if not (same native identity) then set-body native rest else
+      (case total-function-closure graph native of Some actual -> Some actual; None -> set-body native rest)
+  index-graph-bodies :: List TotalGraph -> List (String, TotalGraph)
+  index-graph-bodies graphs = case graphs of
+    Nil -> Nil
+    Cons graph rest -> map (\name -> (name, graph)) (total-graph-symbols graph) <> index-graph-bodies rest
   set-value-bodies :: Json -> List TotalGraph
   set-value-bodies rows = case rows of
     JArr row rest -> (case check-total-graph (field "total_body" row) of Some graph -> Cons graph (set-value-bodies rest); None -> set-value-bodies rest)
@@ -72,9 +86,9 @@ module Bootstrap.Load where
       let exports = field "exports" (loaded-contract first) in
       set-value-bodies (field "values" exports) <> set-method-bodies (field "instances" exports) <> set-bodies rest
   check-interface-set :: List LoadedInterface -> Result String InterfaceSet
-  check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (set-bodies members))
+  check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
   load-checked-interface-set :: List (String, String, Bytes) -> Result String InterfaceSet
-  load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (set-bodies members))
+  load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs -> name
@@ -121,7 +135,8 @@ module Bootstrap.Load where
   type-exports :: Json -> List (String, String, String)
   type-exports rows = case rows of
     JArr row rest -> Cons (text (field "name" row), "type", text (field "identity" row))
-      (ctor-exports (field "ctors" row) <> type-exports rest)
+      (if same (text (field "kind" row)) "codata" then type-exports rest
+       else ctor-exports (field "ctors" row) <> type-exports rest)
     other -> Nil
 
   method-exports :: String -> Json -> List (String, String, String)
@@ -156,9 +171,10 @@ module Bootstrap.Load where
 
   ctor-entry :: String -> Json -> Option Json
   ctor-entry identity rows = case rows of
-    JArr row rest -> case entry-by "symbol" identity (field "ctors" row) of
-      Some entry -> Some entry
-      None -> ctor-entry identity rest
+    JArr row rest -> if same (text (field "kind" row)) "codata" then ctor-entry identity rest else
+      (case entry-by "symbol" identity (field "ctors" row) of
+        Some entry -> Some entry
+        None -> ctor-entry identity rest)
     other -> None
 
   method-in :: String -> String -> Json -> Option Json
@@ -291,10 +307,12 @@ module Bootstrap.Load where
       let kind = text (field "kind" row) in
       string-length name > 0 && not (member name seen)
       && string-length (text (field "identity" row)) > 0
-      && member kind ["data", "record", "opaque", "refinement", "signature"]
+      && member kind ["data", "record", "codata", "opaque", "refinement", "signature"]
       && parameters-valid (field "parameters" row) (field "params" row) Nil
       && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
-      && (not (same kind "record") || record-contract-valid row)
+      && (if same kind "codata" then
+        (case field "ctors" row of JArr observation JArrEnd -> record-contract-valid row && (case field "resolved" observation of JNull -> False; other -> True); other -> False)
+        else not (same kind "record") || record-contract-valid row)
       && (if same kind "refinement" then
         let definition = field "refinement" row in
         string-length (text (field "binder" definition)) > 0

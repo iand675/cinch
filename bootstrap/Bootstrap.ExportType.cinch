@@ -3,6 +3,7 @@
 module Bootstrap.ExportType where
   import Algebra.Semigroup
   import Bootstrap.Type
+  import Bootstrap.Ast
   import Bootstrap.Index
   import Bootstrap.Total (total-identity, total-source-projection)
   import Data.Char (char-from-code)
@@ -12,7 +13,7 @@ module Bootstrap.ExportType where
   export export-global, export-type, export-scheme, export-value-scheme, export-display-scheme, export-kind
   export export-parameters, export-constructor-fields, export-constructor-display, export-instance-scheme
   export constructor-field-erasure
-  export export-resolved-value-scheme
+  export export-resolved-value-scheme, export-equation-display
   export diagnostic-member-name
 
   join :: List (Result String String) -> Result String String
@@ -444,6 +445,69 @@ module Bootstrap.ExportType where
         Ok (head, context, if string-length prefix == 0 then constrained else string-concat-all ["forall ", prefix, ". ", constrained])
       (Err error, other) -> Err error
       (other, Err error) -> Err error
+  -- This is the display scheme of an equality method. Its checked
+  -- telescope comes from the same declaration as its equation. Consumers
+  -- must use a resolved contract before trusting an imported proposition.
+  export-equation-display :: Scheme -> LawSyntax -> Result String String
+  export-equation-display scheme equation = case value-quantifiers Nil (scheme-params scheme) of
+    Err error -> Err error
+    Ok (prefix, scope) -> case (value-requirements scope scope 0 (scheme-requirements scheme),
+      equation-display-in scope Nil (scheme-body scheme) equation) of
+      (Ok dictionaries, Ok body) ->
+        let context = if string-length dictionaries == 0 then body else string-concat-all ["using (", dictionaries, ") => ", body] in
+        Ok (if string-length prefix == 0 then context else string-concat-all ["forall ", prefix, ". ", context])
+      (Err error, other) -> Err error
+      (other, Err error) -> Err error
+
+  equation-display-in :: List (Nat, String) -> List (String, String) -> UType -> LawSyntax -> Result String String
+  equation-display-in scope names ty syntax = case syntax of
+    LawForall parameters body -> equation-display-in scope names ty body
+    LawArrow argument body -> (case ty of
+      UPi id name domain row result ->
+        let binder = argument-name name scope in let bound = Cons (id, binder) scope in
+        join [Ok "((", Ok binder, Ok " :: ", type-in-style True scope domain, Ok ") ->", row-in bound row, Ok " ",
+          equation-display-in bound (Cons (name, binder) names) result body, Ok ")"]
+      UFun domain result -> join [Ok "(", type-in-style True scope domain, Ok " -> ", equation-display-in scope names result body, Ok ")"]
+      UProofFun predicate row result ->
+        join [Ok "(", type-in-style True scope predicate, Ok " ->", row-in scope row, Ok " ",
+          equation-display-in scope names result body, Ok ")"]
+      other -> Err "checked equality method has a different argument telescope")
+    LawEquation left right -> join [Ok "(Eq ", equation-operand scope names left, Ok " ", equation-operand scope names right, Ok ")"]
+    LawProposition body -> Err "equality method display needs a checked equation"
+
+  equation-name :: List (String, String) -> String -> Result String String
+  equation-name names name = case names of
+    Nil -> export-global name
+    Cons (source, actual) rest -> if same source name then Ok actual else equation-name rest name
+
+  equation-operand :: List (Nat, String) -> List (String, String) -> Expr -> Result String String
+  equation-operand scope names expression = case expression of
+    EVar sp name -> equation-name names name
+    EUnit sp -> Ok "()"
+    ELitInt sp digits -> Ok digits
+    ENeg sp body -> join [Ok "(-", equation-operand scope names body, Ok ")"]
+    EBin sp op left right -> join [Ok "(", equation-operand scope names left, Ok " ", Ok op, Ok " ", equation-operand scope names right, Ok ")"]
+    EApp sp head argument -> join [Ok "(", equation-operand scope names head, Ok " ", equation-operand scope names argument, Ok ")"]
+    ELam sp (Cons (PVar at name) Nil) body ->
+      let binder = fresh-scoped-name name scope in
+      join [Ok "(\\", Ok binder, Ok " -> ", equation-operand (Cons (0, binder) scope) (Cons (name, binder) names) body, Ok ")"]
+    EAnn sp body annotation -> join [Ok "(", equation-operand scope names body, Ok " :: ", equation-annotation annotation, Ok ")"]
+    other -> Err "checked equality operand has no display syntax"
+
+  equation-annotation :: TypeExpr -> Result String String
+  equation-annotation annotation = case annotation of
+    TName sp name -> export-global name
+    TIndex sp digits -> Ok digits
+    TApp sp head args -> join [Ok "(", equation-annotation head, equation-annotation-arguments args, Ok ")"]
+    TFun sp domain result -> join [Ok "(", equation-annotation domain, Ok " -> ", equation-annotation result, Ok ")"]
+    other -> Err "equality operand annotation has no display syntax"
+
+  equation-annotation-arguments :: TypeExpr -> Result String String
+  equation-annotation-arguments args = case args of
+    TArgsEnd sp -> Ok ""
+    TArg sp first rest -> join [Ok " ", equation-annotation first, equation-annotation-arguments rest]
+    other -> Err "malformed equality annotation application"
+
   export-value-scheme :: Scheme -> Result String String
   export-value-scheme scheme = value-scheme-in False scheme
   -- Keep checked source binder names in a resolved value contract, while

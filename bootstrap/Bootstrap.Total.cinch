@@ -9,7 +9,7 @@ module Bootstrap.Total where
   import Text.Json (canonical-bytes)
 
   export TotalGraph, TotalFunction, check-total-graph, total-function, total-graph-for-roots
-  export total-decimal-value, total-function-closure
+  export total-decimal-value, total-function-closure, total-graph-symbols
   export total-identity, total-parameters, total-result, total-body, total-document, total-bounds, total-function-document, total-function-equal, total-functions-compatible
   export source-total-projection, total-source-projection, read-total-function
   export read-keyed-ordering, keyed-ordering-slots
@@ -205,6 +205,12 @@ module Bootstrap.Total where
   closure-rows names rows = case rows of
     JArr row rest -> if has (text (field "identity" row)) names then JArr row (closure-rows names rest) else closure-rows names rest
     other -> JArrEnd
+  total-graph-symbols :: TotalGraph -> List String
+  total-graph-symbols graph = case graph of MkTotalGraph doc -> total-row-symbols (field "definitions" doc)
+  total-row-symbols :: Json -> List String
+  total-row-symbols rows = case rows of
+    JArr row rest -> Cons (text (field "identity" row)) (total-row-symbols rest)
+    other -> Nil
   total-function-closure :: TotalGraph -> String -> Option TotalFunction
   total-function-closure graph name = case graph of MkTotalGraph doc -> (case acyclic-calls (field "definitions" doc) Nil Nil [name] of
     Some reachable -> (case check-total-graph (JObj "version" (JNum 1) (JObj "definitions" (closure-rows reachable (field "definitions" doc)) JObjEnd)) of

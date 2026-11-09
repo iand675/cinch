@@ -189,12 +189,15 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
             raise ValueError("unowned exported type")
         _parameters(declaration)
         labels = _list(declaration["fields"])
-        if declaration["kind"] not in ("data", "opaque", "signature", "record", "refinement"):
+        if declaration["kind"] not in ("data", "opaque", "signature", "record", "codata", "refinement"):
             raise ValueError("unknown exported type category")
         if "refinement" not in declaration:
             raise ValueError("missing refinement boundary")
         constructors = _list(declaration["ctors"])
-        if declaration["kind"] == "record":
+        codata = declaration["kind"] == "codata"
+        if codata and (len(constructors) != 1 or constructors[0]["resolved"] is None):
+            raise ValueError("codata must publish its checked observation contract")
+        if declaration["kind"] in ("record", "codata"):
             for label in labels:
                 _text(label)
             if len(set(labels)) != len(labels):
@@ -203,11 +206,12 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
             for key in ("name", "symbol", "scheme"):
                 _text(ctor[key])
             _integer(ctor["tag"])
-            public.add(ctor["name"])
+            if not codata:
+                public.add(ctor["name"])
             fields, erased = _list(ctor["fields"]), _list(ctor["erased"])
             if len(fields) != len(erased) or any(type(flag) is not bool for flag in erased):
                 raise ValueError("constructor field/erasure contract disagrees")
-            if declaration["kind"] == "record" and (
+            if declaration["kind"] in ("record", "codata") and (
                     ctor["symbol"] != declaration["identity"] or ctor["tag"] != 0 or len(fields) != len(labels)):
                 raise ValueError("record labels disagree with its constructor contract")
             _resolved(ctor)

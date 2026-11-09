@@ -4,6 +4,53 @@ mod common;
 use cinch::interface::{Iface, ResolvedScheme};
 
 #[test]
+fn resolved_record_contracts_keep_defining_fields_and_erasure() {
+    let dir = common::project("record_nominals", &[("Records.cinch", r#"
+module Records where
+  export Packet, keep, secret-api
+
+  record Packet where
+    count :: Nat
+    erased witness :: count == count
+    marker :: Int
+
+  record Secret where
+    payload :: Int
+
+  keep :: Packet -> Packet
+  keep x = x
+
+  secret-api :: Secret -> Secret
+  secret-api x = x
+"#)]);
+    common::check(&dir, "Records.cinch").expect("check record fixture");
+    let interface = Iface::from_json(
+        &std::fs::read_to_string(dir.join("build/Records.cinchif")).unwrap(),
+    ).unwrap();
+    let packet = interface.exports.types.iter().find(|row| row.name == "Packet").unwrap();
+    assert_eq!(packet.kind, "record");
+    assert_eq!(packet.fields, ["count", "witness", "marker"]);
+    assert_eq!(packet.ctors.len(), 1);
+    let ctor = &packet.ctors[0];
+    assert_eq!(ctor.symbol, "Records.Packet");
+    assert_eq!(ctor.erased, [false, true, false]);
+    let resolved_ctor = ctor.resolved.as_ref().expect("checked record constructor");
+    assert!(resolved_ctor.scheme.contains("count :: Nat"), "{}", resolved_ctor.scheme);
+    assert!(resolved_ctor.scheme.contains("count == count"), "{}", resolved_ctor.scheme);
+    assert_eq!(resolved_ctor.nominals[0].identity, "Records.Packet");
+    for (name, owner) in [("keep", "Records.Packet"), ("secret-api", "Records.Secret")] {
+        let value = interface.exports.values.iter().find(|row| row.name == name).unwrap();
+        let resolved = value.resolved.as_ref().expect("checked record value scheme");
+        assert_eq!(resolved.nominals.len(), 1);
+        let nominal = &resolved.nominals[0];
+        assert_eq!(nominal.identity, owner);
+        assert_eq!(nominal.constructors.as_deref(), Some([owner.to_owned()].as_slice()));
+    }
+    assert!(interface.exports.types.iter().all(|row| row.identity != "Records.Secret"));
+    common::cleanup(&dir);
+}
+
+#[test]
 fn resolved_schemes_preserve_definition_sites_and_private_contracts() {
     let dir = common::project("interface_nominals", &[
         ("A.cinch", "module A where\n  export Token, Mk, keep, secret-api, Box, Boxed\n  data Token where\n    Mk :: Token\n  data HiddenToken where\n    Hide :: Int -> HiddenToken\n  data Box a where\n    Boxed :: a -> Box a\n  keep :: Token -> Token\n  keep x = x\n  secret-api :: HiddenToken -> HiddenToken\n  secret-api x = x\n"),

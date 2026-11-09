@@ -2,6 +2,12 @@
 
 ## Integrated ABI 7 acceptance
 
+The published compiler now includes checked codata contracts and the
+imported-body index. The complete bootstrap rebuild and the original
+Stage 3 codata and argument-scope checks passed. The full Rust and
+self-built test suites remain open.
+See [the published compiler receipt](../bootstrap/current-abi7-published-codata-index-compiler.json).
+
 The published Cinch compiler now includes the checked task-capture
 repair and the pinned tagged `Data.List.drop` variant. Its exact
 Stage 2 and Stage 3 artifacts agree, the changed-source and separate

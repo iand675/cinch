@@ -8,7 +8,7 @@ module Bootstrap.TotalSemantics where
   import Algebra.Semigroup
 
   export total-numeric-operation, total-numeric-comparison, total-boolean-negation
-  export total-numeric-reading, total-bytes-reading, total-boolean-reading
+  export total-numeric-reading, total-bytes-reading, total-boolean-reading, arithmetic-constant
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0

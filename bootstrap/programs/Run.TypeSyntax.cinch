@@ -247,15 +247,15 @@ module Main where
     Some t -> predicate t
     None -> False
 
-  has-message :: String -> List Diagnostic -> Bool
-  has-message text ds = case ds of
+  has-message-prefix :: String -> List Diagnostic -> Bool
+  has-message-prefix text ds = case ds of
     Nil -> False
-    Cons d rest -> same text (diagnostic-message d) || has-message text rest
+    Cons d rest -> same text (string-slice (diagnostic-message d) 0 (string-length text)) || has-message-prefix text rest
 
   refusal-ok :: Bool
   refusal-ok = case parse-program "refined" (string-to-bytes "module Example where\n  f :: Int -> refined (r > 0) Int\n  f x = x\n") of
     Failed bundle -> False
-    Parsed program errors -> has-message "refinement predicate is not established for this value (undischarged refinement obligation)" (check-program program)
+    Parsed program errors -> has-message-prefix "refinement predicate is not established for this value (undischarged refinement obligation)" (check-program program)
 
   malformed-refused :: String -> Bool
   malformed-refused text = case parse-program "malformed" (string-to-bytes text) of
@@ -486,12 +486,35 @@ module Main where
       other -> False
     other -> False
 
+  method-index-lambda-ok :: Bool
+  method-index-lambda-ok = case parse-program "method equation" (string-to-bytes
+    "module Example where\n  signature Proof where\n    same :: (x :: Int) -> Eq (through (\\y z -> echo y) x) (through (\\a b -> echo a) x)\n") of
+    Parsed program Nil -> case program-modules program of
+      Cons m Nil -> case module-decls m of
+        Cons (DClass at owner Nil methods) Nil -> case decls-of methods of
+          Cons (DSig sp label ty) Nil -> same owner "Proof" && same label "same" &&
+            (case method-equation-syntax ty of
+              Some (LawArrow (TBound binder formal (TName carrier type-name) (TBoundsEnd end)) (LawEquation left right)) ->
+                same formal "x" && same type-name "Int" && method-index-operand-ok "y" "z" left && method-index-operand-ok "a" "b" right
+              other -> False)
+          other -> False
+        other -> False
+      other -> False
+    other -> False
+
+  method-index-operand-ok :: String -> String -> Expr -> Bool
+  method-index-operand-ok first second operand = case operand of
+    EApp outer (EApp inner (EVar head through) (ELam a (Cons (PVar bind name) Nil) (ELam b (Cons (PVar other next) Nil)
+      (EApp call (EVar fn echo) (EVar value used))))) (EVar param x) ->
+        same through "through" && same echo "echo" && same x "x" && same first name && same second next && same first used
+    other -> False
+
   main :: Int
   main = case parse-program "types" (string-to-bytes source) of
     Failed errors -> 1
     Parsed program errors ->
       if program-unmodeled-count program == 0 && list-length errors == 0 then
         case program-modules program of
-          Cons m Nil -> if not stage-syntax-ok then 22 else if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
+          Cons m Nil -> if not stage-syntax-ok then 22 else if not method-index-lambda-ok then 23 else if class-laws-ok && malformed-refused "module X where\n  signature Bad a where\n    law broken :: (x :: a) -> Eq x\n" then check-decls (module-decls m) else 21
           other -> 2
       else 8

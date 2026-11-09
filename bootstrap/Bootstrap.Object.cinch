@@ -15,6 +15,7 @@ module Bootstrap.Object where
 
   export RuntimeObject, RuntimeUnit, parse-runtime-object, read-runtime-object
   export read-runtime-object-document
+  export RuntimeObjectConfig, read-runtime-object-config, runtime-object-input-files, admit-runtime-object
   export object-words, object-unit, unit-symbol, unit-closure, unit-params, unit-result
   export llvm-object-symbol
   export object-variant, object-dictionary, object-family, object-conditional-unit, object-closed-method-unit
@@ -296,22 +297,37 @@ module Bootstrap.Object where
   -- Keep the manifest and object bytes from the same authenticated read.
   -- Object production must not reopen unchecked metadata after admission.
   read-runtime-object-document :: forall r. using (io :: Io r) => List LoadedInterface -> String ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
-  read-runtime-object-document interfaces path = case fs-read (path-from-string path) of
+  read-runtime-object-document interfaces path = case read-runtime-object-config path of
+    Err message -> Err message
+    Ok configuration -> admit-runtime-object interfaces configuration
+
+  data RuntimeObjectConfig where
+    MkRuntimeObjectConfig :: String -> String -> String -> String -> String -> RuntimeObjectConfig
+  runtime-object-input-files :: RuntimeObjectConfig -> List String
+  runtime-object-input-files configuration = case configuration of
+    MkRuntimeObjectConfig triple object-file metadata-file object-hash metadata-hash -> [object-file, metadata-file]
+  read-runtime-object-config :: forall r. using (io :: Io r) => String ->{IO r} Result String RuntimeObjectConfig
+  read-runtime-object-config path = case fs-read (path-from-string path) of
     Err error -> Err "cannot read runtime object configuration"
     Ok bytes -> case parse-json path bytes of
       Parsed doc Nil -> (case (field "schema" doc, field "target" doc, field "object" doc, field "metadata" doc, field "object_sha256" doc, field "metadata_sha256" doc) of
         (JNum 1, JStr expected-triple, JStr object-file, JStr metadata-file, JStr object-hash, JStr metadata-hash) ->
-          (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
-            (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
-              (case parse-runtime-object expected-triple interfaces code metadata of
-                Err message -> Err message
-                Ok provider -> case parse-json metadata-file metadata of
-                  Parsed artifact Nil -> Ok (provider, artifact, object-file, code)
-                  other -> Err "runtime object manifest is not valid JSON")
-              else Err "runtime object artifact digest mismatch"
-            other -> Err "cannot read runtime object artifacts")
+          Ok (MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash)
         other -> Err "malformed runtime object configuration")
       other -> Err "runtime object configuration is not valid JSON"
+
+  admit-runtime-object :: forall r. using (io :: Io r) => List LoadedInterface -> RuntimeObjectConfig ->{IO r} Result String (RuntimeObject, Json, String, Bytes)
+  admit-runtime-object interfaces configuration = case configuration of
+    MkRuntimeObjectConfig expected-triple object-file metadata-file object-hash metadata-hash ->
+      (case (fs-read (path-from-string object-file), fs-read (path-from-string metadata-file)) of
+        (Ok code, Ok metadata) -> if same (sha256-hex code) object-hash && same (sha256-hex metadata) metadata-hash then
+          (case parse-runtime-object expected-triple interfaces code metadata of
+            Err message -> Err message
+            Ok provider -> case parse-json metadata-file metadata of
+              Parsed artifact Nil -> Ok (provider, artifact, object-file, code)
+              other -> Err "runtime object manifest is not valid JSON")
+          else Err "runtime object artifact digest mismatch"
+        other -> Err "cannot read runtime object artifacts")
 
   -- Encode every UTF-8 byte, so source operators and non-ASCII names cannot
   -- become LLVM syntax. No platform-specific alias spellings are assumed.

@@ -19,11 +19,11 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
-  import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body)
+  import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body, interface-set-has-body)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, u32-wrapping-operation)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -36,7 +36,7 @@ module Bootstrap.Infer where
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
-  export elaboration-core-contracts-closed
+  export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export CheckedBinding, checked-name, checked-scheme, checked-role, checked-body-binding, checked-guarded-binding, checked-method-matches, checked-conditional-target
   export checked-foreign-plan
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
@@ -108,26 +108,40 @@ module Bootstrap.Infer where
   checked-foreign-plan binding = case binding of MkForeignBinding name scheme plan -> Some plan; other -> None
   checked-body-binding :: CheckedBinding -> Option BodyBinding
   checked-body-binding binding = case binding of MkBodyBinding body -> Some body; other -> None
+  -- Checked equations remain separate from definitional conversion and
+  -- from the sample observations reported by an instance.
+  data CheckedRewrite where
+    MkCheckedRewrite :: String -> CoreTerm -> CoreTerm -> Option CoreTerm -> Option String -> CheckedRewrite
+  rewrite-assumptions :: List CheckedRewrite -> List (String, String)
+  rewrite-assumptions rules = case rules of
+    Nil -> Nil
+    Cons (MkCheckedRewrite name lhs rhs guard (Some identity)) rest -> Cons (name, identity) (rewrite-assumptions rest)
+    Cons other rest -> rewrite-assumptions rest
+
   -- Instance law samples are observations and never proof evidence.
   data Elaboration where
-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> Elaboration
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> List Decl -> List (String, String, String, String) -> List CheckedRewrite -> Elaboration
+  elaboration-rewrite-assumptions :: Elaboration -> List (String, String)
+  elaboration-rewrite-assumptions e = case e of
+    MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> rewrite-assumptions rewrites
+    other -> Nil
   elaboration-law-observations :: Elaboration -> List (String, String, String, String)
-  elaboration-law-observations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> observations; other -> Nil
+  elaboration-law-observations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> observations; other -> Nil
   elaboration-errors :: Elaboration -> List Diagnostic
-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations -> errors
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> bindings; other -> Nil
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> bindings; other -> Nil
   elaboration-contexts :: Elaboration -> List Json
-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations -> contexts
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances declarations observations rewrites -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> core; other -> Nil
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> core; other -> Nil
 
   -- A retained proof may cite actual helper or instance bodies. Recheck
   -- it against the same checked declaration context, not an empty world.
   -- The standalone Core API deliberately keeps its stricter empty context.
   elaboration-core-contracts-closed :: Elaboration -> Bool
   elaboration-core-contracts-closed result = case result of
-    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations observations ->
+    MkElaboration Nil bindings contexts definitions datas effects descriptions instances declarations observations rewrites ->
       closed-elaboration-definitions (env-body-context bindings) (env-guarded-bindings bindings) definitions
     other -> False
   closed-elaboration-definitions :: BodyBindings -> List GuardedBinding -> List CoreDefinition -> Bool
@@ -138,20 +152,20 @@ module Bootstrap.Infer where
   -- Only a successful elaboration exposes its defining declarations.
   -- Interface provenance comes from these resolved, checked definitions.
   elaboration-declarations :: Elaboration -> List Decl
-  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> declarations; other -> Nil
+  elaboration-declarations e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> declarations; other -> Nil
 
   elaboration-data :: Elaboration -> List CoreData
-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> datas; other -> Nil
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> datas; other -> Nil
 
   elaboration-effects :: Elaboration -> List CoreEffect
-  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> effects; other -> Nil
+  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> effects; other -> Nil
 
   elaboration-classes :: Elaboration -> List CoreClass
-  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> context-classes descriptions; other -> Nil
+  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> context-classes descriptions; other -> Nil
   elaboration-class-context :: Elaboration -> CoreClassContext
-  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> descriptions; other -> MkCoreClassContext Nil Nil
+  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> descriptions; other -> MkCoreClassContext Nil Nil
   elaboration-instances :: Elaboration -> List CoreInstance
-  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations -> instances; other -> Nil
+  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites -> instances; other -> Nil
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -212,6 +226,7 @@ module Bootstrap.Infer where
       DForeign s direction abi symbol name ty -> True
       DPrim s name ty bodies -> True
       DProof s body -> True
+      DRewrite s name syntax -> True
       DExternal s name kind (Some ty) metadata -> needs-type ty || (case resolved-text metadata of Some text -> True; other -> False)
       DFun s name clauses -> clauses-need clauses
       other -> False) || needs-decls rest
@@ -223,7 +238,9 @@ module Bootstrap.Infer where
     EApp s f x -> expression-needs f || expression-needs x
     ECon s name args -> expression-needs args
     ELet s bs body -> expression-needs bs || expression-needs body
+    ELetScope sp body -> expression-needs body
     ELocalGroup sp bindings body -> True
+    ELetRec sp bindings body -> True
     EWith s bs body -> True
     EDo sp statements -> True
     EHandle s body handled-by -> True
@@ -1360,7 +1377,7 @@ module Bootstrap.Infer where
                         (more, final) -> collect-kinds rest (context-add-alias declaration more) final
                     other -> collect-kinds rest kinds (add-error s "invalid imported refinement declaration" checked)
                   (None, checked) -> collect-kinds rest kinds checked)
-              else if same variety "data" || same variety "record" || same variety "opaque" || same variety "signature" then
+              else if same variety "data" || same variety "record" || same variety "codata" || same variety "opaque" || same variety "signature" then
                 case imported-kinds kinds (field "parameters" metadata) st of
                   (qs, sq) -> case context-kind name kinds of
                     Some old -> collect-kinds rest (context-add-alias d kinds) sq
@@ -1884,12 +1901,18 @@ module Bootstrap.Infer where
   source-class-methods :: String -> List TypeParam -> List (String, Kind) -> TypeContext -> Nat -> List Decl -> Store -> (List CoreClassMethod, Store)
   source-class-methods owner ps classes kinds slot ds st = case ds of
     Nil -> (Nil, st)
-    Cons (DMethod sp label symbol syntax) rest -> case make-scheme False classes kinds Nil (operation-syntax sp ps syntax) st of
-      (sc, checked) -> let parameters = class-parameter-prefix (list-length ps) (scheme-params sc) in
-        let self = applied-family owner (kind-arrow parameters) parameters in
-        let actual = qualified (scheme-params sc) (Cons (MkRequirement "#self" self) (scheme-requirements sc)) (scheme-body sc) in
-        case source-class-methods owner ps classes kinds (slot + 1) rest checked of
-          (more, done) -> (Cons (MkCoreClassMethod sp label slot actual) more, done)
+    Cons (DMethod sp label symbol syntax) rest ->
+      let equation = method-equation-syntax syntax in
+      let inputs = (case equation of Some declared -> law-input-type sp declared; None -> syntax) in
+      (case make-scheme False classes kinds Nil (operation-syntax sp ps inputs) st of
+        (sc, checked) -> let parameters = class-parameter-prefix (list-length ps) (scheme-params sc) in
+          let self = applied-family owner (kind-arrow parameters) parameters in
+          let actual = qualified (scheme-params sc) (Cons (MkRequirement "#self" self) (scheme-requirements sc)) (scheme-body sc) in
+          let method = (case equation of
+            Some declared -> MkCoreEquationMethod sp label slot actual symbol declared
+            None -> MkCoreClassMethod sp label slot actual) in
+          (case source-class-methods owner ps classes kinds (slot + 1) rest checked of
+            (more, done) -> (Cons method more, done)))
     Cons (DFun sp name clauses) rest -> source-class-methods owner ps classes kinds slot rest st
     Cons (DLaw sp name syntax) rest -> source-class-methods owner ps classes kinds slot rest st
     Cons other rest -> source-class-methods owner ps classes kinds slot rest (add-error (decl-span other) "source signature member needs checked method elaboration" st)
@@ -1910,9 +1933,13 @@ module Bootstrap.Infer where
   register-source-methods description ds env st = case ds of
     Nil -> (env, st)
     Cons (DMethod sp label symbol syntax) rest -> case (source-method label (class-methods description), lookup-binding symbol env) of
-      (Some method, None) -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
+      (Some method, None) -> case class-method-equation method of
+        Some equation -> register-source-methods description rest env st
+        None -> register-source-methods description rest (Cons (MkMethodBinding symbol (class-method-scheme method) (class-name description) (class-method-slot method)) env) st
       other -> register-source-methods description rest env (add-error sp "source method has a duplicate binding or no declaring slot" st)
     Cons (DFun sp label clauses) rest -> case source-method label (class-methods description) of
+      Some (MkCoreEquationMethod at name slot telescope symbol equation) ->
+        register-source-methods description rest env (add-error sp "an equality method default needs erased proof elaboration" st)
       Some member -> let name = source-class-default-symbol description member in
         (case lookup-binding name env of
           None -> register-source-methods description rest (Cons (MkCheckedBinding name (class-method-scheme member) "value") env) st
@@ -2083,18 +2110,40 @@ module Bootstrap.Infer where
         (case register-kernel s name metadata classes kinds env st of (e, se) -> register rows classes kinds rest e se)
         else if same category "builtin-constructor" then (case register-decision-constructor s name metadata env st of (e, se) -> register rows classes kinds rest e se)
         else if same category "builtin-syntax" then (case register-decision-syntax s name metadata env st of (e, se) -> register rows classes kinds rest e se)
+        else if same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
+          (case register-imported-codata s name classes kinds metadata env st of
+            (more, checked) -> register rows classes kinds rest more checked)
         else if same category "type" || same category "signature" || same category "instance" then register rows classes kinds rest env st
         else register rows classes kinds rest env (add-error s (unsupported-import category name) st)
       DSource s name metadata -> register rows classes kinds rest env st
       DInterface s name hash metadata -> register rows classes kinds rest env st
       DFun s name clauses -> register rows classes kinds rest env st
       DProof s body -> register rows classes kinds rest env st
+      DRewrite s name syntax -> register rows classes kinds rest env st
       -- Its kind was checked above. An opaque type introduces no value
       -- binding, constructor, field or closed data family.
       DOpaque s name params kind -> register rows classes kinds rest env st
       DRefine s name params binder predicate -> register rows classes kinds rest env st
       DExport s text items -> register rows classes kinds rest env st
       other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
+  storage-observation-body :: Nat -> UType -> Option UType
+  storage-observation-body remaining ty = if remaining == 0 then Some ty else
+    (case ty of
+      UFun observation result -> case storage-observation-body (remaining - 1) result of
+        Some body -> Some (UFun (UFun (primitive-type "Unit") observation) body)
+        None -> None
+      other -> None)
+  register-imported-codata :: Span -> String -> List (String, Kind) -> TypeContext -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-codata sp owner classes kinds metadata env st =
+    case field "ctors" metadata of
+      JArr row JArrEnd -> case imported-scheme sp classes kinds (TUnmodeled sp "missing codata observation scheme") row st of
+        (sc, checked) -> let valid = check-imported-constructor sp owner sc row checked in
+          case (scheme-requirements sc, storage-observation-body (json-length (field "fields" metadata)) (scheme-body sc)) of
+            (Nil, Some body) -> add-binding sp (record-storage-name True owner)
+              (MkScheme (scheme-params sc) body) "constructor" env
+              (check-positive sp owner (domains body) valid)
+            other -> (env, add-error sp "imported codata observations need a checked observation scheme" valid)
+      other -> (env, add-error sp "imported codata has no checked observation contract" st)
   register-source-value :: Span -> String -> Scheme -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-source-value sp name sc kinds env st = case context-total-observation name kinds of
     Some binding -> if not (binding-matches name "value" sc binding) then (env, add-error sp "source total body disagrees with its checked defining signature" st) else
@@ -2158,7 +2207,10 @@ module Bootstrap.Infer where
   imported-foreign-entry :: String -> String -> Json -> Option Json
   imported-foreign-entry identity owner rows = case rows of
     JArr row rest -> if (case (field "symbol" row, field "kind" row) of
-      (JStr local, JStr direction) -> same direction "import" && same identity (string-concat-all [owner, ".", local])
+      (JStr local, JStr direction) -> same identity (string-concat-all [owner, ".", local])
+        && (same direction "import" || (same direction "intrinsic" && (case field "external" row of
+          JStr symbol -> (case u32-wrapping-operation symbol of Some operation -> True; None -> False)
+          other -> False)))
       other -> False) then Some row else imported-foreign-entry identity owner rest
     other -> None
   imported-foreign-row :: String -> List Decl -> Option Json
@@ -2186,6 +2238,8 @@ module Bootstrap.Infer where
   register-imported-foreign sp name syntax metadata classes kinds env st = case field "symbol" metadata of
     JStr identity -> case imported-foreign-row identity (context-aliases kinds) of
       None -> (env, add-error sp "imported foreign value has no defining ABI contract" st)
+      Some row | (case field "kind" row of JStr category -> same category "intrinsic"; other -> False) ->
+        register-imported-wrapping sp name syntax metadata row classes kinds env st
       Some row -> case (field "external" row, field "abi" row, field "resolved" metadata, field "total_body" metadata) of
         (JStr symbol, JStr abi, JNull, JNull) -> if not (same abi "ccall") then (env, add-error sp "imported foreign ABI is unsupported" st) else
           (case make-scheme False classes kinds Nil (qualify-foreign-type (context-aliases kinds) syntax) st of
@@ -2200,6 +2254,22 @@ module Bootstrap.Infer where
                   other -> (env, add-error sp "imported foreign contract is not representable" checked))
         other -> (env, add-error sp "foreign value cannot grant resolved total-body authority or an unchecked ABI" st)
     other -> (env, add-error sp "foreign value is missing its defining identity" st)
+  register-imported-wrapping :: Span -> String -> TypeExpr -> Json -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-imported-wrapping sp name syntax metadata row classes kinds env st =
+    case (field "external" row, field "abi" row, field "effects" row, field "type" row, resolved-text metadata, field "total_body" metadata) of
+      (JStr symbol, JStr abi, JStr effects, JStr foreign-type, Some checked-type, JNull) ->
+        if not (same abi "ccall" && same effects "" && same foreign-type checked-type) then
+          (env, add-error sp "imported wrapping intrinsic disagrees with its defining ABI" st)
+        else (case imported-scheme sp classes kinds syntax metadata st of
+          (actual, prepared) ->
+            let word = primitive-type "U32" in
+            let expected = mono (UFun word (UFun word word)) in
+            if not (scheme-equivalent actual expected) then
+              (env, add-error sp "imported wrapping intrinsic requires its exact U32 scheme" prepared)
+            else (case lookup-binding name env of
+              Some prior -> (env, add-error sp "duplicate imported wrapping intrinsic" prepared)
+              None -> (Cons (MkIntrinsicBinding name actual symbol) env, check-imported-value sp actual metadata prepared)))
+      other -> (env, add-error sp "incomplete imported wrapping intrinsic contract" st)
   register-foreign :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-foreign sp symbol name syntax classes kinds env st = case make-scheme False classes kinds Nil syntax st of
     (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
@@ -2798,7 +2868,9 @@ module Bootstrap.Infer where
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
     ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
+    ELetScope sp body -> scoped-let sp (infer classes kinds families env locals body) st
     ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body None st
+    ELetRec sp bindings body -> scoped-let sp (infer-recursive-group classes kinds families env locals sp bindings body None) st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
     EHandle sp body handled-by -> infer-handle classes kinds families env locals sp body handled-by st
     EHandler sp label clauses -> case fresh-meta KType st of
@@ -2823,9 +2895,18 @@ module Bootstrap.Infer where
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
   check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check classes kinds families env locals expr expected st = case refinement-view (normalize st expected) of
-    URefine id name carrier predicate -> check-refined classes kinds families env locals expr expected carrier st
-    other -> check-unrefined classes kinds families env locals expr expected st
+  check classes kinds families env locals expr expected st = case expr of
+    ELetScope sp body -> scoped-let sp (check classes kinds families env locals body expected) st
+    ELetRec sp bindings body -> scoped-let sp (infer-recursive-group classes kinds families env locals sp bindings body (Some expected)) st
+    other -> (case refinement-view (normalize st expected) of
+      URefine id name carrier predicate -> check-refined classes kinds families env locals expr expected carrier st
+      other -> check-unrefined classes kinds families env locals expr expected st)
+  scoped-let :: Span -> (Store -> (CoreTerm, Store)) -> Store -> (CoreTerm, Store)
+  scoped-let sp elaborate st =
+    let depth = store-let-depth st in
+    if depth >= 128 then term-error sp "let nesting depth limit (128) exceeded" st
+    else case elaborate (with-let-depth (depth + 1) st) of
+      (term, checked) -> (term, with-let-depth depth checked)
   check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-unrefined classes kinds families env locals expr expected st = case expr of
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
@@ -2920,6 +3001,7 @@ module Bootstrap.Infer where
   expression-spine-valid fields = case fields of EArgsEnd sp -> True; EArg sp first rest -> expression-spine-valid rest; other -> False
   infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-expected classes kinds families env locals expr expected st = case expr of
+    ELetScope sp body -> scoped-let sp (infer-expected classes kinds families env locals body expected) st
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields (Some expected) st
     ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
     ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
@@ -3638,6 +3720,250 @@ module Bootstrap.Infer where
                           (CMemoScope sp result region (map-term-types (normalize scheduled) term), closed)
                         else term-error sp "region escape: a value leaves its local memo group" closed))))))
 
+  data RecursiveMember where
+    RecursiveMember :: Span -> Nat -> String -> UType -> Expr -> RecursiveMember
+  data RecursiveDefinition where
+    RecursiveDefinition :: Span -> Nat -> String -> Expr -> CoreTerm -> RecursiveDefinition
+
+  open-recursive-members :: TypeContext -> List CheckedBinding -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Expr -> Store -> (List CheckedBinding, List RecursiveMember, Store)
+  open-recursive-members kinds outer env locals signatures bindings st = case bindings of
+    ELocalStrict sp pattern syntax rest -> (case pattern of
+      PVar at name -> open-recursive-member kinds outer env locals signatures at name syntax rest st
+      PWild at -> open-recursive-member kinds outer env locals signatures at "" syntax rest st
+      other -> (env, Nil, add-error sp "a letrec binding needs a name equation or a memo binding" st))
+    ELocalSignature sp name ty rest -> open-recursive-members kinds outer env locals signatures rest st
+    ELocalMemo sp name syntax rest -> open-recursive-members kinds outer env locals signatures rest st
+    ELocalEnd sp -> (env, Nil, st)
+    other -> (env, Nil, add-error (expr-span bindings) "malformed recursive binding group" st)
+  open-recursive-member :: TypeContext -> List CheckedBinding -> List CheckedBinding -> List (String, UType) -> List (String, TypeExpr) -> Span -> String -> Expr -> Expr -> Store -> (List CheckedBinding, List RecursiveMember, Store)
+  open-recursive-member kinds outer env locals signatures sp name syntax rest st =
+    (case (case group-signature name signatures of
+      Some annotation -> checked-local-signature kinds outer locals annotation st
+      None -> fresh-meta KType st) of
+      (ty, checked) -> case fresh-id checked of
+        (id, fresh) ->
+          let bound = if same name "" then env else Cons (MkLocalBinding name (mono ty) id (store-level fresh)) env in
+          (case open-recursive-members kinds outer bound locals signatures rest fresh of
+            (all, members, ready) -> (all, Cons (RecursiveMember sp id name ty syntax) members, ready)))
+  check-recursive-members :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List RecursiveMember -> Store -> (List RecursiveDefinition, Store)
+  check-recursive-members classes kinds families env locals members st = case members of
+    Nil -> (Nil, st)
+    Cons (RecursiveMember sp id name ty syntax) rest -> case check classes kinds families env locals syntax ty st of
+      (value, checked) -> case check-recursive-members classes kinds families env locals rest checked of
+        (more, done) -> (Cons (RecursiveDefinition sp id name syntax value) more, done)
+
+  recursive-edges :: Bool -> CoreTerm -> List (Nat, Bool)
+  recursive-edges guarded term = case term of
+    CLocal sp ty id name actuals -> [(id, guarded)] <> recursive-child-edges guarded (term-children term)
+    CLambda sp ty pattern body -> recursive-edges True body
+    CPrimitive sp ty op args -> recursive-child-edges (guarded || same op "thunk-delay") (term-children term)
+    other -> recursive-child-edges guarded (term-children term)
+  recursive-child-edges :: Bool -> List CoreTerm -> List (Nat, Bool)
+  recursive-child-edges guarded terms = case terms of
+    Nil -> Nil
+    Cons first rest -> recursive-edges guarded first <> recursive-child-edges guarded rest
+  recursive-graph :: List RecursiveDefinition -> List (Nat, List (Nat, Bool))
+  recursive-graph definitions = case definitions of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      Cons (id, recursive-edges False value) (recursive-graph rest)
+  edges-from :: Nat -> List (Nat, List (Nat, Bool)) -> List (Nat, Bool)
+  edges-from id graph = case graph of
+    Nil -> Nil
+    Cons (key, edges) rest -> if id == key then edges else edges-from id rest
+  reaches-recursive-member :: Nat -> List (Nat, Bool) -> List (Nat, List (Nat, Bool)) -> List Nat -> Bool
+  reaches-recursive-member wanted pending graph seen = case pending of
+    Nil -> False
+    Cons (id, guarded) rest ->
+      if id == wanted then True
+      else if contains-meta id seen then reaches-recursive-member wanted rest graph seen
+      else reaches-recursive-member wanted (edges-from id graph <> rest) graph (Cons id seen)
+  eager-recursive-edge :: Nat -> List (Nat, Bool) -> List (Nat, List (Nat, Bool)) -> Option Nat
+  eager-recursive-edge owner edges graph = case edges of
+    Nil -> None
+    Cons (id, guarded) rest ->
+      if not guarded && (id == owner || reaches-recursive-member owner (edges-from id graph) graph Nil) then Some id
+      else eager-recursive-edge owner rest graph
+  recursive-memo-graph :: List (Nat, LocalStep) -> List (Nat, List (Nat, Bool))
+  recursive-memo-graph initializers = case initializers of
+    Nil -> Nil
+    Cons (id, step) rest -> case step-value step of
+      CPrimitive sp ty op (CArgument cell-span cell (CArgument callback-span callback (CArgumentsEnd end))) ->
+        Cons (id, recursive-edges True callback) (recursive-memo-graph rest)
+      other -> recursive-memo-graph rest
+  recursive-names :: List RecursiveDefinition -> List (Nat, String)
+  recursive-names definitions = case definitions of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest -> Cons (id, name) (recursive-names rest)
+  recursive-memo-names :: List MemoLocal -> List (Nat, String)
+  recursive-memo-names cells = case cells of
+    Nil -> Nil
+    Cons (MemoLocal sp name id region row carrier syntax) rest -> Cons (id, name) (recursive-memo-names rest)
+  recursive-member-name :: Nat -> List (Nat, String) -> String
+  recursive-member-name id names = case names of
+    Nil -> ""
+    Cons (key, name) rest -> if id == key then name else recursive-member-name id rest
+  recursive-guard-error :: List RecursiveDefinition -> List (Nat, String) -> List (Nat, List (Nat, Bool)) -> Option (Span, String)
+  recursive-guard-error pending names graph = case pending of
+    Nil -> None
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      (case eager-recursive-edge id (edges-from id graph) graph of
+        Some dependency -> Some (sp, recursive-member-name dependency names)
+        None -> recursive-guard-error rest names graph)
+
+  recursive-member-ids :: List RecursiveDefinition -> List Nat
+  recursive-member-ids definitions = case definitions of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest -> Cons id (recursive-member-ids rest)
+  recursive-dependencies-ready :: List (Nat, Bool) -> List Nat -> Bool
+  recursive-dependencies-ready edges pending = case edges of
+    Nil -> True
+    Cons (id, guarded) rest -> not (contains-meta id pending) && recursive-dependencies-ready rest pending
+  recursive-member-in-order :: Nat -> List Nat -> Bool
+  recursive-member-in-order id order = case order of
+    Nil -> True
+    Cons first rest -> id == first || not (contains-meta id rest)
+  advance-recursive-order :: Nat -> List Nat -> List Nat
+  advance-recursive-order id order = case order of
+    Cons first rest | id == first -> rest
+    other -> order
+  pick-recursive-member :: List RecursiveDefinition -> List RecursiveDefinition -> List Nat -> List (Nat, List (Nat, Bool)) -> List Nat -> Option (RecursiveDefinition, List RecursiveDefinition)
+  pick-recursive-member definitions before pending graph order = case definitions of
+    Nil -> None
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      let member = RecursiveDefinition sp id name syntax value in
+      if recursive-member-in-order id order && recursive-dependencies-ready (edges-from id graph) pending
+      then Some (member, reverse before <> rest)
+      else pick-recursive-member rest (Cons member before) pending graph order
+  order-recursive-members :: List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> List Nat -> List RecursiveDefinition -> Option (List RecursiveDefinition)
+  order-recursive-members pending graph observations ordered = case pending of
+    Nil -> Some (reverse ordered)
+    Cons first rest -> case pick-recursive-member pending Nil (recursive-member-ids pending) graph observations of
+      Some (RecursiveDefinition sp id name syntax value, more) ->
+        order-recursive-members more graph (advance-recursive-order id observations)
+          (Cons (RecursiveDefinition sp id name syntax value) ordered)
+      None -> None
+  -- Borrow reads, writes and opaque calls can observe order even when the
+  -- checked effect row is empty. Only stable initializers may move past them.
+  stable-recursive-initializer :: CoreTerm -> Bool
+  stable-recursive-initializer value = case value of
+    CInt sp ty text -> True
+    CString sp ty text -> True
+    CChar sp ty text -> True
+    CUnit sp ty -> True
+    CLocal sp ty id name actuals -> True
+    CLambda sp ty pattern body -> True
+    CUse sp ty name role actuals -> same role "constructor"
+    CApply sp ty f x -> stable-recursive-constructor f && stable-recursive-initializer x
+    CPrimitive sp ty operation args -> has operation ["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "/=", "negate"]
+      && stable-recursive-initializer args
+    CArgument sp value rest -> stable-recursive-initializer value && stable-recursive-initializer rest
+    CArgumentsEnd sp -> True
+    CTuple sp ty fields -> stable-recursive-initializer fields
+    CLet sp ty id name sc rhs body -> stable-recursive-initializer rhs && stable-recursive-initializer body
+    CIf sp ty condition yes no -> stable-recursive-initializer condition && stable-recursive-initializer yes && stable-recursive-initializer no
+    CProved sp ty evidence body -> stable-recursive-initializer body
+    CForget sp ty body -> stable-recursive-initializer body
+    other -> False
+  stable-recursive-constructor :: CoreTerm -> Bool
+  stable-recursive-constructor value = case value of
+    CUse sp ty name role actuals -> same role "constructor"
+    CApply sp ty f x -> stable-recursive-constructor f && stable-recursive-initializer x
+    other -> False
+  recursive-observation-order :: Store -> List RecursiveDefinition -> List Nat
+  recursive-observation-order st definitions = case definitions of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      let effects = normalize st (core-effects (map-term-types (normalize st) value)) in
+      let more = recursive-observation-order st rest in
+      case effects of
+        URow UEnd -> if stable-recursive-initializer value then more else Cons id more
+        other -> Cons id more
+  ordered-recursive-bindings :: Span -> List RecursiveDefinition -> Expr
+  ordered-recursive-bindings sp definitions = case definitions of
+    Nil -> ELocalEnd sp
+    Cons (RecursiveDefinition at id name syntax value) rest ->
+      let pattern = if same name "" then PWild at else PVar at name in
+      ELocalStrict at pattern syntax (ordered-recursive-bindings sp rest)
+  recursive-group-bindings :: Expr -> Expr -> Expr
+  recursive-group-bindings original ordered = case original of
+    ELocalStrict sp pattern syntax rest -> recursive-group-bindings rest ordered
+    ELocalSignature sp name ty rest -> ELocalSignature sp name ty (recursive-group-bindings rest ordered)
+    ELocalMemo sp name syntax rest -> ELocalMemo sp name syntax (recursive-group-bindings rest ordered)
+    other -> ordered
+  checked-recursive-closures :: List RecursiveDefinition -> Option (CoreTerm)
+  checked-recursive-closures definitions = case definitions of
+    Nil -> Some CRecursiveBindingsEnd
+    Cons (RecursiveDefinition at id name syntax (CLambda sp ty pattern body)) rest | not (same name "") ->
+      case checked-recursive-closures rest of
+        Some more -> Some (CRecursiveBinding id name (CLambda sp ty pattern body) more)
+        None -> None
+    other -> None
+  eager-recursive-edges :: List (Nat, Bool) -> List (Nat, Bool)
+  eager-recursive-edges edges = case edges of
+    Nil -> Nil
+    Cons (id, guarded) rest -> if guarded then eager-recursive-edges rest else Cons (id, False) (eager-recursive-edges rest)
+  eager-recursive-graph :: List (Nat, List (Nat, Bool)) -> List (Nat, List (Nat, Bool))
+  eager-recursive-graph graph = case graph of
+    Nil -> Nil
+    Cons (id, edges) rest -> Cons (id, eager-recursive-edges edges) (eager-recursive-graph rest)
+
+  recursive-knot-name :: List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> String
+  recursive-knot-name definitions graph = case definitions of
+    Nil -> "letrec"
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      if not (same name "") && reaches-recursive-member id (edges-from id graph) graph Nil then name else recursive-knot-name rest graph
+
+  recursive-value-spine :: List RecursiveDefinition -> CoreTerm
+  recursive-value-spine definitions = case definitions of
+    Nil -> CRecursiveBindingsEnd
+    Cons (RecursiveDefinition sp id name syntax value) rest -> CRecursiveBinding id name value (recursive-value-spine rest)
+
+  infer-recursive-values :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Nat -> List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-recursive-values classes kinds families env locals sp id definitions graph body wanted st =
+    case order-recursive-members definitions (eager-recursive-graph graph) (recursive-observation-order st definitions) Nil of
+      None -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st
+      Some ordered ->
+        let members = recursive-value-spine ordered in
+        let live = proof-env-after-writes env (recursive-value-writes members) st in
+        let region = URigid id ("#" <> recursive-knot-name definitions graph) (store-level st) KRegion in
+        (case (case wanted of
+          Some expected -> check classes kinds families live locals body expected st
+          None -> infer classes kinds families live locals body st) of
+          (result, done) -> (CRecursiveValues sp (core-type result) region members result, done))
+
+  infer-recursive-group :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-recursive-group classes kinds families env locals sp bindings body wanted st =
+    let signatures = group-signatures bindings in
+    (case fresh-id (enter-level st) of
+      (id, opened) -> let region = URigid id "letrec" (store-level opened) KRegion in
+        (case open-memo-locals kinds env locals signatures region bindings opened of
+          (memos, cells, prepared) -> case open-recursive-members kinds env memos locals signatures bindings prepared of
+            (bound, members, ready) -> case check-recursive-members classes kinds families bound locals members ready of
+              (definitions, checked) -> (case infer-memo-bodies classes kinds families bound locals cells checked of
+                (initializers, typed) ->
+                  let strict-graph = recursive-graph definitions in
+                  let all-edges = strict-graph <> recursive-memo-graph initializers in
+                  let names = recursive-names definitions <> recursive-memo-names cells in
+                  (case recursive-guard-error definitions names all-edges of
+                    Some (at, name) -> term-error at ("unguarded recursion through `" <> name <> "`; wrap the use in delay or a lambda") st
+                    None -> case store-errors typed of
+                      Cons error rest -> (CError sp, restore-level (store-level st) typed)
+                      Nil -> case order-recursive-members definitions strict-graph (recursive-observation-order typed definitions) Nil of
+                        None -> (case order-recursive-members definitions strict-graph Nil Nil of
+                          None -> (case (cells, checked-recursive-closures definitions) of
+                            (Nil, Some closures) -> (case (case wanted of
+                              Some expected -> check classes kinds families bound locals body expected typed
+                              None -> infer classes kinds families bound locals body typed) of
+                              (result, done) -> (CRecursiveFunctions sp (core-type result) closures result, restore-level (store-level st) done))
+                            (Nil, None) -> (case infer-recursive-values classes kinds families bound locals sp id definitions strict-graph body wanted typed of
+                              (result, done) -> (result, restore-level (store-level st) done))
+                            other -> term-error sp "guarded recursive value bindings with memo cells need joint scope checking" st)
+                          Some other -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st)
+                        Some ordered ->
+                          infer-local-group classes kinds families env locals sp
+                            (recursive-group-bindings bindings (ordered-recursive-bindings sp ordered)) body wanted st))))
+
   infer-operator :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-operator classes kinds families env locals sp op a b st =
     if has op ["&&", "||"] then
@@ -3906,7 +4232,9 @@ module Bootstrap.Infer where
   body-covers :: Expr -> Bool
   body-covers body = case body of
     ELet sp bindings value -> body-covers value
+    ELetScope sp body -> body-covers body
     ELocalGroup sp bindings value -> body-covers value
+    ELetRec sp bindings value -> body-covers value
     EGuarded s guard rhs -> case guard of
       ECon at name (EArgsEnd end) -> same name "True"
       other -> False
@@ -4381,12 +4709,17 @@ module Bootstrap.Infer where
         (qs, sq) -> case checked-constructors cs env sq of
           (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
       None -> (None, add-error s "typed data declaration has no checked kind" st)
-    DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data" || same variety "record"; other -> False) then
+    DExternal s name category scheme metadata -> if same category "type" && (case field "kind" metadata of JStr variety -> same variety "data" || same variety "record" || same variety "codata"; other -> False) then
       (case imported-kinds kinds (field "parameters" metadata) st of
-        (qs, checked) -> if runtime-constructors-complete name (field "ctors" metadata) then
-          (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
-            (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors), done))
-          else (Some (MkCoreData s name (kind-arrow qs) qs Nil), checked))
+        (qs, checked) -> if (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False) then
+          let storage = record-storage-name True name in
+          (case lookup-binding storage env of
+            Some binding -> (Some (MkCoreData s name (kind-arrow qs) qs [MkCoreConstructor s storage (checked-scheme binding)]), checked)
+            None -> (None, add-error s "codata has no checked observation storage" checked))
+          else if runtime-constructors-complete name (field "ctors" metadata) then
+            (case checked-imported-runtime-constructors s name classes kinds 0 (field "ctors" metadata) checked of
+              (constructors, done) -> (Some (MkCoreData s name (kind-arrow qs) qs constructors), done))
+            else (Some (MkCoreData s name (kind-arrow qs) qs Nil), checked))
       else (None, st)
     other -> (None, st)
   checked-data :: List (String, Kind) -> TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
@@ -4490,6 +4823,8 @@ module Bootstrap.Infer where
   source-instance-fields :: Span -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
   source-instance-fields instance-span classes kinds families env defaults description symbol factory declarations methods st = case methods of
     Nil -> (Nil, st)
+    Cons (MkCoreEquationMethod sp name slot telescope identity equation) rest ->
+      (Nil, add-error instance-span "an equality method implementation needs erased proof elaboration" st)
     Cons member rest -> let name = class-method-name member in
       case specialize-method description factory member of
         None -> (Nil, add-error zero "cannot specialize defining class method to instance head" st)
@@ -4553,6 +4888,215 @@ module Bootstrap.Infer where
           (include-effects (expr-span left) (core-effects first) (URow UEnd) done))
     LawProposition ty -> (Nil, None, add-error (type-expr-span ty) "class law proposition form needs checked elaboration" st)
 
+  source-cited-law :: String -> List Decl -> Option LawSyntax
+  source-cited-law member declarations = case declarations of
+    Nil -> None
+    Cons (DLaw sp name syntax) rest -> if same name member then Some syntax else source-cited-law member rest
+    Cons other rest -> source-cited-law member rest
+  declared-cited-law :: String -> String -> List Decl -> Option LawSyntax
+  declared-cited-law owner member declarations = case declarations of
+    Nil -> None
+    Cons (DClass sp name parameters members) rest -> if same name owner then source-cited-law member (decls-of members)
+      else declared-cited-law owner member rest
+    Cons other rest -> declared-cited-law owner member rest
+  imported-cited-law :: Span -> String -> Json -> Option LawSyntax
+  imported-cited-law sp member rows = case rows of
+    JArr row rest -> if same (contract-text (field "name" row)) member then
+      portable-law-syntax sp portable-default-global (field "syntax" row)
+      else imported-cited-law sp member rest
+    other -> None
+  source-equation-method :: CoreClass -> String -> Option (String, LawSyntax)
+  source-equation-method description member = case source-method member (class-methods description) of
+    Some method -> class-method-equation method
+    None -> None
+  law-assumption-identity :: String -> String -> Option String
+  law-assumption-identity owner member = case export-global owner of
+    Ok identity -> Some (law-owner-module (unpack identity) "" "" <> member)
+    Err error -> None
+  law-owner-module :: List Char -> String -> String -> String
+  law-owner-module characters prefix segment = case characters of
+    Nil -> prefix
+    Cons first rest -> if char-code first == 46 then law-owner-module rest (prefix <> segment <> ".") ""
+      else law-owner-module rest prefix (segment <> pack [first])
+
+  rewrite-matches :: CoreTerm -> Bool
+  rewrite-matches term = case term of
+    CApply sp ty function argument -> rewrite-matches function
+    CUse sp ty name role actuals -> True
+    CQualifiedUse sp ty name role actuals evidence -> True
+    CMethod sp ty name owner slot actuals evidence -> True
+    CPrimitive sp ty name arguments -> True
+    other -> False
+  rewrite-resource-count :: Nat -> List (Nat, UType) -> Nat
+  rewrite-resource-count id free = case free of
+    Nil -> 0
+    Cons (key, ty) rest -> (if id == key then 1 else 0) + rewrite-resource-count id rest
+  rewrite-mentions-task :: UType -> Bool
+  rewrite-mentions-task ty = case refinement-view ty of
+    UCon name kind -> same name "b.Task"
+    UApp first second -> rewrite-mentions-task first || rewrite-mentions-task second
+    UFun domain result -> rewrite-mentions-task domain || rewrite-mentions-task result
+    UFunEff domain row result -> rewrite-mentions-task domain || rewrite-mentions-task result
+    UPi id name domain row result -> rewrite-mentions-task domain || rewrite-mentions-task result
+    UUsageArrow usage arrow -> rewrite-mentions-task arrow
+    URequire predicates result -> rewrite-mentions-task result
+    URefine id name carrier predicate -> rewrite-mentions-task carrier
+    UTuple fields -> rewrite-mentions-task fields
+    UArg first rest -> rewrite-mentions-task first || rewrite-mentions-task rest
+    other -> False
+  rewrite-restricted-type :: UType -> Bool
+  rewrite-restricted-type ty = case refinement-view ty of
+    UApp (UCon name kind) carrier | same name "Later" && kind-equal kind (KFun KType KType) -> True
+    carrier -> (case thunk-parts carrier of Some parts -> True; None -> rewrite-mentions-task carrier)
+  rewrite-free-bound :: List (Nat, UType) -> List (Nat, UType) -> Bool
+  rewrite-free-bound pattern used = case used of
+    Nil -> True
+    Cons (id, ty) rest -> rewrite-resource-count id pattern > 0 && rewrite-free-bound pattern rest
+  rewrite-restricted-binders :: Store -> List (String, UType) -> List (Nat, UType) -> List (Nat, UType) -> Bool
+  rewrite-restricted-binders st locals left right = case locals of
+    Nil -> True
+    Cons (name, value) rest ->
+      let safe = (case (value-carrier (type-kind value), index-of-type value) of
+        (Some carrier, Some (IRigid id display level)) -> not (rewrite-restricted-type (normalize st carrier))
+          || (rewrite-resource-count id left == 1 && rewrite-resource-count id right == 1)
+        other -> True) in
+      safe && rewrite-restricted-binders st rest left right
+  rewrite-resource-safe :: Store -> List (String, UType) -> CoreTerm -> CoreTerm -> Option CoreTerm -> Bool
+  rewrite-resource-safe st locals lhs rhs guard =
+    let left = task-free Nil lhs in
+    let right = task-free Nil rhs in
+    let required = (case guard of None -> Nil; Some test -> task-free Nil test) in
+    rewrite-free-bound left (right <> required) && rewrite-restricted-binders st locals left right
+  resolve-rewrite-term :: List (String, Kind) -> List CheckedBinding -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
+  resolve-rewrite-term classes env givens term st =
+    resolve-dictionary-term-with classes (env-instances env) givens term st
+
+  check-citation-arguments :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CorePattern -> List Expr -> Store -> (List (Nat, CoreTerm), Store)
+  check-citation-arguments classes kinds families env locals formals args st = case (formals, args) of
+    (Nil, Nil) -> (Nil, st)
+    (Cons (CPVar sp ty id name) rest, Cons expression more) ->
+      (case check-required classes kinds families env locals expression ty st of
+        (value, checked) -> case check-citation-arguments classes kinds families env locals rest more
+          (include-effects (expr-span expression) (core-effects value) (URow UEnd) checked) of
+            (values, done) -> (Cons (id, value) values, done))
+    (Cons (CPWild sp ty) rest, Cons expression more) ->
+      (case check-required classes kinds families env locals expression ty st of
+        (value, checked) -> check-citation-arguments classes kinds families env locals rest more
+          (include-effects (expr-span expression) (core-effects value) (URow UEnd) checked))
+    other -> (Nil, add-error zero "law citation arguments disagree with its checked value parameters" st)
+  resolve-citation-arguments :: List (String, Kind) -> List CheckedBinding -> List CoreGiven -> List (Nat, CoreTerm) -> Store -> (List (Nat, CoreTerm), Store)
+  resolve-citation-arguments classes env givens arguments st = case arguments of
+    Nil -> (Nil, st)
+    Cons (id, value) rest -> case resolve-rewrite-term classes env givens value st of
+      (resolved, checked) -> case resolve-citation-arguments classes env givens rest checked of
+        (more, done) -> (Cons (id, resolved) more, done)
+  normalize-citation-arguments :: Store -> List (Nat, CoreTerm) -> List (Nat, CoreTerm)
+  normalize-citation-arguments st values = case values of
+    Nil -> Nil
+    Cons (id, value) rest -> Cons (id, map-term-types (normalize st) value) (normalize-citation-arguments st rest)
+
+  check-rewrite-citation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> CoreClass -> LawSyntax -> List Expr -> CoreTerm -> CoreTerm -> Span -> Store -> Store
+  check-rewrite-citation classes kinds families env locals givens description syntax args lhs rhs sp st =
+    let (header, declared) = make-scheme False classes kinds (class-params description) (law-input-type sp syntax) st in
+    let (inputs, constraints, pairs, opened) = open-qualified False header declared in
+    let law-locals = opened-locals (scheme-params header) pairs in
+    case law-operands classes kinds families env law-locals inputs syntax opened of
+      (formals, Some (first, second), prepared) ->
+        let (values, checked) = check-citation-arguments classes kinds families env locals formals args prepared in
+        let (rule-left, left-store) = resolve-rewrite-term classes env givens lhs checked in
+        let (rule-right, right-store) = resolve-rewrite-term classes env givens rhs left-store in
+        let (law-left, first-store) = resolve-rewrite-term classes env givens first right-store in
+        let (law-right, second-store) = resolve-rewrite-term classes env givens second first-store in
+        let (actuals, resolved) = resolve-citation-arguments classes env givens values second-store in
+        let done = finish-numbers resolved in
+        let typed = map-term-types (normalize done) in
+        let substitutions = normalize-citation-arguments done actuals in
+        if (case store-errors done of Nil -> True; other -> False) &&
+          not (rewrite-term-equal substitutions (typed rule-left) (typed law-left)
+            && rewrite-term-equal substitutions (typed rule-right) (typed law-right))
+        then add-error sp "the justification does not prove the rule's equation" done else done
+      (formals, None, checked) -> add-error sp "rewrite citation must conclude with a checked equation" checked
+
+  check-rewrite-evidence :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> List Json -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
+  check-rewrite-evidence classes kinds families env locals givens declarations rows lhs rhs evidence st = case evidence of
+    RewriteLaw sp owner member args ->
+      let (definition, syntax, assumption, header) = (case find-class owner (context-source-classes kinds) of
+        Some description -> (case source-equation-method description member of
+          Some (symbol, equation) -> (Some description, Some equation,
+            (case export-global symbol of Ok identity -> Some identity; Err error -> None), st)
+          None -> (Some description, declared-cited-law owner member declarations, law-assumption-identity owner member, st))
+        None -> (case find-class-row owner rows of
+          Some row -> let (description, checked) = typed-class sp owner rows classes kinds st in
+            (description, imported-cited-law sp member (field "laws" row), law-assumption-identity owner member, checked)
+          None -> (None, None, None, st))) in
+      (case (definition, syntax, assumption) of
+        (Some description, Some equation, Some identity) ->
+          (Some identity, check-rewrite-citation classes kinds families env locals givens description equation args lhs rhs sp header)
+        other -> (None, add-error sp "rewrite citation needs a checked law from its defining signature" header))
+    RewriteTerm (EVar sp name) | same name "b.refl" ->
+      let (first, checked) = resolve-rewrite-term classes env givens lhs st in
+      let (second, final) = resolve-rewrite-term classes env givens rhs checked in
+      let done = finish-numbers final in
+      (None, if rewrite-term-equal Nil (map-term-types (normalize done) first) (map-term-types (normalize done) second)
+        then done else add-error sp "the justification does not prove the rule's equation" done)
+    RewriteTerm expression -> (None, add-error (expr-span expression) "rewrite needs a checked equation proof" st)
+
+  check-rewrite-guard :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Option Expr -> Store -> (Option CoreTerm, Store)
+  check-rewrite-guard classes kinds families env locals guard st = case guard of
+    None -> (None, st)
+    Some expression -> case check-required classes kinds families env locals expression (primitive-type "Bool") st of
+      (test, checked) -> (Some test, include-effects (expr-span expression) (core-effects test) (URow UEnd) checked)
+  check-source-rewrite :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Json -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
+  check-source-rewrite classes kinds families env declarations rows sp name syntax st = case syntax of
+    MkRewriteSyntax True params bounds pattern replacement guard evidence ->
+      (None, add-error sp "target rewrite needs a checked target applicability condition" st)
+    MkRewriteSyntax False params bounds pattern replacement guard evidence ->
+      let header-syntax = TForall sp (forall-param-spine sp params) (TUsing sp bounds (TName sp "Unit")) in
+      let (scheme, declared) = make-scheme False classes kinds Nil header-syntax st in
+      let (body, requirements, pairs, opened) = open-qualified True scheme (enter-level declared) in
+      let locals = opened-locals (scheme-params scheme) pairs in
+      let (value-env, ready) = bind-value-parameters (scheme-params scheme) pairs env opened in
+      let (bound, givens, scoped) = bind-requirements sp requirements value-env ready in
+      let (lhs, matched) = infer classes kinds families bound locals pattern scoped in
+      let (rhs, replaced) = check-required classes kinds families bound locals replacement (normalize matched (core-type lhs)) matched in
+      let pure-lhs = include-effects sp (core-effects lhs) (URow UEnd) replaced in
+      let pure = include-effects sp (core-effects rhs) (URow UEnd) pure-lhs in
+      let (condition, guarded) = check-rewrite-guard classes kinds families bound locals guard pure in
+      let checked = (if not (kind-equal (type-kind (normalize guarded (core-type lhs))) KType) then
+          add-error sp "a rewrite equation must preserve a computational value type" guarded
+        else if not (rewrite-matches lhs) then add-error sp "rewrite match must be headed by a defined function, constructor or primitive" guarded
+        else if not (rewrite-resource-safe guarded locals lhs rhs condition) then
+          add-error sp "rewrite uses an unbound value or changes the use of a restricted binder" guarded else guarded) in
+      case store-errors checked of
+        Cons error rest -> (None, restore-level (store-level st) checked)
+        Nil -> (case check-rewrite-evidence classes kinds families bound locals givens declarations rows lhs rhs evidence checked of
+          (identity, verified) -> retain-checked-rewrite classes bound givens (store-level st) name lhs rhs condition identity verified)
+
+  retain-checked-rewrite :: List (String, Kind) -> List CheckedBinding -> List CoreGiven -> Nat -> String -> CoreTerm -> CoreTerm -> Option CoreTerm -> Option String -> Store -> (Option CheckedRewrite, Store)
+  retain-checked-rewrite classes env givens level name lhs rhs guard identity st =
+    let (first, checked) = resolve-rewrite-term classes env givens lhs st in
+    let (second, replaced) = resolve-rewrite-term classes env givens rhs checked in
+    let (condition, final) = (case guard of
+      None -> (None, replaced)
+      Some test -> (case resolve-rewrite-term classes env givens test replaced of
+        (resolved, done) -> (Some resolved, done))) in
+    let typed = map-term-types (normalize final) in
+    let test = (case condition of None -> None; Some value -> Some (typed value)) in
+    let done = restore-level level final in
+    case store-errors done of
+      Nil -> (Some (MkCheckedRewrite name (typed first) (typed second) test identity), done)
+      other -> (None, done)
+
+  check-source-rewrites :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List Json -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
+  check-source-rewrites classes kinds families env declarations rows pending seen st = case pending of
+    Nil -> (Nil, st)
+    Cons (DRewrite sp name syntax) rest -> if has name seen then (Nil, add-error sp "duplicate rewrite declaration" st)
+      else (case check-source-rewrite classes kinds families env declarations rows sp name syntax st of
+        (Some rule, checked) -> (case check-source-rewrites classes kinds families env declarations rows rest (Cons name seen) checked of
+          (more, done) -> (Cons rule more, done))
+        (None, failed) -> (Nil, failed))
+    Cons other rest -> check-source-rewrites classes kinds families env declarations rows rest seen st
+
   check-class-law :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> Store -> Store
   check-class-law classes kinds families env description sp name syntax st =
     let parameters = class-params description in
@@ -4578,6 +5122,11 @@ module Bootstrap.Infer where
     Cons (DLaw sp name syntax) rest -> check-class-laws classes kinds families env description rest (Cons name seen)
       (if has name seen then add-error sp (string-concat "duplicate class law: " name) st
        else check-class-law classes kinds families env description sp name syntax st)
+    Cons (DMethod sp name symbol syntax) rest -> case source-equation-method description name of
+      Some (identity, equation) -> check-class-laws classes kinds families env description rest (Cons name seen)
+        (if has name seen then add-error sp (string-concat "duplicate class equation: " name) st
+         else finish-numbers (check-class-law classes kinds families env description sp name equation st))
+      None -> check-class-laws classes kinds families env description rest seen st
     Cons other rest -> check-class-laws classes kinds families env description rest seen st
 
   check-source-laws :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> Store -> Store
@@ -4621,7 +5170,7 @@ module Bootstrap.Infer where
                   (right, resolved-right) -> let checked-right = finish-numbers resolved-right in
                     let done = restore-level level checked-right in
                     if list-length (store-errors done) /= list-length (store-errors st) then ("", done) else
-                      report-finite-law-samples sp name families env sampler dictionary givens
+                      report-finite-law-samples sp (law-diagnostic-owner kinds description) name families env sampler dictionary givens
                         (normalize-patterns checked-right patterns) (map-term-types (normalize checked-right) left) (map-term-types (normalize checked-right) right) done)
             (patterns, None, checked) -> (unchecked-law "the law has no checked equation", restore-level level checked))
 
@@ -4641,6 +5190,7 @@ module Bootstrap.Infer where
   finite-law-domain families env ty depth st = case ty of
     UCon carrier KType -> if same carrier "Bool" then [LawConstructor "False" LawFieldsEnd, LawConstructor "True" LawFieldsEnd]
       else if same carrier "Nat" || same carrier "Int" then [LawNumber 0, LawNumber 1, LawNumber 2]
+      else if same carrier "U32" then [LawNumber 0, LawNumber 1, LawNumber 4294967295]
       else law-family-samples families env ty depth st
     UBound id name KType -> [LawOpaque 0, LawOpaque 1]
     URigid id name level KType -> [LawOpaque 0, LawOpaque 1]
@@ -4716,11 +5266,16 @@ module Bootstrap.Infer where
     UApp class (UCon carrier KType) -> if same carrier "Bool" then " on a Boolean sample" else " on a finite constructor sample"
     other -> " on a finite constructor sample"
 
-  report-finite-law-samples :: Span -> String -> List (String, List String) -> List CheckedBinding -> LawEnvironment -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> (String, Store)
-  report-finite-law-samples sp name families env sampler dictionary givens patterns left right st = case (givens, finite-law-binders families env patterns (enter-level st)) of
+  law-diagnostic-owner :: TypeContext -> CoreClass -> String
+  law-diagnostic-owner kinds description = let owner = class-name description in
+    case find-class owner (context-source-classes kinds) of
+      Some source -> (case export-global owner of Ok identity -> identity; Err problem -> owner)
+      None -> diagnostic-member-name owner
+  report-finite-law-samples :: Span -> String -> String -> List (String, List String) -> List CheckedBinding -> LawEnvironment -> CoreInstance -> List CoreGiven -> List CorePattern -> CoreTerm -> CoreTerm -> Store -> (String, Store)
+  report-finite-law-samples sp owner name families env sampler dictionary givens patterns left right st = case (givens, finite-law-binders families env patterns (enter-level st)) of
     (Cons given Nil, Ok binders) -> case sample-finite-law sampler dictionary given binders left right of
       FiniteLawSamples samples -> (string-concat-all ["checked (", nat-to-string samples, " samples)"], st)
-      FiniteLawCounterexample -> ("", add-error sp (string-concat-all ["class law ", name, " failed for ", diagnostic-member-name (instance-name dictionary), law-sample-label dictionary]) st)
+      FiniteLawCounterexample -> ("", add-error sp (string-concat-all ["instance `", diagnostic-member-name (instance-name dictionary), "` breaks class law `", owner, ".", name, "`", law-sample-label dictionary]) st)
       FiniteLawUnavailable message -> (unchecked-law message, st)
     (other, Err reason) -> (unchecked-law reason, st)
     other -> (unchecked-law "the instance's dictionaries do not resolve", st)
@@ -4893,9 +5448,11 @@ module Bootstrap.Infer where
     Cons other rest -> register-source-proofs kinds declarations rest env st
 
   elaborate-module :: String -> Module -> Elaboration
-  elaborate-module label m = elaborate-module-with-source-bodies True label m
-  elaborate-module-with-source-bodies :: Bool -> String -> Module -> Elaboration
-  elaborate-module-with-source-bodies enable label m =
+  elaborate-module label m =
+    let interfaces = load-checked-interface-set (total-interface-inputs (module-decls m)) in
+    elaborate-module-with-source-bodies interfaces True label m
+  elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration
+  elaborate-module-with-source-bodies interfaces enable label m =
     let original = module-decls m in
     let has-codata = codata-present original in
     let declarations = if has-codata then unwrap-corec-declarations original else original in
@@ -4914,8 +5471,8 @@ module Bootstrap.Infer where
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in
     let (import-kinds, import-body-store) = collect-body-contracts ds classes class-kinds class-store in
-    let (method-kinds, method-store) = collect-imported-total-methods ds rows classes import-kinds import-body-store in
-    let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
+    let (method-kinds, method-store) = collect-imported-total-methods interfaces ds rows classes import-kinds import-body-store in
+    let (kinds, body-store) = if enable then add-source-bodies (source-total-bodies interfaces label m classes method-kinds) method-kinds method-store else (method-kinds, method-store) in
     let (values, sv) = register rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let (proofs, proof-store) = register-source-proofs kinds ds ds values sv in
     let (ordinary-env, si) = register-implicit-instances classes kinds ds proofs proof-store in
@@ -4939,12 +5496,15 @@ module Bootstrap.Infer where
           Nil -> check-imported-instance-laws classes linked-kinds families env rows descriptions sampler instances source-sampled
           other -> (Nil, source-sampled) in
     let law-observations = source-laws <> imported-laws in
-    let (declared-data, declared-store) = case store-errors done of Nil -> checked-data classes linked-kinds env ds Nil done; other -> (Nil, done) in
+    let (rewrites, rewritten) = (case store-errors done of
+      Nil -> check-source-rewrites classes linked-kinds families env ds rows ds Nil done
+      other -> (Nil, done)) in
+    let (declared-data, declared-store) = case store-errors rewritten of Nil -> checked-data classes linked-kinds env ds Nil rewritten; other -> (Nil, rewritten) in
     let (nominal-data, nominal-store) = case store-errors declared-store of Nil -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (datas, sd) = case store-errors nominal-store of Nil -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core sd); other -> sd in
     let retained-classes = case store-errors finished of Nil -> checked-imported-classes rows rows classes linked-kinds descriptions; other -> descriptions in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes retained-classes) instances ds law-observations rewrites
 
   -- Records use the ordinary independently checked single-constructor
   -- representation. Labels remain in a DRecord for source provenance;
@@ -4962,13 +5522,30 @@ module Bootstrap.Infer where
       if same actual name && same category "type" then
         (case (field "kind" metadata, field "ctors" metadata) of
           (JStr variety, JArr constructor JArrEnd) ->
-            if same variety "record" && runtime-constructors-complete name (field "ctors" metadata)
+            if same variety "codata" then
+              (case imported-observation-fields (field "fields" metadata) constructor of
+                Some fields -> Some (RecordShape actual (record-labels fields) (Some fields))
+                None -> record-definition name rest)
+            else if same variety "record" && runtime-constructors-complete name (field "ctors" metadata)
               && (case field "symbol" constructor of JStr symbol -> same name (interface-global symbol); other -> False) then
               Some (RecordShape actual (record-context-names (field "fields" metadata)) None)
             else record-definition name rest
           other -> record-definition name rest)
       else record-definition name rest
     Cons other rest -> record-definition name rest
+  imported-observation-fields :: Json -> Json -> Option (List (String, TypeExpr))
+  imported-observation-fields labels row = case resolved-text row of
+    Some text -> (case parse-scheme "codata observations" (string-to-bytes text) of
+      Parsed syntax Nil -> observation-domains labels syntax
+      other -> None)
+    None -> None
+  observation-domains :: Json -> TypeExpr -> Option (List (String, TypeExpr))
+  observation-domains labels syntax = case (labels, syntax) of
+    (other, TForall sp parameters body) -> observation-domains labels body
+    (JArr (JStr name) rest, TFun sp observation result) ->
+      (case observation-domains rest result of Some more -> Some (Cons (name, observation) more); None -> None)
+    (JArrEnd, other) -> Some Nil
+    other -> None
   has-observations :: Option (List (String, TypeExpr)) -> Bool
   has-observations observations = case observations of Some fields -> True; None -> False
   codata-name :: String -> List Decl -> Bool
@@ -4982,6 +5559,8 @@ module Bootstrap.Infer where
     Nil -> False
     Cons (DCodata sp owner params fields) rest -> True
     Cons (DCorec sp body) rest -> True
+    Cons (DExternal sp name category syntax metadata) rest ->
+      (same category "type" && (case field "kind" metadata of JStr kind -> same kind "codata"; other -> False)) || codata-present rest
     Cons other rest -> codata-present rest
   corec-marked :: String -> List Decl -> Bool
   corec-marked name ds = case ds of
@@ -5030,7 +5609,9 @@ module Bootstrap.Infer where
     ERecord sp name fields -> same owner name
     EAnn sp body annotation -> constructs-observations owner body
     ELet sp bindings body -> constructs-observations owner body
+    ELetScope sp body -> constructs-observations owner body
     ELocalGroup sp bindings body -> constructs-observations owner body
+    ELetRec sp bindings body -> constructs-observations owner body
     EIf sp condition yes no -> constructs-observations owner yes && constructs-observations owner no
     ECase sp value (EAlt at pattern body rest) -> constructs-observations owner body && constructs-observation-alternatives owner rest
     EGuarded sp guard body -> constructs-observations owner body
@@ -5093,7 +5674,9 @@ module Bootstrap.Infer where
       ECase sp value alternatives -> first-guard-error (eager value) (nested flow alternatives)
       EAlt sp pattern body rest -> first-guard-error (nested flow body) (nested flow rest)
       ELet sp bindings body -> first-guard-error (eager bindings) (nested flow body)
+      ELetScope sp body -> nested flow body
       ELocalGroup sp bindings body -> first-guard-error (eager bindings) (nested flow body)
+      ELetRec sp bindings body -> first-guard-error (eager bindings) (nested flow body)
       ELocalSignature sp name ty rest -> eager rest
       ELocalStrict sp pattern value rest -> first-guard-error (eager value) (eager rest)
       ELocalMemo sp name value rest -> first-guard-error (eager value) (eager rest)
@@ -5162,7 +5745,7 @@ module Bootstrap.Infer where
     Cons (DRecord sp name params fields) rest -> True
     Cons (DCodata sp name params fields) rest -> True
     Cons (DExternal sp name category syntax metadata) rest ->
-      (same category "type" && (case field "kind" metadata of JStr kind -> same kind "record"; other -> False)) || record-definitions-present rest
+      (same category "type" && (case field "kind" metadata of JStr kind -> same kind "record" || same kind "codata"; other -> False)) || record-definitions-present rest
     Cons other rest -> record-definitions-present rest
   record-result :: Span -> String -> List TypeParam -> TypeExpr
   record-result sp name params = case params of
@@ -5281,7 +5864,9 @@ module Bootstrap.Infer where
     ENeg sp x -> ENeg sp (record-expression all x)
     ELam sp patterns body -> ELam sp (record-patterns all patterns) (record-expression all body)
     ELet sp bindings body -> ELet sp (record-expression all bindings) (record-expression all body)
+    ELetScope sp body -> ELetScope sp (record-expression all body)
     ELocalGroup sp bindings body -> ELocalGroup sp (record-expression all bindings) (record-expression all body)
+    ELetRec sp bindings body -> ELetRec sp (record-expression all bindings) (record-expression all body)
     ELocalStrict sp pattern value rest -> ELocalStrict sp (record-pattern all pattern) (record-expression all value) (record-expression all rest)
     ELocalMemo sp name value rest -> ELocalMemo sp name (record-expression all value) (record-expression all rest)
     ELocalSignature sp name ty rest -> ELocalSignature sp name ty (record-expression all rest)
@@ -5416,9 +6001,15 @@ module Bootstrap.Infer where
         Some binding -> (case context-add-total zero binding kinds st of (more, checked) -> total-imported-methods interfaces dictionary description factory rest more checked)
         None -> total-imported-methods interfaces dictionary description factory rest kinds st)
       None -> total-imported-methods interfaces dictionary description factory rest kinds st
+  has-imported-method-body :: InterfaceSet -> Json -> Bool
+  has-imported-method-body interfaces methods = case methods of
+    JArr (JStr native) rest -> interface-set-has-body native interfaces || has-imported-method-body interfaces rest
+    other -> False
   total-imported-instances :: InterfaceSet -> List Json -> List (String, Kind) -> Json -> TypeContext -> Store -> (TypeContext, Store)
   total-imported-instances interfaces descriptions classes instances kinds st = case instances of
-    JArr row rest -> let (factory, checked) = imported-scheme zero classes kinds (TUnmodeled zero "missing total method factory") row (empty-store "closed imported method") in
+    JArr row rest -> if not (has-imported-method-body interfaces (field "methods" row)) then
+      total-imported-instances interfaces descriptions classes rest kinds st
+      else let (factory, checked) = imported-scheme zero classes kinds (TUnmodeled zero "missing total method factory") row (empty-store "closed imported method") in
       (case (store-errors checked, scheme-params factory, scheme-requirements factory, field "id" row, root-name (scheme-body factory)) of
         (Nil, Nil, Nil, JStr native, Some owner) -> (case typed-class zero owner descriptions classes kinds checked of
           (Some description, complete) -> (case store-errors complete of
@@ -5446,8 +6037,8 @@ module Bootstrap.Infer where
           None -> total-imported-declarations interfaces descriptions classes rest kinds st)
         other -> total-imported-declarations interfaces descriptions classes rest kinds st)
     Cons other rest -> total-imported-declarations interfaces descriptions classes rest kinds st
-  collect-imported-total-methods :: List Decl -> List Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
-  collect-imported-total-methods declarations descriptions classes kinds st = case load-checked-interface-set (total-interface-inputs declarations) of
+  collect-imported-total-methods :: Result String InterfaceSet -> List Decl -> List Json -> List (String, Kind) -> TypeContext -> Store -> (TypeContext, Store)
+  collect-imported-total-methods checked declarations descriptions classes kinds st = case checked of
     Ok interfaces -> total-imported-declarations interfaces descriptions classes declarations kinds st
     Err error -> (kinds, st)
   source-total-atom :: UType -> Bool
@@ -5559,36 +6150,37 @@ module Bootstrap.Infer where
       (case export-global name of
         Ok native -> (case core-source-body (env-body-bindings (elaboration-bindings preliminary)) (elaboration-core preliminary) (elaboration-data preliminary) native of Some binding -> Cons binding more; None -> more)
         Err error -> more)
-  source-total-preliminary :: String -> Module -> List String -> Elaboration
-  source-total-preliminary label m names = let declarations = module-decls m in
+  source-total-preliminary :: Result String InterfaceSet -> String -> Module -> List String -> Elaboration
+  source-total-preliminary interfaces label m names = let declarations = module-decls m in
     let refs = source-total-selected-references names declarations in
     let (datas, data-refs) = source-total-data-closure declarations (source-total-data-roots names declarations) Nil in
     let aliases = source-total-alias-closure declarations (refs <> data-refs) Nil in
-    elaborate-module-with-source-bodies False (label <> " total bodies")
+    -- Source selection keeps the same complete DInterface set.
+    elaborate-module-with-source-bodies interfaces False (label <> " total bodies")
       (MkModule (module-span m) (module-name m) (decl-spine (module-span m) (source-total-select names aliases datas declarations)))
-  source-total-individual :: String -> Module -> List String -> List String -> List BodyBinding
-  source-total-individual label m all names = case names of
+  source-total-individual :: Result String InterfaceSet -> String -> Module -> List String -> List String -> List BodyBinding
+  source-total-individual interfaces label m all names = case names of
     Nil -> Nil
-    Cons name rest -> let more = source-total-individual label m all rest in
+    Cons name rest -> let more = source-total-individual interfaces label m all rest in
       let needed = source-total-closure all (module-decls m) [name] Nil in
-      let preliminary = source-total-preliminary label m needed in
+      let preliminary = source-total-preliminary interfaces label m needed in
       (case elaboration-errors preliminary of Nil -> source-total-from-checked [name] preliminary <> more; other -> more)
-  source-total-bodies :: String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
-  source-total-bodies label m classes kinds = let declarations = module-decls m in
+  source-total-bodies :: Result String InterfaceSet -> String -> Module -> List (String, Kind) -> TypeContext -> List BodyBinding
+  source-total-bodies interfaces label m classes kinds = let declarations = module-decls m in
     let names = source-total-names classes kinds declarations declarations in
     case names of
       Nil -> Nil
-      other -> let preliminary = source-total-preliminary label m names in
-        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-individual label m names names)
+      other -> let preliminary = source-total-preliminary interfaces label m names in
+        (case elaboration-errors preliminary of Nil -> source-total-from-checked names preliminary; other -> source-total-individual interfaces label m names names)
   add-source-bodies :: List BodyBinding -> TypeContext -> Store -> (TypeContext, Store)
   add-source-bodies bindings kinds st = case bindings of
     Nil -> (kinds, st)
     Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
-    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil
+    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil Nil
     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
-      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations)
+      (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations rewrites, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations other-rewrites) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations) (rewrites <> other-rewrites)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-modules label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic

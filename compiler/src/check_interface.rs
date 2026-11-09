@@ -387,7 +387,7 @@ impl Checker {
                 else if parts.as_slice() == ["->"] { "(->)".to_string() }
                 else if parts.as_slice() == ["Io"] { "Io".to_string() }
                 else if parts.len() == 1 && (Scalar::parse(&name).is_some()
-                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar")) { name }
+                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "Later")) { name }
                 else {
                     let info = self.lookup_type(&parts).ok()?;
                     // Scope and Task are owned kernel type constructors,
@@ -700,7 +700,9 @@ impl Checker {
         let mut nominals = Vec::new();
         for (module, name) in &references {
             let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
-            if info.fields.is_some() { return None }
+            // The nominal entry proves the carrier's identity. Source
+            // access to record fields or codata observations comes from
+            // the defining public type row.
             let refined = info.refine.is_some();
             if info.param_kinds.iter().any(|k| match k {
                 ParamKind::Type | ParamKind::Con(_) => false,

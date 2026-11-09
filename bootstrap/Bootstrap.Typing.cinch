@@ -273,6 +273,20 @@ module Bootstrap.Typing where
       && equal-type ty (core-type body) && checked-term context scope gamma facts value
       && checked-term context scope (proof-after-writes gamma (core-mutable-writes value)) (facts-after-writes gamma facts (core-mutable-writes value)) body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
+    CRecursiveFunctions sp ty members body -> equal-type ty (core-type body)
+      && (case recursive-type-scope context scope members of
+        Some bound -> let proofs = recursive-proof-scope gamma members in
+          checked-recursive-functions context bound proofs facts members && checked-term context bound proofs facts body
+        None -> False)
+    CRecursiveValues sp ty region members body -> equal-type ty (core-type body)
+      && scope-region-closed region ty && scope-region-closed region (core-effects term)
+      && (case recursive-type-scope context scope members of
+        Some bound ->
+          let writes = recursive-value-writes members in
+          let proofs = proof-after-writes (recursive-proof-scope gamma members) writes in
+          let live = facts-after-writes gamma facts writes in
+          checked-recursive-values context bound proofs live members && checked-term context bound proofs live body
+        None -> False)
     CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type ty (core-type yes) && equal-type ty (core-type no)
       && checked-term context scope gamma facts condition
       && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) yes
@@ -430,6 +444,7 @@ module Bootstrap.Typing where
   map-task-types pairs types = case types of Nil -> Nil; Cons ty rest -> Cons (substitute-bound pairs ty) (map-task-types pairs rest)
   data TaskLocal where
     TaskLocal :: Nat -> UType -> List UType -> Bool -> Bool -> TaskLocal
+    TaskKnotLocal :: Nat -> UType -> UType -> List UType -> TaskLocal
   data TaskTrace where
     TaskTrace :: Option (Span, String) -> List UType -> Bool -> TaskTrace
   task-trace-error :: TaskTrace -> Option (Span, String)
@@ -447,7 +462,11 @@ module Bootstrap.Typing where
   task-drop-error :: Span -> Option (Span, String)
   task-drop-error sp = Some (sp, "task handle must be joined exactly once")
   task-local :: Nat -> List TaskLocal -> Option TaskLocal
-  task-local id env = case env of Nil -> None; Cons (TaskLocal key ty regions shared owned) rest -> if id == key then Some (TaskLocal key ty regions shared owned) else task-local id rest
+  task-local id env = case env of
+    Nil -> None
+    Cons entry rest -> case entry of
+      TaskLocal key ty regions shared owned -> if id == key then Some entry else task-local id rest
+      TaskKnotLocal key ty region regions -> if id == key then Some entry else task-local id rest
   task-pattern-ids :: CorePattern -> List Nat
   task-pattern-ids p = case p of CPVar sp ty id name -> [id]; CPProof sp ty id name -> [id]; CPErasedValue sp ty id name -> [id]; CPAs sp ty id name inner -> Cons id (task-pattern-ids inner); CPConstructor sp ty name actuals constructor fields -> task-pattern-ids fields; CPTuple sp ty fields -> task-pattern-ids fields; CPField sp first rest -> task-pattern-ids first <> task-pattern-ids rest; other -> Nil
   task-id-present :: Nat -> List Nat -> Bool
@@ -468,7 +487,7 @@ module Bootstrap.Typing where
   transferable-local :: List TaskLocal -> Nat -> Bool
   transferable-local env id = case task-local id env of
     Some (TaskLocal key ty regions shared owned) -> owned || affine-thunk ty
-    None -> False
+    other -> False
   transferred-alias :: List TaskLocal -> CoreTerm -> Bool
   transferred-alias env term = case term of
     CLocal sp ty id name Nil -> transferable-local env id
@@ -513,6 +532,10 @@ module Bootstrap.Typing where
     CLocal sp ty id name actuals -> if task-id-present id bound then Nil else [(id, ty)]
     CLambda sp ty p body -> task-free (task-pattern-ids p <> bound) body
     CLet sp ty id name sc rhs body -> task-free bound rhs <> task-free (Cons id bound) body
+    CRecursiveFunctions sp ty members body ->
+      task-free-children (recursive-function-ids members <> bound) (Cons body (recursive-functions members))
+    CRecursiveValues sp ty region members body ->
+      task-free-children (recursive-function-ids members <> bound) (recursive-functions members <> [body])
     CAlternative sp p body rest -> task-free (task-pattern-ids p <> bound) body <> task-free bound rest
     other -> task-free-children bound (runtime-term-children term)
   task-free-children :: List Nat -> List CoreTerm -> List (Nat, UType)
@@ -520,13 +543,23 @@ module Bootstrap.Typing where
   task-free-regions :: List TaskLocal -> List (Nat, UType) -> List UType
   task-free-regions env free = case free of
     Nil -> Nil
-    Cons (id, ty) rest -> task-regions ty <> (case task-local id env of Some (TaskLocal key declared regions shared owned) -> regions; None -> Nil) <> task-free-regions env rest
+    Cons (id, ty) rest -> task-regions ty <> (case task-local id env of
+      Some (TaskLocal key declared regions shared owned) -> regions
+      Some (TaskKnotLocal key declared region regions) -> Cons region regions
+      None -> Nil) <> task-free-regions env rest
   task-free-sharing :: TypingContext -> List (Nat, UType) -> Bool
   task-free-sharing context free = case free of Nil -> True; Cons (id, ty) rest -> (task-handle-type ty || task-shareable context Nil 64 ty) && task-free-sharing context rest
   task-free-scopes :: List TaskLocal -> List (Nat, UType) -> Bool
   task-free-scopes env free = case free of
     Nil -> True
-    Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of Some (TaskLocal key declared regions shared owned) -> (case regions of Nil -> True; other -> False); None -> True) && task-free-scopes env rest
+    Cons (id, ty) rest -> not (task-scoped-type ty) && (case task-local id env of
+      Some (TaskLocal key declared regions shared owned) -> no-ordinary-scope regions
+      Some (TaskKnotLocal key declared region regions) -> no-ordinary-scope regions
+      None -> True) && task-free-scopes env rest
+  no-ordinary-scope :: List UType -> Bool
+  no-ordinary-scope regions = case regions of
+    Nil -> True
+    Cons region rest -> (case knot-region-name region of Some name -> no-ordinary-scope rest; None -> False)
   -- The bounds describe the least and most uses on the reachable paths.
   -- None marks a use captured by a closure with unknown invocation count.
   use-count-sequence :: Option (Nat, Nat) -> Option (Nat, Nat) -> Option (Nat, Nat)
@@ -895,12 +928,70 @@ module Bootstrap.Typing where
       let failure = first-task-error (task-trace-error checked) capture-error in
       task-result-trace context (case scope-callback-parts (core-type callback) of Some (owner, region, row, result) -> result; None -> case task-body-parts (core-type callback) of Some (error, value, row) -> task-result-type error value; None -> UError)
         (TaskTrace failure (task-trace-regions checked <> task-regions (core-type callback)) (task-trace-shared checked))
+  knot-region-name :: UType -> Option String
+  knot-region-name region = case region of
+    URigid id name level KRegion -> (case unpack name of
+      Cons first rest -> if char-code first == 35 then Some (pack rest) else None
+      Nil -> None)
+    other -> None
+  first-knot-name :: List UType -> Option String
+  first-knot-name regions = case regions of
+    Nil -> None
+    Cons region rest -> case knot-region-name region of Some name -> Some name; None -> first-knot-name rest
+  knot-escape :: Span -> List UType -> Option (Span, String)
+  knot-escape sp regions = case first-knot-name regions of
+    Some name -> Some (sp, "region escape: a value retains recursive binding `" <> name <> "`")
+    None -> None
+  remove-knot-regions :: List UType -> List UType
+  remove-knot-regions regions = case regions of
+    Nil -> Nil
+    Cons region rest -> case knot-region-name region of
+      Some name -> remove-knot-regions rest
+      None -> Cons region (remove-knot-regions rest)
+  knot-local-regions :: TypingContext -> UType -> List UType -> List UType
+  knot-local-regions context ty regions = case first-knot-name regions of
+    Some name -> if task-region-free-type context Nil 64 ty then remove-knot-regions regions else regions
+    None -> regions
+
+  -- Local region provenance separates reading a recursive value from
+  -- capturing its slot. A closure still retains the slot when the
+  -- stored value itself is an independent scalar.
+  knot-taint-pass :: CoreTerm -> List Nat -> List Nat
+  knot-taint-pass members tainted = case members of
+    CRecursiveBinding id name value rest ->
+      let next = if not (task-id-present id tainted) && recursive-captures tainted value then Cons id tainted else tainted in
+      knot-taint-pass rest next
+    other -> tainted
+  knot-taints :: CoreTerm -> List Nat -> List Nat
+  knot-taints members tainted =
+    let next = knot-taint-pass members tainted in
+    if list-length next == list-length tainted then next else knot-taints members next
+  task-knot-locals :: CoreTerm -> UType -> List Nat -> List Nat -> List UType -> List TaskLocal -> List TaskLocal
+  task-knot-locals members region slots tainted outer env = case members of
+    CRecursiveBindingsEnd -> env
+    CRecursiveBinding id name value rest ->
+      let ty = core-type value in
+      let regions = if recursive-captures tainted value then Cons region outer else outer in
+      let entry = if task-id-present id slots then TaskKnotLocal id ty region regions else TaskLocal id ty regions False False in
+      let bound = if same name "" then env else Cons entry env in
+      task-knot-locals rest region slots tainted outer bound
+    other -> env
+
+  knot-binding-usage :: Span -> CoreTerm -> CoreTerm -> Option (Span, String)
+  knot-binding-usage sp members term = case members of
+    CRecursiveBindingsEnd -> None
+    CRecursiveBinding id name value rest -> first-task-error (task-bound-error sp id (core-type value) term) (knot-binding-usage sp rest term)
+    other -> Some (sp, "malformed recursive value bindings")
+
   task-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> CoreTerm -> TaskTrace
   task-trace context env scopes consuming term =
     if task-handle-type (core-type term) && not consuming then
       TaskTrace (task-use-error (case term of CLocal sp ty id name actuals -> sp; CSpawn sp ty token body -> sp; other -> Span 0 0 1 1)) Nil False
     else case term of
-      CLocal sp ty id name actuals -> (case task-local id env of Some (TaskLocal key declared regions shared owned) -> TaskTrace None regions shared; None -> TaskTrace None Nil False)
+      CLocal sp ty id name actuals -> (case task-local id env of
+        Some (TaskLocal key declared regions shared owned) -> TaskTrace None (knot-local-regions context ty regions) shared
+        Some (TaskKnotLocal key declared region regions) -> TaskTrace None (knot-local-regions context ty regions) False
+        None -> TaskTrace None Nil False)
       CScope sp ty region evidence callback -> let inside = task-callable context env (Cons region scopes) False sp callback in
         let escape = require-task (not (task-region-present region (task-trace-regions inside))) sp "region escape: a scoped capture leaves its `withScope`" in
         let failure = first-task-error (task-trace-error inside) escape in
@@ -918,6 +1009,13 @@ module Bootstrap.Typing where
         else if same op "memo-alloc" && (case lazy-parts ty of
           Some (row, region, carrier) -> not (copyable-type context Nil 64 carrier)
           None -> True) then TaskTrace (Some (sp, "a memo cell cache requires structural Copy evidence")) Nil False
+        else if has op ["ref-set", "memo-init"] then
+          (case args of
+            CArgument at place (CArgument bt value (CArgumentsEnd end)) ->
+              let supplied = task-trace context env scopes False value in
+              let failure = first-task-error (task-trace-error checked) (knot-escape bt (task-trace-regions supplied)) in
+              TaskTrace failure Nil (task-trace-shared checked)
+            other -> task-result-trace context ty checked)
         else task-result-trace context ty checked
       CLambda sp ty p body -> let free = task-free (task-pattern-ids p) body in
         let inside = task-trace context (task-pattern-env p Nil False (transfer-parameter ty) env) scopes True body in
@@ -928,6 +1026,31 @@ module Bootstrap.Typing where
       CLet sp ty id name sc rhs body -> let value = task-trace context env scopes True rhs in
         let result = task-trace context (Cons (TaskLocal id (scheme-body sc) (task-trace-regions value) (task-trace-shared value) (transferred-alias env rhs)) env) scopes consuming body in
         let failure = first-task-error (task-bound-error sp id (scheme-body sc) body) (first-task-error (task-trace-error value) (task-trace-error result)) in
+        TaskTrace failure (task-trace-regions result) (task-trace-shared result)
+      CRecursiveFunctions sp ty members body ->
+        let functions = recursive-functions members in
+        let free = task-free-children (recursive-function-ids members) functions in
+        let evidence = task-free-evidence-list Nil functions in
+        let regions = task-free-regions env free <> task-active-regions scopes (task-capture-types evidence) in
+        let shareable = task-free-sharing context free && task-types-property context True Nil 64 evidence in
+        let bound = task-recursive-locals members regions shareable env in
+        let values = task-trace-list context bound scopes False functions in
+        let result = task-trace context bound scopes consuming body in
+        TaskTrace (first-task-error (task-trace-error values) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
+      CRecursiveValues sp ty region members body ->
+        let ids = recursive-function-ids members in
+        let values = recursive-functions members in
+        let free = task-free-children ids values in
+        let outer = task-free-regions env free <> task-active-regions scopes (task-capture-types (task-free-evidence-list Nil values)) in
+        let slots = recursive-box-slots members in
+        let bound = task-knot-locals members region slots (knot-taints members slots) outer env in
+        let active = Cons region scopes in
+        let initialized = task-trace-list context bound active True values in
+        let result = task-trace context bound active consuming body in
+        let escaped = if task-region-present region (task-trace-regions result) then knot-escape sp [region] else None in
+        let usage = knot-binding-usage sp members term in
+        let failure = first-task-error usage (first-task-error (task-trace-error initialized)
+          (first-task-error (task-trace-error result) escaped)) in
         TaskTrace failure (task-trace-regions result) (task-trace-shared result)
       CApply sp ty f x -> task-call-trace context env scopes sp ty f x
       CApplyEff sp ty row f x -> task-call-trace context env scopes sp ty f x
@@ -943,24 +1066,42 @@ module Bootstrap.Typing where
       CMethod sp ty name owner slot actuals evidence -> task-result-trace context ty (task-traces-merge (TaskTrace None (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
       CWith sp ty given value body -> let supplied = task-trace context env scopes False value in
         let result = task-trace context env scopes consuming body in
-        TaskTrace (first-task-error (task-trace-error supplied) (task-trace-error result)) (task-trace-regions result) (task-trace-shared result)
+        let failure = first-task-error (task-trace-error supplied) (first-task-error (knot-escape sp (task-trace-regions supplied)) (task-trace-error result)) in
+        TaskTrace failure (task-trace-regions result) (task-trace-shared result)
       other -> task-result-trace context (core-type term) (task-trace-list context env scopes False (term-children term))
+  task-recursive-locals :: CoreTerm -> List UType -> Bool -> List TaskLocal -> List TaskLocal
+  task-recursive-locals members regions shareable env = case members of
+    CRecursiveBindingsEnd -> env
+    CRecursiveBinding id name value rest ->
+      task-recursive-locals rest regions shareable (Cons (TaskLocal id (core-type value) regions shareable False) env)
+    other -> env
   task-spawn-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> CoreTerm -> CoreTerm -> TaskTrace
   task-spawn-trace context env scopes sp token callback = let scope-value = task-trace context env scopes False token in
     let inside = task-callable context env scopes True sp callback in
     let regions = (case callback of CLambda at ft p body -> task-free-regions env (task-free (task-pattern-ids p) body) <> task-capture-types (task-free-evidence Nil body); other -> task-trace-regions (task-trace context env scopes False callback)) in
     let lifetime = case scope-parameters (core-type token) of Some (owner, destination) -> task-capture-regions scopes owner destination regions; None -> False in
     let escape = require-task lifetime sp "region escape: a task capture does not outlive the destination scope" in
-    let failure = first-task-error (task-trace-error scope-value) (first-task-error (task-trace-error inside) escape) in
+    let crossing = first-task-error (knot-escape sp regions) escape in
+    let failure = first-task-error (task-trace-error scope-value) (first-task-error crossing (task-trace-error inside)) in
     TaskTrace failure (task-trace-regions inside) True
   task-call-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> UType -> CoreTerm -> CoreTerm -> TaskTrace
   task-call-trace context env scopes sp result f x = case task-forwarded-scope context f of
     Some token -> task-spawn-trace context env scopes sp token x
     None -> let function = task-trace context env scopes False f in
       let input = task-trace context env scopes False x in
-      task-result-trace context result (TaskTrace (first-task-error (task-trace-error function) (task-trace-error input))
+      let escapes = if task-constructor-call f then None else knot-escape sp (task-trace-regions input) in
+      let failure = first-task-error (task-trace-error function) (first-task-error (task-trace-error input) escapes) in
+      task-result-trace context result (TaskTrace failure
         (task-trace-regions function <> task-trace-regions input <> task-regions (core-type x))
         (task-trace-shared function && task-trace-shared input && task-shareable context Nil 64 (core-type x)))
+  task-constructor-call :: CoreTerm -> Bool
+  task-constructor-call term = case term of
+    CUse sp ty name role actuals -> same role "constructor"
+    CQualifiedUse sp ty name role actuals evidence -> same role "constructor"
+    CApply sp ty f x -> task-constructor-call f
+    CApplyEff sp ty row f x -> task-constructor-call f
+    CErasedApply sp ty row f x -> task-constructor-call f
+    other -> False
   task-argument-values :: CoreTerm -> List CoreTerm
   task-argument-values terms = case terms of CArgumentsEnd sp -> Nil; CArgument sp first rest -> Cons first (task-argument-values rest); other -> Nil
   task-alternatives-trace :: TypingContext -> List TaskLocal -> List UType -> Bool -> TaskTrace -> CoreTerm -> TaskTrace
@@ -975,6 +1116,7 @@ module Bootstrap.Typing where
   task-code-present context term = annotated-arrow (core-type term) || task-scoped-type (core-type term) || affine-thunk (core-type term) || (case term of
     CScope sp ty region evidence callback -> True
     CMemoScope sp ty region body -> True
+    CRecursiveValues sp ty region members body -> True
     CSpawn sp ty token callback -> True
     CJoin sp ty token handles -> True
     CPrimitive sp ty op args -> has op ["copy-out", "thunk-force", "thunk-delay"] || task-code-present context args
@@ -1102,6 +1244,26 @@ module Bootstrap.Typing where
         let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
         checked-term context bound next (facts-after-writes gamma more writes) body
       None -> False)
+  recursive-type-scope :: TypingContext -> TypeScope -> CoreTerm -> Option TypeScope
+  recursive-type-scope context scope members = case members of
+    CRecursiveBindingsEnd -> Some scope
+    CRecursiveBinding id name value rest -> let scheme = mono (core-type value) in
+      if scheme-well-formed (context-kinds context) scope scheme && body-scheme-authorized (context-bodies context) scheme
+      then (case add-local-scheme id scheme scope of Some bound -> recursive-type-scope context bound rest; None -> None)
+      else None
+    other -> None
+  checked-recursive-functions :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
+  checked-recursive-functions context scope gamma facts members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name (CLambda sp ty pattern body) rest ->
+      checked-term context scope gamma facts (CLambda sp ty pattern body) && checked-recursive-functions context scope gamma facts rest
+    other -> False
+  checked-recursive-values :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
+  checked-recursive-values context scope gamma facts members = case members of
+    CRecursiveBindingsEnd -> True
+    CRecursiveBinding id name value rest ->
+      checked-term context scope gamma facts value && checked-recursive-values context scope gamma facts rest
+    other -> False
   openings-scope :: TypingContext -> TypeScope -> List (Nat, UType) -> Option TypeScope
   openings-scope context scope openings = case openings of
     Nil -> Some scope
