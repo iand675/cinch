@@ -5036,6 +5036,30 @@
                 },
                 {
                   "name": "eager_cycle_is_rejected_naming_the_variable",
+                  "status": "passed"
+                },
+                {
+                  "name": "guarded_delay_cycle_runs",
+                  "status": "passed"
+                },
+                {
+                  "name": "guarded_delay_value_cycle_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "guarded_lambda_cycle_is_accepted",
+                  "status": "passed"
+                },
+                {
+                  "name": "guarded_value_scope_releases_every_iteration",
+                  "status": "passed"
+                },
+                {
+                  "name": "letrec_can_store_a_closure_before_its_capture_is_initialized",
+                  "status": "failed"
+                },
+                {
+                  "name": "letrec_group_of_functions_and_values",
                   "status": "running"
                 }
               ]
@@ -13391,10 +13415,10 @@
         "source": "c998c4eaec569483f8c1f22c9fa1ddc37616ef9494fbbd6223c477102fe6915b",
         "unit": "checks",
         "total": 6,
-        "passed": 1,
+        "passed": 2,
         "failed": 0,
         "status": "running",
-        "phase": "Build the checked Native CLI",
+        "phase": "Build Stage 1 with the pinned seed",
         "evidence": null
       },
       {
@@ -13631,5 +13655,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:07:11.481816+00:00"
+  "updatedAt": "2026-11-09T09:08:14.547021+00:00"
 }
