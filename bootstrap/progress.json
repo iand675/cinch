@@ -17916,6 +17916,17 @@
         "evidence": null
       },
       {
+        "title": "Rebuild with checked codata and indexed imported bodies",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "gates",
+        "total": 8,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Rebuild with checked equality methods and guarded recursion",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "checks",
@@ -21099,6 +21110,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-arrays.json"
       },
       {
+        "title": "Original abstract NonZero method consumer on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built consumer passed all 17 controls against Rust-produced arithmetic contracts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-abstract-nonzero-methods.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21162,6 +21184,17 @@
         "failed": 0,
         "status": "waiting-worker",
         "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Run the complete matching Rust compiler inventory",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 236,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-combined-law-gate",
+        "phase": "Wait for the exact Rust harness preflight",
         "evidence": null
       },
       {
@@ -21312,10 +21345,10 @@
         "source": "379c6f8d50b085ef28baa54318c5b4c3b4c7232ac5e4d1d8c0c0a8a7893f2fba",
         "unit": "gates",
         "total": 2,
-        "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "passed": 1,
+        "failed": 1,
+        "status": "failed",
+        "phase": "AssertionError()",
         "evidence": null
       },
       {
@@ -21337,8 +21370,8 @@
         "passed": 3,
         "failed": 0,
         "status": "passed",
-        "phase": "Comparison completed",
-        "evidence": null
+        "phase": "All 14 original checks agreed. Total CPU time fell from 331 to 133 seconds on those fixtures.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-checked-import-index.json"
       },
       {
         "title": "Verify codata observation contracts through compiled objects",
@@ -21352,14 +21385,14 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-codata-contract-and-suite.json"
       },
       {
-        "title": "Verify the codata contract on the matching Stage 2 and Stage 3",
-        "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
+        "title": "Verify filesystem, entropy, signals and digests on the checked platform ABI",
+        "source": "08d1c428419efb50f90d195248f6de8e5631c42d4f66a1a22eadfc46611ed3e9",
         "unit": "gates",
-        "total": 4,
+        "total": 7,
         "passed": 0,
         "failed": 0,
-        "status": "superseded-before-build",
-        "phase": "Use the merged codata and indexed import acceptance ladder",
+        "status": "waiting-worker",
+        "phase": "Build the exact Rust compiler and exercise the entropy success and fault paths",
         "evidence": null
       },
       {
@@ -21464,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:19:17.740628+00:00"
+  "updatedAt": "2026-11-09T07:20:20.834297+00:00"
 }
