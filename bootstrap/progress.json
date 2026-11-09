@@ -17931,10 +17931,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "checks",
         "total": 16,
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 2 with the preceding compiler",
+        "phase": "Build Stage 3 with the preceding compiler",
         "evidence": null
       },
       {
@@ -21156,5 +21156,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:19:02.025767+00:00"
+  "updatedAt": "2026-11-09T04:20:05.449798+00:00"
 }
