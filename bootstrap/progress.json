@@ -21004,10 +21004,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 12,
+        "passed": 13,
         "failed": 2,
         "status": "running",
-        "phase": "Replay bootstrap_anonymous_contracts with the combined Stage 3",
+        "phase": "Replay bootstrap_argument_scopes with the combined Stage 3",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-fixity-interfaces.json"
       },
       {
@@ -21181,9 +21181,9 @@
         "unit": "tests",
         "total": 4,
         "passed": 0,
-        "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released compiler lane",
+        "failed": 1,
+        "status": "failed",
+        "phase": "NameError(\"name 're' is not defined\")",
         "evidence": null
       },
       {
@@ -21194,7 +21194,7 @@
         "passed": 0,
         "failed": 0,
         "status": "waiting-worker",
-        "phase": "Wait for the exact Rust harness preflight",
+        "phase": "runtime-debug-archive",
         "evidence": null
       },
       {
@@ -21225,9 +21225,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 17,
-        "failed": 13,
+        "failed": 14,
         "status": "running",
-        "phase": "Replay original lib_test_runner target on Stage 3",
+        "phase": "Replay original lib_text_ops target on Stage 3",
         "evidence": null
       },
       {
@@ -21292,8 +21292,8 @@
         "total": 16,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "Run the original Rust primitive suite with the checked export regression",
         "evidence": null
       },
       {
@@ -21301,10 +21301,10 @@
         "source": "d6f3f37ddfce911bf1d8b547d630bb79f2097e5da20ca91ecdb7c91c7fc03073",
         "unit": "component",
         "total": 1,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
-        "status": "running",
-        "phase": "Compile the complete original type-syntax component",
+        "status": "passed",
+        "phase": "The original type-syntax component passed",
         "evidence": null
       },
       {
@@ -21497,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:33:32.145416+00:00"
+  "updatedAt": "2026-11-09T07:34:34.830312+00:00"
 }
