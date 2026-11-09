@@ -21000,6 +21000,50 @@
         "evidence": null
       },
       {
+        "title": "Run the matching Rust compiler suite",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "targets",
+        "total": 236,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-combined-law-gate",
+        "phase": "Wait for the combined Stage 1 law and export checks",
+        "evidence": null
+      },
+      {
+        "title": "Check defining-module fixities and external behavior on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "checks",
+        "total": 14,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Await the combined Stage 3 fixed point.",
+        "evidence": null
+      },
+      {
+        "title": "Run the original language examples on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "examples",
+        "total": 34,
+        "passed": 0,
+        "failed": 0,
+        "status": "checking-stage3-agreement",
+        "phase": "Await the combined Stage 3 fixed point.",
+        "evidence": null
+      },
+      {
+        "title": "Run the original small-stack tail-call tests on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 4,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
         "title": "Build the pinned object with three additional HashMap variants",
         "source": "5bffe67f2c0ca09c0831256c77fcb22afd9a8f84afee6141369fc854408e63fe",
         "unit": "builds",
@@ -21101,5 +21145,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T03:57:29.766477+00:00"
+  "updatedAt": "2026-11-09T04:01:04.136348+00:00"
 }
