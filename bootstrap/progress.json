@@ -17942,10 +17942,10 @@
         "source": "5c9bb48a4d15ea441b7be58cca8f347a7ac97fe85e394e5a5e156580af20d3da",
         "unit": "checks",
         "total": 12,
-        "passed": 4,
+        "passed": 5,
         "failed": 0,
         "status": "running",
-        "phase": "Verify fixed point, smokes, separate interface consumer and changed-source rebuild",
+        "phase": "Replay the manifest sidecar and admission controls",
         "evidence": null
       },
       {
@@ -21178,5 +21178,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T04:32:44.655260+00:00"
+  "updatedAt": "2026-11-09T04:33:47.850270+00:00"
 }
