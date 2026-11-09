@@ -1,0 +1,123 @@
+{
+  "adapter_sha256": "58ba44d729b53a139ca3aaa1f93d231cbffd82e90e16ee0e2cbb8487307a5308",
+  "compiler_sha256": "2208c65298d5de5b91527cf9cc548ab804f3787bb7ede3569d64b94ee9f67ae5",
+  "compiler_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "fixed_point_audit_sha256": "10408b0a1ff8e72f7da9dfa6da1a865261b2d7c2a818d203640b6cb7ca2bc038",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-combined-stage3-argument-and-body-bindings",
+  "targets": {
+    "bootstrap_argument_scopes": {
+      "argument_witness_controls": [
+        {
+          "accepted": true,
+          "name": "builder write retains an exact branch bound among related facts"
+        },
+        {
+          "accepted": false,
+          "name": "byte write still rejects the end index"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length in nested guarded subtraction"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length with explicit sum binding"
+        },
+        {
+          "accepted": true,
+          "name": "bounded byte length in direct guarded subtraction"
+        },
+        {
+          "accepted": false,
+          "name": "bounded byte length does not prove reversed subtraction"
+        },
+        {
+          "accepted": false,
+          "name": "sum does not retain byte length upper bound"
+        },
+        {
+          "accepted": true,
+          "name": "nested remainder witnesses"
+        },
+        {
+          "accepted": true,
+          "name": "explicit remainder binding"
+        },
+        {
+          "accepted": false,
+          "name": "wrong remainder bound"
+        },
+        {
+          "accepted": false,
+          "name": "zero remainder divisor"
+        },
+        {
+          "accepted": true,
+          "name": "shadowed source name"
+        },
+        {
+          "accepted": true,
+          "name": "effectful function prefix"
+        },
+        {
+          "accepted": false,
+          "name": "cannot erase function effects"
+        }
+      ],
+      "cases": [
+        {
+          "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "68358-0.json": "2d11fd9aa8a0fe56438b7e7e8becbc30cf96ffbfe31fc686334fb5f57eb4347c"
+      },
+      "log_sha256": "f77856c6e4cf1f002604dc8347c022709d95e719e880212c49f176fab8561f01",
+      "passed": 1,
+      "test_source_sha256": "7b3b64be01cef7ed0b612014a4f77eeb79805833da91e17a3159e94384bec113",
+      "total": 1
+    },
+    "bootstrap_body_bindings": {
+      "body_binding_input_sizes": [
+        [
+          0,
+          1,
+          17,
+          129,
+          4096
+        ],
+        [
+          0,
+          8,
+          64
+        ]
+      ],
+      "cases": [
+        {
+          "name": "compiled_cinch_rechecks_body_bindings_refinements_and_changed_callees",
+          "status": "passed"
+        },
+        {
+          "name": "compiled_cinch_source_bodies_require_the_actual_root_and_dependency_definitions",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "88024-0.json": "0bab0daa134d2f28f456a55e2fcad1bf0ab44b7f156ef1bfcfe3d4c46c85247a",
+        "88024-1.json": "b95d01d12ed33e9163c28c373104e3750ca22c292687445d7f442cc1395ee82f"
+      },
+      "log_sha256": "49f36f04958365c809d6e4a3facf3aa2599b3d742c67ea338742f5c340c1d5f3",
+      "passed": 2,
+      "test_source_sha256": "2da0828ad91538795808abc02f34bb996c909428b5f1c85d83cdc37d51db58f3",
+      "total": 2
+    }
+  }
+}

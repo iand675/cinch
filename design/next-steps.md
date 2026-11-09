@@ -76,6 +76,13 @@ built a Cinch consumer for Rust-produced interfaces and passed all 18 original
 result, argument, projection, and refusal controls.
 See [the refinement consumer audit](../bootstrap/current-abi7-combined-stage3-refinement-contract-consumers.json).
 
+The same combined Stage 3 passed the original argument-scope test and both
+original body-binding tests. The argument-scope consumer checked 14 accepted
+and refused cases with the Rust reference assertions intact. The body-binding
+consumers exercised eight input sizes and checked that a body belongs to the
+actual declaration and dependency definitions.
+See [the argument and body-binding audit](../bootstrap/current-abi7-combined-stage3-argument-and-body-bindings.json).
+
 The merged codata and checked-import-index candidate cleared the clean Rust
 build and passed all 171 runtime and 52 tooling tests on its frozen inputs.
 The matching Rust compiler passed the original 18 recursive-binding and four
