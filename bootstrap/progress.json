@@ -20993,10 +20993,10 @@
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
         "total": 162,
-        "passed": 3,
+        "passed": 4,
         "failed": 3,
         "status": "running",
-        "phase": "Replay integration with the combined Stage 3",
+        "phase": "Replay codata with the combined Stage 3",
         "evidence": null
       },
       {
@@ -21093,9 +21093,9 @@
         "unit": "targets",
         "total": 12,
         "passed": 0,
-        "failed": 11,
-        "status": "running",
-        "phase": "Replay original small_nats target on Stage 3",
+        "failed": 12,
+        "status": "completed-with-failures",
+        "phase": "Additional frontend replay finished",
         "evidence": null
       },
       {
@@ -21172,7 +21172,7 @@
         "passed": 0,
         "failed": 0,
         "status": "waiting-worker",
-        "phase": "Wait for the codata validation to obtain a worker",
+        "phase": "Wait for a released worker slot",
         "evidence": null
       },
       {
@@ -21248,8 +21248,8 @@
         "total": 8,
         "passed": 0,
         "failed": 0,
-        "status": "waiting-worker",
-        "phase": "Wait for a released worker slot",
+        "status": "running",
+        "phase": "build-native-codata-contract",
         "evidence": null
       },
       {
@@ -21260,7 +21260,7 @@
         "passed": 0,
         "failed": 0,
         "status": "waiting-worker",
-        "phase": "Wait for the codata validation to obtain a worker",
+        "phase": "Wait for a released worker slot",
         "evidence": null
       },
       {
@@ -21343,5 +21343,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:22:09.593352+00:00"
+  "updatedAt": "2026-11-09T06:24:15.622124+00:00"
 }
