@@ -15965,10 +15965,10 @@
         "source": "a75cac607f4a2e8e8558351b1415d72df3ba3f997fe70f1b356863b5110ce8b0",
         "unit": "gates",
         "total": 2,
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "status": "running",
-        "phase": "Build declaration-kind Stage 1 with the pinned Rust seed",
+        "phase": "Run the original hk target through the declaration-kind Stage 1",
         "evidence": null
       },
       {
@@ -16051,5 +16051,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:46:24.273208+00:00"
+  "updatedAt": "2026-11-09T11:49:11.433123+00:00"
 }
