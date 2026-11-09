@@ -1,0 +1,213 @@
+{
+  "compiler_sha256": "f3913e9ecc19e29b2dcf0e4aeb1c884282512045187d678d4477996cab6c1616",
+  "compiler_source_sha256": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "native_source_sha256": "5b6a1161cbd46ff91f4be2c8d171bb8e832735fb76683893f929f3f8b0cb0064",
+  "object_configuration_sha256": "477927e75ae7c1489eda8b30ed3cb32e7b5b83d037eaa0f59627168bf68faf63",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "source_snapshot_sha256": "09df2b31223abd0fd69df4f391c23684b2017c3cc2ea74053fe4a863d87aa4ee",
+  "status": "audited-abi7-stage1-small-nats-range-dependent",
+  "targets": {
+    "dependent": {
+      "adapted_source_sha256": "ad240f993848441a8803bdec5d0f49abb9a29cef753177d5bc5fc25cb5fbbaeb",
+      "cases": [
+        {
+          "name": "acceptance_probe_01_bounded_index_runs",
+          "status": "failed"
+        },
+        {
+          "name": "conversion_on_definitionally_equal_indices",
+          "status": "failed"
+        },
+        {
+          "name": "decide_obligation_statuses_are_distinguished",
+          "status": "failed"
+        },
+        {
+          "name": "decide_success_and_runtime_branches",
+          "status": "passed"
+        },
+        {
+          "name": "dependent_function_applied_at_a_computed_type",
+          "status": "passed"
+        },
+        {
+          "name": "erased_fields_are_absent_from_runtime",
+          "status": "passed"
+        },
+        {
+          "name": "fin_construction_bounds_are_enforced",
+          "status": "failed"
+        },
+        {
+          "name": "index_refuted_arm_is_rejected",
+          "status": "failed"
+        },
+        {
+          "name": "index_refuted_constructor_needs_no_branch",
+          "status": "failed"
+        },
+        {
+          "name": "logical_definitions_must_terminate",
+          "status": "failed"
+        },
+        {
+          "name": "non_positive_data_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "pi_sigma_construction_and_elimination",
+          "status": "failed"
+        },
+        {
+          "name": "proof_irrelevance_makes_refls_interchangeable",
+          "status": "passed"
+        },
+        {
+          "name": "universe_stratification_rejects_type_in_type",
+          "status": "failed"
+        }
+      ],
+      "failed": 9,
+      "harness_sha256": "3d9ddd4bbe0feaaaf36bc847dc3bcb7ff4788093a0b0b10acbac13629a8c058c",
+      "invocations": {
+        "96841-0.json": "fb7a66e1e2c26c043e05ce216803e746e5d4db2239b4fd56125f41802511cf03",
+        "96841-1.json": "50d7dafa5e722509953e2cfa4dbb1eca067f11f3350aad6f01295229c81ee564",
+        "96841-10.json": "194b6abfb0436d67614f895db51a591914b986379caaead30e32143863ca71dd",
+        "96841-11.json": "ab8e59155543081c4b202a36f30e0df2f2beecfacbdad7ca5d2cab86a3435764",
+        "96841-12.json": "cecc5d4f8c8fcee0f49f72fafe42ee7e301a24255a3eaea833dae311accee1c7",
+        "96841-13.json": "7a039d1576a2f9341463c4a6d35b6fa4d9f3f8177bbea1b4b91c52b64d765201",
+        "96841-14.json": "39cae413955dbc7277b7089e4e52197452924e972c1ab07e35c00b4aa64ef433",
+        "96841-15.json": "42048b0f1a122bfb9eb389e589abb781388dc5abde33dd35aecba57ab1ccb8cb",
+        "96841-16.json": "680c9412a67c3ba9740ae809fc7e0989a9dd0c2e3ffd740be76bdb1bb28d066e",
+        "96841-2.json": "721daf525575f165d70efa69de8ff302c25e558c16e85ab4f471b44d7c7533de",
+        "96841-3.json": "3f3475d7d7320835283ee5470f2318d936b4c3e39429a36761851d77a188266b",
+        "96841-4.json": "398824791706b401828494870ea2b65895ec5bf29be9c03ec17b04c949b4a3aa",
+        "96841-5.json": "dbeebd1e3e1b91d3ea2e9b63537653646b87cf604dac578b8a9968dfb1a9145d",
+        "96841-6.json": "eb3b04094584da4be8f0020b773c411a4e59ea303031cb8283689f5084d6f76f",
+        "96841-7.json": "1267b9b94a0c17d3d78fd758227eefc198e9b044f0045abd246a526e71effd12",
+        "96841-8.json": "7eef669863b334981b04f242a4ba4039d801ce2b3f61b98099de4d10a0c21c95",
+        "96841-9.json": "164666993f108c44654fa7e94778d53343fea30df16888bf420123df70085160"
+      },
+      "log_sha256": "f76179ac15fc9392c999af6f3476e8940a9615921b3f396db8109aac098972a4",
+      "original_source_sha256": "85fc05cb48ce7df1cc0cd82edba815d824cda22ecf9c03b85bb11e88bdd8232c",
+      "passed": 5,
+      "total": 14
+    },
+    "range_facts": {
+      "adapted_source_sha256": "2151d4f8107fa444abd1d6b4ccd736820d0dbc84217a5f63b05ade4112cfb93f",
+      "cases": [
+        {
+          "name": "a_cps_call_drops_its_argument_fact",
+          "status": "failed"
+        },
+        {
+          "name": "a_function_value_keeps_its_refined_result",
+          "status": "failed"
+        },
+        {
+          "name": "a_refined_result_is_its_number_in_ordinary_use",
+          "status": "failed"
+        },
+        {
+          "name": "a_widening_conversion_discharges_a_subtraction_and_nat_from_i64",
+          "status": "passed"
+        },
+        {
+          "name": "an_intrinsic_given_a_huge_nat_answers_totally",
+          "status": "failed"
+        },
+        {
+          "name": "an_out_of_range_use_is_refused",
+          "status": "failed"
+        },
+        {
+          "name": "char_code_is_a_scalar_value",
+          "status": "passed"
+        },
+        {
+          "name": "hash_int_hashes_a_huge_int_without_converting",
+          "status": "passed"
+        },
+        {
+          "name": "the_conversions_are_total",
+          "status": "passed"
+        },
+        {
+          "name": "the_mask_bounds_its_result",
+          "status": "failed"
+        }
+      ],
+      "failed": 6,
+      "harness_sha256": "94e78d678df1f1273e9b44cdd59fa3bba6c29706bae62877dcb49a09916e2e7e",
+      "invocations": {
+        "80958-0.json": "3cb7c0372e1d3db7b069cbe0d1228b1fb9307f18668251bf8ae3d4b2f11012d8",
+        "80958-1.json": "0625c4491534f764111129e312115979ceef476e8453b36aea35c90aa3424602",
+        "80958-10.json": "0f9d78d79c7c9a11c58626287d726cba10a42942bd4635568a55525fe853f4fe",
+        "80958-11.json": "a9ef7347e12bb620c8d75116a56ff522336a7fb4b3e55c144b6e4db254512cf1",
+        "80958-12.json": "337bc77d94de2ed42a0b3c357ff056e26104542d4c0876d7399e305c7b595710",
+        "80958-13.json": "def9806286fd312f8756c6808c5e65a6a387608c79052b100ca7cd9e2843234f",
+        "80958-2.json": "d4ff736fefe9b3bbd373ee78d9c8384ed9b82c9958868bcdbfb8b1f24d779bd1",
+        "80958-3.json": "b858d5a418c7bdd9e27dc39da997ec3d3da1e519143c76e7f983d818a1e96d25",
+        "80958-4.json": "8b086f871dc06afaf4996177137228c4a8ac512d72c429035b8c09790c287feb",
+        "80958-5.json": "46b69157e397836c0288aaeee8fdbb7f3ade75aae33288f9694fdb8bde8b7c12",
+        "80958-6.json": "ce6c687e7fe55c0dc77c8cd048178f2b7c19bcad9797043ea437254e95c72d30",
+        "80958-7.json": "27bb7247347dda400b9cf29fce0cfd73d474193d5db1eefaae8d18baa69eed5d",
+        "80958-8.json": "bf52fd81fbfb9315b68bdfadba48d28e543828c3d65be70e0b2a39fc925f6b42",
+        "80958-9.json": "316b6e02912fc4629dbb35f4f8435a378722c20e09d24a1651fd208977ada20c"
+      },
+      "log_sha256": "a333e769bc8e0c8875f8bf2d52e35a71527ad6acf847128ad56b548e1621f645",
+      "original_source_sha256": "f9b97651a3e0bab924e934c1e857750312d337faa631c356a9aa32905852c2c7",
+      "passed": 4,
+      "total": 10
+    },
+    "small_nats": {
+      "adapted_source_sha256": "79e0a478ff72981bc3e1d8fbd9c1c4a8be370e3ca3c3950dd34ead970ef355ea",
+      "cases": [
+        {
+          "name": "division_by_an_immediate_takes_a_decided_divisor",
+          "status": "passed"
+        },
+        {
+          "name": "equal_values_agree_as_map_keys_whichever_path_built_them",
+          "status": "passed"
+        },
+        {
+          "name": "int_crosses_both_immediate_edges_and_their_negations",
+          "status": "passed"
+        },
+        {
+          "name": "nat_crosses_the_immediate_edge_exactly_in_both_directions",
+          "status": "passed"
+        },
+        {
+          "name": "nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers",
+          "status": "passed"
+        },
+        {
+          "name": "nat_subtraction_on_immediates_takes_its_evidence_from_a_test",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "harness_sha256": "961bbba596dca1a538d582b90ce89121d916b739a9ba0ff9462c49e738d5e350",
+      "invocations": {
+        "90748-0.json": "6ab381496c779ce5b88c94d2d63a8aa845439041f7e5442a88d6b373367a0c22",
+        "90748-1.json": "8015477052ebd0d2b9bd89e378b7a7dc4bff730d1e215784471838ccb9f41eae",
+        "90748-2.json": "2b85951285511e51c7627347ed1c489a7559037283ed7b3950ac10bf03ed1ba7",
+        "90748-3.json": "fffc01c380177588182f21c9ccd9aa1ea11ed9fd1975e63d5824f6844b69f925",
+        "90748-4.json": "d1a86e43ae7db355b70c34371dc1921a2ee9d07c04fe552f3d6442ccba302b06",
+        "90748-5.json": "e5b5258a5dc85ecf64b8dcfd7b27e125d2ca2c1feb1ca600f9460f968f640ee4",
+        "90748-6.json": "40fcde0cde7469049f8add38f6472d7c27ffede901931d40c44a9a42d22ec9fa",
+        "90748-7.json": "ed0f70b2f8cd2b51d33d59b54f2df8791cccb5ae88ef12ce2faca01e2ae2dddf",
+        "90748-8.json": "eb5e9fb8a191fa5fd47b5a69f40942d7e5f2b5766610fd346265aec59606d216",
+        "90748-9.json": "34a79aa7a6c9e39ca83de830469751f121a42ec4ecae52c92e289777eb5769c1"
+      },
+      "log_sha256": "fcf94116bf01a8ffb67bf43a262829a331712254a83408022d3f43762154a620",
+      "original_source_sha256": "59e60e6e7535e1b82869791a1cba1d51ce797b1389bb58080d7796193dc80665",
+      "passed": 6,
+      "total": 6
+    }
+  }
+}

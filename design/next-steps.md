@@ -143,6 +143,18 @@ All eight original law cases passed on the published Stage 3, with
 14 matching invocations. The case outcomes agree with the Stage 1 replay.
 See [the merged law audit](../bootstrap/current-abi7-codata-index-stage3-laws.json).
 
+All 20 original concurrency cases passed on the published Stage 3,
+including task-capture refusals and the runtime checks. The audit
+retains 42 matching compiler invocations.
+See [the published concurrency audit](../bootstrap/current-abi7-codata-index-stage3-concurrency.json).
+
+A separate Stage 1 range candidate passed all six original small-integer
+cases. Four of ten range cases and five of fourteen dependent cases
+passed. A follow-up candidate shares comparison-result projection
+between the type and proof checks and adds checked signed widening.
+Its original regression replays are queued.
+See [the Stage 1 numerical and dependent case audit](../bootstrap/current-abi7-stage1-small-nats-range-dependent.json).
+
 All three original byte-observation tests passed on the preceding
 combined Stage 3, including input scope, the declared primitive
 identity, and an imported observation renamed by a facade.

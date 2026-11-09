@@ -1,0 +1,147 @@
+{
+  "adapter_sha256": "9a054191550e526defee9da0a973bf579760aad7c2731da5c12762332868401e",
+  "compiler_sha256": "6b66782a35c1754f5c0d62b0342bfa9a86f82649eb18256e79de5394d2c4486f",
+  "compiler_source_sha256": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+  "fixed_point_audit_sha256": "8630f07990e007a11426633fda702b059f674d2cc76e8f25de1233c1ecc3e748",
+  "full_goal_complete": false,
+  "interface_set_sha256": "dffb4f6ff4d3f9be17b52da897699a2b9d91b22175c33cddb7d0abc702032b70",
+  "native_source_sha256": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+  "object_configuration_sha256": "1654a353ccf532144f8ee085a200ca617461077bd82e60a74a35e4dcd1df12d1",
+  "runtime_archive_sha256": "98e663d68cf2f5da16cc216d25d9a82eefe8e2b5d07b06c26b74476464ab7c3f",
+  "status": "audited-published-stage3-concurrency",
+  "targets": {
+    "concurrency": {
+      "cases": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "passed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "passed"
+        },
+        {
+          "name": "task_shared_ref_requires_a_shareable_referent",
+          "status": "passed"
+        }
+      ],
+      "failed": 0,
+      "invocations": {
+        "98096-0.json": "792007f89a321c1ec7cfbdd81acba4b820a761ffe720234a5ff7275995579a24",
+        "98096-1.json": "740237e924170276f10d6033bafb15aa43fc26f000f436c8ba274c16505f1681",
+        "98096-10.json": "f357ef66414ef4086100eecaf95cb41d583b6b49f89f3d59186bbc816c27a4ab",
+        "98096-11.json": "c9631e503b218f9866e23ee22b41833dbbccef64ea0a7133a29f4d9ee9cf6836",
+        "98096-12.json": "b9d511ad8cc93981268042afc76f86a058f4f8643f782d4381255bf0cf9c0b10",
+        "98096-13.json": "8ebe0a0edb3495de744273e00bd5d7f0454fd4e9631c65e3fe01adc7ab45a5ef",
+        "98096-14.json": "355551168891f6c1604c1c0fe19c18b9f5cc95b6ea9749f8d49db7be8df3088f",
+        "98096-15.json": "d33e9bdbb69e31e3eb6b0a7bb4a8f593f1386ba036ea210f8b7ae79ec88fb594",
+        "98096-16.json": "e8d444c3055a3eb7d82f73e9fdc3bef74ace11302b08aece9d9dd11aca0ef316",
+        "98096-17.json": "0d0ff705e4aae6d1f849cb673af8c22230f75434268c1c522f245a339cad38ac",
+        "98096-18.json": "36e19d1e45f64f2125f46e1242db71c8412597d6851e2a4131941982f6b67572",
+        "98096-19.json": "3989c5d57d3352648b744106e5596d19239dd7667af8ce3873c2746689a6877a",
+        "98096-2.json": "915c0822096ddc7c2149e1bb0c92bf6e6587854f618e878680d926373578c673",
+        "98096-20.json": "b7f2a4ce55a541a8265dcf2c2605357b1f2d906a8cb8de52962bd566e5e2ef9e",
+        "98096-21.json": "51522105084cacc6eccc9d3e3e30b6ae0aa8988f45699a44bcffcfe22118205c",
+        "98096-22.json": "dc5ff4e4e13706418612bec1d2a7dea8321cb1cb189ce13b43748f1d83b98d70",
+        "98096-23.json": "e8b923c038a7cb520ccb0dc49bb1f492278c006fa204fec73e7f5774f1b6bc89",
+        "98096-24.json": "32f478c1fcc54295ae7eb90676aacdbb953b5191d13e620aa24526ffaba914dd",
+        "98096-25.json": "37f4a7bc8ee621537970c789a8d722302ff21b79213cf73e1c43ff9f12443302",
+        "98096-26.json": "2ac28e2a43fd805dfef302a0f4d2a219013172f497665b0a9f3bf62dfdba743b",
+        "98096-27.json": "4e560bd26c23360a4a9af48d50020cb06ccec2c2639118ad7a5164e4bf17a772",
+        "98096-28.json": "544f77736414000fdebf7c1f081c0e055d3fa7e83ad24d37479981b805797915",
+        "98096-29.json": "428c0fa83a408332943d73d398b3efcd2543871cc35b8fb42f76b3e686c39983",
+        "98096-3.json": "ec7e42bf7d242fa464a7d556914877015fb8d2061e0668ceef0e51f655ea4eb2",
+        "98096-30.json": "5ffabe9d7a3217df6d29131f594c4da7069d1142bdf49934cf6554df80ba7d7e",
+        "98096-31.json": "8ac3635b0d9cffd9e362dc7208c236585706cda40495b75d1c88adf0784dccdf",
+        "98096-32.json": "3a7393595c12c50bcbfb1f953b4893fee952f7339bc91ed3ba6039f40b024780",
+        "98096-33.json": "052f9d0dbe3462737de8f4e669fbd74e721b64e32d78aa845ea5073f73653937",
+        "98096-34.json": "c46f0fc0bf1ec61f6bd333ec1422c17585518bafc60de5072173bb8102e1104f",
+        "98096-35.json": "ca51459f9dcbbc4c38d727ecf5d89f6285466a3aa78100530c66779197e17385",
+        "98096-36.json": "3d81c7e50c8ec618a5fb85fd1fe76bc0e53912ea7ec4e8a440a41ab44d402722",
+        "98096-37.json": "7900862744f0b33fff92efca3867a0c204841097b8b5d12866eff90ab3380274",
+        "98096-38.json": "962fc530872ad0a9a960e29dcd1aefe9e59c50784e8b6df6409d550296afb56b",
+        "98096-39.json": "6ea69ed7134ab9af0dbed08e6d599af314ce7bd775565783cc3c6f1346e12055",
+        "98096-4.json": "13236d428830c16f1f7a3157f08e300a4a1539debc6fba1b2fd6a723460ce7b6",
+        "98096-40.json": "59ef75336e5916f051106aff02dc962a49fd18176c0752ee2192578ca6441ce6",
+        "98096-41.json": "9c29cac262f6e1a7c933ef9596a2ffe27ba2c24163b5303fcb01880e95318fc4",
+        "98096-5.json": "5a4ead48fea1d83e41cbcf9e0d1b054f9802daf7e77641ef6991a144830d06e6",
+        "98096-6.json": "5e9462bbbcc0fcb1e58f1a18d5a46595ead8be56824a14396280b9c0fd993832",
+        "98096-7.json": "5f66a7cea2ac62120f6453e866e8e3b48a9d01a46e1f68bfbb40652c771386c9",
+        "98096-8.json": "bfba5cff36105d14f2924a2f6f34bb1cf3febdd2d200ddb5d06f00ae3a7fab67",
+        "98096-9.json": "a099fb80ac6a01c3a3fec66f08e146b29a74bd1c9a93d41ebdd6665df978def9"
+      },
+      "log_sha256": "a77e54c5906d2b6bac651b1bea22d73b211efd424c44277c64952d44921b98d6",
+      "passed": 20,
+      "test_source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c",
+      "total": 20
+    }
+  }
+}
