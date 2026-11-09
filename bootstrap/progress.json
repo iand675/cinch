@@ -14522,9 +14522,9 @@
         "unit": "gates",
         "total": 6,
         "passed": 1,
-        "failed": 3,
+        "failed": 4,
         "status": "running",
-        "phase": "Replay the original lib_toml tests",
+        "phase": "Replay the original lib_yaml tests",
         "evidence": null
       },
       {
@@ -14673,5 +14673,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:13:36.872749+00:00"
+  "updatedAt": "2026-11-09T10:17:43.868150+00:00"
 }
