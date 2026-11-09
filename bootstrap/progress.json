@@ -459,7 +459,7 @@
   "candidatePublished": true,
   "fullGoalComplete": false,
   "summary": "The published codata compiler has a verified fixed point. Complete suites and frontend parity on matching sources remain open.",
-  "activity": "The preceding integrated candidate passed the changed-source check. 2/110 Cinch Stage 3 targets passed and 12/236 Rust targets passed. The task-capture successor has a separate rebuild.",
+  "activity": "The preceding integrated candidate passed the changed-source check. 2/110 Cinch Stage 3 targets passed and 13/236 Rust targets passed. The task-capture successor has a separate rebuild.",
   "checklist": {
     "version": 1,
     "target": {
@@ -17919,11 +17919,11 @@
         "title": "Run all 236 Rust targets on the preceding integrated candidate",
         "source": "c0c8c69898bf5788a87b472575902bf9f8b0be255dcfd40a7e0d3ab904ad0516",
         "unit": "targets",
-        "passed": 12,
+        "passed": 13,
         "total": 236,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_source_instances",
+        "phase": "bootstrap_pipeline",
         "evidence": null
       },
       {
@@ -21013,5 +21013,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:08:46.762425+00:00"
+  "updatedAt": "2026-11-09T02:11:31.447800+00:00"
 }
