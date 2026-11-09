@@ -5284,6 +5284,22 @@
                 },
                 {
                   "name": "effect_rows_are_typed_and_honest",
+                  "status": "passed"
+                },
+                {
+                  "name": "generic_constraint_and_partial_application",
+                  "status": "passed"
+                },
+                {
+                  "name": "guard_failure_on_boxed_result_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "guard_failure_with_covered_patterns_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "integer_match_without_catch_all_is_rejected",
                   "status": "running"
                 }
               ]
@@ -13887,5 +13903,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:18:08.587826+00:00"
+  "updatedAt": "2026-11-09T09:19:12.375761+00:00"
 }
