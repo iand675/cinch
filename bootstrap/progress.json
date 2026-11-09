@@ -10628,6 +10628,34 @@
                 },
                 {
                   "name": "forget_drops_named_conjuncts_and_names_absent_ones",
+                  "status": "failed"
+                },
+                {
+                  "name": "generic_preserves_transfer_works_where_the_method_preserves",
+                  "status": "failed"
+                },
+                {
+                  "name": "incomparable_heads_at_a_common_refinement_are_a_coherence_error",
+                  "status": "failed"
+                },
+                {
+                  "name": "measure_atoms_decide_statically_where_the_spine_folds",
+                  "status": "failed"
+                },
+                {
+                  "name": "narrow_back_up_is_accepted_with_a_dec",
+                  "status": "failed"
+                },
+                {
+                  "name": "narrow_back_up_is_refused_without_a_dec",
+                  "status": "failed"
+                },
+                {
+                  "name": "narrow_rejects_forged_dec_evidence",
+                  "status": "failed"
+                },
+                {
+                  "name": "postcondition_rows_round_trip_through_the_interface",
                   "status": "running"
                 }
               ]
@@ -14976,5 +15004,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:46:26.532176+00:00"
+  "updatedAt": "2026-11-09T10:47:31.912995+00:00"
 }
