@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 25,
+          "verified": 26,
           "blocked": 2,
           "running": 1,
-          "pending": 208,
+          "pending": 207,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -3180,21 +3180,21 @@
           {
             "id": "native:bootstrap_anonymous_contracts",
             "title": "bootstrap_anonymous_contracts",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T11:13:50.060238+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T11:40:31.354739+00:00",
+              "exitCode": 0,
+              "logSha256": "705aa39e0d4b3bf0c2993eae6bb3b2f2645b6b1850b11b1d11ee4435623781de",
               "cases": [
                 {
                   "name": "imported_anonymous_results_and_arguments_keep_their_meaning",
-                  "status": "running"
+                  "status": "passed"
                 }
               ]
             }
@@ -3202,11 +3202,24 @@
           {
             "id": "native:bootstrap_argument_scopes",
             "title": "bootstrap_argument_scopes",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T11:40:31.377658+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "compiled_cinch_keeps_argument_witness_scopes_and_effects",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_array_float_bits",
@@ -15499,10 +15512,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 25,
+        "passed": 26,
         "failed": 2,
         "status": "running",
-        "phase": "bootstrap_anonymous_contracts Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "bootstrap_argument_scopes Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -16013,10 +16026,10 @@
       }
     ],
     "counts": {
-      "verified": 313,
+      "verified": 314,
       "blocked": 26,
       "running": 3,
-      "pending": 443,
+      "pending": 442,
       "recheck": 21
     },
     "total": 806,
@@ -16025,5 +16038,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:32:26.218908+00:00"
+  "updatedAt": "2026-11-09T11:40:34.587420+00:00"
 }
