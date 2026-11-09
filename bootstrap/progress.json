@@ -532,7 +532,7 @@
         "id": "gap:integrated-candidate",
         "title": "Failures on the integrated candidate",
         "state": "blocked",
-        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | evolution | lattice | llvm_contract",
+        "detail": "bootstrap_source_instances | bootstrap_pipeline | letrec | intrinsic_objects | syntax_declaration_groups | syntax_declaration_namespaces | syntax_declarations | hk | refinements | stage_code_expectations | evolution | lattice | llvm_contract",
         "doneWhen": "Repair and replay the failed current-candidate checks.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/progress.json"
       },
@@ -10223,9 +10223,9 @@
         "total": 44,
         "counts": {
           "verified": 0,
-          "blocked": 9,
+          "blocked": 10,
           "running": 1,
-          "pending": 34,
+          "pending": 33,
           "recheck": 0
         },
         "detail": "Original cases outside the Stage 3 matrix, with separate selected-compiler receipts.",
@@ -10733,17 +10733,17 @@
           {
             "id": "additional:stage_code_expectations",
             "title": "stage_code_expectations",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "blocked",
+            "detail": "The matching run recorded a failure.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "failed",
               "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
               "startedAt": null,
               "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "exitCode": 101,
+              "logSha256": "fb91e5ff7be0a82cb1947712316023c2d5842edd493191d4d8a58c0ac6e10494",
               "cases": [
                 {
                   "name": "code_application_preserves_its_function_operands_expectation",
@@ -10787,7 +10787,7 @@
                 },
                 {
                   "name": "stored_stage_values_preserve_linear_parameter_usage",
-                  "status": "running"
+                  "status": "failed"
                 }
               ]
             }
@@ -10795,11 +10795,48 @@
           {
             "id": "additional:sym",
             "title": "sym",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+              "startedAt": null,
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "a_symbol_literal_is_emitted_as_a_constant",
+                  "status": "failed"
+                },
+                {
+                  "name": "char_and_symbol_spellings_type_apart",
+                  "status": "failed"
+                },
+                {
+                  "name": "char_precedence_is_lexical_and_deterministic",
+                  "status": "passed"
+                },
+                {
+                  "name": "intern_and_sym_name_round_trip_with_identity_across_the_boundary",
+                  "status": "failed"
+                },
+                {
+                  "name": "literal_patterns_dispatch_by_identity",
+                  "status": "failed"
+                },
+                {
+                  "name": "name_quotes_outside_their_positions_are_refused",
+                  "status": "failed"
+                },
+                {
+                  "name": "ord_is_lexicographic_by_name_and_deterministic_across_runs",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "additional:evolution",
@@ -14992,9 +15029,9 @@
         "unit": "targets",
         "total": 4,
         "passed": 0,
-        "failed": 2,
+        "failed": 3,
         "status": "running",
-        "phase": "Replay original stage_code_expectations target on Stage 3",
+        "phase": "Replay original sym target on Stage 3",
         "evidence": null
       },
       {
@@ -15374,9 +15411,9 @@
     ],
     "counts": {
       "verified": 309,
-      "blocked": 13,
+      "blocked": 14,
       "running": 4,
-      "pending": 459,
+      "pending": 458,
       "recheck": 21
     },
     "total": 806,
@@ -15385,5 +15422,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:06:27.402744+00:00"
+  "updatedAt": "2026-11-09T11:07:30.769249+00:00"
 }
