@@ -20915,7 +20915,7 @@
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
         "status": "running",
-        "phase": "Combined candidate, starting from the pinned seed. replay the exact Stage 3 concurrency failure on successor Stage 1",
+        "phase": "Combined candidate, starting from the pinned seed. build Stage 2 with the preceding compiler",
         "passed": 2,
         "total": 5,
         "failed": 0,
@@ -20959,10 +20959,10 @@
         "title": "Replay the nominal task-capture failure on the integrated Stage 1",
         "source": "dd12d9780d7e566216c7f07d69e7422fcfed8d321b587c10eb8a53d844bd7bcc",
         "unit": "tests",
-        "passed": 0,
+        "passed": 1,
         "failed": 0,
         "total": 1,
-        "status": "pending",
+        "status": "passed",
         "phase": "The replay uses the original integrated concurrency harness and the matching pinned interfaces.",
         "evidence": null
       },
@@ -21013,5 +21013,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T02:18:02.081405+00:00"
+  "updatedAt": "2026-11-09T02:19:25.635022+00:00"
 }
