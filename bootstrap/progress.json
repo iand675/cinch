@@ -20956,14 +20956,25 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-explicit-let-layout-results.json"
       },
       {
-        "title": "Replay the original recursive binding cases on the earlier scoped compiler",
-        "source": "4a7e6706e69c1b989230e5eefdef2eaf2d3a138580d4f3c235176bce08d76a25",
+        "title": "Replay the original recursive binding cases on Cinch Stage 1",
+        "source": "61d1f429e526394d35fa36670f47bb977b69892342958d817043324aa262433a",
         "unit": "tests",
-        "passed": 5,
-        "failed": 6,
+        "passed": 9,
+        "failed": 2,
         "total": 11,
         "status": "completed-with-failures",
-        "phase": "Forward dependencies, eager cycle refusals and the nested let depth limit passed. Guarded functions and value knots are separate.",
+        "phase": "Self and mutual recursion, delayed calls, strict initializer order and the let depth limit passed. Both remaining cases require region-scoped value knots.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-guarded-function-letrec-results.json"
+      },
+      {
+        "title": "Replay the four original stack tests on the integrated Cinch Stage 3",
+        "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
+        "unit": "tests",
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "status": "completed-with-failures",
+        "phase": "The non-tail control exhausted the stack as expected. The three million-call tail cases also exhausted it. The widened worker candidate is rebuilding.",
         "evidence": null
       }
     ],
@@ -20980,5 +20991,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:57:02.514372+00:00"
+  "updatedAt": "2026-11-09T01:58:46.538120+00:00"
 }
