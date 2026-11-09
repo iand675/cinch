@@ -10090,6 +10090,18 @@
                 },
                 {
                   "name": "generated_types_keep_export_and_import_ownership",
+                  "status": "passed"
+                },
+                {
+                  "name": "generated_types_support_selected_renamed_imports_and_reexports",
+                  "status": "failed"
+                },
+                {
+                  "name": "later_generators_can_compile_helpers_with_generated_nominal_headers",
+                  "status": "failed"
+                },
+                {
+                  "name": "native_declaration_construction_cannot_escape_into_runtime",
                   "status": "running"
                 }
               ]
@@ -14492,5 +14504,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:01:39.260768+00:00"
+  "updatedAt": "2026-11-09T10:02:43.874494+00:00"
 }
