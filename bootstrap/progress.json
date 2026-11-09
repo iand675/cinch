@@ -736,10 +736,10 @@
         "unit": "targets",
         "total": 236,
         "counts": {
-          "verified": 21,
+          "verified": 22,
           "blocked": 2,
           "running": 1,
-          "pending": 212,
+          "pending": 211,
           "recheck": 0
         },
         "detail": "All 236 original targets, including ignored cases and doctests.",
@@ -2944,17 +2944,17 @@
           {
             "id": "native:arrays",
             "title": "arrays",
-            "state": "running",
-            "detail": "Running with the published compiler inputs.",
+            "state": "verified",
+            "detail": "Passed with a matching compiler and test receipt.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
             "observed": {
-              "status": "running",
+              "status": "passed",
               "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
               "startedAt": "2026-11-09T10:12:03.232632+00:00",
-              "finishedAt": null,
-              "exitCode": null,
-              "logSha256": null,
+              "finishedAt": "2026-11-09T10:42:00.511634+00:00",
+              "exitCode": 0,
+              "logSha256": "25ee9f6c6e1585488d4cdc1a10919ce86d7451b97aea18adde1eb8b88c71a826",
               "cases": [
                 {
                   "name": "array_copy_evidence_depends_on_the_element_type",
@@ -2978,7 +2978,43 @@
                 },
                 {
                   "name": "cinch_array_runtime_matches_checked_kinds_bounds_formats_and_ownership",
-                  "status": "running"
+                  "status": "passed"
+                },
+                {
+                  "name": "column_projection_returns_the_original_typed_buffers",
+                  "status": "passed"
+                },
+                {
+                  "name": "columnar_composition_checks_lengths_and_preserves_nested_row_types",
+                  "status": "passed"
+                },
+                {
+                  "name": "invalid_shapes_empty_dimensions_and_column_lengths_are_typed_failures",
+                  "status": "passed"
+                },
+                {
+                  "name": "multidimensional_arrays_check_every_axis_and_shape_product",
+                  "status": "passed"
+                },
+                {
+                  "name": "native_staging_refuses_arrays_by_name_until_the_evaluator_supports_them",
+                  "status": "passed"
+                },
+                {
+                  "name": "normal_arrays_preserve_values_and_return_none_at_boundaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_scalars_roundtrip_through_generic_operations",
+                  "status": "passed"
+                },
+                {
+                  "name": "packed_word_storage_resolves_width_from_the_target",
+                  "status": "passed"
+                },
+                {
+                  "name": "self_hosted_intrinsic_contracts_refuse_unimplemented_array_operations",
+                  "status": "passed"
                 }
               ]
             }
@@ -2986,11 +3022,24 @@
           {
             "id": "native:attributes",
             "title": "attributes",
-            "state": "pending",
-            "detail": "Await the matching run.",
+            "state": "running",
+            "detail": "Running with the published compiler inputs.",
             "doneWhen": "Run the complete original target and retain its matching receipt.",
             "evidence": null,
-            "observed": null
+            "observed": {
+              "status": "running",
+              "source": "dcb827bcebf188b7a94bf2eff5d907ec4b780a627eecc4e12ec74f004292934e",
+              "startedAt": "2026-11-09T10:42:00.536897+00:00",
+              "finishedAt": null,
+              "exitCode": null,
+              "logSha256": null,
+              "cases": [
+                {
+                  "name": "hints_do_not_change_type_checking_outcomes",
+                  "status": "running"
+                }
+              ]
+            }
           },
           {
             "id": "native:bootstrap_abstract_nonzero_methods",
@@ -10356,7 +10405,12 @@
               "finishedAt": null,
               "exitCode": null,
               "logSha256": null,
-              "cases": []
+              "cases": [
+                {
+                  "name": "deopt_refuses_an_unbalanced_linear_transfer",
+                  "status": "running"
+                }
+              ]
             }
           },
           {
@@ -14185,10 +14239,10 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 236,
-        "passed": 21,
+        "passed": 22,
         "failed": 2,
         "status": "running",
-        "phase": "arrays Audited 430 passing cases across the first 18 complete targets.",
+        "phase": "attributes Audited 430 passing cases across the first 18 complete targets.",
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-eighteen-targets.json"
       },
       {
@@ -14699,10 +14753,10 @@
       }
     ],
     "counts": {
-      "verified": 305,
+      "verified": 306,
       "blocked": 8,
       "running": 4,
-      "pending": 468,
+      "pending": 467,
       "recheck": 21
     },
     "total": 806,
@@ -14711,5 +14765,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T10:41:05.258710+00:00"
+  "updatedAt": "2026-11-09T10:42:09.714117+00:00"
 }
