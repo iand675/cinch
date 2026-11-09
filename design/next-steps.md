@@ -12,9 +12,11 @@ See [the published compiler receipt](../bootstrap/current-abi7-published-task-ca
 The combined checked-law and guarded-recursion compiler rebuilt through
 Stage 3. Its Stage 2 and Stage 3 executables, LLVM IR and all 46 compiler
 interfaces agree. A separate entry check consumed the emitted compiler
-contracts, and all eight original law cases passed on Stage 1. The changed-source rebuild and the complete matching test suites
-remain open.
-See [the combined Stage 3 audit](../bootstrap/current-abi7-combined-stage3-agreement.json).
+contracts. The deliberately changed compiler rebuilt and emitted the new
+diagnostic. All eight original law cases passed on both Stage 1 and the
+matching Stage 3. The rest of the matching test suites remain open.
+See [the combined Stage 3 audit](../bootstrap/current-abi7-combined-stage3-agreement.json)
+and [the changed-source and law replay audit](../bootstrap/current-abi7-combined-fixed-point-and-stage3-laws.json).
 
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
