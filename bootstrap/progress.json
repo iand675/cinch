@@ -17924,7 +17924,7 @@
         "failed": 0,
         "status": "running",
         "phase": "Build combined Stage 3",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage1-laws-and-methods.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage2.json"
       },
       {
         "title": "Rebuild with checked equality methods and guarded recursion",
@@ -21165,6 +21165,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-argument-and-body-bindings.json"
       },
       {
+        "title": "Original Boolean branch controls on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built checker agreed with Rust on all 21 accepted and refused controls.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-boolean-branches.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21272,7 +21283,7 @@
         "failed": 0,
         "status": "audited-abi7-native-editor",
         "phase": "complete syntax and editor suite",
-        "evidence": null
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-editor.json"
       },
       {
         "title": "Replay all four original tail-call tests on the merged Stage 3",
@@ -21356,6 +21367,17 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 22,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
+        "title": "Replay 72 original refinement, staging, symbol and kind tests on the merged compiler outside the Stage 3 matrix",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 4,
         "passed": 0,
         "failed": 0,
         "status": "waiting-stage3",
@@ -21539,6 +21561,17 @@
         "evidence": null
       },
       {
+        "title": "Check inferred class and data parameter kinds across all 24 original higher-kinded cases",
+        "source": "a75cac607f4a2e8e8558351b1415d72df3ba3f997fe70f1b356863b5110ce8b0",
+        "unit": "gates",
+        "total": 2,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released worker slot",
+        "evidence": null
+      },
+      {
         "title": "Replay original modules with both manifest harness fixes",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21618,5 +21651,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:28:24.105707+00:00"
+  "updatedAt": "2026-11-09T08:29:05.901149+00:00"
 }
