@@ -5360,6 +5360,34 @@
                 },
                 {
                   "name": "recursion_negation_and_bool_operators",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_missing_instance",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_non_exhaustive_match",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_type_mismatch",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_undeclared_operator",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_unknown_name",
+                  "status": "passed"
+                },
+                {
+                  "name": "rejects_wrong_main_type",
+                  "status": "passed"
+                },
+                {
+                  "name": "surface_and_or_short_circuit",
                   "status": "running"
                 }
               ]
@@ -13963,5 +13991,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:23:27.554274+00:00"
+  "updatedAt": "2026-11-09T09:24:31.640627+00:00"
 }
