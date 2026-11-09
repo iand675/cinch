@@ -20860,10 +20860,10 @@
         "title": "Verify recursive bindings and transferred task captures",
         "unit": "controls",
         "status": "running",
-        "phase": "Isolated Stage 1 candidate. run all twenty original concurrency cases",
+        "phase": "Isolated Stage 1 candidate. check forward acyclic dependencies and lexical shadowing",
         "passed": 2,
         "total": 6,
-        "failed": 0,
+        "failed": 1,
         "source": "760727efa97de529ab842ec53875f753443562b4a9910404cdebfbdb1d266c3a",
         "evidence": null
       },
@@ -20936,5 +20936,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:08:40.874505+00:00"
+  "updatedAt": "2026-11-09T01:09:44.153231+00:00"
 }
