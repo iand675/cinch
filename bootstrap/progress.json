@@ -17873,11 +17873,11 @@
     "active": [
       {
         "title": "Verify build manifests and original module tests in Rust and Cinch",
-        "source": "1cbacbe6143d54e082954a47f191158f53e9b305da43ef39fd945513c27cb615",
+        "source": "20c76ab4b0423a5cf790060bcdaa5c487acbd8ea7b769d8ec25575423b82a447",
         "unit": "checks",
         "passed": 0,
         "failed": 0,
-        "total": 5,
+        "total": 7,
         "status": "waiting-worker",
         "phase": "reproduce the Rust ABI mismatch and run the original module tests",
         "evidence": null
@@ -20914,5 +20914,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T00:15:16.308033+00:00"
+  "updatedAt": "2026-11-09T00:16:19.528662+00:00"
 }
