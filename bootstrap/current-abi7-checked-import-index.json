@@ -1,0 +1,374 @@
+{
+  "baseline_compiler_sha256": "d700e02128c2db4bfb1b8e788c33357df004060a4d3f8bb0f830fc768b387c89",
+  "baseline_source_sha256": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+  "compiler_sha256": "56c8906d8fb982d9c3e58acef5dd93b35900e80ae38744b94f315f9708438c60",
+  "compiler_source_sha256": "1d4c7bb058efd3a716136aaa7e1c850b205ef355fb7e658944dcdbaa0ade5680",
+  "cpu_seconds": {
+    "baseline": 331.2670820000006,
+    "indexed": 133.02369899999994
+  },
+  "full_goal_complete": false,
+  "interface_set_sha256": "3eb7a6c971f2c2cb836abe3d17019ebd6ba7b7b18991ee19daab74ae9e3c2bb5",
+  "paired_trials": [
+    {
+      "baseline": {
+        "cpu_seconds": 17.991331999999943,
+        "diagnostic": "",
+        "elapsed_seconds": 18.015985125000043,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.569525000000095,
+        "diagnostic": "",
+        "elapsed_seconds": 9.595568749999984,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      }
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.909258999999942,
+        "diagnostic": "",
+        "elapsed_seconds": 17.940416374999813,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.469011999999722,
+        "diagnostic": "",
+        "elapsed_seconds": 9.491152207999903,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      }
+    }
+  ],
+  "status": "audited-checked-import-index-parity-and-timing",
+  "test_source_sha256": "7b3b64be01cef7ed0b612014a4f77eeb79805833da91e17a3159e94384bec113",
+  "tests": [
+    {
+      "baseline": {
+        "cpu_seconds": 18.294264000000105,
+        "diagnostic": "",
+        "elapsed_seconds": 18.618243915999983,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.647578000000015,
+        "diagnostic": "",
+        "elapsed_seconds": 11.437836291999929,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "a7e660c962f7d473aa5a586c3104cacef441f797fa11f9439595941b50e9bc50"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "builder write retains an exact branch bound among related facts",
+      "source_sha256": "32920794ab53b4b34ca9ac35af77d9ebbf00c0fe1024af48c5c5a0e47bfc4d69"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.516752999999945,
+        "diagnostic": "bootstrap.check:3:66: function precondition is not established at this call because the obligation `index < bytes-length-index out` needs evidence and the checker found no evidence for `index < bytes-length-index out`\n",
+        "elapsed_seconds": 17.553234791000023,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 8.708000000000048,
+        "diagnostic": "bootstrap.check:3:66: function precondition is not established at this call because the obligation `index < bytes-length-index out` needs evidence and the checker found no evidence for `index < bytes-length-index out`\n",
+        "elapsed_seconds": 8.7503569160001,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "byte write still rejects the end index",
+      "source_sha256": "12e535f920026aee4967e35fecd78223501739a2724ae960e6b115ac7098e7cc"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.729556000000027,
+        "diagnostic": "",
+        "elapsed_seconds": 17.76554295799997,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "d756fa2651775cf2c67a834376bf02aa634a5703edf41f064fed28d2ecb37466"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.121981000000115,
+        "diagnostic": "",
+        "elapsed_seconds": 9.147888458000125,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "d756fa2651775cf2c67a834376bf02aa634a5703edf41f064fed28d2ecb37466"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "bounded byte length in nested guarded subtraction",
+      "source_sha256": "f656cd8f98e525eb8e9f28fa92fef101fbab2d42dc03335cb6aab59af578715d"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 18.102729000000064,
+        "diagnostic": "",
+        "elapsed_seconds": 18.138609667000082,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "9a3d94d01d79ec25f0545dcab10bbd60a63218c1858303461c6f5a643595a240"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.27510099999996,
+        "diagnostic": "",
+        "elapsed_seconds": 9.299445333999984,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "9a3d94d01d79ec25f0545dcab10bbd60a63218c1858303461c6f5a643595a240"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "bounded byte length with explicit sum binding",
+      "source_sha256": "988cc1b97ad3e0b98dfd9391fda97ea86b89e30179fc7e7d77c3bbb220239230"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.604303000000087,
+        "diagnostic": "",
+        "elapsed_seconds": 17.639096207999955,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "51a334c53fff4fc232fb665b5db05c234e56efa4e05afbceb81b0e4fbb0202d9"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.20894999999976,
+        "diagnostic": "",
+        "elapsed_seconds": 9.234210500000017,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "51a334c53fff4fc232fb665b5db05c234e56efa4e05afbceb81b0e4fbb0202d9"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "bounded byte length in direct guarded subtraction",
+      "source_sha256": "6f50851acb197c6e19e1e457f7406f87a3a841a9118ed24c2d7ea75df8b6b132"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.236224000000117,
+        "diagnostic": "bootstrap.check:3:98: function precondition is not established at this call because the obligation `(remaining + 1) <= count` needs evidence and the checker found no evidence for `(remaining + 1) <= count`\n",
+        "elapsed_seconds": 29.27890975000014,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.753081000000105,
+        "diagnostic": "bootstrap.check:3:98: function precondition is not established at this call because the obligation `(remaining + 1) <= count` needs evidence and the checker found no evidence for `(remaining + 1) <= count`\n",
+        "elapsed_seconds": 10.02649145800001,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "bounded byte length does not prove reversed subtraction",
+      "source_sha256": "e26465de77d3042639193bb65d2711389c3a5dec8ae14f5b5dad6411983e4908"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.32633099999994,
+        "diagnostic": "bootstrap.check:5:54: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `((0 <= integer-index (forget-index count + 1)) && (integer-index (forget-index count + 1) <= 9223372036854775807))` needs evidence and the checker found no evidence for `((0 <= integer-index (forget-index count + 1)) && (integer-index (forget-index count + 1) <= 9223372036854775807))`\n",
+        "elapsed_seconds": 29.372188375000178,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.619491000000021,
+        "diagnostic": "bootstrap.check:5:54: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `((0 <= integer-index (forget-index count + 1)) && (integer-index (forget-index count + 1) <= 9223372036854775807))` needs evidence and the checker found no evidence for `((0 <= integer-index (forget-index count + 1)) && (integer-index (forget-index count + 1) <= 9223372036854775807))`\n",
+        "elapsed_seconds": 9.64931070900002,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "sum does not retain byte length upper bound",
+      "source_sha256": "d8cc90518525a06562e911cd1f78b592bad6108100bcea402ddc7f6b094a46e0"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.685860000000098,
+        "diagnostic": "",
+        "elapsed_seconds": 29.764321999999993,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "0ef5081e0d34f5b1aa3cd41f1ec6644e0c3dc986292075e2a36ff5edb7e950e8"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 10.294212999999978,
+        "diagnostic": "",
+        "elapsed_seconds": 10.554011833000004,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "0ef5081e0d34f5b1aa3cd41f1ec6644e0c3dc986292075e2a36ff5edb7e950e8"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "nested remainder witnesses",
+      "source_sha256": "100327432808fa2d3bb2398ba4e850cd399e897d3334be63ab18b339bdb73904"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 30.684678000000048,
+        "diagnostic": "",
+        "elapsed_seconds": 30.86657587500008,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "bbef3d007cab4b011523e7461547d98793e783e4d4348e5a2caa4b65f6bff757"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 10.334754000000256,
+        "diagnostic": "",
+        "elapsed_seconds": 10.362460792000093,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "bbef3d007cab4b011523e7461547d98793e783e4d4348e5a2caa4b65f6bff757"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "explicit remainder binding",
+      "source_sha256": "c5fcf6bbe37e4bb07618e9588602151b7c2f42a81f1a1e69f09cd74097eb6982"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.299648999999913,
+        "diagnostic": "bootstrap.check:6:19: function precondition is not established at this call because the obligation `#dependent-argument < 16` needs evidence and the checker found no evidence for `#dependent-argument < 16`\n",
+        "elapsed_seconds": 29.34519662499997,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.651942999999816,
+        "diagnostic": "bootstrap.check:6:19: function precondition is not established at this call because the obligation `#dependent-argument < 16` needs evidence and the checker found no evidence for `#dependent-argument < 16`\n",
+        "elapsed_seconds": 9.68191820900006,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "wrong remainder bound",
+      "source_sha256": "30aa9b5ef0fc4949f534292fd683f08201e68c32559a8ff9d5d3043fb84bb824"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.0714340000001,
+        "diagnostic": "bootstrap.check:6:29: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero 0` needs evidence and the checker found no evidence for `NonZero 0`\n",
+        "elapsed_seconds": 29.120212792000075,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.474015999999967,
+        "diagnostic": "bootstrap.check:6:29: refinement predicate is not established for this value (undischarged refinement obligation) because the obligation `NonZero 0` needs evidence and the checker found no evidence for `NonZero 0`\n",
+        "elapsed_seconds": 9.741298459000063,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "zero remainder divisor",
+      "source_sha256": "5d6c75f89ae38b01681e5d70a512a998b23c40bfa18ae16a1e5789e8b9556d2c"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 29.63084700000008,
+        "diagnostic": "",
+        "elapsed_seconds": 29.927965749999885,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "57570363f8fa1991276a5fce0ee0bb5c028e4fd8853d28a2bc004b636d977a0d"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 10.013547999999947,
+        "diagnostic": "",
+        "elapsed_seconds": 10.039171874999965,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "57570363f8fa1991276a5fce0ee0bb5c028e4fd8853d28a2bc004b636d977a0d"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "shadowed source name",
+      "source_sha256": "85084754326c11e89255115dbafc6ed7dcd80b12296762e1869cfafdb82ac1d7"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.666014999999994,
+        "diagnostic": "",
+        "elapsed_seconds": 17.694200333000026,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "0a0e897b02c10aa1832b6214919cfccbd911819837d52bbf94a3340ec432b705"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 9.276556000000085,
+        "diagnostic": "",
+        "elapsed_seconds": 9.297017000000096,
+        "exit_code": 0,
+        "interfaces": {
+          "Main.cinchif": "0a0e897b02c10aa1832b6214919cfccbd911819837d52bbf94a3340ec432b705"
+        },
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "effectful function prefix",
+      "source_sha256": "020cea0ff4bc1783461e85a92b5030c88e4ffe759ec509fbbc99f14cea222f39"
+    },
+    {
+      "baseline": {
+        "cpu_seconds": 17.418439000000035,
+        "diagnostic": "bootstrap.check:6:22: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n",
+        "elapsed_seconds": 17.44871275000014,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "indexed": {
+        "cpu_seconds": 8.64448699999986,
+        "diagnostic": "bootstrap.check:6:22: effect rows do not match: performed effects exceed the declared row (performed {(IO r)}, declared {})\n",
+        "elapsed_seconds": 8.67188125000007,
+        "exit_code": 4,
+        "interfaces": {},
+        "log_sha256": "b27ff3e45837900e515fa2b01cc078ccc8b028fea18d84daa0bdaac494f9370c"
+      },
+      "name": "cannot erase function effects",
+      "source_sha256": "4e9ad55794adf007d1fbdac7f6b11b0096bc9feeca2e0b04f867802d09e1823e"
+    }
+  ]
+}

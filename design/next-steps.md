@@ -67,6 +67,14 @@ matching on the imported codata and passed all ten original codata cases
 with interface emission enabled. Matching Stage 2 and Stage 3 remain open.
 See [the codata contract and suite audit](../bootstrap/current-abi7-stage1-codata-contract-and-suite.json).
 
+The checked import-body index passed all 14 original argument-scope
+fixtures against the unindexed compiler. Exit statuses, diagnostics and
+emitted interfaces match. Across those fixtures, the paired compilers
+used 331 and 133 CPU seconds respectively. Two order-reversed repeats
+also agreed on the output. The full bootstrap on the indexed compiler
+remains open.
+See [the checked import-index audit](../bootstrap/current-abi7-checked-import-index.json).
+
 The guarded-recursion and tail-call candidate rebuilt through Stage 3.
 The executable, LLVM IR and all 46 compiler interfaces agree between
 Stage 2 and Stage 3. A separate consumer checked the emitted interfaces,
