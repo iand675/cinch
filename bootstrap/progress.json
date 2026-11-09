@@ -20914,9 +20914,9 @@
       {
         "title": "Rebuild the integrated host, records and primitive compiler through Stage 3",
         "unit": "controls",
-        "status": "running",
+        "status": "passed",
         "phase": "Combined candidate, starting from the pinned seed. verify the fixed point, 12 smokes, interface consumer and changed-source rebuild",
-        "passed": 4,
+        "passed": 5,
         "total": 5,
         "failed": 0,
         "source": "c893f53c207a20261f738baeabf4eedffcafe857e6cf0a4b8d61a6eecd75744c",
@@ -20969,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:34:56.956628+00:00"
+  "updatedAt": "2026-11-09T01:36:39.908284+00:00"
 }
