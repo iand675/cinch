@@ -60,6 +60,211 @@
     }
   ],
   "full_goal_complete": false,
+  "interfaces_sha256": "4c79d3679863ec9c61afd65e1cb23382ff40103d1782b2ec109cb0b265261a02",
+  "object_sha256": "415417e5ea29acf8b90503aca2263a4970c71c23e65383d94e5f527e900b7fff",
+  "original_targets": {
+    "concurrency": {
+      "cases": [
+        {
+          "name": "a_linear_capture_transfers_into_a_task_exactly_once",
+          "status": "passed"
+        },
+        {
+          "name": "a_mut_borrow_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "a_thread_shared_memo_cell_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "aggregate_results_cannot_hide_scoped_closure_captures",
+          "status": "passed"
+        },
+        {
+          "name": "an_affine_thunk_moves_into_a_task_by_transfer",
+          "status": "passed"
+        },
+        {
+          "name": "an_unshared_mutable_capture_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "blocking_foreign_call_is_accounted_in_the_task_row",
+          "status": "passed"
+        },
+        {
+          "name": "checked_private_and_recursive_data_results_do_not_capture_scope_regions",
+          "status": "passed"
+        },
+        {
+          "name": "double_capture_of_a_linear_value_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "dropping_a_handle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "example_11_structured_tasks_accepts",
+          "status": "passed"
+        },
+        {
+          "name": "io_read_and_write_round_trip",
+          "status": "passed"
+        },
+        {
+          "name": "join_all_or_cancel_cancels_siblings_on_failure",
+          "status": "passed"
+        },
+        {
+          "name": "local_task_callbacks_retain_their_captures_through_aliases",
+          "status": "passed"
+        },
+        {
+          "name": "partial_application_cannot_hide_a_scoped_token_in_an_escaping_closure",
+          "status": "passed"
+        },
+        {
+          "name": "ref_and_copy_captures_are_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "source_task_forwarders_check_actual_captures",
+          "status": "passed"
+        },
+        {
+          "name": "spawned_task_results_join_correctly",
+          "status": "passed"
+        },
+        {
+          "name": "task_handles_cannot_escape_their_scope",
+          "status": "passed"
+        },
+        {
+          "name": "task_shared_ref_requires_a_shareable_referent",
+          "status": "passed"
+        }
+      ],
+      "invocation_receipts": {
+        "25331-0.json": "5093b4f3811a5c3da203d7d25e7a112f1e77e1610944075740d93925194b8e0b",
+        "25331-1.json": "de3cd37b8a6dd19c6cc24da2b7670ba4beddb5fed52c66564caa0b4f64f4e210",
+        "25331-10.json": "24625d533d0ba14374ebf0df10d0bceaa39b4af71625d0da597d07539db29fde",
+        "25331-11.json": "019fc405d720cb8b118f52e5f4f4e97b122d165ccb460c19f4dfa188c7e27a0c",
+        "25331-12.json": "10b1f31a8bbc0889b7d85e36ee00f6c83a83f0fad5122af02ef68ea1b8e47f65",
+        "25331-13.json": "4544709a69d996b58cb6e2000bc530d18b8180421b952d87a2ec3b3cf5c32eff",
+        "25331-14.json": "b47ba54c8ab6ef700db7465dffdd16ee512a12fc96a8623848cf26255c2dc5b8",
+        "25331-15.json": "cd81f63fe10c602aac00ce2e96c13c2a46e580bebcfdb820205f0400548b75ef",
+        "25331-16.json": "caf642ec81ce28b313f881231c4174102eedf3165ecd55291f5e313e5c7594c2",
+        "25331-17.json": "34faa12a90f5ac9fbb79e4eb00e74f8df79b31c918d9791dc1ac54b34ea3b490",
+        "25331-18.json": "cd268e0f7b848325d035f21b4c6f9fd87d8de0dc26f78df1272ac1cc93ff7c3a",
+        "25331-19.json": "0f4260bfacca7648ba770bfb36d0941c0cf4ce7d972757bd23fb27faf46b0639",
+        "25331-2.json": "93b7a3725d78ca25e3044934043ad594c96764b5201970f9fafa66131924d917",
+        "25331-20.json": "904414216411e4f2031f85d69f1983b91fec7e4c5c7df86307d63d1b853e1916",
+        "25331-21.json": "08eceb41052e5b94d1cb412cb345eefaefafbf4fb9b0fcb932a02785c25d77be",
+        "25331-22.json": "97570f5ad0a7ba6a01de08b25f1733c6c147c619c8a6b8fb59843a8f0df51d12",
+        "25331-23.json": "70e6c1c3b1c2980b96cf1a25f809b1065078fe8a8726a38baada3d211173e747",
+        "25331-24.json": "ed8c5448a1965188722bceb7c4cbb58df851e2e46da988ad85b6fd3897e4207a",
+        "25331-25.json": "fca5347eb3c50c845a35edc985219f16551a72fa585085940dddb78713a5209c",
+        "25331-26.json": "58d94410a6ce102818217ffb96787b76b999d79697ca3275de78251650536878",
+        "25331-27.json": "bd7462b3a2e7649afb9f1355473ca3bf59b70de0234bcdf4d231681b04b63027",
+        "25331-28.json": "2051d303a971802bde23a68c35926835ed4e4a999332d90155ad4aec7b8c5c63",
+        "25331-29.json": "6fa0e378e1a1a387c706cce067cd7192cf5aee0b7f9fff2f6201fbd978ef3caa",
+        "25331-3.json": "13e535fbcdeec95ed6aa847a8df2e9f95c1f919243739e7ac09ba1b41645ef4d",
+        "25331-30.json": "1ffa7b7c2415cee4d9bb2f2a303601767d0bc4af12d561c70cc1e99567b14cdb",
+        "25331-31.json": "0fc0094fca5985cb8b78a5704df7477a01dff7f806c27ccfe428ec8e20db8151",
+        "25331-32.json": "0f2545d670cecb767af24ae8a33ad049cb648002835b33a9cdd9a51a617bd2ce",
+        "25331-33.json": "e3e162350d345e51d4e50c81f17ef749e5df913ad3d7f77dfda122cc7faf6d96",
+        "25331-34.json": "88e8089983a24eadc217892f97c7b0b8f0397467b70a1555b266284899794f42",
+        "25331-35.json": "9abd66c1d0f419572bf4f121e997a6e8f3104b48cff934584d4c143a5ce21cc1",
+        "25331-36.json": "aa416e5dd078304e0bb7c08823a79657a202bb5ed27c0fb13d890ab3bdb18756",
+        "25331-37.json": "97a193bdb4eb2ce2740248dc9bc921300f9b88d8e1af2c55c533cc0df8e72b26",
+        "25331-38.json": "2ffae3e698899a3203259fb0d209a142fb012af8e511d7323725d19c45187ae5",
+        "25331-39.json": "430aeea5acb76150feb2522f53475503c775ca0714e7d8a414f60aa4f5878861",
+        "25331-4.json": "a75f01de5f9ea227da474bc99b5c99e9c9ae6d7ced27bef0ca920966ec5cd1a0",
+        "25331-40.json": "f9902000ace3a5b816f2ca27a41a6914156111ebca26790c5289d0c6061e4efc",
+        "25331-41.json": "a85842b801a06a6b95e0ef0f26e0be49e2ae41ad124ca634d2966605f35f4e85",
+        "25331-5.json": "5f090c7a5f681940f810598ef7319aca30e5f305891596ef37f23349e0f2312e",
+        "25331-6.json": "112175ff1477d64adf4b26de7dfe3221239f4f97099513f641adc47c758e9ec0",
+        "25331-7.json": "36a187e8a9279c1a3095f197b2b6afbe2386923ea0ba96f098daa2fa1e7fb36c",
+        "25331-8.json": "a2ccc9eb969c2c5495427b5cd9d5519625bb928c9d55f82b68a69500d880b664",
+        "25331-9.json": "eda4521dba1439223603b32d038f03d5c25d01977df17a8bf471bc62c0e8f8c4"
+      },
+      "log_sha256": "7e12c18bdf51fac12000c726e17a712a419a3bd009cb7ae0a09769886f7fc458",
+      "passed": 20,
+      "source_sha256": "e6601e1d8af5ab34447f0b584efe8cc98b49586dae132d1a3c57670761e43c0c",
+      "test_binary_sha256": "03edb211f7dd02b4e40ec524a074881357e806a2e9bce82f20811198d0896279",
+      "total": 20
+    },
+    "letrec": {
+      "cases": [
+        {
+          "name": "eager_call_cycle_is_rejected",
+          "status": "passed"
+        },
+        {
+          "name": "eager_cycle_is_rejected_naming_the_variable",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_cycle_runs",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_delay_value_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "guarded_lambda_cycle_is_accepted",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_group_of_functions_and_values",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_local_function_recurses",
+          "status": "passed"
+        },
+        {
+          "name": "letrec_mutual_recursion",
+          "status": "passed"
+        },
+        {
+          "name": "multi_binding_let_group",
+          "status": "passed"
+        },
+        {
+          "name": "nested_let_depth_limit_is_a_named_diagnostic",
+          "status": "passed"
+        },
+        {
+          "name": "value_knot_read_under_a_lambda_yields_the_value",
+          "status": "passed"
+        }
+      ],
+      "invocation_receipts": {
+        "18878-0.json": "537997791ea3ca4a03ee3751a020a1f1af313b9da4f10ee8a5c5d99d1f41ed13",
+        "18878-1.json": "0988d275691710f5cb142eaf2cd976babe4f274a9554644df5a841fa90a8db25",
+        "18878-10.json": "29a706fbe71c139729c465866fe75d6a34e4d3c2148376c0bb1a305c14fa204a",
+        "18878-11.json": "07c7e40d4f4837fa778ba9fcf717d73019a2da6e92555dc097bc645a959a920e",
+        "18878-12.json": "512a89ac18f69f3c84765673f83b9c270bc1373e3f702b69da08b17152a50106",
+        "18878-2.json": "dd7926d173a4d6df269bf300cf415c03053660ab468ba69e5d6b763ee3a4af74",
+        "18878-3.json": "f01b13ba6b2ff6b065aff7d54c0735ac1cd1789861ba4443a68b7cecff086efa",
+        "18878-4.json": "960b98a012336cc3888d5d5ea15007fe25ef0715b352d3f2cd6438b8dc233dc4",
+        "18878-5.json": "17c17bebf5de7b0761e8e6e7403840925bf5f02a0551a92239fa38c8e8fbdcaa",
+        "18878-6.json": "78b1b388dead4823b055cee64cd030ec72e73d9a4ba6e0316ab244819bbfb7f0",
+        "18878-7.json": "7dd7981b720a853112394338e4d394f39d97bc828c9694d595cd4724c6182892",
+        "18878-8.json": "72adee047ca52946019dadea35f4d5abd271f16b82ceeb3357c37d5d8c3df54e",
+        "18878-9.json": "d58a7cf3fe85f7661271d0a1887564230554a6def09785f60598e6a455bce812"
+      },
+      "log_sha256": "6aba4fa2a3d48fc8ab36dfeab702e516dff1a44a46d6ab5c3677c6facd0e7964",
+      "passed": 11,
+      "source_sha256": "74cadf6588ed19778c1b9348791fe18a89a0d7e3117b00f620f6ddd519a5ba71",
+      "test_binary_sha256": "4744da280247850d8ad5f27ef0b99b4e3ab9e27df215e95d9bbeb4cadfe76426",
+      "total": 11
+    }
+  },
   "passed": 7,
   "previous_compiler_source_sha256": "040dc6296a0e290e07d8583e0accb32c6c75188563f8329f1f12a4d74e4ab759",
   "previous_controls": [
@@ -121,8 +326,9 @@
     }
   ],
   "schema": 1,
-  "scope": "The scoped probes preserve the exact earlier sources. The common LLVM preamble supplies allocator and black-hole declarations to programs without memo workers. Full original targets and matching Stage 3 remain separate.",
+  "scope": "Seven scoped controls, all eleven original recursive-binding cases and all twenty original concurrency cases passed on this isolated Cinch Stage 1. The combined Stage 3 replay remains open.",
   "stage_receipt_sha256": "8a08b0cd197d7655b969d2d083b270272686d433a7774df54c5cf789bc24cad4",
   "status": "audited-stage1-guarded-value-controls",
-  "total": 7
+  "total": 7,
+  "wrapper_sha256": "efe3cfb4be80d8537b9532ff8a63ed470d3d1083cfc166adfa193cdecd75faa1"
 }

@@ -221,6 +221,10 @@ scalar, unrelated closure and 128-iteration cleanup probe run with
 zero leaks. An eager read of an uninitialized slot exits through the
 black-hole rule. The common LLVM preamble declares the allocator and
 black-hole helper even when the program has no memo worker.
+The same isolated Stage 1 passed all eleven original recursive-binding
+cases and all twenty original concurrency cases. The two original
+value-knot cases now compile and run. The integrated Stage 3 replay
+has a separate gate.
 See [the guarded-value audit](../bootstrap/current-abi7-guarded-value-results.json).
 
 An isolated Cinch Stage 1 passed all four original tail-call programs.
