@@ -21225,9 +21225,9 @@
         "unit": "targets",
         "total": 36,
         "passed": 16,
-        "failed": 12,
+        "failed": 13,
         "status": "running",
-        "phase": "Replay original lib_signal target on Stage 3",
+        "phase": "Replay original lib_string_io target on Stage 3",
         "evidence": null
       },
       {
@@ -21497,5 +21497,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:26:34.065195+00:00"
+  "updatedAt": "2026-11-09T07:27:37.457327+00:00"
 }
