@@ -6481,6 +6481,10 @@
               "cases": [
                 {
                   "name": "globals_recheck_instantiations_roles_slots_and_lexical_dictionaries",
+                  "status": "passed"
+                },
+                {
+                  "name": "hidden_constructor_parameters_cannot_be_chosen_by_a_pattern_annotation",
                   "status": "running"
                 }
               ]
@@ -16267,5 +16271,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T12:56:27.784650+00:00"
+  "updatedAt": "2026-11-09T13:00:33.756924+00:00"
 }
