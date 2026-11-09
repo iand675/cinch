@@ -17923,8 +17923,8 @@
         "passed": 7,
         "failed": 0,
         "status": "running",
-        "phase": "Verify Stage 2 and Stage 3 agreement, smokes and changed-source rebuild",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage2.json"
+        "phase": "Stage 2 and Stage 3 artifacts match. Smoke tests and a separate interface consumer passed. The changed-source rebuild is running.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-stage3-agreement.json"
       },
       {
         "title": "Rebuild with checked equality methods and guarded recursion",
@@ -21249,8 +21249,8 @@
         "passed": 14,
         "failed": 0,
         "status": "running",
-        "phase": "bootstrap_nominals",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-opening-native-results.json"
+        "phase": "bootstrap_nominals Audited 383 passing cases across the first 14 complete targets.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-native-fourteen-targets.json"
       },
       {
         "title": "Run the original external checks on the merged Stage 3",
@@ -21484,6 +21484,17 @@
         "evidence": null
       },
       {
+        "title": "Retry recursive initialization and task capture with a typed binding traversal",
+        "source": "1fa12f638613b420e149a34d21322275c3ca81406bbe7289b465dab3fd49c376",
+        "unit": "gates",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Verify refined returns and proof refusals across six original compiler and library targets",
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
@@ -21557,7 +21568,7 @@
         "passed": 1,
         "failed": 2,
         "status": "completed-with-failures",
-        "phase": "Original frontend replay finished",
+        "phase": "Original frontend replay finished 8/10 symbol tests passed. 14/24 higher-kinded tests passed.",
         "evidence": null
       },
       {
@@ -21651,5 +21662,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:31:29.875127+00:00"
+  "updatedAt": "2026-11-09T08:34:53.420542+00:00"
 }
