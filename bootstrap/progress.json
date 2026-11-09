@@ -21055,6 +21055,28 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-codata.json"
       },
       {
+        "title": "Original guard coverage on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 5,
+        "passed": 5,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 5 original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-guards-allocation.json"
+      },
+      {
+        "title": "Original allocation accounting on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 8,
+        "passed": 8,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 8 original source tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-guards-allocation.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21275,14 +21297,25 @@
         "evidence": null
       },
       {
-        "title": "Verify refined function results through the original range tests",
-        "source": "d685069edc92769bd0aff79e88d0ab883965a24ee59a41ede2bb69e7b6fa46b8",
+        "title": "Verify refined returns and proof refusals across the original range, Nat and dependent targets",
+        "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
-        "total": 2,
+        "total": 4,
         "passed": 0,
         "failed": 0,
-        "status": "superseded-before-build",
-        "phase": "Replaced by the combined range, Nat and dependent proof candidate.",
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Compare checked import loading on the original argument-scope inputs",
+        "source": "1d4c7bb058efd3a716136aaa7e1c850b205ef355fb7e658944dcdbaa0ade5680",
+        "unit": "gates",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
         "evidence": null
       },
       {
@@ -21290,10 +21323,10 @@
         "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
         "unit": "checks",
         "total": 8,
-        "passed": 1,
+        "passed": 5,
         "failed": 0,
         "status": "running",
-        "phase": "Build Stage 1 with the pinned seed",
+        "phase": "refuse-imported-constructor",
         "evidence": null
       },
       {
@@ -21387,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:44:17.913709+00:00"
+  "updatedAt": "2026-11-09T06:45:45.055501+00:00"
 }
