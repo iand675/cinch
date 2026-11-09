@@ -705,10 +705,10 @@
       {
         "id": "gap:coverage",
         "title": "Audit every frontend-facing test outside the Stage3 matrix",
-        "state": "recheck",
-        "detail": "Earlier checkpoint. 131 Rust targets are outside the preserved Stage3 matrix. 13 have a target-level review and 117 still need one. The original law, prim and concurrency source checks remain required.",
+        "state": "running",
+        "detail": "The merged candidate assigns 202 of 236 original targets to a run. 34 still need assertion review. Passing outcomes require separate receipts.",
         "doneWhen": "Review all remaining targets and assertions, retain direct Rust API roles explicitly, and add every missing portable behavior case to final Stage3 execution.",
-        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-outside-frontend-target-review.json"
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-codata-index-target-routing.json"
       },
       {
         "id": "gap:structural-projection",
@@ -21176,6 +21176,17 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-boolean-branches.json"
       },
       {
+        "title": "Original buffer-alias controls on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "status": "passed",
+        "phase": "The Stage 3-built checker passed all 9 controls, including wrong-buffer and shadowed-alias refusals.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-buffer-aliases.json"
+      },
+      {
         "title": "Original fixity tests with Stage 3 interface output",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "tests",
@@ -21378,6 +21389,17 @@
         "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
         "unit": "targets",
         "total": 4,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
+        "title": "Replay 108 original syntax and macro tests on the merged compiler outside the Stage 3 matrix",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 11,
         "passed": 0,
         "failed": 0,
         "status": "waiting-stage3",
@@ -21662,5 +21684,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T08:34:53.420542+00:00"
+  "updatedAt": "2026-11-09T08:41:34.358081+00:00"
 }
