@@ -10645,6 +10645,18 @@
                 },
                 {
                   "name": "inline_effectful_refined_arguments_keep_the_checked_value",
+                  "status": "passed"
+                },
+                {
+                  "name": "inline_refined_argument_evaluates_after_the_function_prefix_once",
+                  "status": "passed"
+                },
+                {
+                  "name": "later_argument_write_invalidates_an_inline_result_contract",
+                  "status": "failed"
+                },
+                {
+                  "name": "logical_literal_preconditions_are_propositions_without_runtime_boolean_coercions",
                   "status": "running"
                 }
               ]
@@ -15252,5 +15264,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:00:10.690559+00:00"
+  "updatedAt": "2026-11-09T11:01:13.435098+00:00"
 }
