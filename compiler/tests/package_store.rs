@@ -225,7 +225,9 @@ fn the_package_key_is_stable_and_covers_its_inputs() {
     variants.push(("the profile name", package_key_for(&pkg, &srcs, &p, &[])));
 
     let mut p = TargetProfile::native();
-    p.triple = "aarch64-apple-darwin".to_string();
+    // A triple that differs from the host's own, whatever that is: the
+    // point of the row is that the key moves, not which triple it moves to.
+    p.triple = format!("{}-other", p.triple);
     variants.push(("the target triple", package_key_for(&pkg, &srcs, &p, &[])));
 
     let mut p = TargetProfile::native();
