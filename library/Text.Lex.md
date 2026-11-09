@@ -363,4 +363,4 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Text/Lex.cinch`. Source SHA-256: `7ce40c52587d28ea17f9bb4f6e9b3de900e2bf223e529a8ff43f372ca017a899`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

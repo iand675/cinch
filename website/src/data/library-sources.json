@@ -685,7 +685,7 @@
     {
       "module": "Text.Lex",
       "path": "compiler/prelude/Text/Lex.cinch",
-      "sha256": "c7cc9f8fe6373e93ad0c32ddf262e746da44015394f40548c3ba6d84352dc786",
+      "sha256": "7ce40c52587d28ea17f9bb4f6e9b3de900e2bf223e529a8ff43f372ca017a899",
       "embedded": false,
       "values": 18,
       "public_methods": 0

@@ -1137,21 +1137,23 @@ module Text.Lex where
   -- word, so a `family { ... }` body opener can be recognized (the
   -- compiler's `Lexer::note`/`at_prim_fragment`).
   data LexCtx where
-    LexCtx :: Option (Nat, Bool) -> Option String -> LexCtx
+    LexCtx :: Option (Nat, Bool) -> Option String -> Option Nat -> LexCtx
 
   lex-ctx-prim :: LexCtx -> Option (Nat, Bool)
   lex-ctx-prim c = case c of
-    LexCtx p l -> p
+    LexCtx p l unsafe-column -> p
 
   lex-ctx-last :: LexCtx -> Option String
   lex-ctx-last c = case c of
-    LexCtx p l -> l
+    LexCtx p l unsafe-column -> l
+  lex-ctx-unsafe-column :: LexCtx -> Option Nat
+  lex-ctx-unsafe-column c = case c of LexCtx p l unsafe-column -> unsafe-column
 
   set-lex-prim :: LexCtx -> Option (Nat, Bool) -> LexCtx
-  set-lex-prim c p = LexCtx p (lex-ctx-last c)
+  set-lex-prim c p = LexCtx p (lex-ctx-last c) (lex-ctx-unsafe-column c)
 
   set-lex-last :: LexCtx -> Option String -> LexCtx
-  set-lex-last c l = LexCtx (lex-ctx-prim c) l
+  set-lex-last c l = LexCtx (lex-ctx-prim c) l (lex-ctx-unsafe-column c)
 
   -- The registered target-IR family names a `prim` body may open.
   is-family-word :: Option String -> Bool
@@ -1179,8 +1181,12 @@ module Text.Lex where
   -- keyword's column.
   note-token :: Bool -> Nat -> Token -> LexCtx -> LexCtx
   note-token at-line-start col t c =
-    let c1 = note-last t c in
-    if is-tok-word t ("prim") then set-lex-prim c1 (Some (col, False))
+    let noted = note-last t c in
+    let pending = (case t of TVar w -> if string-compare w "unsafe" == 0 then Some col else None; other -> None) in
+    let c1 = LexCtx (lex-ctx-prim noted) (lex-ctx-last noted) pending in
+    if is-tok-word t ("prim") then
+      let opening = (case lex-ctx-unsafe-column c of Some before -> if at-line-start then col else before; None -> col) in
+      set-lex-prim c1 (Some (opening, False))
     else case lex-ctx-prim c1 of
       None -> c1
       Some pc -> case pc of
@@ -1196,7 +1202,7 @@ module Text.Lex where
     Span a b l c -> Span a (scan-off s) l c
 
   lex-tokens :: Bytes -> Lexed
-  lex-tokens b = scan-all (LexCtx None None) (Scan b 0 1 1 True None) Nil
+  lex-tokens b = scan-all (LexCtx None None None) (Scan b 0 1 1 True None) Nil
 
   scan-all :: LexCtx -> Scan -> List LToken -> Lexed
   scan-all ctx s acc = case skip-blank s of
@@ -1339,7 +1345,8 @@ module Text.Lex where
   -- An implicit block (its column and whether `in` may close it) or
   -- an explicit delimiter shielding enclosing layout. The flag marks
   -- the `(` of a capability supply clause `with (...)`: 1 while open,
-  -- 2 once it binds names (amendment section 7).
+  -- 2 once it binds names (amendment section 7). Flag 3 marks an
+  -- explicit `let { ... }` whose closing brace can be followed by `in`.
   data Frame where
     FImplicit :: Nat -> Bool -> Frame
     FDelim :: DelimKind -> Nat -> Frame
@@ -1506,24 +1513,24 @@ module Text.Lex where
     case lay of
       Lay o s p ps pi wp sc ->
         let with-group-open = wp && is-open-paren kind in
-        let supply-in = sc in
+        let explicit-in = sc in
         let base = Lay o s p ps pi False False in
         case ps of
-          None -> layout-cont rest tok base True with-group-open supply-in
+          None -> layout-cont rest tok base True with-group-open explicit-in
           Some psp ->
             if is-eof kind then
               let l1 = push-tok (virtual-tok sp-tok (TPunct ("}")))
                     (push-tok (virtual-tok sp-tok (TPunct ("{"))) (clear-pend base)) in
-              layout-cont rest tok l1 True with-group-open supply-in
+              layout-cont rest tok l1 True with-group-open explicit-in
             else if is-open-brace kind then
-              let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace 0)) in
+              let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace (if pi then 3 else 0))) in
               layout-run rest (set-prev l1 sp-tok)
             else if shallow-top s sp-tok then
               LexedFail sp-tok (LayoutTooShallow (frame-col (top-frame s)))
             else
               let l1 = push-tok (virtual-tok sp-tok (TPunct ("{")))
                     (push-frame (clear-pend base) (FImplicit (span-col sp-tok) pi)) in
-              layout-cont rest tok l1 False with-group-open supply-in
+              layout-cont rest tok l1 False with-group-open explicit-in
 
   top-frame :: List Frame -> Frame
   top-frame fs = case fs of
@@ -1539,7 +1546,7 @@ module Text.Lex where
   -- the special token kinds, then the line-start logic, then the
   -- opener bookkeeping.
   layout-cont :: List LToken -> LToken -> Lay -> Bool -> Bool -> Bool -> Lexed
-  layout-cont rest tok lay check with-group-open supply-in =
+  layout-cont rest tok lay check with-group-open explicit-in =
     let sp-tok = lt-span tok in
     let kind = lt-token tok in
     if is-eof kind then
@@ -1552,12 +1559,12 @@ module Text.Lex where
           if is-implicit f then LexedFail sp-tok MismatchedDelimiter
           else if not (eq-delim (frame-delim f) (closer-delim kind)) then
             LexedFail sp-tok MismatchedDelimiter
-          else if frame-flag f == 2 then
+          else if frame-flag f == 2 || frame-flag f == 3 then
             layout-run rest
               (set-prev (set-supply (push-tok tok (pop-frame l1)) True) sp-tok)
           else layout-run rest (set-prev (push-tok tok (pop-frame l1)) sp-tok)
         Nil -> LexedFail sp-tok MismatchedDelimiter
-    else if is-in-tok kind && supply-in then
+    else if is-in-tok kind && explicit-in then
       layout-run rest (set-prev (push-tok tok lay) sp-tok)
     else if is-in-tok kind then
       case find-let-frame (lay-stack lay) of
