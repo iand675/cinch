@@ -21269,9 +21269,9 @@
         "unit": "gates",
         "total": 2,
         "passed": 0,
-        "failed": 0,
-        "status": "running",
-        "phase": "Build Stage 1 from the frozen candidate",
+        "failed": 1,
+        "status": "failed",
+        "phase": "BootstrapError('stage1 did not build (exit 1).\\ncinch: 898:46: type mismatch: expected String, got (String -> String) (in /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/sources/Bootstrap.Resolve.cinch)\\nEvidence: /Users/ian/Documents/ChatGPT/Slang/cinch-bootstrap-work/schema10-abi7-do-local-groups-candidate-1/build/stage1/build.log')",
         "evidence": null
       },
       {
@@ -21420,5 +21420,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:47:51.909453+00:00"
+  "updatedAt": "2026-11-09T06:48:54.555959+00:00"
 }
