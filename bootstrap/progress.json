@@ -17872,6 +17872,39 @@
     ],
     "active": [
       {
+        "title": "Replay all original concurrency cases with interface emission enabled",
+        "source": "760727efa97de529ab842ec53875f753443562b4a9910404cdebfbdb1d266c3a",
+        "unit": "tests",
+        "passed": 0,
+        "total": 20,
+        "failed": 0,
+        "status": "running",
+        "phase": "Replay all twenty original Cinch concurrency cases",
+        "evidence": null
+      },
+      {
+        "title": "Verify Rust recursive initializer order and leak checks",
+        "source": "4a412f8bdc8083da583161180710ea714c61910e63406693b1ec1ceb5795e9f3",
+        "unit": "tests",
+        "passed": 13,
+        "total": 14,
+        "failed": 1,
+        "status": "completed-with-failures",
+        "phase": "All fourteen ordinary tests passed. Four forward-read controls ran without leaks. The guarded value knot still leaks three blocks.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-native-letrec-initializer-order-results.json"
+      },
+      {
+        "title": "Replay the original module tests on isolated Cinch Stage 1",
+        "source": "dabfc9c105d4d9f7458cc43c5336dbb252efb40f4bb6161a0bb58982240ab8dc",
+        "unit": "tests",
+        "passed": 12,
+        "total": 12,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All twelve Cinch and all twelve Rust cases passed. The integrated Stage 3 replay is a separate gate.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-module-manifest-results.json"
+      },
+      {
         "title": "Verify build manifests and original module tests in Rust and Cinch",
         "source": "583d5159fe93d33d81ed7b3353830cbb066a97de873312ee87ba43a3ddce67f2",
         "unit": "checks",
@@ -20936,5 +20969,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T01:17:44.302095+00:00"
+  "updatedAt": "2026-11-09T01:18:07.816343+00:00"
 }
