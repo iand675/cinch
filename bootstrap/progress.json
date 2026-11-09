@@ -5268,6 +5268,22 @@
                 },
                 {
                   "name": "constructor_from_another_type_is_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "constructor_patterns_in_equations",
+                  "status": "passed"
+                },
+                {
+                  "name": "custom_class_custom_operator_custom_instance",
+                  "status": "passed"
+                },
+                {
+                  "name": "duplicate_binders_in_one_pattern_are_rejected",
+                  "status": "passed"
+                },
+                {
+                  "name": "effect_rows_are_typed_and_honest",
                   "status": "running"
                 }
               ]
@@ -13871,5 +13887,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T09:17:05.237801+00:00"
+  "updatedAt": "2026-11-09T09:18:08.587826+00:00"
 }
