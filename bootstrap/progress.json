@@ -11706,6 +11706,30 @@
                 },
                 {
                   "name": "captured_induction_binders_survive_a_generated_shadow",
+                  "status": "failed"
+                },
+                {
+                  "name": "congruence_cannot_hide_a_non_decreasing_recursive_proof",
+                  "status": "failed"
+                },
+                {
+                  "name": "exhaustive_boolean_proof_patterns_still_check",
+                  "status": "failed"
+                },
+                {
+                  "name": "exhaustive_numeric_patterns_keep_the_default_subject",
+                  "status": "failed"
+                },
+                {
+                  "name": "generic_constructor_refinement_keeps_its_type_instantiation",
+                  "status": "failed"
+                },
+                {
+                  "name": "nested_constructor_patterns_retain_induction_fields",
+                  "status": "failed"
+                },
+                {
+                  "name": "ordinary_matches_preserve_captured_erased_field_subjects",
                   "status": "running"
                 }
               ]
@@ -15784,5 +15808,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T11:22:57.403524+00:00"
+  "updatedAt": "2026-11-09T11:24:01.339682+00:00"
 }
