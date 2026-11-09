@@ -21000,6 +21000,28 @@
         "evidence": null
       },
       {
+        "title": "Original concurrency on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 20,
+        "passed": 20,
+        "failed": 0,
+        "status": "passed",
+        "phase": "All 20 original tests passed with matching invocation receipts.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-concurrency-letrec.json"
+      },
+      {
+        "title": "Expanded recursive-binding suite on the combined Stage 3",
+        "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
+        "unit": "tests",
+        "total": 18,
+        "passed": 16,
+        "failed": 2,
+        "status": "completed-with-failures",
+        "phase": "Two initializer-order failures remain. A closure can be stored before its capture is initialized, and a partial application must wait until it is called to read the capture.",
+        "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-combined-stage3-concurrency-letrec.json"
+      },
+      {
         "title": "Run the matching Rust compiler suite",
         "source": "e2d18f4257e9afe5cef183044f715d9f15ebc50061767bce9968674a4f2d129e",
         "unit": "targets",
@@ -21165,6 +21187,28 @@
         "evidence": null
       },
       {
+        "title": "Build lexical sequencing and replay the original do tests",
+        "source": "c75b8293bf42ab4f18966e61e232c8fdd1074b2131817a8a9cabd56601cdb62b",
+        "unit": "gates",
+        "total": 2,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
+        "title": "Verify recursive closure capture and partial calls in the original tests",
+        "source": "379c6f8d50b085ef28baa54318c5b4c3b4c7232ac5e4d1d8c0c0a8a7893f2fba",
+        "unit": "gates",
+        "total": 2,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Verify codata observation contracts through compiled objects",
         "source": "c085c3aae521ec81f17705f7c19650055f4c97a8d676e40a0db13d75668c63da",
         "unit": "checks",
@@ -21266,5 +21310,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T06:06:56.464235+00:00"
+  "updatedAt": "2026-11-09T06:08:35.294424+00:00"
 }
