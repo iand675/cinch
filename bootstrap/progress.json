@@ -21264,6 +21264,17 @@
         "evidence": null
       },
       {
+        "title": "Replay 201 original supplemental tests on the merged compiler outside the Stage 3 matrix",
+        "source": "39f073cd6cccebccb3aba1929e18ba9947acfb93eee4c1607f0cde86bcdd887a",
+        "unit": "targets",
+        "total": 22,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-stage3",
+        "phase": "Wait for the combined Stage 3 fixed point",
+        "evidence": null
+      },
+      {
         "title": "Verify target-based primitive selection in Cinch",
         "source": "2da684bd135bd3fc95bac3288029ea71554aa9904eeff5552d09676417347b46",
         "unit": "checks",
@@ -21352,6 +21363,17 @@
         "evidence": null
       },
       {
+        "title": "Replay recursive initialization, delay forcing, and task capture",
+        "source": "e38012b2109f2efdce2396c435707cb5084e3e3e854152b9797a9d7411af3e7b",
+        "unit": "gates",
+        "total": 3,
+        "passed": 0,
+        "failed": 0,
+        "status": "waiting-worker",
+        "phase": "Wait for a released compiler lane",
+        "evidence": null
+      },
+      {
         "title": "Verify refined returns and proof refusals across the original range, Nat and dependent targets",
         "source": "e26414c21c0a5240a18f3a8fb33935b1d0d870ba48970f31ab08380ac9dea04f",
         "unit": "gates",
@@ -21385,14 +21407,14 @@
         "evidence": "https://github.com/iand675/cinch/blob/main/bootstrap/current-abi7-stage1-codata-contract-and-suite.json"
       },
       {
-        "title": "Verify filesystem, entropy, signals and digests on the checked platform ABI",
-        "source": "08d1c428419efb50f90d195248f6de8e5631c42d4f66a1a22eadfc46611ed3e9",
+        "title": "Verify filesystem, entropy, signals, digests and qualified foreign symbols",
+        "source": "771887cbe21b55fdcf96211194b8084c73d3e9e4314ef3007418f83146bcd5ee",
         "unit": "gates",
-        "total": 7,
+        "total": 10,
         "passed": 0,
         "failed": 0,
-        "status": "superseded-before-build",
-        "phase": "Check platform ABI and foreign linker names in one build",
+        "status": "waiting-worker",
+        "phase": "Build the exact Rust compiler and exercise the entropy success and fault paths",
         "evidence": null
       },
       {
@@ -21497,5 +21519,5 @@
     "explanation": "Verified rows require matching evidence from this integrated candidate. Earlier observations are retained separately.",
     "fullGoalComplete": false
   },
-  "updatedAt": "2026-11-09T07:38:26.173810+00:00"
+  "updatedAt": "2026-11-09T07:39:03.345952+00:00"
 }
