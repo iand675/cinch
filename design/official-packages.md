@@ -2,7 +2,7 @@
 
 Status: proposal for review, 2026-11-09. This is the catalogue and the rules that make a package "official", not a schedule. The base-library plan it builds on is [the base as a package](base-as-a-package.md): a minimal embedded primitive layer, everything else resolved as packages, a prelude that is an ordinary injected module, and manifests that describe their platform conditions and native requirements.
 
-The existing surface is not a starting point to re-do. The embedded family already ships filesystem, process, pseudo-terminal, signal, clock, random, console, logging, HTTP client, name resolution, and text formats as `Effect.*` and `Text.*` modules with real implementations. Those move into packages unchanged in behaviour. The catalogue below is what does not exist yet, ordered by what unblocks writing real programs.
+The existing surface is not a starting point to re-do. The current base family already ships filesystem, process, pseudo-terminal, signal, clock, random, console, logging, HTTP client, name resolution, and text formats with real implementations, as `Effect.*` and `Text.*` modules. Under the base plan those become `cinch/effect` and `cinch/text` unchanged in behaviour, and only `cinch/prim` stays embedded. The catalogue below is what does not exist yet, ordered by what unblocks writing real programs.
 
 # 1 What "official" means
 
