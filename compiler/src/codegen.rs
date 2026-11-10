@@ -72,7 +72,7 @@ mod arrays_codegen;
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
     CmpOp, ConcOp, ConvMode, Core, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
+    FloatUnOp, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
     Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
 };
 use crate::types::Scalar;
@@ -2964,6 +2964,13 @@ struct Builder {
     rc_debug: bool,
     /// Ownership operations are emitted at all (the program reclaims).
     reclaim: bool,
+    /// The current block already has a terminator (a `br`, `ret`,
+    /// `switch` or `unreachable`). A structured node whose value is
+    /// delivered elsewhere (a `Jump` branches to its join's block) leaves
+    /// the block terminated, and the instructions that would have stored
+    /// its value are dead: they are skipped rather than emitted after the
+    /// terminator, which is not well-formed IR.
+    terminated: bool,
 }
 
 impl Builder {
@@ -2978,6 +2985,7 @@ impl Builder {
             ret_drops: Vec::new(),
             rc_debug: false,
             reclaim: false,
+            terminated: false,
         }
     }
 
@@ -3015,12 +3023,18 @@ impl Builder {
             }
             self.ret_drops = drops;
         }
+        let trimmed = s.trim_start();
+        self.terminated = trimmed.starts_with("br ")
+            || trimmed.starts_with("ret ")
+            || trimmed.starts_with("switch ")
+            || trimmed.starts_with("unreachable");
         self.code.push_str("  ");
         self.code.push_str(s);
         self.code.push('\n');
     }
 
     fn start(&mut self, label: &str) {
+        self.terminated = false;
         self.code.push_str(label);
         self.code.push_str(":\n");
     }
@@ -5815,6 +5829,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         loop_label: String::new(),
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
+        joins: HashMap::new(),
     };
     for i in 0..f.arity() {
         let slot = e.slot(LocalId(i));
@@ -5917,6 +5932,15 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
             collect_prims(v, out);
             collect_prims(body, out);
         }
+        Core::Join { body, rest, .. } => {
+            collect_prims(body, out);
+            collect_prims(rest, out);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                collect_prims(a, out);
+            }
+        }
         Core::If(c, t, f) => {
             collect_prims(c, out);
             collect_prims(&t.body, out);
@@ -5987,6 +6011,18 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             collect_binders(e, out);
             collect_binders(body, out);
         }
+        Core::Join { params, body, rest, .. } => {
+            for (x, _) in params {
+                out.push(*x);
+            }
+            collect_binders(body, out);
+            collect_binders(rest, out);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                collect_binders(a, out);
+            }
+        }
         Core::If(c, t, e) => {
             collect_binders(c, out);
             collect_binders(&t.body, out);
@@ -6020,6 +6056,47 @@ struct CoreEmitter<'a, 'b> {
     loop_label: String,
     bound: HashSet<LocalId>,
     slots: HashMap<LocalId, String>,
+    /// The joins in scope, by id. A `Jump` branches to its join's block and
+    /// stores its arguments in the parameter slots; the join's block reads
+    /// them (the slots are entry allocas, so a jump from any depth is the
+    /// same store).
+    joins: HashMap<JoinId, JoinSite>,
+}
+
+/// A join's code generation site: the block its body starts at, and the
+/// slot of each parameter.
+#[derive(Clone)]
+struct JoinSite {
+    label: String,
+    slots: Vec<String>,
+}
+
+/// Where a value-position expression delivers its result: the function's
+/// return (`Ret`, which is the tail position) or a slot plus the block to
+/// branch to after storing `Slot`. Destination passing is what makes a
+/// `Jump` legal in a value position: the jump branches to its join's
+/// block, and the join's body delivers the value to the destination the
+/// jump's context would have used. Every jump to one join shares that
+/// destination, which is the continuation of the `Join` node.
+#[derive(Clone)]
+enum Dest {
+    Ret,
+    Slot { slot: String, label: String },
+}
+
+impl Dest {
+    /// Store `v` and leave for the destination. The destination of a
+    /// value that was never produced is not reached: a terminating
+    /// expression leaves the block closed and the caller skips this.
+    fn settle(&self, b: &mut Builder, v: &str) {
+        match self {
+            Dest::Ret => b.line(&format!("ret i64 {v}")),
+            Dest::Slot { slot, label } => {
+                b.line(&format!("store i64 {v}, ptr {slot}"));
+                b.line(&format!("br label %{label}"));
+            }
+        }
+    }
 }
 
 impl CoreEmitter<'_, '_> {
@@ -6360,39 +6437,15 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 self.emit_expr(body)
             }
-            Core::If(c, t, f) => {
-                let cv = self.emit_expr(c)?;
-                let cmp = self.b.reg();
-                self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
-                let lthen = self.b.label();
-                let lelse = self.b.label();
-                let ljoin = self.b.label();
-                // Branch weights (attribute annotations specification
-                // section 3.1): `!prof !{!"branch_weights", w_true,
-                // w_false}` on the conditional branch.
-                let prof = match (t.weight, f.weight) {
-                    (Some(tw), Some(fw)) => {
-                        format!(", !prof {}", self.reg.branch_weights(&[tw, fw]))
-                    }
-                    _ => String::new(),
-                };
-                self.b.line(&format!(
-                    "br i1 {cmp}, label %{lthen}, label %{lelse}{prof}"
-                ));
-                let slot = self.b.alloca_i64();
-                self.b.start(&lthen);
-                let tv = self.emit_expr(&t.body)?;
-                self.b.line(&format!("store i64 {tv}, ptr {slot}"));
-                self.b.line(&format!("br label %{ljoin}"));
-                self.b.start(&lelse);
-                let fv = self.emit_expr(&f.body)?;
-                self.b.line(&format!("store i64 {fv}, ptr {slot}"));
-                self.b.line(&format!("br label %{ljoin}"));
-                self.b.start(&ljoin);
-                let r = self.b.reg();
-                self.b.line(&format!("{r} = load i64, ptr {slot}"));
-                Ok(r)
-            }
+            // A decision delivers its value to a destination, so its
+            // branches may themselves end in a `Jump` (see `Dest`).
+            Core::If(..) | Core::Case { .. } => self.emit_value(e),
+            // A join in value position: its continuation is the destination
+            // slot, and its block is emitted beside it.
+            Core::Join { .. } => self.emit_value(e),
+            Core::Jump { .. } => err(
+                "internal error: a jump in a value position (a jump is only reached from the tail of its join's body or through a destination-carrying form)",
+            ),
             Core::Demand(cell, class) => {
                 let v = self.emit_expr(cell)?;
                 let r = self.b.reg();
@@ -6509,10 +6562,6 @@ impl CoreEmitter<'_, '_> {
                 self.emit_release(*block, moved, rest)?;
                 self.emit_expr(body)
             }
-            Core::Case { scrut, alts } => match self.emit_case(scrut, alts, false)? {
-                Some(v) => Ok(v),
-                None => err("internal error: a value-position case emitted no result"),
-            },
         }
     }
 
@@ -6647,7 +6696,28 @@ impl CoreEmitter<'_, '_> {
     ///   mixed arities share one widened signature
     ///   (`crate::core::tail_widths`), so their mutual calls qualify.
     /// - Anything else is an ordinary call followed by `ret`.
-    fn emit_tail(&mut self, e: &Core) -> Result<()> {
+    /// Emit `e` as a value: a destination slot the structured forms store
+    /// into, then the load. Decisions, joins and the count and `let` chains
+    /// in front of them deliver through [`CoreEmitter::emit_to`], so a
+    /// `Jump` inside them still reaches the one destination of this value.
+    fn emit_value(&mut self, e: &Core) -> Result<String> {
+        let slot = self.b.alloca_i64();
+        let label = self.b.label();
+        let dest = Dest::Slot { slot: slot.clone(), label: label.clone() };
+        self.emit_to(e, &dest)?;
+        self.b.start(&label);
+        let r = self.b.reg();
+        self.b.line(&format!("{r} = load i64, ptr {slot}"));
+        Ok(r)
+    }
+
+    /// Emit `e` so its value reaches `dest`. `Dest::Ret` is the tail
+    /// position: the value is returned, and a saturated self or mutual tail
+    /// call stays a jump or a `musttail` call (decision D104). Every other
+    /// form evaluates and settles into the destination; a `Jump` closes its
+    /// block with a branch to the join's block, which settles into the same
+    /// destination, so a value-position jump is not a special case.
+    fn emit_to(&mut self, e: &Core, dest: &Dest) -> Result<()> {
         match e {
             Core::Let(x, _, v, body) => {
                 if !self.bound.contains(x) {
@@ -6656,17 +6726,17 @@ impl CoreEmitter<'_, '_> {
                 let v = self.emit_expr(v)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
-                self.emit_tail(body)
+                self.emit_to(body, dest)
             }
             // Count operations precede what they guard, so a tail call
             // after them stays the last instruction before `ret`.
             Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
                 self.emit_count(e, *x, *class)?;
-                self.emit_tail(body)
+                self.emit_to(body, dest)
             }
             Core::Release { block, moved, rest, body } => {
                 self.emit_release(*block, moved, rest)?;
-                self.emit_tail(body)
+                self.emit_to(body, dest)
             }
             Core::If(c, t, f) => {
                 let cv = self.emit_expr(c)?;
@@ -6674,6 +6744,9 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
                 let lthen = self.b.label();
                 let lelse = self.b.label();
+                // Branch weights (attribute annotations specification
+                // section 3.1): `!prof !{!"branch_weights", w_true,
+                // w_false}` on the conditional branch.
                 let prof = match (t.weight, f.weight) {
                     (Some(tw), Some(fw)) => {
                         format!(", !prof {}", self.reg.branch_weights(&[tw, fw]))
@@ -6684,12 +6757,46 @@ impl CoreEmitter<'_, '_> {
                     "br i1 {cmp}, label %{lthen}, label %{lelse}{prof}"
                 ));
                 self.b.start(&lthen);
-                self.emit_tail(&t.body)?;
+                self.emit_to(&t.body, dest)?;
                 self.b.start(&lelse);
-                self.emit_tail(&f.body)
+                self.emit_to(&f.body, dest)
             }
-            Core::Case { scrut, alts } => self.emit_case(scrut, alts, true).map(|_| ()),
-            Core::App(f, args) => {
+            Core::Case { scrut, alts } => self.emit_case_to(scrut, alts, dest),
+            // A join is a block, not a call: its body is emitted beside the
+            // continuation, and the continuation and the body both settle
+            // into this destination, which is the one continuation of the
+            // join's value.
+            Core::Join { id, params, body, rest } => {
+                let site = self.enter_join(*id, params)?;
+                self.emit_to(rest, dest)?;
+                self.b.start(&site.label);
+                self.emit_to(body, dest)?;
+                self.joins.remove(id);
+                Ok(())
+            }
+            Core::Jump { id, args } => {
+                let Some(site) = self.joins.get(id).cloned() else {
+                    return err(format!("jump to join j{} has no enclosing join", id.0));
+                };
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                if vals.len() != site.slots.len() {
+                    return err(format!(
+                        "jump to join j{} passes {} arguments to {} parameters",
+                        id.0,
+                        vals.len(),
+                        site.slots.len()
+                    ));
+                }
+                for (v, slot) in vals.iter().zip(&site.slots) {
+                    self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                }
+                self.b.line(&format!("br label %{}", site.label));
+                Ok(())
+            }
+            Core::App(f, args) if matches!(dest, Dest::Ret) => {
                 let direct = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
                 match direct {
                     Some((unit, _)) if unit == self.unit => {
@@ -6735,23 +6842,47 @@ impl CoreEmitter<'_, '_> {
             }
             other => {
                 let v = self.emit_expr(other)?;
-                self.b.line(&format!("ret i64 {v}"));
+                // A terminating expression (the fault path, or a value that
+                // was delivered elsewhere) leaves nothing to settle.
+                if !self.b.terminated {
+                    dest.settle(self.b, &v);
+                }
                 Ok(())
             }
         }
     }
 
-    /// Emit the scrutinee dispatch of a `Case`. In value position (`tail`
-    /// false) every alternative stores its result into one join slot and
-    /// the join block loads it; in tail position each alternative
-    /// tail-emits its body (`emit_tail`) and there is no join block
-    /// (decision D104).
-    fn emit_case(
-        &mut self,
-        scrut: &Core,
-        alts: &[CAlt<Core>],
-        tail: bool,
-    ) -> Result<Option<String>> {
+    /// Open a join's scope: its block label, and the slot of each
+    /// parameter. Every `Jump` in the scope stores into those slots and
+    /// branches to the label, so the join has one entry block and no
+    /// per-site code beyond the stores.
+    fn enter_join(&mut self, id: JoinId, params: &[(LocalId, Class)]) -> Result<JoinSite> {
+        let mut slots = Vec::with_capacity(params.len());
+        for (param, _) in params {
+            if !self.bound.contains(param) {
+                return err(format!("join j{} binds unknown local {}", id.0, param.0));
+            }
+            slots.push(self.slot(*param));
+        }
+        let site = JoinSite { label: self.b.label(), slots };
+        if self.joins.insert(id, site.clone()).is_some() {
+            return err(format!("join j{} is bound twice in one body", id.0));
+        }
+        Ok(site)
+    }
+
+    /// The value a tail position delivers: the function's return.
+    fn emit_tail(&mut self, e: &Core) -> Result<()> {
+        self.emit_to(e, &Dest::Ret)
+    }
+
+    /// Emit the scrutinee dispatch of a `Case`, delivering the chosen
+    /// alternative's value to `dest` (decision D104): in tail position that
+    /// is the function's return, so each alternative tail-calls where it
+    /// can; in a value position it is a slot and a block. Each alternative
+    /// goes through [`CoreEmitter::emit_to`], so a `Jump` in an alternative
+    /// reaches the same destination through its join's block.
+    fn emit_case_to(&mut self, scrut: &Core, alts: &[CAlt<Core>], dest: &Dest) -> Result<()> {
         let sv = self.emit_expr(scrut)?;
         let sp = self.b.reg();
         self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
@@ -6780,11 +6911,6 @@ impl CoreEmitter<'_, '_> {
             }
         }
 
-        let (slot, ljoin) = if tail {
-            (None, None)
-        } else {
-            (Some(self.b.alloca_i64()), Some(self.b.label()))
-        };
         let ldefault = self.b.label();
         if cons.is_empty() {
             // Defaults alone never read the scrutinee: it may be an
@@ -6835,15 +6961,7 @@ impl CoreEmitter<'_, '_> {
                 let s = self.slot(*x);
                 self.b.line(&format!("store i64 {w}, ptr {s}"));
             }
-            if tail {
-                self.emit_tail(rhs)?;
-            } else {
-                let v = self.emit_expr(rhs)?;
-                self.b
-                    .line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
-                let lj = ljoin.as_ref().unwrap();
-                self.b.line(&format!("br label %{lj}"));
-            }
+            self.emit_to(rhs, dest)?;
         }
 
         self.b.start(&ldefault);
@@ -6856,15 +6974,7 @@ impl CoreEmitter<'_, '_> {
                     let s = self.slot(x);
                     self.b.line(&format!("store i64 {sv}, ptr {s}"));
                 }
-                if tail {
-                    self.emit_tail(rhs)?;
-                } else {
-                    let v = self.emit_expr(rhs)?;
-                    self.b
-                        .line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
-                    let lj = ljoin.as_ref().unwrap();
-                    self.b.line(&format!("br label %{lj}"));
-                }
+                self.emit_to(rhs, dest)?;
             }
             None => {
                 // The checker enforces coverage; an unmatched tag has no
@@ -6873,15 +6983,7 @@ impl CoreEmitter<'_, '_> {
             }
         }
 
-        if tail {
-            return Ok(None);
-        }
-        let lj = ljoin.as_ref().unwrap();
-        self.b.start(lj);
-        let r = self.b.reg();
-        self.b
-            .line(&format!("{r} = load i64, ptr {}", slot.as_ref().unwrap()));
-        Ok(Some(r))
+        Ok(())
     }
 }
 
@@ -8580,9 +8682,14 @@ fn immediate_word(nat: bool, digits: &str) -> Option<i64> {
 
 /// Reify `e` into the evaluator's word encoding. The body of a
 /// quotation is closed runtime-side code (decision D43): its only
-/// inputs are the captured hole blocks.
+/// inputs are the captured hole blocks, so it never carries a join point
+/// (join introduction runs after staging, and a jump never crosses a
+/// quotation's retained body).
 fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
     match e {
+        Core::Join { .. } | Core::Jump { .. } => {
+            return err("internal error: a join point reached a quotation's reified body")
+        }
         Core::Int(v) => {
             q_imm(out, quote_op::INT);
             q_imm(out, *v as u64);

@@ -2942,6 +2942,9 @@ fn write_artifacts(
         ("case_merge", (opt.simplify.case_merge as u64).into()),
         ("known_constructor", (opt.simplify.known_ctor as u64).into()),
         ("direct_dict_call", (opt.simplify.dict_call as u64).into()),
+        ("case_of_case", (opt.simplify.case_of_case as u64).into()),
+        ("joins", (opt.simplify.joins as u64).into()),
+        ("duplicated", (opt.simplify.duplicated as u64).into()),
     ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
@@ -3996,12 +3999,15 @@ pub struct DriverOptions {
 }
 
 impl DriverOptions {
-    /// The simplifier budget these flags select: the pass cap, and whether
-    /// static dictionary projections become direct calls.
+    /// The simplifier budget these flags select: the pass cap, whether
+    /// static dictionary projections become direct calls, and the defaults
+    /// of the rules the flags do not reach (`case-of-case` and the node
+    /// count below which it duplicates rather than shares a body).
     pub fn simplifier(&self) -> crate::simplify::SimplifyOptions {
         crate::simplify::SimplifyOptions {
             max_iterations: self.max_simplifier_iterations.unwrap_or(4),
             direct_dict_calls: !self.no_direct_dict_calls,
+            ..crate::simplify::SimplifyOptions::default()
         }
     }
 }

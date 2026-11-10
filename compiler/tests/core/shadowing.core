@@ -2,7 +2,7 @@ core 1
 module Main
 target aarch64-apple-darwin opt-level 0
 source sha256:7b876eff6e15cac8c526d90cf06b9937807611c4461d0a924752e17b55053d16
-@ticks 155
+@ticks 167
 unit Main.apply :: (Int -> Int) -> (Int -> Int)
   @params t0 :: (Int -> Int) @owned, t1 :: Int @owned
   @stage(lowered)

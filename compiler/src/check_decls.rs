@@ -21019,6 +21019,13 @@ impl Checker {
             // Reference counting is inserted after this evaluator's
             // programs are built; it never sees a count operation.
             Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => self.eval_core(cx, body, frame)?,
+            // The Core simplifier introduces join points after staging, so
+            // a compile-time body never carries one.
+            Core::Join { .. } | Core::Jump { .. } => {
+                return Err(Error::plain(
+                    "internal error: a join point reached compile-time evaluation (join points are introduced after staging)",
+                ))
+            }
         })
     }
 

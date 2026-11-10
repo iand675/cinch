@@ -9,7 +9,7 @@
 //! say which rule does the work, and the cap is what keeps a rewrite
 //! pair that undoes itself from looping.
 //!
-//! Three rules, in this slice:
+//! Four rules, in this slice:
 //!
 //! - `case-merge`: an outer decision has alternatives whose body is a
 //!   decision on the same local, so the two decisions become one. The
@@ -56,6 +56,42 @@
 //!   direct call computes what the application computed. Disable it with
 //!   [`SimplifyOptions::direct_dict_calls`] `= false`.
 //!
+//! - `case-of-case`: a decision scrutinized by another decision pushes the
+//!   outer decision into the alternatives of the inner one, so the value
+//!   the inner decision produced is scrutinized where it is produced
+//!   instead of being handed to a decision of its own:
+//!   `case (case s of A -> eA; B -> eB) of P -> fP; Q -> fQ` becomes
+//!   `case s of A -> case eA of P -> fP; Q -> fQ; B -> ...`. A strict
+//!   language evaluates `eA` in that branch either way, so the two orders
+//!   agree; what changes is that the intermediate decision `case t of ...`
+//!   on a temporary disappears. The rule also takes the shape our lowering
+//!   actually produces, a `let` binding the value before it is
+//!   scrutinized (`let t = case s of ... in case t of ...`) when `t` is
+//!   read exactly once (at the outer decision's scrutinee position): the
+//!   `let`s that open the value, including the alias `let y = x` the
+//!   lowering adds, stay in place around the pushed decision.
+//!
+//!   This rule duplicates the outer alternatives, once per inner
+//!   alternative, so it is paired with join points: an outer alternative
+//!   whose body is larger than [`SimplifyOptions::join_threshold`] nodes is
+//!   lifted into a [`Core::Join`] over its own pattern binders, and each
+//!   copy becomes a [`Core::Jump`] to it, so the body's code exists once.
+//!   A smaller body is copied, with its pattern binders renamed to fresh
+//!   locals per copy, and the copied node count is reported as
+//!   `duplicated`. Nothing is duplicated when the inner decision has one
+//!   alternative, so no join is introduced then.
+//!
+//!   It refuses when the inner decision carries weights (a push moves its
+//!   alternatives into outer branches, where its weight space has no
+//!   meaning, and the driving pass owns the weighted forms), when any
+//!   alternative of either decision carries a quotation (a quotation's
+//!   retained body is a binding scope of its own and the copies would share
+//!   it), when the inner scrutinee is used inside either decision's
+//!   alternatives (the running condition: the pushed copies re-read the
+//!   scrutinee, and a use of it in an alternative would make the two reads
+//!   one value visible to each other), and when the inner scrutinee is not
+//!   a local (a computed scrutinee would be evaluated again per copy).
+//!
 //! A pass also deletes a `let` whose binder the body no longer mentions
 //! when its value is a value: after a known-constructor reduction the
 //! constructor application that only the decision read has no reader,
@@ -70,13 +106,27 @@
 //! projection or case binder in closure position unbound, which code
 //! generation reports as `unbound local <n>`.
 //!
-//! Case-of-case and join points are deliberately absent: they need a
-//! join node in Core and a printer for it, and they are the next slice
-//! once this one is measured.
+//! The report records the pass cap, the passes actually run, the ticks, and
+//! the count per rule (`case_merge`, `known_constructor`, `direct_dict_call`,
+//! `case_of_case`), plus what the join introduction did: `joins` (the join
+//! points it made) and `duplicated` (the nodes it copied instead of sharing
+//! them). The artifact manifest carries all of them under `simplifier`, so a
+//! change in the pass's work is visible in the artifact rather than inferred
+//! from IR size.
+//!
+//! Join points carry two invariants beyond their local shape, and every
+//! consumer holds them: a `Jump` targets exactly one enclosing `Join` of its
+//! id and sits where its value is that join's result, and the join's
+//! parameters are owned exactly as function parameters are (a jump hands one
+//! reference over per parameter; the body consumes each exactly once on
+//! every path). `crate::rc` inserts the count operations for both, and code
+//! generation gives the pair a block and a branch: no closure, no stack
+//! frame, no call.
 use crate::core::{
-    child_slots, child_slots_imm, alpha_eq, CAlt, CPat, Core, GlobalId, LocalId, Program, SimplifyReport,
+    child_slots, child_slots_imm, alpha_eq, CAlt, CPat, Class, Core, FnDef, GlobalId, JoinId,
+    LocalId, Program, SimplifyReport,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// The simplifier's budget and switches.
 #[derive(Clone, Debug)]
@@ -87,11 +137,24 @@ pub struct SimplifyOptions {
     /// Resolve a projection from a known static dictionary to a direct
     /// call (`direct-dict-call`).
     pub direct_dict_calls: bool,
+    /// Push an outer decision into the alternatives of the decision it
+    /// scrutinizes (`case-of-case`).
+    pub case_of_case: bool,
+    /// The node count up to which case-of-case duplicates an alternative
+    /// rather than sharing it through a join point. A decision the rule
+    /// would duplicate at this size or below is copied; a larger one is
+    /// lifted into a join and reached by a jump, so its code exists once.
+    pub join_threshold: usize,
 }
 
 impl Default for SimplifyOptions {
     fn default() -> Self {
-        SimplifyOptions { max_iterations: 4, direct_dict_calls: true }
+        SimplifyOptions {
+            max_iterations: 4,
+            direct_dict_calls: true,
+            case_of_case: true,
+            join_threshold: 20,
+        }
     }
 }
 
@@ -317,6 +380,7 @@ enum Rule {
     CaseMerge,
     KnownConstructor,
     DirectDictCall,
+    CaseOfCase,
 }
 
 /// The accumulator every pass shares: the tick total, the per-rule
@@ -327,6 +391,9 @@ struct Ticks {
     case_merge: usize,
     known_ctor: usize,
     dict_call: usize,
+    case_of_case: usize,
+    joins: usize,
+    duplicated: usize,
     changed: bool,
 }
 
@@ -338,6 +405,7 @@ impl Ticks {
             Rule::CaseMerge => self.case_merge += 1,
             Rule::KnownConstructor => self.known_ctor += 1,
             Rule::DirectDictCall => self.dict_call += 1,
+            Rule::CaseOfCase => self.case_of_case += 1,
         }
     }
 }
@@ -346,13 +414,21 @@ impl Ticks {
 /// `scope` maps a local to the constructor application a surrounding
 /// `let` bound it to, which is the only form of scrutinee knowledge the
 /// pass uses (the analysis-free version of GHC's occurrence information).
-fn pass(e: &mut Core, scope: &mut Scope, tables: &Tables, opts: &SimplifyOptions, t: &mut Ticks) {
+fn pass(
+    e: &mut Core,
+    scope: &mut Scope,
+    tables: &Tables,
+    classes: &HashMap<LocalId, Class>,
+    opts: &SimplifyOptions,
+    fresh: &mut Fresh,
+    t: &mut Ticks,
+) {
     // Children first: a rewrite below can expose a rewrite above it in the
     // same pass, and the reverse order would need another pass for the
     // same result.
     match e {
         Core::Let(l, _, value, body) => {
-            pass(value, scope, tables, opts, t);
+            pass(value, scope, tables, classes, opts, fresh, t);
             let alias = match &**value {
                 Core::Var(w) => Some(scope.root_of(*w)),
                 _ => None,
@@ -367,7 +443,7 @@ fn pass(e: &mut Core, scope: &mut Scope, tables: &Tables, opts: &SimplifyOptions
             if let Some(v) = bound.clone() {
                 scope.ctor.insert(*l, v);
             }
-            pass(body, scope, tables, opts, t);
+            pass(body, scope, tables, classes, opts, fresh, t);
             if alias.is_some() {
                 scope.alias.remove(&*l);
             }
@@ -377,7 +453,7 @@ fn pass(e: &mut Core, scope: &mut Scope, tables: &Tables, opts: &SimplifyOptions
         }
         _ => {
             for slot in child_slots(e) {
-                pass(slot, scope, tables, opts, t);
+                pass(slot, scope, tables, classes, opts, fresh, t);
             }
         }
     }
@@ -391,6 +467,8 @@ fn pass(e: &mut Core, scope: &mut Scope, tables: &Tables, opts: &SimplifyOptions
             Some(Rule::CaseMerge)
         } else if opts.direct_dict_calls && direct_dict_call(e, tables) {
             Some(Rule::DirectDictCall)
+        } else if opts.case_of_case && case_of_case(e, classes, opts, fresh, t) {
+            Some(Rule::CaseOfCase)
         } else {
             None
         };
@@ -408,6 +486,403 @@ fn pass(e: &mut Core, scope: &mut Scope, tables: &Tables, opts: &SimplifyOptions
             *e = body;
         }
     }
+}
+
+/// The fresh-name supply of one simplifier run: join ids and locals. A
+/// local id must exceed every local the unit mentions, and the counter is
+/// program wide so a copy made in one unit can never collide with another
+/// unit's binder either.
+struct Fresh {
+    local: usize,
+    join: usize,
+}
+
+impl Fresh {
+    fn local(&mut self) -> LocalId {
+        let id = LocalId(self.local);
+        self.local += 1;
+        id
+    }
+
+    fn join(&mut self) -> JoinId {
+        let id = JoinId(self.join);
+        self.join += 1;
+        id
+    }
+}
+
+/// The node count of a term, the size the duplication threshold is in.
+fn nodes(e: &Core) -> usize {
+    let mut n = 1;
+    visit_children(e, &mut |child| n += nodes(child));
+    n
+}
+
+/// A class with an open parameter resolved to `Raw`: the convention a
+/// count operation is decided by (`crate::rc`).
+fn concrete(c: Class) -> Class {
+    if c.is_param() {
+        Class::Raw
+    } else {
+        c
+    }
+}
+
+/// Every binder's class in a unit: its parameters', and the `let`, pattern
+/// and join-parameter binder classes. The `case-of-case` rule needs it to
+/// give the join points it makes parameters of the right class, because
+/// `crate::rc` decides counted-ness from the class alone.
+fn unit_classes(f: &FnDef) -> HashMap<LocalId, Class> {
+    fn walk(e: &Core, out: &mut HashMap<LocalId, Class>) {
+        match e {
+            Core::Let(x, c, v, body) => {
+                out.insert(*x, concrete(*c));
+                walk(v, out);
+                walk(body, out);
+            }
+            Core::Case { scrut, alts } => {
+                walk(scrut, out);
+                for a in alts {
+                    match &a.pat {
+                        CPat::Var(x, c) => {
+                            out.insert(*x, concrete(*c));
+                        }
+                        CPat::Con { fields, classes, .. } => {
+                            for (i, x) in fields.iter().enumerate() {
+                                out.insert(*x, concrete(classes.get(i).copied().unwrap_or(Class::Raw)));
+                            }
+                        }
+                        CPat::Wild => {}
+                    }
+                    walk(&a.body, out);
+                }
+            }
+            Core::Join { params, body, rest, .. } => {
+                for (x, c) in params {
+                    out.insert(*x, concrete(*c));
+                }
+                walk(body, out);
+                walk(rest, out);
+            }
+            _ => {
+                for k in child_slots_imm(e) {
+                    walk(k, out);
+                }
+            }
+        }
+    }
+    let mut out: HashMap<LocalId, Class> = HashMap::new();
+    for i in 0..f.arity() {
+        let c = f.repr.params.get(i).copied().map_or(Class::Raw, concrete);
+        out.insert(LocalId(i), c);
+    }
+    walk(&f.body, &mut out);
+    out
+}
+
+/// The locals a term reads from outside it, in first-mention order: every
+/// `Var`, and every binder a count, cell or `release` operation names,
+/// whose binder is not inside the term. These are what a join point takes
+/// as parameters: the body then owns them, which is the only form
+/// `crate::rc` can balance, because the enclosing code does not run again
+/// after the jump.
+fn free_locals(e: &Core, out: &mut Vec<LocalId>) {
+    let mut bound: HashSet<LocalId> = HashSet::new();
+    fn go(e: &Core, bound: &mut HashSet<LocalId>, out: &mut Vec<LocalId>) {
+        let use_local = |x: LocalId, bound: &HashSet<LocalId>, out: &mut Vec<LocalId>| {
+            if !bound.contains(&x) && !out.contains(&x) {
+                out.push(x);
+            }
+        };
+        match e {
+            Core::Var(x) => use_local(*x, bound, out),
+            Core::Let(x, _, v, body) => {
+                go(v, bound, out);
+                bound.insert(*x);
+                go(body, bound, out);
+                bound.remove(x);
+            }
+            Core::Case { scrut, alts } => {
+                go(scrut, bound, out);
+                for a in alts {
+                    let binders: Vec<LocalId> = pat_binders(&a.pat).iter().map(|(l, _)| *l).collect();
+                    for b in &binders {
+                        bound.insert(*b);
+                    }
+                    go(&a.body, bound, out);
+                    for b in &binders {
+                        bound.remove(b);
+                    }
+                }
+            }
+            Core::Join { params, body, rest, .. } => {
+                for (p, _) in params {
+                    bound.insert(*p);
+                }
+                go(body, bound, out);
+                for (p, _) in params {
+                    bound.remove(p);
+                }
+                go(rest, bound, out);
+            }
+            Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+                use_local(*x, bound, out);
+                go(body, bound, out);
+            }
+            Core::Release { block, moved, rest, body } => {
+                use_local(*block, bound, out);
+                for (l, _) in moved.iter().chain(rest) {
+                    use_local(*l, bound, out);
+                }
+                go(body, bound, out);
+            }
+            Core::BoxInit(l, v, _) | Core::LazyInit(l, v) | Core::RefSet(l, v, _) => {
+                go(v, bound, out);
+                use_local(*l, bound, out);
+            }
+            _ => {
+                for k in child_slots_imm(e) {
+                    go(k, bound, out);
+                }
+            }
+        }
+    }
+    go(e, &mut bound, out);
+}
+
+/// Whether the term carries a join point or a jump. `case-of-case` neither
+/// duplicates nor lifts such a body: a copy would share the join's id, and
+/// `crate::rc`'s join convention places the body's releases before its
+/// value, which a jump as the value would bypass.
+fn carries_join(e: &Core) -> bool {
+    if matches!(e, Core::Join { .. } | Core::Jump { .. }) {
+        return true;
+    }
+    let mut found = false;
+    visit_children(e, &mut |child| {
+        if !found && carries_join(child) {
+            found = true;
+        }
+    });
+    found
+}
+
+/// The locals a pattern binds, with their classes: a constructor's fields
+/// or a variable alternative's scrutinee binder. A wildcard binds none.
+fn pat_binders(p: &CPat) -> Vec<(LocalId, Class)> {
+    match p {
+        CPat::Var(x, c) => vec![(*x, *c)],
+        CPat::Con { fields, classes, .. } => fields
+            .iter()
+            .enumerate()
+            .map(|(i, x)| (*x, classes.get(i).copied().unwrap_or(Class::Raw)))
+            .collect(),
+        CPat::Wild => Vec::new(),
+    }
+}
+
+/// Rename a pattern's binders to fresh locals, returning this copy's binder
+/// list. The body must be renamed with the same pairs.
+fn rename_pat(pat: &mut CPat, fresh: &mut Fresh, renames: &mut Vec<(LocalId, LocalId)>) {
+    let mut fresh_for = |x: &mut LocalId, fresh: &mut Fresh, renames: &mut Vec<(LocalId, LocalId)>| {
+        let n = fresh.local();
+        renames.push((*x, n));
+        *x = n;
+    };
+    match pat {
+        CPat::Var(x, _) => fresh_for(x, fresh, renames),
+        CPat::Con { fields, .. } => {
+            for f in fields.iter_mut() {
+                fresh_for(f, fresh, renames);
+            }
+        }
+        CPat::Wild => {}
+    }
+}
+
+/// `case (case s of alts) of alts2` pushes `alts2` into every alternative of
+/// the inner decision: `case s of A -> e; B -> f` becomes
+/// `case s of A -> case e of alts2; B -> case f of alts2`, so the value the
+/// inner decision produced is scrutinized where it is produced instead of
+/// being handed to a decision of its own.
+///
+/// An outer alternative is duplicated once per inner alternative, so the
+/// rule is paired with join points: an alternative whose body is larger than
+/// [`SimplifyOptions::join_threshold`] nodes is lifted into a `Join` over its
+/// own pattern binders (its only free locals the join's position does not
+/// already have), and every copy becomes a `Jump` to it. A smaller body is
+/// copied, with its pattern binders renamed to fresh locals per copy, and the
+/// copied node count is reported as `duplicated`.
+///
+/// It refuses when the inner decision carries weights (pushing moves its
+/// alternatives into outer branches, where its weight space has no meaning,
+/// and the driving pass owns the weighted forms), when any alternative of
+/// either decision carries a quotation (a quotation's retained body is a
+/// binding scope of its own, and the copies would share it), when the inner
+/// scrutinee is used inside either decision's alternatives (the usual GHC
+/// condition: the scrutinee is re-read at every pushed copy, and a use of it
+/// there makes the two reads of one value visible to each other), and when
+/// the inner scrutinee is not a local (a computed scrutinee would be
+/// evaluated again per copy).
+fn case_of_case(
+    e: &mut Core,
+    classes: &HashMap<LocalId, Class>,
+    opts: &SimplifyOptions,
+    fresh: &mut Fresh,
+    t: &mut Ticks,
+) -> bool {
+    // The two shapes the rule takes: a decision whose scrutinee is a
+    // decision, and the `let` the checker's lowering produces for one (the
+    // value is bound, then scrutinized), which is the shape that actually
+    // appears in our Core.
+    let mut prefix: Vec<(LocalId, Class, Core)> = Vec::new();
+    let (inner_scrut, inner_alts, outer_alts) = match &*e {
+        Core::Case { scrut, alts } => match &**scrut {
+            Core::Case { scrut: s, alts: inner } => ((**s).clone(), inner.clone(), alts.clone()),
+            _ => return false,
+        },
+        Core::Let(x, _, value, body) => {
+            let Core::Case { scrut: v, alts: outer } = &**body else { return false };
+            if !matches!(&**v, Core::Var(y) if y == x) {
+                return false;
+            }
+            // The local is only the scrutinee: a second use would mean the
+            // decision's value is shared, and pushing would duplicate it.
+            if uses_of(body, *x) != 1 {
+                return false;
+            }
+            // The value may open with `let`s: the computation, and the
+            // alias the lowering puts before a decision on a parameter.
+            // Both belong outside the pushed decision, because a strict
+            // language evaluates them either way, and neither can name a
+            // binder of the outer alternatives.
+            let mut rest = &**value;
+            while let Core::Let(y, c, v, body) = rest {
+                prefix.push((*y, *c, (**v).clone()));
+                rest = body;
+            }
+            let Core::Case { scrut: s, alts: inner } = rest else { return false };
+            ((**s).clone(), inner.clone(), outer.clone())
+        }
+        _ => return false,
+    };
+    let Core::Var(s) = &inner_scrut else { return false };
+    let s = *s;
+    if inner_alts.is_empty() || outer_alts.is_empty() {
+        return false;
+    }
+    if inner_alts.iter().any(|a| a.weight.is_some()) {
+        return false;
+    }
+    if inner_alts.iter().any(|a| carries_quote(&a.body)) || outer_alts.iter().any(|a| carries_quote(&a.body))
+    {
+        return false;
+    }
+    if inner_alts.iter().any(|a| mentions(&a.body, s)) || outer_alts.iter().any(|a| mentions(&a.body, s)) {
+        return false;
+    }
+    // A body that already carries a join point is neither copied nor lifted:
+    // a copy would share the join's id, and a lifted body's releases assume
+    // its value is reached by falling through, which a jump is not.
+    if outer_alts.iter().any(|a| carries_join(&a.body)) {
+        return false;
+    }
+    // The alternatives of the outer decision, and whether each is shared
+    // through a join. Nothing is duplicated when the inner decision has one
+    // alternative, so no join pays there. A shared body takes its free
+    // locals as parameters: the jump hands one reference per parameter over,
+    // so the body owns what it reads, which is the only shape `crate::rc`
+    // can balance (nothing in the enclosing code runs after a jump).
+    let mut joins: Vec<(JoinId, Vec<(LocalId, Class)>, Core)> = Vec::new();
+    let mut shared: Vec<(Option<JoinId>, Vec<(LocalId, Class)>)> = Vec::with_capacity(outer_alts.len());
+    for a in outer_alts.iter() {
+        if inner_alts.len() > 1 && nodes(&a.body) > opts.join_threshold {
+            // A join's parameters are the alternative's own pattern
+            // binders. A body that reads an enclosing local too cannot be
+            // shared: no jump can hand that value over without the enclosing
+            // scope losing the release it still owes, so such a body is
+            // never lifted (the rule refuses when it is too big to copy).
+            let mut free: Vec<LocalId> = Vec::new();
+            free_locals(&a.body, &mut free);
+            let binders: Vec<LocalId> = pat_binders(&a.pat).iter().map(|(l, _)| *l).collect();
+            if free.iter().any(|l| !binders.contains(l)) {
+                return false;
+            }
+            let id = fresh.join();
+            let params: Vec<(LocalId, Class)> = binders
+                .into_iter()
+                .map(|l| (l, concrete(classes.get(&l).copied().unwrap_or(Class::Raw))))
+                .collect();
+            joins.push((id, params.clone(), (*a.body).clone()));
+            shared.push((Some(id), params));
+        } else {
+            shared.push((None, Vec::new()));
+        }
+    }
+    let mut pushed: Vec<CAlt<Core>> = Vec::with_capacity(inner_alts.len());
+    for (k, ia) in inner_alts.iter().enumerate() {
+        let mut copies: Vec<CAlt<Core>> = Vec::with_capacity(outer_alts.len());
+        for (a, (join, params)) in outer_alts.iter().zip(&shared) {
+            match join {
+                Some(id) => {
+                    // The copy is a jump that hands this copy's binding of
+                    // every free local to the shared body.
+                    let mut pat = a.pat.clone();
+                    let mut renames: Vec<(LocalId, LocalId)> = Vec::new();
+                    rename_pat(&mut pat, fresh, &mut renames);
+                    let args = params
+                        .iter()
+                        .map(|(l, _)| {
+                            let copy = renames.iter().find(|(from, _)| from == l).map(|(_, to)| *to);
+                            Core::Var(copy.unwrap_or(*l))
+                        })
+                        .collect();
+                    copies.push(CAlt {
+                        pat,
+                        weight: a.weight,
+                        body: Box::new(Core::Jump { id: *id, args }),
+                    });
+                }
+                None if k == 0 => copies.push(a.clone()),
+                None => {
+                    // A copy: fresh binders, and the body renamed to them.
+                    let mut alt = a.clone();
+                    let mut renames: Vec<(LocalId, LocalId)> = Vec::new();
+                    rename_pat(&mut alt.pat, fresh, &mut renames);
+                    for (from, to) in renames {
+                        subst(&mut alt.body, from, &Core::Var(to));
+                    }
+                    t.duplicated += nodes(&a.body);
+                    copies.push(alt);
+                }
+            }
+        }
+        pushed.push(CAlt {
+            pat: ia.pat.clone(),
+            weight: ia.weight,
+            body: Box::new(Core::Case { scrut: ia.body.clone(), alts: copies }),
+        });
+    }
+    let mut out = Core::Case { scrut: Box::new(Core::Var(s)), alts: pushed };
+    // The joins wrap the decision, so their bodies are in the scope the
+    // outer decision was in and see the binders of its patterns only
+    // through the parameters.
+    for (id, params, body) in joins.into_iter().rev() {
+        t.joins += 1;
+        out = Core::Join { id, params, body: Box::new(body), rest: Box::new(out) };
+    }
+    for (x, c, v) in prefix.into_iter().rev() {
+        out = Core::Let(x, c, Box::new(v), Box::new(out));
+    }
+    *e = out;
+    true
+}
+
+/// How many times `e` reads the local `l`, application heads included.
+fn uses_of(e: &Core, l: LocalId) -> usize {
+    let mut n = usize::from(matches!(e, Core::Var(x) if *x == l));
+    visit_children(e, &mut |child| n += uses_of(child, l));
+    n
 }
 
 /// `case v of C -> e; default -> case v of ...` becomes one decision.
@@ -680,6 +1155,7 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
     }
     let tables = Tables::new(program);
     let mut ticks = Ticks::default();
+    let mut fresh = Fresh { local: max_local(program), join: max_join(program) };
     for _ in 0..opts.max_iterations {
         ticks.changed = false;
         for f in program.fns.iter_mut() {
@@ -687,8 +1163,9 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
                 continue;
             }
             let mut scope = Scope::default();
+            let classes = unit_classes(f);
             let mut body = std::mem::replace(&mut f.body, Core::Unit);
-            pass(&mut body, &mut scope, &tables, opts, &mut ticks);
+            pass(&mut body, &mut scope, &tables, &classes, opts, &mut fresh, &mut ticks);
             f.body = body;
         }
         report.iterations += 1;
@@ -700,4 +1177,34 @@ pub fn simplify(program: &mut Program, opts: &SimplifyOptions, report: &mut Simp
     report.case_merge = ticks.case_merge;
     report.known_ctor = ticks.known_ctor;
     report.dict_call = ticks.dict_call;
+    report.case_of_case = ticks.case_of_case;
+    report.joins = ticks.joins;
+    report.duplicated = ticks.duplicated;
+}
+
+/// One past the largest local any unit mentions: every fresh local the pass
+/// makes exceeds it.
+fn max_local(program: &Program) -> usize {
+    let mut next = 0;
+    for f in &program.fns {
+        crate::core::walk_locals(&f.body, &mut |l| next = next.max(l.0 + 1));
+    }
+    next
+}
+
+/// One past the largest join id any unit mentions.
+fn max_join(program: &Program) -> usize {
+    fn go(e: &Core, next: &mut usize) {
+        if let Core::Join { id, .. } | Core::Jump { id, .. } = e {
+            *next = (*next).max(id.0 + 1);
+        }
+        for child in child_slots_imm(e) {
+            go(child, next);
+        }
+    }
+    let mut next = 0;
+    for f in &program.fns {
+        go(&f.body, &mut next);
+    }
+    next
 }

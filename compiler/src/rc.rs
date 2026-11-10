@@ -513,6 +513,11 @@ fn binder_classes(params: &[Class], body: &Core) -> HashMap<usize, Class> {
             Core::Let(x, c, ..) => {
                 out.insert(x.0, concrete(*c));
             }
+            Core::Join { params, .. } => {
+                for (x, c) in params {
+                    out.insert(x.0, concrete(*c));
+                }
+            }
             Core::Case { alts, .. } => {
                 for a in alts {
                     match &a.pat {
@@ -634,6 +639,18 @@ impl Pass<'_> {
             Core::Let(x, _, v, b) => {
                 s.extend(self.fv(v).iter());
                 s.extend(self.fv(b).iter().filter(|y| **y != x.0));
+            }
+            // A jump's arguments are uses in the enclosing scope; the join's
+            // parameters are bound in its body only, and the join id is not a
+            // value.
+            Core::Join { params, body, rest, .. } => {
+                s.extend(self.fv(body).iter().filter(|y| !params.iter().any(|(x, _)| x.0 == **y)));
+                s.extend(self.fv(rest).iter());
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    s.extend(self.fv(a).iter());
+                }
             }
             Core::Case { scrut, alts } => {
                 s.extend(self.fv(scrut).iter());
@@ -819,6 +836,39 @@ impl Pass<'_> {
                 }
                 let case = self.case_on(t, alts, &o2, live);
                 Core::Let(LocalId(t), tc, Box::new(s2), Box::new(case))
+            }
+            // A join's parameters are OWNED by its body, exactly as a
+            // function's are: every jump hands one reference over per
+            // parameter, and the body consumes each exactly once on every
+            // path (a jump may enter it more than once, so a body that reads
+            // a value it does not own dups it). The continuation runs in the
+            // enclosing scope, with the join's binders out of it.
+            //
+            // A parameter the body only LENDS is a bug, not a fallback: no
+            // enclosing code runs after a jump, so there is no place to
+            // release it, and the verifier refuses it. `crate::simplify`
+            // keeps such a body out of a join (its parameters are the
+            // body's own pattern binders, which the jump consumes).
+            Core::Join { id, params, body, rest } => {
+                let rest = self.go(rest, owned, live);
+                let powned: Set = params
+                    .iter()
+                    .filter(|(x, _)| self.counted(x.0))
+                    .map(|(x, _)| x.0)
+                    .collect();
+                let body = self.go(body, &powned, &Set::new());
+                Core::Join {
+                    id: *id,
+                    params: params.clone(),
+                    body: Box::new(body),
+                    rest: Box::new(rest),
+                }
+            }
+            // A jump is an owned use of every argument: the join's parameter
+            // takes the reference over, and nothing follows the jump.
+            Core::Jump { id, args } => {
+                let es: Vec<&Core> = args.iter().collect();
+                Core::Jump { id: *id, args: self.seq(&es, owned, live) }
             }
             Core::Proj(d, f) => {
                 let f = f.clone();
@@ -1340,6 +1390,56 @@ impl Verifier<'_> {
                 }
                 self.read(st, l.0)?;
                 Ok(true)
+            }
+            Core::Join { id, params, body, rest } => {
+                // The body is a code block of its own entry: one reference
+                // per counted parameter, and it must consume each on every
+                // path while leaving the enclosing holdings as it found them
+                // (it may dup them, never take them).
+                let mut s = st.clone();
+                for (x, _) in params {
+                    if self.counted(x.0) {
+                        s.cnt.insert(x.0, 1);
+                        s.parent.remove(&x.0);
+                    }
+                }
+                if self.value(body, &mut s)? {
+                    for (x, _) in params {
+                        if self.counted(x.0) && s.cnt.get(&x.0).copied().unwrap_or(0) != 0 {
+                            return Err(format!(
+                                "join j{} leaves its parameter v{} unconsumed on a path",
+                                id.0, x.0
+                            ));
+                        }
+                    }
+                    let norm = |state: &State, skip: &[(LocalId, Class)]| -> Vec<(usize, i64)> {
+                        let mut v: Vec<(usize, i64)> = state
+                            .cnt
+                            .iter()
+                            .filter(|(x, n)| **n != 0 && !skip.iter().any(|(p, _)| p.0 == **x))
+                            .map(|(x, n)| (*x, *n))
+                            .collect();
+                        v.sort();
+                        v
+                    };
+                    let after = norm(&s, params);
+                    let before = norm(st, &[]);
+                    if after != before {
+                        return Err(format!(
+                            "join j{}'s body changes the enclosing holdings: {before:?} to {after:?}",
+                            id.0
+                        ));
+                    }
+                }
+                self.value(rest, st)
+            }
+            Core::Jump { args, .. } => {
+                // A jump hands one owned reference per argument over and
+                // never returns to this block.
+                if !self.all(args, st)? {
+                    return Ok(false);
+                }
+                Ok(false)
             }
             _ => Ok(true),
         }

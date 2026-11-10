@@ -50,6 +50,18 @@ impl fmt::Display for GlobalId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LocalId(pub usize);
 
+/// A join point identity, unique within a function body and disjoint from
+/// the local ids (a join is not a value and cannot be passed, stored or
+/// captured).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct JoinId(pub usize);
+
+impl fmt::Display for JoinId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "j{}", self.0)
+    }
+}
+
 // ------------------------------------------------------------ primitive operations
 //
 // Primitive operations come in two shapes: the bootstrap `Int`/`Bool`
@@ -1773,6 +1785,46 @@ pub enum Core {
     Lam { fn_id: GlobalId, env: Vec<Core>, classes: Vec<Class> },
     /// `let`, with the binder's class.
     Let(LocalId, Class, Box<Core>, Box<Core>),
+    /// A join point: `body` is the join's code, reached only by a `Jump` of
+    /// the same `id` from inside `rest`, and `rest` is the continuation the
+    /// join is in scope for. This is GHC's
+    /// `let join j = \params -> body in rest`, in one node.
+    ///
+    /// Invariants, checked by the Core text verifier:
+    ///
+    /// - `id` is unique within the unit, and a `Jump` targets exactly one
+    ///   enclosing `Join` of its id. A join is lexically scoped: an
+    ///   enclosing `Join` of the same id is the only target, so a jump
+    ///   outside every such `Join` has no meaning and is a bug.
+    /// - A jump sits in tail position of the target join's body: nothing
+    ///   runs after it on its path, and its argument values are the jump's
+    ///   result. `Let`, `Dup`, `Drop`, `Release`, an `If` branch, a `Case`
+    ///   alternative body and a `Join` body preserve tail position; an
+    ///   argument, a scrutinee, a stored value and an application's head
+    ///   are not tail positions.
+    /// - A jump never crosses a lambda or a quotation's retained body: both
+    ///   are separate code units, so their frames are gone by the time the
+    ///   jump would run. `rest` and `body` of a `Join` are in the same code
+    ///   unit, so a jump from a nested join's body to an outer join is
+    ///   legal when it is in tail position.
+    /// - `params` are owned exactly as function parameters are: every
+    ///   `Jump` hands over one owned reference per parameter, and the join's
+    ///   body consumes each parameter exactly once on every path (or drops
+    ///   it). `crate::rc` inserts those operations; the jump's arguments are
+    ///   owned uses.
+    ///
+    /// Code generation turns a join into a basic block and a jump into a
+    /// branch to it: no closure, no frame, no call.
+    Join {
+        id: JoinId,
+        params: Vec<(LocalId, Class)>,
+        body: Box<Core>,
+        rest: Box<Core>,
+    },
+    /// Leave the enclosing join `id` with `args`, one per parameter. Only in
+    /// tail position of that join's body (see [`Core::Join`]); the values
+    /// are the join's result.
+    Jump { id: JoinId, args: Vec<Core> },
     /// A two-way decision point: the condition and its two weighted
     /// branches (attribute annotations specification section 2.1).
     If(Box<Core>, CBranch<Core>, CBranch<Core>),
@@ -3374,6 +3426,17 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                 all_calls(v, fns, insts, foreigns, out);
                 all_calls(body, fns, insts, foreigns, out);
             }
+            // A join is a code block inside this unit, so its calls are
+            // this unit's calls.
+            Core::Join { body, rest, .. } => {
+                all_calls(body, fns, insts, foreigns, out);
+                all_calls(rest, fns, insts, foreigns, out);
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    all_calls(a, fns, insts, foreigns, out);
+                }
+            }
             Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::RefSet(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
@@ -3665,6 +3728,17 @@ fn calls_walk(
         Core::Let(_, _, v, body) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out);
             calls_walk(body, tail, fns, insts, foreigns, callees, out);
+        }
+        // A join body is a tail position of this unit (its jumps return
+        // from the join), and so is the continuation.
+        Core::Join { body, rest, .. } => {
+            calls_walk(body, tail, fns, insts, foreigns, callees, out);
+            calls_walk(rest, tail, fns, insts, foreigns, callees, out);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                calls_walk(a, false, fns, insts, foreigns, callees, out);
+            }
         }
         Core::BoxInit(_, v, _) | Core::LazyInit(_, v) | Core::RefSet(_, v, _) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out)
@@ -4040,6 +4114,14 @@ pub struct SimplifyReport {
     /// Static dictionary projections turned into direct calls (rule
     /// `direct-dict-call`).
     pub dict_call: usize,
+    /// Outer decisions pushed into the decision they scrutinize (rule
+    /// `case-of-case`).
+    pub case_of_case: usize,
+    /// Join points the rule introduced to avoid duplicating a body.
+    pub joins: usize,
+    /// Nodes the rule duplicated by copying a small alternative instead of
+    /// sharing it through a join.
+    pub duplicated: usize,
 }
 
 // -------------------------------------------------- target conditions (`when`)
@@ -4547,6 +4629,18 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             walk_locals(v, f);
             walk_locals(body, f);
         }
+        Core::Join { params, body, rest, .. } => {
+            for (l, _) in params {
+                f(*l);
+            }
+            walk_locals(body, f);
+            walk_locals(rest, f);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                walk_locals(a, f);
+            }
+        }
         Core::LazyInit(l, t) => {
             f(*l);
             walk_locals(t, f);
@@ -4630,6 +4724,18 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
         }
         Core::Lam { env, .. } => {
             let parts: Vec<(usize, usize)> = env.iter().map(|a| use_range(a, l)).collect();
+            seq(&parts)
+        }
+        Core::Join { params, body, rest, .. } => {
+            // The join's parameters are binders of their own; a use of `l`
+            // inside them is not a use of `l`.
+            if params.iter().any(|(x, _)| *x == l) {
+                return (0, 0);
+            }
+            seq(&[use_range(body, l), use_range(rest, l)])
+        }
+        Core::Jump { args, .. } => {
+            let parts: Vec<(usize, usize)> = args.iter().map(|a| use_range(a, l)).collect();
             seq(&parts)
         }
         Core::Let(x, _, v, body) => {
@@ -4751,6 +4857,18 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 assign(v, map, next);
                 assign(body, map, next);
             }
+            Core::Join { params, body, rest, .. } => {
+                for (l, _) in params {
+                    note(*l, map, next);
+                }
+                assign(body, map, next);
+                assign(rest, map, next);
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    assign(a, map, next);
+                }
+            }
             Core::LazyInit(l, t) => {
                 note(*l, map, next);
                 assign(t, map, next);
@@ -4845,6 +4963,19 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
             Box::new(rw(v)),
             Box::new(rw(body)),
         ),
+        Core::Join { id, params, body, rest } => Core::Join {
+            id: *id,
+            params: params
+                .iter()
+                .map(|(l, c)| (*map.get(l).unwrap_or(l), *c))
+                .collect(),
+            body: Box::new(rw(body)),
+            rest: Box::new(rw(rest)),
+        },
+        Core::Jump { id, args } => Core::Jump {
+            id: *id,
+            args: args.iter().map(rw).collect(),
+        },
         Core::LazyInit(l, t) => {
             Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
         }
@@ -4992,6 +5123,22 @@ fn instantiate(
                 ren.remove(l);
                 Core::Let(nl, *c, Box::new(v), Box::new(body))
             }
+            Core::Join { id, params, body, rest } => {
+                // The join's parameters are binders of the copied code, so
+                // they are renamed away from the residual program's locals
+                // exactly as a `let` binder is.
+                let params = params
+                    .iter()
+                    .map(|(l, c)| (fresh(*l, ren, next), *c))
+                    .collect();
+                let body = go(body, holes, binds, ren, next);
+                let rest = go(rest, holes, binds, ren, next);
+                Core::Join { id: *id, params, body: Box::new(body), rest: Box::new(rest) }
+            }
+            Core::Jump { id, args } => Core::Jump {
+                id: *id,
+                args: args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+            },
             Core::LazyInit(l, t) => {
                 let nl = fresh(*l, ren, next);
                 let t = go(t, holes, binds, ren, next);
@@ -5655,6 +5802,15 @@ fn has_alloc(e: &Core) -> bool {
             | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
             | Core::Var(_) => {}
             Core::DictProj(d, ..) | Core::Proj(d, _) => go(d, found),
+            Core::Join { body, rest, .. } => {
+                go(body, found);
+                go(rest, found);
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    go(a, found);
+                }
+            }
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, found);
@@ -5725,6 +5881,15 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
             scan_calls(v, f);
             scan_calls(body, f);
         }
+        Core::Join { body, rest, .. } => {
+            scan_calls(body, f);
+            scan_calls(rest, f);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                scan_calls(a, f);
+            }
+        }
         Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => scan_calls(body, f),
         Core::LazyInit(_, t) => scan_calls(t, f),
         Core::BoxInit(_, v, _) => scan_calls(v, f),
@@ -5776,6 +5941,15 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::Let(_, _, v, body) => {
             scan_memo(v, n);
             scan_memo(body, n);
+        }
+        Core::Join { body, rest, .. } => {
+            scan_memo(body, n);
+            scan_memo(rest, n);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                scan_memo(a, n);
+            }
         }
         Core::LazyInit(_, t) => scan_memo(t, n),
         Core::If(c, t, fe) => {
@@ -5840,6 +6014,15 @@ fn weights_ok(e: &Core) -> bool {
                 go(v, ok);
                 go(body, ok);
             }
+            Core::Join { body, rest, .. } => {
+                go(body, ok);
+                go(rest, ok);
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    go(a, ok);
+                }
+            }
             Core::LazyInit(_, t) => go(t, ok),
             Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
                 for h in holes {
@@ -5887,6 +6070,21 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 bound.remove(l);
                 ok
             }
+            // A join's parameters are bound in its body and not in its
+            // continuation, and every jump argument is a use in scope.
+            Core::Join { params, body, rest, .. } => {
+                let mut added: Vec<LocalId> = Vec::new();
+                for (l, _) in params {
+                    bound.insert(*l);
+                    added.push(*l);
+                }
+                let ok = go(body, bound);
+                for l in added {
+                    bound.remove(&l);
+                }
+                ok && go(rest, bound)
+            }
+            Core::Jump { args, .. } => args.iter().all(|a| go(a, bound)),
             Core::LazyInit(l, t) => {
                 bound.insert(*l);
                 let ok = go(t, bound);
@@ -6006,6 +6204,15 @@ fn body_impure(e: &Core) -> bool {
             Core::Let(_, _, v, body) => {
                 go(v, bad);
                 go(body, bad);
+            }
+            Core::Join { body, rest, .. } => {
+                go(body, bad);
+                go(rest, bad);
+            }
+            Core::Jump { args, .. } => {
+                for a in args {
+                    go(a, bad);
+                }
             }
             Core::LazyInit(_, t) => go(t, bad),
             Core::If(c, t, fe) => {
@@ -6863,6 +7070,15 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
             out.push(&mut **v);
             out.push(&mut **body);
         }
+        Core::Join { body, rest, .. } => {
+            out.push(&mut **body);
+            out.push(&mut **rest);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                out.push(a);
+            }
+        }
         Core::LazyInit(_, t) => out.push(&mut **t),
         Core::If(c, t, fe) => {
             out.push(&mut **c);
@@ -7468,6 +7684,15 @@ fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
             visit(v);
             visit(body);
         }
+        Core::Join { body, rest, .. } => {
+            visit(body);
+            visit(rest);
+        }
+        Core::Jump { args, .. } => {
+            for a in args {
+                visit(a);
+            }
+        }
         Core::LazyInit(_, t) => visit(t),
         Core::If(c, t, fe) => {
             visit(c);
@@ -7716,6 +7941,11 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
                 }
             }
         }
+        Core::Join { id, params, .. } => {
+            id.hash(h);
+            params.iter().map(|(_, c)| c).collect::<Vec<_>>().hash(h);
+        }
+        Core::Jump { id, args } => (id, args.len()).hash(h),
         Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => holes.len().hash(h),
         Core::Unit | Core::Var(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::LazyInit(..) | Core::SyntaxLit(..) => {}
     }

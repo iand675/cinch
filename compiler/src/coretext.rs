@@ -721,6 +721,27 @@ impl<'a> Printer<'a> {
                 .mark(format!("@class({})", class_text(*class)))
                 .child(self.expr(value))
                 .child(self.expr(body)),
+            Core::Join { id, params, body, rest } => {
+                let mut plist = Node::list("params");
+                for (param, class) in params {
+                    plist = plist.child(
+                        Node::list(self.local(*param))
+                            .mark(format!("@class({})", class_text(*class))),
+                    );
+                }
+                Node::list("join")
+                    .child(Node::atom(id.to_string()))
+                    .child(plist)
+                    .child(self.expr(body))
+                    .child(self.expr(rest))
+            }
+            Core::Jump { id, args } => {
+                let mut node = Node::list("jump").child(Node::atom(id.to_string()));
+                for arg in args {
+                    node = node.child(self.expr(arg));
+                }
+                node
+            }
             Core::If(cond, then, other) => Node::list("if")
                 .child(self.expr(cond))
                 .child(weighted(self.expr(&then.body), then.weight))
@@ -1310,6 +1331,15 @@ fn walk_units(body: &Core, f: &mut impl FnMut(&str)) {
         Core::Let(_, _, value, body) => {
             walk_units(value, f);
             walk_units(body, f);
+        }
+        Core::Join { body, rest, .. } => {
+            walk_units(body, f);
+            walk_units(rest, f);
+        }
+        Core::Jump { args, .. } => {
+            for arg in args {
+                walk_units(arg, f);
+            }
         }
         Core::If(cond, then, other) => {
             walk_units(cond, f);
@@ -2181,9 +2211,157 @@ fn check_file(file: &Parsed, errors: &mut Vec<Error>) -> Report {
             let mut scope: Vec<String> = unit.params.clone();
             let mut checker = Checker { file, units: &units, declared: &declared, report: &mut report };
             checker.expr(body, &mut scope, &unit.name, "body", errors);
+            let mut joins: Vec<JoinScope> = Vec::new();
+            let mut next = 0usize;
+            check_joins(body, &mut joins, 0, &mut next, &unit.name, "body", errors);
         }
     }
     report
+}
+
+/// A join point in scope at a jump: its printed id, its parameter count,
+/// and the destination (see below) its value is delivered to.
+struct JoinScope {
+    id: String,
+    arity: usize,
+    dest: usize,
+}
+
+/// The join legality rule of [`crate::core::Core::Join`], over the printed
+/// grammar: a `jump` names exactly one enclosing `join`, passes one
+/// argument per parameter, and delivers to that join's continuation, which
+/// is the destination of the position the `Join` sits in. Destinations are
+/// tracked as tokens: the body starts at token 0 (the function's return),
+/// the forms that pass a value on unchanged (`let`, the count operations,
+/// `release`, both branches of an `if`, the alternatives of a `case`, and
+/// both parts of a `join`) keep the token, and every other child position
+/// gets a fresh one, because it is a value of its own. So a jump in a tail
+/// position of the function is legal, and so is a jump in an alternative of
+/// a decision whose value is the join's value; a jump whose join delivers
+/// somewhere else is refused. A jump never crosses a lambda or a quotation's
+/// retained body: both are separate code units, and their joins are not in
+/// scope.
+fn check_joins(
+    node: &Node,
+    joins: &mut Vec<JoinScope>,
+    dest: usize,
+    next: &mut usize,
+    unit: &str,
+    path: &str,
+    errors: &mut Vec<Error>,
+) {
+    let Node::List { head, tail: kids, .. } = node else {
+        return;
+    };
+    let fresh = |next: &mut usize| {
+        let token = *next;
+        *next += 1;
+        token
+    };
+    match head.as_str() {
+        "join" => {
+            let id = match kids.first() {
+                Some(Node::Atom(name)) => name.clone(),
+                _ => {
+                    errors.push(Error::new(unit, path, "a join has no identifier"));
+                    return;
+                }
+            };
+            let arity = match kids.get(1) {
+                Some(Node::List { tail: params, .. }) if params.iter().all(|p| matches!(p, Node::List { .. })) => {
+                    params.len()
+                }
+                _ => 0,
+            };
+            if joins.iter().any(|scope| scope.id == id) {
+                errors.push(Error::new(
+                    unit,
+                    path,
+                    format!("`{id}` names two joins in scope, so a jump cannot name one of them"),
+                ));
+            }
+            joins.push(JoinScope { id, arity, dest });
+            for (index, child) in kids.iter().enumerate().skip(2) {
+                check_joins(child, joins, dest, next, unit, &child_path(head, index, path), errors);
+            }
+            joins.pop();
+            return;
+        }
+        "jump" => {
+            let id = match kids.first() {
+                Some(Node::Atom(name)) => name.clone(),
+                _ => {
+                    errors.push(Error::new(unit, path, "a jump has no identifier"));
+                    return;
+                }
+            };
+            let args = kids.len().saturating_sub(1);
+            match joins.iter().rev().find(|scope| scope.id == id) {
+                None => errors.push(Error::new(
+                    unit,
+                    path,
+                    format!("the jump's join `{id}` is not in scope here"),
+                )),
+                Some(scope) if scope.arity != args => errors.push(Error::new(
+                    unit,
+                    path,
+                    format!("the jump passes {args} arguments to the join's {} parameters", scope.arity),
+                )),
+                Some(scope) if scope.dest != dest => errors.push(Error::new(
+                    unit,
+                    path,
+                    format!("the jump's value is not the result of `{id}` here: it is in a position of its own, so it never reaches the join's continuation"),
+                )),
+                Some(_) => {}
+            }
+            for (index, child) in kids.iter().enumerate().skip(1) {
+                let token = fresh(next);
+                check_joins(child, joins, token, next, unit, &child_path(head, index, path), errors);
+            }
+            return;
+        }
+        "lam" | "quote" => {
+            // A separate code unit: no join of this body is in scope, and
+            // no position inside it shares this body's destination.
+            let mut inner: Vec<JoinScope> = Vec::new();
+            for (index, child) in kids.iter().enumerate() {
+                let token = fresh(next);
+                check_joins(child, &mut inner, token, next, unit, &child_path(head, index, path), errors);
+            }
+            return;
+        }
+        "case" => {
+            for (index, child) in kids.iter().enumerate() {
+                let child_path = child_path(head, index, path);
+                if index == 0 {
+                    let token = fresh(next);
+                    check_joins(child, joins, token, next, unit, &child_path, errors);
+                    continue;
+                }
+                let Node::List { tail: alt, .. } = child else {
+                    continue;
+                };
+                for (field, part) in alt.iter().enumerate().skip(1) {
+                    check_joins(part, joins, dest, next, unit, &format!("{child_path}:field {field}"), errors);
+                }
+            }
+            return;
+        }
+        _ => {}
+    }
+    // The forms that pass a value on: the body of a `let`, of a count
+    // operation, of a `release`, and both branches of an `if`.
+    for (index, child) in kids.iter().enumerate() {
+        let child_path = child_path(head, index, path);
+        let same = match head.as_str() {
+            "if" => index > 0,
+            "let" | "dup" | "drop" => index + 1 == kids.len(),
+            "release" => index == 3,
+            _ => false,
+        };
+        let token = if same { dest } else { fresh(next) };
+        check_joins(child, joins, token, next, unit, &child_path, errors);
+    }
 }
 
 fn check_span(text: &str, unit: &str, errors: &mut Vec<Error>) {
@@ -2269,6 +2447,28 @@ impl<'a> Checker<'a> {
                     } else {
                         self.expr(child, scope, unit, &child_path(head, index, path), errors);
                     }
+                }
+                return;
+            }
+            "join" => {
+                // The join's parameters are bound in its body and not in
+                // its continuation; the identifier is not a variable.
+                let mut bound: Vec<String> = Vec::new();
+                if let Some(Node::List { tail: params, .. }) = tail.get(1) {
+                    for param in params {
+                        if let Node::List { head: name, .. } = param {
+                            bound.push(name.clone());
+                        }
+                    }
+                }
+                for (index, child) in tail.iter().enumerate().skip(2) {
+                    let child_path = child_path(head, index, path);
+                    let before = scope.len();
+                    if index == 2 {
+                        scope.extend(bound.iter().cloned());
+                    }
+                    self.expr(child, scope, unit, &child_path, errors);
+                    scope.truncate(before);
                 }
                 return;
             }

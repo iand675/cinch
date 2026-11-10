@@ -1,0 +1,20 @@
+module Main where
+  import Data.Option
+
+  step :: Option Int -> Option Int
+  step o = case o of
+             None -> None
+             Some x -> Some (x + 1)
+
+  -- The decision on `step o` is pushed into the alternatives of the
+  -- decision step makes, so the value it produces is scrutinized where it
+  -- is produced. The `Some` alternative is large, so it is lifted into a
+  -- join point and both copies reach it with a jump; the `None`
+  -- alternative is small and is copied instead.
+  wide :: Option Int -> Int
+  wide o = case (step o) of
+             None -> 0
+             Some y -> y + y + y + y + y + y + y + y + y + y + y + y + y + y + y + y
+
+  main :: Int
+  main = wide (Some 4) + wide None

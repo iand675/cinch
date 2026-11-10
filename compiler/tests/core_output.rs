@@ -306,6 +306,91 @@ fn verify_rejects_an_out_of_scope_local() {
 }
 
 #[test]
+fn verify_accepts_a_join_and_its_jumps() {
+    // The join's parameter is in scope in its body and not in its
+    // continuation, and a jump in an alternative of the decision that is the
+    // join's continuation delivers the join's result.
+    let text = with_unit(
+        "\
+unit Main.use :: Nat -> Nat
+  @params t0 :: Nat @owned
+  @stage(checked)
+  body (join j0
+    (params (t1 @class(owned)))
+    (local t1)
+    (case (local t0)
+      ((con 0) (jump j0 (int 1)))
+      ((con 1 (t2 @class(owned))) (jump j0 (local t2)))))
+end
+",
+    );
+    let report = coretext::verify(&text).expect("the join verifies");
+    assert_eq!(report.units, 2);
+}
+
+#[test]
+fn verify_rejects_a_jump_with_no_enclosing_join() {
+    let text = with_unit(
+        "\
+unit Main.use :: Nat -> Nat
+  @params t0 :: Nat @owned
+  @stage(checked)
+  body (jump j0 (local t0))
+end
+",
+    );
+    let errors = coretext::verify(&text).expect_err("a jump with no join is refused");
+    assert!(
+        errors.iter().any(|error| error.message.contains("not in scope")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn verify_rejects_a_jump_out_of_the_joins_destination() {
+    // The jump is in the `let` value, a value position of its own, so its
+    // value never reaches the join's continuation.
+    let text = with_unit(
+        "\
+unit Main.use :: Nat -> Nat
+  @params t0 :: Nat @owned
+  @stage(checked)
+  body (join j0
+    (params (t1 @class(owned)))
+    (local t1)
+    (let t2 @class(owned) (jump j0 (local t0)) (local t2)))
+end
+",
+    );
+    let errors = coretext::verify(&text).expect_err("a value-position jump is refused");
+    assert!(
+        errors.iter().any(|error| error.message.contains("not the result of `j0`")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn verify_rejects_a_jump_with_the_wrong_number_of_arguments() {
+    let text = with_unit(
+        "\
+unit Main.use :: Nat -> Nat
+  @params t0 :: Nat @owned
+  @stage(checked)
+  body (join j0
+    (params (t1 @class(owned)))
+    (local t1)
+    (jump j0))
+end
+",
+    );
+    let errors = coretext::verify(&text).expect_err("the argument count is checked");
+    assert!(
+        errors.iter().any(|error| error.message.contains("parameters")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn verify_rejects_a_duplicated_unit_name() {
     let text = with_unit(
         "\
