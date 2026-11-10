@@ -3101,6 +3101,22 @@ pub struct Program {
     /// Empty until reference counting, and for every artifact whose units
     /// other artifacts call.
     pub lent: std::collections::BTreeMap<String, Vec<bool>>,
+    /// Frame allocation decisions by unit name (`crate::stack`,
+    /// design/stack-allocation.md): the allocations the pass lowered into
+    /// each unit's own frame. Empty until that pass and whenever it is
+    /// disabled (`--no-stack-alloc`), which is also the program the code
+    /// generator emitted before the pass existed.
+    pub frame: std::collections::BTreeMap<String, crate::stack::Plan>,
+    /// The stack allocation pass's totals over this program: slots, bytes
+    /// and refused allocations by reason, for the artifact manifest.
+    pub stack: crate::stack::Report,
+    /// The borrow inference's parameter modes by unit name
+    /// (`crate::rc::borrow_modes`), `true` where the caller only lends the
+    /// argument. Empty for an open program, whose units other artifacts
+    /// call and which therefore keeps every parameter owned. `crate::stack`
+    /// reads it: a lent reference is one the callee never stores or
+    /// returns, so it cannot outlive the caller's activation.
+    pub borrowed: std::collections::BTreeMap<String, Vec<bool>>,
 }
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
@@ -8194,6 +8210,9 @@ mod tests {
             fns, instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
             prims: vec![], laws: vec![], lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -8245,6 +8264,9 @@ mod tests {
             fns: vec![unit], instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
             prims: vec![], laws: vec![], lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);

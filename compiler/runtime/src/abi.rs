@@ -520,9 +520,10 @@ pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
 /// data), then returns the block to the allocator with the size its
 /// header records (a shaped block's from the layout table).
 ///
-/// An immediate word (low bit 1), the null word, and an immortal block
-/// (`rc == 0`: static blocks and interned `Sym` cells) are ignored. Any
-/// other word must be a live heap block allocated by this runtime.
+/// An immediate word (low bit 1), the null word, an immortal block
+/// (`rc == 0`: static blocks and interned `Sym` cells) and a frame block
+/// (`rc == RC_FRAME`: memory the stack owns) are ignored. Any other word
+/// must be a live heap block allocated by this runtime.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_free(word: i64) {
     if word == 0 || word & 1 != 0 {
@@ -530,7 +531,7 @@ pub unsafe extern "C" fn cinch_free(word: i64) {
     }
     let p = word as usize as *mut u8;
     let h = unsafe { crate::block::read_header(p) };
-    if crate::block::rc(h) == crate::block::RC_IMMORTAL {
+    if matches!(crate::block::rc(h), crate::block::RC_IMMORTAL | crate::block::RC_FRAME) {
         return;
     }
     unsafe {

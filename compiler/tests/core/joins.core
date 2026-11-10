@@ -27,6 +27,7 @@ unit Main.step :: (Data.Core.Option Int) -> (Data.Core.Option Int)
 end
 unit Main.wide :: (Data.Core.Option Int) -> Int
   @params t0 :: (Data.Core.Option Int) @owned
+  @frame(1 slot, 16 bytes)
   @stage(lowered)
   body (join j1
     (params (t1 @class(owned)))
@@ -68,7 +69,7 @@ unit Main.wide :: (Data.Core.Option Int) -> Int
           (moved t2)
           (rest)
           (let t3 @class(owned)
-            (app (ctor 'Data.Core.Some@T' @classes(T) 1 1)
+            (app (ctor 'Data.Core.Some@T' @classes(T) 1 1) @frame(f0)
               (app (prim cinch.runtime.intAdd) (local t2) (int 1)))
             (case (local t3)
               ((con 0) (drop t3 @class(owned) (int 0)))

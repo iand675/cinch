@@ -360,6 +360,9 @@ struct Printer<'a> {
     /// The names already taken in this unit, so a number is never reused.
     used: BTreeSet<String>,
     next_name: usize,
+    /// The unit being printed, for the facts keyed by unit name (its frame
+    /// allocation decision).
+    unit: String,
 }
 
 /// One record of the module body: a function, a dictionary, or a foreign
@@ -383,6 +386,7 @@ impl<'a> Printer<'a> {
             names: BTreeMap::new(),
             used: BTreeSet::new(),
             next_name: 0,
+            unit: String::new(),
         }
     }
 
@@ -471,6 +475,12 @@ impl<'a> Printer<'a> {
         referenced
     }
 
+    /// The frame site of local `id` in the unit being printed, when the
+    /// stack allocation pass gave it one.
+    fn frame_site(&self, id: LocalId) -> Option<&crate::stack::Site> {
+        self.program.frame.get(&self.unit).and_then(|plan| plan.site(id.0))
+    }
+
     fn fn_unit(&mut self, f: &FnDef, out: &mut String) {
         self.reset_names(f);
         let ty = self.ctx.signatures.get(&f.id.0).unwrap_or("-").to_string();
@@ -534,6 +544,14 @@ impl<'a> Printer<'a> {
             if !borrowed.is_empty() {
                 anns.push((rank("borrowed"), format!("@borrowed({})", borrowed.join(","))));
             }
+        }
+        if let Some(plan) = self.program.frame.get(&f.id.0).filter(|p| !p.is_empty()) {
+            // Frame allocation (design/stack-allocation.md): the slots this
+            // unit reserves and the bytes they add to its frame.
+            anns.push((
+                rank("frame"),
+                format!("@frame({} slot{}, {} bytes)", plan.slot_count(), plural(plan.slot_count()), plan.bytes),
+            ));
         }
         if let Some((base, letters)) = specialisation(&f.id.0) {
             anns.push((rank("specialised"), format!("@specialised({letters}) from {}", ident(&base))));
@@ -716,11 +734,19 @@ impl<'a> Printer<'a> {
                 node = node.child(self.expr(&Core::Global(fn_id.clone(), Vec::new())));
                 classes_mark(node, classes)
             }
-            Core::Let(id, class, value, body) => Node::list("let")
-                .child(Node::atom(self.local(*id)))
-                .mark(format!("@class({})", class_text(*class)))
-                .child(self.expr(value))
-                .child(self.expr(body)),
+            Core::Let(id, class, value, body) => {
+                let slot = self.frame_site(*id).map(|site| site.slot);
+                let mut value = self.expr(value);
+                if let Some(slot) = slot {
+                    // The allocation is built in the frame slot `f<n>`.
+                    value = value.mark(format!("@frame(f{slot})"));
+                }
+                Node::list("let")
+                    .child(Node::atom(self.local(*id)))
+                    .mark(format!("@class({})", class_text(*class)))
+                    .child(value)
+                    .child(self.expr(body))
+            }
             Core::Join { id, params, body, rest } => {
                 let mut plist = Node::list("params");
                 for (param, class) in params {
@@ -857,6 +883,7 @@ impl<'a> Printer<'a> {
     /// first-appearance order. Two binders of one unit never share a name, so
     /// a shadowed source binder prints as two distinct `t<n>`.
     fn reset_names(&mut self, f: &FnDef) {
+        self.unit.clone_from(&f.id.0);
         self.names.clear();
         self.used.clear();
         let naming = parameter_naming(f);
@@ -1951,6 +1978,7 @@ const ANNOTATION_ORDER: &[&str] = &[
     "tier",
     "ffi",
     "borrowed",
+    "frame",
     "specialised",
     "rewrite",
     "prim",
@@ -1965,6 +1993,15 @@ fn annotation_rank(name: &str) -> Option<usize> {
     ANNOTATION_ORDER.iter().position(|known| *known == name)
 }
 
+/// `s` when `n` is not one: the annotation lines read as prose.
+fn plural(n: usize) -> &'static str {
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
+}
+
 /// The printer's sort key for an annotation: the same table the verifier
 /// checks, so one list orders and validates.
 fn rank(name: &str) -> u8 {
@@ -1973,7 +2010,7 @@ fn rank(name: &str) -> u8 {
 
 /// The `@` marks a node may carry: its ownership class, its instantiation
 /// vector, and an alternative's weight.
-const NODE_MARKS: &[&str] = &["class", "classes", "weight"];
+const NODE_MARKS: &[&str] = &["class", "classes", "weight", "frame"];
 
 // -------------------------------------------------------------- verification
 

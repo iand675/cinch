@@ -30,6 +30,7 @@ pub mod repl_tui;
 pub mod repr;
 pub mod simplify;
 pub mod specialize;
+pub mod stack;
 pub mod store;
 pub mod types;
 pub mod total;

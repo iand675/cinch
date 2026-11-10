@@ -46,6 +46,9 @@ fn program(fns: Vec<FnDef>) -> Program {
         prims: vec![],
         laws: vec![],
         lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
     }
 }
 

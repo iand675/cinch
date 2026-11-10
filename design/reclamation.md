@@ -555,6 +555,36 @@ and the code generator both include. Where S5 differs from the plan:
   have a new allocator, the entry glue calls `cinch_exit_check`, and the
   quote `LAM` operands changed.
 
+**As built (stack allocation).** `compiler/src/stack.rs` lowers a block
+that cannot escape its activation to a slot in the unit's frame
+(`design/stack-allocation.md`). The header's count field is
+`RC_FRAME = RC_MAX` (`block_kinds.rs`), the largest count the 40-bit field
+holds, which no heap block can reach: the heap cap bounds the live words of
+the process far below `2^39`, and a count only moves by one from
+`RC_FRESH`. A frame block is therefore distinguishable from every
+reachable count, and every count path treats it as immortal without a
+second representation:
+
+- `cinch_dup` and `cinch_drop` ignore it, `cinch_free` returns before it
+  deallocates, `cinch_drop_slow` refuses it under `CINCH_RC_DEBUG=1`
+  (a compiler bug: the stack owns that memory), `claim` (the spawn mark)
+  stops at it, and the release walk never descends into it.
+- The inline fast paths each module emits (`rc_helpers`) gain one
+  `RC_FRAME` arm, and only in a module whose program has a frame slot. A
+  program the pass left alone emits the helper it always emitted, which is
+  what keeps `--no-stack-alloc` byte-identical to the pre-pass IR.
+- Code generation elides the frame binder's dup and drop and releases the
+  payload itself at the reference's death
+  (`CoreEmitter::frame_release`): an ordinary `drop` per counted field, in
+  reverse payload order, with no free and no scan. A frame block is
+  therefore never a field of another frame block, which is what keeps that
+  release a flat list of classes instead of a recursive plan.
+- A frame block never enters the live-bytes counter or the leak count, so
+  `cinch-leak: live=0 immortal=0 leaked=0` still holds and
+  `CINCH_HEAP_LIMIT` does not see it. The per-unit frame bound
+  (`--stack-frame-limit`, 16 KiB by default) is what keeps a program from
+  trading the heap for an unbounded stack.
+
 What S6 needs from S3 and S5: the inline fast paths of section 4 read
 the count at -8 and call `cinch_drop_slow(word)` at `rc == 1`;
 `cinch_dup`/`cinch_drop` are the out-of-line forms, and since inlined

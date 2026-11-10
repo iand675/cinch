@@ -273,7 +273,7 @@ fn emit_module(
     out.push_str("declare void @cinch_free(i64)\n");
     out.push_str("declare void @cinch_reclaim_enable()\n");
     if reg.reclaim && !reg.rc_debug {
-        out.push_str(&rc_helpers());
+        out.push_str(&rc_helpers(reg.any_frame()));
     }
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
@@ -833,6 +833,18 @@ struct Registry {
     /// The primitive units' borrowed parameters ([`Program::lent`]): their
     /// wrappers leave them to the caller.
     lent: std::collections::BTreeMap<String, Vec<bool>>,
+    /// Frame allocation decisions by unit name ([`Program::frame`],
+    /// `crate::stack`): the allocations a unit builds in its own frame.
+    frame: std::collections::BTreeMap<String, crate::stack::Plan>,
+}
+
+impl Registry {
+    /// Whether any unit of this module builds a block in its own frame: the
+    /// inline count helpers then also skip `RC_FRAME` (they must not change
+    /// the module of a program the pass left alone).
+    fn any_frame(&self) -> bool {
+        !self.frame.is_empty()
+    }
 }
 
 impl Registry {
@@ -1132,6 +1144,7 @@ impl Registry {
 impl Registry {
     fn build(p: &Program) -> Result<Registry> {
         let mut reg = Registry::default();
+        reg.frame = p.frame.clone();
         let mut fn_arities: HashMap<String, usize> = HashMap::new();
         for f in &p.fns {
             if fn_arities.insert(f.id.0.clone(), f.arity()).is_some() {
@@ -3052,6 +3065,18 @@ impl Builder {
         r
     }
 
+    /// A frame block's slot: `n` words (header and payload) rounded up to an
+    /// even count and 16-byte aligned, so the stack depth the slot adds is
+    /// a multiple of 16 bytes and the payload sits at an 8-mod-16 offset
+    /// exactly as a heap block's does.
+    fn alloca_frame(&mut self, n: usize) -> String {
+        let n = n + (n & 1);
+        let r = self.reg();
+        self.allocas
+            .push_str(&format!("  {r} = alloca [{n} x i64], align 16\n"));
+        r
+    }
+
     /// A byte buffer alloca (call-scoped C-layout copies at the foreign
     /// boundary), aligned to the recorded layout's alignment so the C
     /// side reads the copy at its natural alignment.
@@ -3462,6 +3487,11 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
 /// signed compare separates the plain, atomic and immortal cases.
 const RC_TOP_SHIFT: u32 = 64 - (block::RC_SHIFT + block::RC_BITS);
 
+/// `RC_FRAME`'s count as the top-shifted word the inline helpers compare
+/// against: the frame block's marker in the same form as `0` (immortal) and
+/// `1 << RC_TOP_SHIFT` (a count of one).
+const RC_FRAME_TOP: i64 = block::RC_FRAME << RC_TOP_SHIFT;
+
 /// Load the header word at `hp` into a fresh register. The load is
 /// atomic (`monotonic`, an ordinary load on every target, measured free
 /// against a plain one): a block shared with other tasks has its count
@@ -3510,14 +3540,17 @@ fn rc_helper_name(drop: bool, class: Class) -> &'static str {
 }
 
 /// The definitions of the four count helpers [`rc_op`] calls, private to
-/// each emitted module.
-fn rc_helpers() -> String {
+/// each emitted module. `frame` adds the `RC_FRAME` no-op arm: a module the
+/// stack allocation pass lowered can hand a frame block to a count path
+/// (the pass elides the operations, so this is the backstop), and a module
+/// it left alone keeps the exact helper it always had.
+fn rc_helpers(frame: bool) -> String {
     let mut out = String::new();
     for class in [Class::Obj, Class::TObj] {
         for drop in [false, true] {
             let mut b = Builder::new();
             b.reclaim = true;
-            rc_inline(&mut b, drop, "%w", class);
+            rc_inline(&mut b, drop, "%w", class, frame);
             b.line("ret void");
             out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", rc_helper_name(drop, class), b.code));
         }
@@ -3558,7 +3591,7 @@ const RC_UNIQUE: &str = "cinch.rc.unique";
 /// count above one after one compare, and hands a count of one to
 /// `cinch_drop_slow`, which releases the block and everything only it
 /// kept alive.
-fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class) {
+fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class, frame: bool) {
     let lblock = b.label();
     let ldone = b.label();
     let skip = b.reg();
@@ -3588,12 +3621,29 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class) {
     let one = 1u64 << block::RC_SHIFT;
     let top_one = 1i64 << RC_TOP_SHIFT;
     let (lplain, lother, lmt) = (b.label(), b.label(), b.label());
+    // A frame block's count is `RC_FRAME` (block_kinds.rs): never counted,
+    // so never a plain or a shared count. The arm is present exactly when
+    // this module can hold a frame block, which keeps every other module's
+    // helper byte-identical to the one it always had.
+    let not_frame = frame.then(|| {
+        let nf = b.reg();
+        b.line(&format!("{nf} = icmp ne i64 {top}, {RC_FRAME_TOP}"));
+        nf
+    });
     let plain = b.reg();
     if drop {
         b.line(&format!("{plain} = icmp sgt i64 {top}, {top_one}"));
     } else {
         b.line(&format!("{plain} = icmp sgt i64 {top}, 0"));
     }
+    let plain = match &not_frame {
+        Some(nf) => {
+            let both = b.reg();
+            b.line(&format!("{both} = and i1 {plain}, {nf}"));
+            both
+        }
+        None => plain,
+    };
     b.line(&format!("br i1 {plain}, label %{lplain}, label %{lother}"));
     b.start(&lplain);
     let h1 = b.reg();
@@ -3606,8 +3656,12 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class) {
     b.start(&lother);
     if drop {
         let lslow = b.label();
+        let frame_arm = match &not_frame {
+            Some(_) => format!("\n  i64 {RC_FRAME_TOP}, label %{ldone}"),
+            None => String::new(),
+        };
         b.line(&format!(
-            "switch i64 {top}, label %{lmt} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}\n]"
+            "switch i64 {top}, label %{lmt} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}{frame_arm}\n]"
         ));
         b.start(&lslow);
         b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
@@ -3615,6 +3669,14 @@ fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class) {
     } else {
         let shared = b.reg();
         b.line(&format!("{shared} = icmp ne i64 {top}, 0"));
+        let shared = match &not_frame {
+            Some(nf) => {
+                let both = b.reg();
+                b.line(&format!("{both} = and i1 {shared}, {nf}"));
+                both
+            }
+            None => shared,
+        };
         b.line(&format!("br i1 {shared}, label %{lmt}, label %{ldone}"));
     }
     b.start(&lmt);
@@ -5830,6 +5892,8 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
         joins: HashMap::new(),
+        frame: reg.frame.get(&f.id.0),
+        frame_bases: HashMap::new(),
     };
     for i in 0..f.arity() {
         let slot = e.slot(LocalId(i));
@@ -6061,6 +6125,12 @@ struct CoreEmitter<'a, 'b> {
     /// them (the slots are entry allocas, so a jump from any depth is the
     /// same store).
     joins: HashMap<JoinId, JoinSite>,
+    /// The unit's frame allocation decision (`crate::stack`): the blocks
+    /// this unit builds in its own frame instead of the heap.
+    frame: Option<&'a crate::stack::Plan>,
+    /// The `alloca` of each frame slot, by slot id: one entry block slot
+    /// per allocation site, reused when a site executes again.
+    frame_bases: HashMap<u32, String>,
 }
 
 /// A join's code generation site: the block its body starts at, and the
@@ -6432,7 +6502,7 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
-                let v = self.emit_expr(e)?;
+                let v = self.emit_let(*x, e)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 self.emit_expr(body)
@@ -6570,6 +6640,17 @@ impl CoreEmitter<'_, '_> {
         if !self.bound.contains(&x) {
             return err(format!("count operation on unknown local {}", x.0));
         }
+        // A frame block carries no count: a `dup` is a second static
+        // reference (which the pass refuses, so this arm is the backstop),
+        // and a `drop` releases the payload here, in place of a count
+        // reaching zero and freeing the block.
+        if let Some(site) = self.frame_site(x).cloned() {
+            if matches!(e, Core::Drop(..)) {
+                let w = self.load_local(x);
+                self.frame_release(&w, &site.fields);
+            }
+            return Ok(());
+        }
         let slot = self.slot(x);
         let w = self.b.reg();
         self.b.line(&format!("{w} = load i64, ptr {slot}"));
@@ -6592,6 +6673,19 @@ impl CoreEmitter<'_, '_> {
             if !self.bound.contains(x) {
                 return err(format!("count operation on unknown local {}", x.0));
             }
+        }
+        if self.frame_site(block).is_some() {
+            // A frame block is never freed and has no count to test, so its
+            // death is the unique path of a drop specialisation without the
+            // free: the moved fields keep the references the block held and
+            // the rest are dropped here. The search for a unique count
+            // would always answer `no` (a frame count is `RC_FRAME`), so it
+            // is not emitted.
+            for (r, c) in rest {
+                let v = self.load_local(*r);
+                rc_op(self.b, self.reg.rc_debug, true, &v, *c);
+            }
+            return Ok(());
         }
         let w = self.load_local(block);
         let shared = |this: &mut Self, w: &str| {
@@ -6621,6 +6715,125 @@ impl CoreEmitter<'_, '_> {
         self.b.line(&format!("br label %{ljoin}"));
         self.b.start(&ljoin);
         Ok(())
+    }
+
+    /// The frame site of the binder `x`, when the stack allocation pass
+    /// lowered its allocation into the frame.
+    fn frame_site(&self, x: LocalId) -> Option<&crate::stack::Site> {
+        self.frame.and_then(|plan| plan.site(x.0))
+    }
+
+    /// The value of a `let`: its frame allocation lowered into the slot the
+    /// pass reserved, or the ordinary expression.
+    fn emit_let(&mut self, x: LocalId, e: &Core) -> Result<String> {
+        match self.frame_site(x).cloned() {
+            Some(site) => self.emit_frame_alloc(&site, e),
+            None => self.emit_expr(e),
+        }
+    }
+
+    /// Build the block a frame site decided on in its slot: the payload
+    /// words take the values of `e`'s arguments (or a closure's saved
+    /// words), the header is written once, and the block word is the
+    /// slot's payload pointer. The header's count is `RC_FRAME`
+    /// (`block_kinds.rs`), so every count path treats the block as
+    /// immortal and the code generator releases the payload at the point
+    /// the reference dies ([`CoreEmitter::frame_release`]).
+    fn emit_frame_alloc(&mut self, site: &crate::stack::Site, e: &Core) -> Result<String> {
+        use crate::stack::Shape;
+        let (desc, kind) = match &site.shape {
+            Shape::Ctor { ctor, .. } => (self.reg.ctor_desc(&ctor.0)?, block::KIND_CTOR),
+            Shape::Closure { fn_id, .. } => (self.reg.closure_desc(&fn_id.0), block::KIND_CLOSURE),
+        };
+        // The values first: an argument may allocate or release, and the
+        // slot's header must describe a block nothing can reach yet.
+        let vals: Vec<String> = match (&site.shape, e) {
+            (Shape::Ctor { .. }, Core::App(_, args)) if args.len() as u32 == site.words => {
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    vals.push(self.emit_expr(a)?);
+                }
+                vals
+            }
+            (Shape::Closure { .. }, Core::Lam { env, .. }) if env.len() as u32 + 3 == site.words => {
+                let mut vals = Vec::with_capacity(env.len());
+                for a in env {
+                    vals.push(self.emit_expr(a)?);
+                }
+                vals
+            }
+            _ => {
+                return err(format!(
+                    "internal error: the frame site of slot {} is not the allocation it was decided for",
+                    site.slot
+                ))
+            }
+        };
+        let payload = self.frame_payload(site, desc, kind);
+        if let Shape::Closure { fn_id, env } = &site.shape {
+            // `{ code; arity; nfilled; saved... }`: the same prefix the
+            // heap closure has (`Core::Lam` above).
+            let arity = self.reg.arity_of(&fn_id.0)?;
+            let cw = self.b.reg();
+            self.b.line(&format!(
+                "{cw} = ptrtoint ptr @{app} to i64",
+                app = quote(&format!("{fn_id}.app"))
+            ));
+            self.b.store_at(&payload, 0, &cw);
+            self.b.store_at(&payload, 8, &arity.to_string());
+            self.b.store_at(&payload, 16, &env.to_string());
+        }
+        let first = match &site.shape {
+            Shape::Ctor { .. } => 0,
+            Shape::Closure { .. } => 24,
+        };
+        for (i, v) in vals.iter().enumerate() {
+            self.b.store_at(&payload, first + 8 * i, v);
+        }
+        let w = self.b.reg();
+        self.b.line(&format!("{w} = ptrtoint ptr {payload} to i64"));
+        Ok(w)
+    }
+
+    /// The payload pointer of the frame slot `site` occupies, writing the
+    /// header (and, for an escaped descriptor, the descriptor word) once
+    /// per execution. The slot itself is one entry block `alloca`, aligned
+    /// and sized as a multiple of 16 bytes (`Builder::alloca_frame`).
+    fn frame_payload(&mut self, site: &crate::stack::Site, desc: u64, kind: u8) -> String {
+        let field = block::ctor_layout_field(desc);
+        let escaped = field == block::LAYOUT_BIG;
+        let base = match self.frame_bases.get(&site.slot) {
+            Some(base) => base.clone(),
+            None => {
+                let words = site.words as usize + 1 + usize::from(escaped);
+                let base = self.b.alloca_frame(words);
+                self.frame_bases.insert(site.slot, base.clone());
+                base
+            }
+        };
+        let prefix = usize::from(escaped) * 8;
+        if escaped {
+            self.b.line(&format!("store i64 {desc}, ptr {base}"));
+        }
+        let h = block::header(block::RC_FRAME, kind, field) as i64;
+        let hp = self.b.gep(&base, prefix);
+        self.b.line(&format!("store i64 {h}, ptr {hp}"));
+        self.b.gep(&base, prefix + 8)
+    }
+
+    /// Release the counted payload of the frame block behind `w`: an
+    /// ordinary `Drop` per counted field, in reverse payload order (D390:
+    /// destruction runs in reverse). The block itself is not freed.
+    fn frame_release(&mut self, w: &str, fields: &[(u32, Class)]) {
+        if fields.is_empty() {
+            return;
+        }
+        let p = self.b.reg();
+        self.b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+        for (off, class) in fields.iter().rev() {
+            let v = self.b.load_at(&p, *off as usize);
+            rc_op(self.b, self.reg.rc_debug, true, &v, *class);
+        }
     }
 
     /// The current word of a bound local.
@@ -6723,7 +6936,7 @@ impl CoreEmitter<'_, '_> {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
-                let v = self.emit_expr(v)?;
+                let v = self.emit_let(*x, v)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 self.emit_to(body, dest)
@@ -7199,6 +7412,9 @@ mod tests {
             prims: Vec::new(),
             laws: Vec::new(),
             lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
         }
     }
 

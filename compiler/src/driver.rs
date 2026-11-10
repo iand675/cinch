@@ -3282,6 +3282,7 @@ pub fn package_variants(
         // section 5: the driving bounds are profile parameters).
         let (program, _opt) = crate::specialize::optimize(&program, profile)?;
         let program = crate::rc::insert(program, profile)?;
+        let program = stack_alloc(program, profile, &DriverOptions::default());
         let ir = crate::codegen::emit_for(profile, &program)?;
         let mut required: Vec<String> = profile.required.clone();
         if profile.artifact != crate::core::ArtifactProfile::Native
@@ -3991,6 +3992,14 @@ pub struct DriverOptions {
     /// `--case-of-case`: run the case-of-case rule (off by default; the join
     /// node, its introduction and its printing stay on either way).
     pub case_of_case: bool,
+    /// `--no-stack-alloc`: keep every allocation on the heap. The emitted
+    /// IR is then the one the compiler produced before the stack
+    /// allocation pass existed (design/stack-allocation.md).
+    pub no_stack_alloc: bool,
+    /// `--stack-frame-limit <bytes>`: the most frame bytes one unit may
+    /// reserve (default 16 KiB); the rest of its allocations stay on the
+    /// heap.
+    pub stack_frame_limit: Option<u64>,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4002,6 +4011,15 @@ pub struct DriverOptions {
 }
 
 impl DriverOptions {
+    /// The stack allocation knobs these flags select
+    /// (design/stack-allocation.md).
+    pub fn stack(&self) -> crate::stack::Options {
+        crate::stack::Options {
+            enabled: !self.no_stack_alloc,
+            frame_limit: self.stack_frame_limit.unwrap_or(crate::stack::DEFAULT_FRAME_LIMIT),
+        }
+    }
+
     /// The simplifier budget these flags select: the pass cap, whether
     /// static dictionary projections become direct calls, and the defaults
     /// of the rules the flags do not reach (`case-of-case` and the node
@@ -4047,6 +4065,18 @@ pub fn driver_opts(
 ) -> Result<i32> {
     let profile = target_profile(opts)?;
     driver_with_profile_opts(mode, stage_mode_from_env(), path, out, &profile, opts)
+}
+
+/// Apply the stack allocation pass (design/stack-allocation.md) to a
+/// program the count pass just finished. `opts` carries `--no-stack-alloc`
+/// and `--stack-frame-limit`; the test entry points take the defaults.
+fn stack_alloc(
+    mut program: crate::core::Program,
+    profile: &crate::core::TargetProfile,
+    opts: &DriverOptions,
+) -> crate::core::Program {
+    crate::stack::allocate(&mut program, profile, &opts.stack());
+    program
 }
 
 /// The Core dump one compile asked for (`--dump-core=<stage>`, or `cinch
@@ -4209,8 +4239,13 @@ impl<'a> CoreDump<'a> {
     /// 5). The manifest is already written by the time the lowered stage
     /// exists, so the rows are merged into it here; everything else in the
     /// document is untouched.
-    fn record(&self, manifest_path: &Path, rows: &[CoreRow]) -> Result<()> {
-        if rows.is_empty() {
+    fn record(
+        &self,
+        manifest_path: &Path,
+        rows: &[CoreRow],
+        stack: Option<&crate::stack::Report>,
+    ) -> Result<()> {
+        if rows.is_empty() && stack.is_none() {
             return Ok(());
         }
         use crate::interface::{parse_json, JsonValue as J};
@@ -4224,17 +4259,45 @@ impl<'a> CoreDump<'a> {
                 manifest_path.display()
             )));
         };
-        fields.insert(
-            "core".to_string(),
-            J::arr(rows, |row| {
+        if !rows.is_empty() {
+            fields.insert(
+                "core".to_string(),
+                J::arr(rows, |row| {
+                    J::obj([
+                        ("stage", row.stage.as_str().into()),
+                        ("target", row.target.as_str().into()),
+                        ("digest", row.digest.as_str().into()),
+                        ("path", row.path.as_str().into()),
+                    ])
+                }),
+            );
+        }
+        if let Some(stack) = stack {
+            // Frame allocation (design/stack-allocation.md): what the pass
+            // put in the frames, and why the rest stayed on the heap.
+            let mut refused: Vec<(&str, &u64)> =
+                stack.refused.iter().map(|(why, n)| (*why, n)).collect();
+            refused.sort();
+            fields.insert(
+                "stack".to_string(),
                 J::obj([
-                    ("stage", row.stage.as_str().into()),
-                    ("target", row.target.as_str().into()),
-                    ("digest", row.digest.as_str().into()),
-                    ("path", row.path.as_str().into()),
-                ])
-            }),
-        );
+                    ("enabled", stack.enabled.into()),
+                    ("units", stack.units.into()),
+                    ("slots", stack.slots.into()),
+                    ("bytes", stack.bytes.into()),
+                    ("candidates", stack.candidates.into()),
+                    (
+                        "refused",
+                        J::Obj(
+                            refused
+                                .into_iter()
+                                .map(|(why, n)| (why.to_string(), (*n).into()))
+                                .collect(),
+                        ),
+                    ),
+                ]),
+            );
+        }
         std::fs::write(manifest_path, doc.to_canonical_string())
             .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
         Ok(())
@@ -4275,7 +4338,8 @@ cinch core: the annotated Core dump (design/core-output.md)
 usage:
   cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
                      [--max-simplifier-iterations <n>] [--no-direct-dict-calls]
-                     [--case-of-case]
+                     [--case-of-case] [--no-stack-alloc]
+                     [--stack-frame-limit <bytes>]
   cinch core verify <file.core>
   cinch core diff <a.core> <b.core>
 
@@ -4333,6 +4397,17 @@ fn core_emit(args: &[String]) -> i32 {
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
             "--case-of-case" => opts.case_of_case = true,
+            "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--stack-frame-limit" => {
+                i += 1;
+                match args.get(i).and_then(|n| n.parse::<u64>().ok()) {
+                    Some(n) => opts.stack_frame_limit = Some(n),
+                    None => {
+                        eprintln!("cinch core emit: --stack-frame-limit needs a byte count");
+                        return 2;
+                    }
+                }
+            }
             other if other.starts_with("--stage=") => {
                 let name = &other["--stage=".len()..];
                 match crate::coretext::Stage::parse(name) {
@@ -4924,7 +4999,7 @@ pub fn driver_with_profile_opts(
         // `--dump-core=lowered` dump the checked program and say so in
         // `@stage(checked)`: the dump never claims a stage the mode did not
         // reach.
-        dump.record(&manifest_path, &core_rows)?;
+        dump.record(&manifest_path, &core_rows, None)?;
         return Ok(0);
     }
     // Artifact admission (platform proofs and SIMD specification
@@ -4944,16 +5019,21 @@ pub fn driver_with_profile_opts(
     } else {
         crate::rc::insert(program, profile)?
     };
+    // Frame allocation comes after counting, where every allocation and
+    // every reference is explicit (design/stack-allocation.md): the pass
+    // turns a block whose references all die in its activation into a
+    // 16-byte-aligned stack slot and elides its count operations.
+    let program = stack_alloc(program, profile, opts);
     // The lowered stage is the exact code-generation input, so it prints
-    // here, after specialization and reference counting.
+    // here, after specialization, reference counting and frame allocation.
     if dump.wants(crate::coretext::Stage::Lowered) && mode != Mode::Check {
         dump.write_lowered(&program, &opt, &ifaces, &mut core_rows)?;
     }
     if opts.core_only {
-        dump.record(&manifest_path, &core_rows)?;
+        dump.record(&manifest_path, &core_rows, Some(&program.stack))?;
         return Ok(0);
     }
-    dump.record(&manifest_path, &core_rows)?;
+    dump.record(&manifest_path, &core_rows, Some(&program.stack))?;
     if mode == Mode::EmitObject {
         return write_object(
             profile,
@@ -5179,6 +5259,7 @@ pub fn run_program_objects(
 ) -> Result<i32> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let program = crate::rc::insert_closed(program, profile)?;
+    let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");
@@ -5261,6 +5342,7 @@ pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<(
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
     let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
     let program = crate::rc::insert_closed(program, &profile)?;
+    let program = stack_alloc(program, &profile, &DriverOptions::default());
     let ir = codegen::emit_for(&profile, &program)?;
     let ir_path = out.with_extension("ll");
     std::fs::write(&ir_path, &ir)
@@ -5284,6 +5366,7 @@ pub fn run_program_io(
 ) -> Result<(i32, String)> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let program = crate::rc::insert_closed(program, profile)?;
+    let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");

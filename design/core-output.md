@@ -491,9 +491,17 @@ skolem prints `#a`, a metavariable `?12`.
 
 Annotations print in this order, each on the `unit` line or as an
 indented `@` line when long: `@span`, `@class`, `@captures`,
+`@borrowed(<indices>)`, `@frame(<n> slots, <bytes> bytes)`,
 `@specialised(<keys>)`, `@rewrite(<rule> v<n>)`, `@prim(<Name> for
 <fact>)`, `@resolved(<instance> at <span>)`, `@tailrec`, `@join(<id>)`,
 `@stage(<name>)`. An annotation the stage does not carry is omitted.
+
+`@frame` is the stack allocation decision (`design/stack-allocation.md`):
+the slots the unit reserves in its own frame and the bytes they add to it.
+The allocation node itself carries the slot as a mark, `@frame(f<slot>)`,
+on the `(app (ctor ...) ...)` or `(lam ...)` the pass lowered. Both are
+absent from a unit the pass gave no slot, and a stage before the pass
+(checked, owned) never carries either.
 
 ### Corrections the seed implementation records
 

@@ -1576,6 +1576,9 @@ impl Session {
                     prims: run.prims,
                     laws: run.laws,
                     lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
                 });
             }
         }
@@ -1626,6 +1629,9 @@ impl Session {
             prims,
             laws,
             lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
         })
     }
 

@@ -55,7 +55,15 @@ fn dump_source(src: &str, file: &str, stage: Stage, profile: &TargetProfile) -> 
             }
             let (specialized, report) =
                 cinch::specialize::optimize_with(&program, profile, &opts).expect("specialization");
-            let lowered = cinch::rc::insert_closed(specialized, profile).expect("reference counting");
+            let mut lowered = cinch::rc::insert_closed(specialized, profile).expect("reference counting");
+            // The lowered stage is the code generation input: frame
+            // allocation runs after counting (design/stack-allocation.md),
+            // and `cinch core emit` runs it, so the corpus does too.
+            cinch::stack::allocate(
+                &mut lowered,
+                profile,
+                &cinch::stack::Options::default(),
+            );
             let mut rewrites: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for site in &report.sites {
                 if let Some(rule) = site.kind.strip_prefix("rewrite:") {

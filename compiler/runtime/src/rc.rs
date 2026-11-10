@@ -4,10 +4,22 @@
 //!
 //! A block word is any word that is neither 0 nor an immediate (low bit
 //! 1). [`cinch_dup`] and [`cinch_drop`] ignore every other word and every
-//! immortal block (`rc == 0`: statics, interned `Sym` cells), so a `TObj`
+//! block that is never counted (`rc == 0`: statics, interned `Sym` cells;
+//! `rc == RC_FRAME`: a block in an activation's stack frame), so a `TObj`
 //! or nullable `Obj` word can be passed as it is. Generated code inlines
 //! the same fast paths and calls [`cinch_drop_slow`] only when a count is
 //! about to reach zero.
+//!
+//! # Frame blocks
+//!
+//! `compiler/src/stack.rs` lowers a block that cannot escape its
+//! activation to an `alloca` with the header count [`block::RC_FRAME`]
+//! (`block_kinds.rs`). A frame block is never counted, never freed and
+//! never scanned: the compiler elides its `dup`/`drop` and releases its
+//! counted payload at the point the reference dies. The count paths here
+//! see one only as a backstop, so they treat it exactly like an immortal
+//! block, and under `CINCH_RC_DEBUG=1` a frame block that reaches the free
+//! path traps as a compiler bug.
 //!
 //! # Counts shared across tasks
 //!
@@ -164,7 +176,8 @@ pub unsafe extern "C" fn cinch_dup(word: i64) {
         check(word, h);
     }
     match block::rc(h) {
-        block::RC_IMMORTAL => {}
+        // Static blocks and frame blocks are never counted.
+        block::RC_IMMORTAL | block::RC_FRAME => {}
         // No overflow check: the heap cap keeps every count below `RC_MAX`
         // (block_kinds.rs).
         n if n > 0 => unsafe { block::write_header(p, block::header(n + 1, block::kind(h), block::layout(h))) },
@@ -191,7 +204,9 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
         check(word, h);
     }
     match block::rc(h) {
-        block::RC_IMMORTAL => {}
+        // Static blocks and frame blocks are never counted and never
+        // freed: the frame's activation ends them.
+        block::RC_IMMORTAL | block::RC_FRAME => {}
         block::RC_FRESH => unsafe { release(p) },
         n if n > 1 => unsafe { block::write_header(p, block::header(n - 1, block::kind(h), block::layout(h))) },
         _ => unsafe { drop_atomic(p) },
@@ -215,6 +230,8 @@ pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
         check(word, h);
+        // A frame block is never released: the compiler elides the drop,
+        // and this path would free memory the stack owns.
         if block::rc(h) != block::RC_FRESH {
             corrupt();
         }
@@ -416,7 +433,9 @@ unsafe fn claim(word: i64) -> bool {
         corrupt();
     }
     let n = block::rc(h);
-    if n <= 0 {
+    if n <= 0 || n == block::RC_FRAME {
+        // Immortal (a static, an interned cell) or a frame block: neither
+        // is counted, so a task body that reaches one never marks it.
         return false;
     }
     unsafe { block::write_header(p, block::header(-n, block::kind(h), block::layout(h))) };
@@ -511,6 +530,10 @@ unsafe fn release(root: *mut u8) {
             }
             let dies = match block::rc(ch) {
                 block::RC_IMMORTAL => false,
+                // A frame block is never freed by a release: its activation
+                // owns the memory, and the compiler releases its payload at
+                // the point its reference dies (`compiler/src/stack.rs`).
+                block::RC_FRAME => false,
                 block::RC_FRESH => true,
                 n if n > 1 => {
                     unsafe { block::write_header(c, block::header(n - 1, block::kind(ch), block::layout(ch))) };
@@ -1028,4 +1051,68 @@ mod tests {
             .expect("spawn");
         assert_eq!(handle.join().expect("mark thread"), N);
     }
+    /// A constructor block whose header says `RC_FRAME`: what
+    /// `compiler/src/stack.rs` writes into a frame slot. Its payload word
+    /// holds the counted `child`.
+    #[repr(align(16))]
+    struct FrameSlot([u64; 3]);
+
+    fn frame_block(child: i64, tag: u64) -> FrameSlot {
+        let mut slot = FrameSlot([0; 3]);
+        slot.0[0] = block::header(block::RC_FRAME, block::KIND_CTOR, tag as u16);
+        slot.0[1] = child as u64;
+        slot.0[2] = 0;
+        slot
+    }
+
+    #[test]
+    fn frame_blocks_are_never_counted_freed_or_scanned() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_block(child, NIL);
+        let w = slot.0[1..].as_ptr() as usize as i64;
+        unsafe {
+            cinch_dup(w);
+            cinch_dup(w);
+        }
+        assert_eq!(rc_of(w), block::RC_FRAME, "a frame block is never counted");
+        // The compiler elides a frame block's drop; the runtime path is a
+        // no-op, so nothing is freed and the payload is left to the code
+        // generation's own release.
+        assert!(freed_by(|| {
+            unsafe { cinch_drop(w) };
+        })
+        .is_empty());
+        assert_eq!(rc_of(w), block::RC_FRAME);
+        // `cinch_free` is the raw release of a drop specialisation.
+        unsafe { crate::abi::cinch_free(w) };
+        assert_eq!(rc_of(w), block::RC_FRAME);
+        assert_eq!(rc_of(child), 1, "the frame drop leaves the payload's reference alone");
+        // A spawn's mark stops at a frame block instead of negating it.
+        unsafe { cinch_mark_mt(w) };
+        assert_eq!(rc_of(w), block::RC_FRAME);
+        // The payload is still a live heap block with its own count.
+        assert_eq!(freed_by(|| {
+            unsafe { cinch_drop(child) };
+        })
+        .len(), 1);
+    }
+
+    #[test]
+    fn a_frame_block_child_survives_a_heap_parent_release() {
+        crate::block::install_test_layouts();
+        let child = ctor(NIL, &[]);
+        let slot = frame_block(child, NIL);
+        let w = slot.0[1..].as_ptr() as usize as i64;
+        // A heap cell holding the frame block: releasing the parent leaves
+        // the frame block (and its payload) to the activation.
+        let parent = ctor(CONS_O, &[w, immortal_nil()]);
+        let freed = freed_by(|| {
+            unsafe { cinch_drop(parent) };
+        });
+        assert_eq!(freed, vec![parent as usize]);
+        assert_eq!(rc_of(w), block::RC_FRAME);
+        assert_eq!(rc_of(child), 1);
+    }
+
 }

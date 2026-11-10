@@ -10291,6 +10291,9 @@ impl Checker {
             prims: self.prims,
             laws: self.law_rows,
             lent: Default::default(),
+            frame: Default::default(),
+            stack: Default::default(),
+            borrowed: Default::default(),
         };
         crate::dictionary_values::lower(&mut program)?;
         Ok(program)

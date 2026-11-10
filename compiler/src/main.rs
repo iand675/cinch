@@ -46,6 +46,11 @@ flags:
               specialized program (default 4; 0 disables the simplifier)
   --no-direct-dict-calls  keep a static dictionary projection plus its
               `__apply` call instead of a direct call to the method unit
+  --no-stack-alloc  keep every allocation on the heap instead of building
+              a non-escaping block in its activation's frame (the pass is
+              on by default; with it off the IR is the pre-pass IR)
+  --stack-frame-limit <bytes>  the most frame bytes one unit may reserve
+              (default 16384); the rest of its allocations stay on the heap
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -285,6 +290,17 @@ fn main() {
                 }
             }
             "--no-direct-dict-calls" => opts.no_direct_dict_calls = true,
+            "--no-stack-alloc" => opts.no_stack_alloc = true,
+            "--stack-frame-limit" => {
+                i += 1;
+                match rest.get(i).and_then(|n| n.parse::<u64>().ok()) {
+                    Some(n) => opts.stack_frame_limit = Some(n),
+                    None => {
+                        eprintln!("cinch: --stack-frame-limit needs a byte count");
+                        exit(2);
+                    }
+                }
+            }
             "--print-link-plan" => opts.print_link_plan = true,
             "--allow-raw-link" => {
                 i += 1;

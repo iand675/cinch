@@ -11,10 +11,12 @@
 //
 //   rc      40 bits, signed: 0 immortal, > 0 a single-threaded count,
 //           -n an atomic count of n (a block shared across tasks, see
-//           the runtime's `rc.rs`); the field must be the low bits, so
-//           an atomic add or subtract of one on the whole word changes
-//           only the count, except the drop that takes the last
-//           reference, whose carry its thread repairs
+//           the runtime's `rc.rs`), and `RC_FRAME` for a block that
+//           lives in an activation's frame rather than on the heap (see
+//           below); the field must be the low bits, so an atomic add or
+//           subtract of one on the whole word changes only the count,
+//           except the drop that takes the last reference, whose carry
+//           its thread repairs
 //   kind     8 bits: one of the `KIND_*` constants below
 //   layout  16 bits: for a constructor block (`KIND_CTOR`), its
 //           constructor's layout id; for a closure or a dictionary
@@ -138,6 +140,21 @@ pub const RC_FRESH: i64 = 1;
 pub const RC_MAX: i64 = (1i64 << (RC_BITS - 1)) - 1;
 /// The most negative count (the atomic range's far end).
 pub const RC_MIN: i64 = -(1i64 << (RC_BITS - 1));
+
+/// `rc` of a block that lives in a function's stack frame rather than on
+/// the heap (`compiler/src/stack.rs`): never counted, never freed, never
+/// scanned. The value is [`RC_MAX`], a count no heap block can hold: the
+/// heap cap bounds the live bytes of the process (8 GiB unless the caller
+/// raises `CINCH_HEAP_LIMIT`), so nothing can hold `2^39 - 1` references
+/// to one block, and a count only ever moves by one from [`RC_FRESH`]. A
+/// frame block is therefore distinguishable from every reachable count,
+/// and a stale count operation on one is a no-op instead of a corruption
+/// (the compiler elides those operations; the runtime's paths are the
+/// backstop, and `CINCH_RC_DEBUG=1` traps on a frame block that reaches
+/// the free path).
+pub const RC_FRAME: i64 = RC_MAX;
+
+const _: () = assert!(RC_FRAME == RC_MAX && RC_FRAME > RC_FRESH);
 
 /// The `layout` value saying the real value is stored out of line, in
 /// the word at offset -16: a constructor block's descriptor, or another

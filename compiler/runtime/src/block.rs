@@ -488,6 +488,12 @@ pub unsafe fn free(p: *mut u8) {
 #[inline(always)]
 pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
     if debug {
+        // A frame block lives in a stack frame: freeing it would hand the
+        // stack's memory to the allocator. Only a compiler bug reaches
+        // here, because the compiler elides every frame block's free.
+        if rc(h) == RC_FRAME {
+            crate::abi::panic_exit(b"compiler bug: a stack frame block reached the free path");
+        }
         let Some((payload, _)) = (unsafe { payload_bytes(p, h) }) else {
             crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
         };

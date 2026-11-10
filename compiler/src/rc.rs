@@ -105,6 +105,10 @@ fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, close
     }
     let (modes, prims) = if closed { borrow_modes(&program) } else { Default::default() };
     program.lent = modes.iter().filter(|(k, _)| prims.contains(*k)).map(|(k, m)| (k.clone(), m.clone())).collect();
+    // The whole mode map reaches the stack allocation pass, which reads a
+    // lent reference as one the callee cannot store or return
+    // (`crate::stack::Options`).
+    program.borrowed = modes.iter().map(|(k, m)| (k.clone(), m.clone())).collect();
     for f in &mut program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
