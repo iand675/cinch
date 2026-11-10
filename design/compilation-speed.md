@@ -91,6 +91,43 @@ problem first, then the constant factor.
 | Package store keyed by content | `compiler/src/store.rs` | reuses checked artifacts per compile |
 | Analysis layer + LSP incremental update | `compiler/src/analysis.rs` | editor path, not build path |
 | Work-stealing parallel runtime (`cinch_par_*`) | `compiler/runtime/src/par.rs` | available; the compiler is not yet parallel |
+| Visible surface as an order list plus a name index | `bootstrap/Bootstrap.Resolve.cinch` | a renamed name is one hash probe, not a scan of the declarations, the qualified imports and the kernel bindings |
+| Export entries indexed when an interface is read | `bootstrap/Bootstrap.Load.cinch` | `loaded-entry` is a probe, not a walk of the contract document |
+| Environment projections cached at the module marker | `bootstrap/Bootstrap.Infer.cinch` | `env-instances`, `env-guarded-bindings` and `env-givens` stop at the marker instead of folding the whole module environment on every use |
+| One application-spine walk per expected-type check | `bootstrap/Bootstrap.Infer.cinch` | the ownership, projection, task and thunk head checks share one argument list |
+
+### 2.1 Frontend names and environment projections (2026-11-10)
+
+Self-compile of the 35,000-line bundle, child CPU (user plus system), one
+run per build: 208.8 s before, 210.6 s with the name indexes, 251.5 s with
+the environment caches. The last run was taken while three other lanes were
+building: its wall time (331 s against 217 s) shows the contention, so the
+environment cache is unmeasured rather than measured slower, and every
+number below it needs an interleaved A/B before it is trusted. What does hold
+for every one of these builds is that the emitted IR is byte identical to the
+baseline, which is the determinism gate.
+
+The 1 kHz sampled profile of the whole compile (542,000 samples of the
+working thread) puts inference at 35%, and the rest in interface JSON
+parsing, identity decoding, and the runtime's allocation and reference
+counting. Three consequences are worth recording.
+
+`binding-at` is the largest single frontend leaf at 6% of all samples. It
+cannot go away the way `lookup-binding` did: a binding stored in the
+marker's map is a recursive occurrence nested inside another type
+constructor, which the positivity discipline refuses, so the map stores
+positions and the lookup walks to them.
+
+The interface set is re-encoded from its parsed document to bytes and parsed
+again by `load-checked-interface-set`, once per elaborated module, because
+`total-interface-inputs` reads the JSON back out of the injected `DInterface`
+declarations. That round trip plus the JSON parse underneath it is about a
+tenth of the frontend, and it is a load-phase fix: pass the parsed contract
+through instead of its canonical bytes.
+
+Identity decoding (`export-global` / `decode-identity`) is about 4% on its
+own, because every candidate name in an export scan is decoded again. The
+nominal export's scans are the next thing to index (section 12, item 7).
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
