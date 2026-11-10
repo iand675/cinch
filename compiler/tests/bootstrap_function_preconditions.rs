@@ -8,6 +8,7 @@ fn function_preconditions_use_actual_arguments_and_cannot_be_ignored() {
         ("Bootstrap.Report.cinch", include_str!("../../bootstrap/Bootstrap.Report.cinch")),
         ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch", include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),
+        ("Bootstrap.Inputs.cinch", include_str!("../../bootstrap/Bootstrap.Inputs.cinch")),
         ("Main.cinch", include_str!("../../bootstrap/programs/Run.FunctionPreconditions.cinch")),
     ]);
     let exe = common::build(&dir, "Main.cinch", "function-preconditions").expect("build the Cinch function precondition checker");

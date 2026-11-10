@@ -83,7 +83,7 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
     let DriverOptions {
         object_roots, emit_modules, package_objects, rebuild_store, native_words, print_link_plan,
         allow_raw_link, target, runtime_archive, opt_level, target_version, dump_core, core_out,
-        core_only, program_args,
+        core_only, program_args, max_simplifier_iterations, no_direct_dict_calls,
     } = opts;
     let mut lacking = Vec::new();
     // The selected compiler compiles for the build host only; naming the
@@ -107,6 +107,11 @@ pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, Stri
         ("--dump-core", dump_core.is_some()),
         ("core emit output", core_out.is_some()),
         ("core emit mode", *core_only),
+        // The simplifier budget and the direct-dictionary switch change what
+        // the Native driver emits; a selected compiler that cannot honour them
+        // must say so rather than silently keep its own defaults.
+        ("--max-simplifier-iterations", max_simplifier_iterations.is_some()),
+        ("--no-direct-dict-calls", *no_direct_dict_calls),
     ] {
         if requested {
             lacking.push(option.to_owned());
