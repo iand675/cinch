@@ -78,7 +78,12 @@ fn concrete(c: Class) -> Class {
 
 /// Insert the count operations into every unit with a `Core` body, when
 /// the profile reclaims ([`crate::core::TargetProfile::reclaim`]).
+/// Repeated subterms move into shared units first
+/// ([`crate::core::share_repeated_subterms`]): that needs the final
+/// specialized program and must precede counting, which balances each
+/// unit separately.
 pub fn insert(mut program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
+    crate::core::share_repeated_subterms(&mut program);
     if !profile.reclaim {
         return Ok(program);
     }

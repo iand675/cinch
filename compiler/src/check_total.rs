@@ -75,6 +75,8 @@ impl Checker {
         // Use the ordinary resolver with a private inference store. This
         // preserves visibility, lexical priority and instance specificity;
         // speculative inspection must not commit constraints or transfers.
+        // The store is a copy because this inspection only borrows the
+        // checker, whose own store must stay as it is.
         let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
         let Solved(DictExpr::Instance(id, dictionaries, types)) = resolver.solve(&wanted, &want.scope, 0, want.span).ok()? else { return None };
         if !dictionaries.is_empty() || !types.is_empty()
@@ -146,6 +148,8 @@ impl Checker {
                         let want = self.wants.iter().find(|want| want.id == *id)?;
                         let wanted = self.uni.zonk_class(&want.class);
                         if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) { return None; }
+                        // A private copy: this reading only borrows the
+                        // checker and must not commit what resolution binds.
                         let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
                         let Solved(DictExpr::Instance(id, contexts, types)) = resolver.solve(&wanted, &want.scope, 0, want.span).ok()? else { return None };
                         if !contexts.is_empty() || !types.is_empty() { return None; }
@@ -860,12 +864,19 @@ impl Checker {
                 let wanted = self.uni.zonk_class(&want.class);
                 if wanted.args.iter().any(|ty| !self.uni.free_metas(ty).is_empty()) || want.scope.iter().any(|(_, given)| given.class == wanted.class) { return None }
                 let mut selected = None;
+                // One private copy serves every candidate: each match runs in
+                // a trial scope that is rolled back, so every candidate sees
+                // the checker's store unchanged.
+                let mut scratch: Option<Unifier> = None;
                 for instance in self.instance_list.iter().filter(|i| i.implicit && !i.base && i.target.class == wanted.class) {
                     // General instance factories need explicit captured-body
                     // reconstruction. Be conservative until it is available.
                     if !instance.params.is_empty() { return None }
-                    let mut trial = self.uni.clone();
-                    if !self.lattice_match(&instance.target.args, &wanted.args, &mut trial) { continue }
+                    let uni = scratch.get_or_insert_with(|| self.uni.clone());
+                    let trial = uni.snapshot();
+                    let matched = self.lattice_match(&instance.target.args, &wanted.args, uni);
+                    uni.rollback_to(trial);
+                    if !matched { continue }
                     if !instance.ctx.is_empty() || selected.is_some() { return None }
                     selected = Some(instance);
                 }

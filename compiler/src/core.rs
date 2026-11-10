@@ -6070,6 +6070,9 @@ struct Driver<'a> {
     // A driver only reads this table. Borrow the current definitions so
     // optimizing each unit does not deep-clone every other function body.
     defs: &'a HashMap<String, FnDef>,
+    /// `size_of` of every body in `defs`, kept in step with it, so an
+    /// unfolding decision does not walk the callee's whole body per call.
+    def_sizes: &'a HashMap<String, usize>,
     instances: Vec<InstanceDef>,
     rules: Vec<RewriteRule>,
     caller: FnDef,
@@ -6657,7 +6660,7 @@ impl Driver<'_> {
         // Do not even copy a previously optimized callee that exceeds
         // this caller's entire residual allowance. Otherwise expansion
         // can multiply across units before the round-level whistle runs.
-        if size_of(&f.body) > self.residual_limit {
+        if self.def_sizes.get(&g.0).copied().unwrap_or_else(|| size_of(&f.body)) > self.residual_limit {
             self.site("unfold", Some("whistle: the callee exceeds the residual measure bound".to_string()));
             return None;
         }
@@ -7037,9 +7040,7 @@ fn contains_case_on(e: &Core, syn: &HashMap<LocalId, LocalId>, root: LocalId) ->
             }
             _ => {}
         }
-        for k in child_slots_imm(e) {
-            go(k, syn, root, found);
-        }
+        each_child(e, &mut |k| go(k, syn, root, found));
     }
     go(e, &mut syn, root, &mut found);
     found
@@ -7054,10 +7055,10 @@ fn contains_case_on(e: &Core, syn: &HashMap<LocalId, LocalId>, root: LocalId) ->
 /// decision merges with no weights at all.
 fn try_merge_case(e: &Core, syn: &HashMap<LocalId, LocalId>) -> Option<Core> {
     let (scrut, alts) = match e {
-        Core::Case { scrut, alts } => (scrut.clone(), alts.clone()),
+        Core::Case { scrut, alts } => (scrut, alts),
         _ => return None,
     };
-    let v = match &*scrut {
+    let v = match &**scrut {
         Core::Var(v) => *v,
         _ => return None,
     };
@@ -7087,6 +7088,11 @@ fn try_merge_case(e: &Core, syn: &HashMap<LocalId, LocalId>) -> Option<Core> {
     }
     let (sub, inner) = shared?;
     if default_idx.is_empty() || default_idx.len() == alts.len() {
+        return None;
+    }
+    // A wildcard default stands for constructors it does not name, so the
+    // tag bookkeeping below cannot account for it.
+    if default_idx.iter().any(|i| !matches!(alts[*i].pat, CPat::Con { .. })) {
         return None;
     }
     // The inner decision must cover the default alternatives'
@@ -7182,7 +7188,7 @@ fn try_merge_case(e: &Core, syn: &HashMap<LocalId, LocalId>) -> Option<Core> {
         });
         wi += 1;
     }
-    Some(Core::Case { scrut, alts: out })
+    Some(Core::Case { scrut: scrut.clone(), alts: out })
 }
 
 fn gcd(a: u128, b: u128) -> u128 {
@@ -7242,8 +7248,10 @@ fn verify_residual(orig: &FnDef, body: &Core) -> Result<(), String> {
 pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, OptReport)> {
     let pure = build_purity(program);
     let mut defs: HashMap<String, FnDef> = HashMap::new();
+    let mut def_sizes: HashMap<String, usize> = HashMap::new();
     for f in &program.fns {
         defs.insert(f.id.0.clone(), f.clone());
+        def_sizes.insert(f.id.0.clone(), size_of(&f.body));
     }
     let mut ctor_none = None;
     let mut ctor_some = None;
@@ -7275,6 +7283,7 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         let mut drv = Driver {
             cx: &cx,
             defs: &defs,
+            def_sizes: &def_sizes,
             instances: program.instances.clone(),
             rules: program.rewrites.clone(),
             caller: orig.clone(),
@@ -7337,6 +7346,7 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             new_fns.push(f);
         }
         defs.insert(out.fns[fi].id.0.clone(), out.fns[fi].clone());
+        def_sizes.insert(out.fns[fi].id.0.clone(), size_of(&out.fns[fi].body));
     }
     out.fns.extend(new_fns);
     // The justification identities the rules relied on (supercompilation
@@ -7360,57 +7370,492 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
 
 /// Node count for the whistle's measure bound.
 fn size_of(e: &Core) -> usize {
-    let mut n = 0;
     fn count(e: &Core, n: &mut usize) {
         *n += 1;
-        for slot in child_slots_imm(e) {
-            count(slot, n);
-        }
+        each_child(e, &mut |slot| count(slot, n));
     }
+    let mut n = 0;
     count(e, &mut n);
     n
 }
 
 pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
+    each_child(e, &mut |child| out.push(child));
+    out
+}
+
+/// Visit a term's immediate children in `child_slots` order without
+/// collecting them.
+fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(..)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
-            out.push(&**d)
-        }
-        Core::BoxInit(_, v, _) => out.push(&**v),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&**body),
-        Core::RefSet(_, v, _) => out.push(&**v),
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
+        Core::BoxInit(_, v, _) => visit(v),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => visit(body),
+        Core::RefSet(_, v, _) => visit(v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
-                out.push(a);
+                visit(a);
             }
         }
         Core::Let(_, _, v, body) => {
-            out.push(&**v);
-            out.push(&**body);
+            visit(v);
+            visit(body);
         }
-        Core::LazyInit(_, t) => out.push(&**t),
+        Core::LazyInit(_, t) => visit(t),
         Core::If(c, t, fe) => {
-            out.push(&**c);
-            out.push(&*t.body);
-            out.push(&*fe.body);
+            visit(c);
+            visit(&t.body);
+            visit(&fe.body);
         }
         Core::Case { scrut, alts } => {
-            out.push(&**scrut);
+            visit(scrut);
             for a in alts {
-                out.push(&*a.body);
+                visit(&a.body);
             }
         }
         Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
             for h in holes {
-                out.push(h);
+                visit(h);
             }
         }
     }
-    out
+}
+
+// ============================== shared repeated subterms ==============================
+
+/// The smallest subterm, in nodes, worth moving into a shared unit.
+const SHARE_MIN_NODES: usize = 48;
+/// The most free locals a shared unit takes as parameters.
+const SHARE_MAX_PARAMS: usize = 24;
+
+/// Move repeated subterms of each unit into shared units.
+///
+/// Pattern-matrix compilation reaches a row from every leaf whose path
+/// admits it and elaborates the row's body at each, so one source body can
+/// stand many times in a unit (dozens of copies under nested patterns).
+/// Copies equal up to a renaming of their locals become calls of one new
+/// unit `<unit>.shared<n>` whose parameters are the copy's free locals in
+/// first-occurrence order. Evaluation is strict and every argument is a
+/// variable, so the call computes what the inline copy computed. A copy in
+/// tail position becomes a tail call and the new unit joins its caller's
+/// tail group ([`tail_widths`]), so tail calls inside it stay
+/// constant-stack. Only monomorphic units take part (this runs after the
+/// collector), and it runs before reference counting, which then balances
+/// each unit on its own.
+pub fn share_repeated_subterms(program: &mut Program) {
+    let mut taken: std::collections::HashSet<String> = program.fns.iter().map(|f| f.id.0.clone()).collect();
+    // Shared units are appended and visited in turn: a shared body can
+    // hold repeats of its own.
+    let mut index = 0;
+    while index < program.fns.len() {
+        let f = &program.fns[index];
+        if f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body && f.repr.tparams == 0 {
+            if let Some((body, shared)) = share_in_unit(f, &mut taken) {
+                program.fns[index].body = body;
+                program.fns.extend(shared);
+            }
+        }
+        index += 1;
+    }
+}
+
+/// One subterm of a unit, by preorder position (see [`each_operand`]).
+struct ShareNode {
+    /// Nodes in the subterm, itself included: it spans preorder positions
+    /// `[pre, pre + size)`.
+    size: usize,
+    /// Shape hash ignoring local identities: equal shapes are candidates,
+    /// which [`share_match`] then compares exactly.
+    hash: u64,
+    /// No staging construct below (quotes, splices, syntax and
+    /// compile-time strings belong to the evaluator).
+    shareable: bool,
+}
+
+fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>) -> Option<(Core, Vec<FnDef>)> {
+    let mut classes: HashMap<usize, Class> = HashMap::new();
+    for (i, c) in f.repr.params.iter().enumerate() {
+        classes.insert(i, *c);
+    }
+    let mut nodes: Vec<ShareNode> = Vec::new();
+    let mut refs: Vec<&Core> = Vec::new();
+    share_scan(&f.body, &mut nodes, &mut refs, &mut classes);
+    let mut groups: HashMap<(u64, usize), Vec<usize>> = HashMap::new();
+    for (pre, n) in nodes.iter().enumerate() {
+        if n.shareable && n.size >= SHARE_MIN_NODES {
+            groups.entry((n.hash, n.size)).or_default().push(pre);
+        }
+    }
+    let mut order: Vec<Vec<usize>> = groups.into_values().filter(|g| g.len() >= 2).collect();
+    if order.is_empty() {
+        return None;
+    }
+    // Largest first, so a copy is shared whole rather than piecewise; a
+    // subterm inside a shared copy is no longer in this unit.
+    order.sort_by_key(|g| (std::cmp::Reverse(nodes[g[0]].size), g[0]));
+    let mut covered = vec![false; nodes.len()];
+    let mut plan: HashMap<usize, Core> = HashMap::new();
+    let mut shared: Vec<FnDef> = Vec::new();
+    let mut counter = 0usize;
+    for group in order {
+        let live: Vec<usize> = group.into_iter().filter(|p| !covered[*p]).collect();
+        if live.len() < 2 {
+            continue;
+        }
+        // Exact classes within the shape group: a representative with its
+        // free locals, and every other copy with its arguments.
+        let mut buckets: Vec<(usize, Vec<LocalId>, Vec<(usize, Vec<LocalId>)>)> = Vec::new();
+        for p in live {
+            let mut placed = false;
+            for (rep, free, members) in buckets.iter_mut() {
+                if let Some(map) = share_match(refs[*rep], refs[p], &classes) {
+                    let args = free.iter().map(|l| LocalId(map[&l.0])).collect();
+                    members.push((p, args));
+                    placed = true;
+                    break;
+                }
+            }
+            if !placed {
+                buckets.push((p, share_free(refs[p]), Vec::new()));
+            }
+        }
+        for (rep, free, others) in buckets {
+            if others.is_empty() || free.is_empty() || free.len() > SHARE_MAX_PARAMS {
+                continue;
+            }
+            let Some(param_classes) = free.iter().map(|l| classes.get(&l.0).copied()).collect::<Option<Vec<Class>>>() else {
+                continue;
+            };
+            let name = loop {
+                let candidate = format!("{}.shared{counter}", f.id.0);
+                counter += 1;
+                if taken.insert(candidate.clone()) {
+                    break candidate;
+                }
+            };
+            let mut body = refs[rep].clone();
+            share_rename(&mut body, &free);
+            shared.push(FnDef {
+                id: GlobalId(name.clone()),
+                params: (0..free.len()).map(|i| format!("shared{i}")).collect(),
+                body,
+                prim: None,
+                ctor: None,
+                hints: FnHints::default(),
+                meta: FnMeta { pure: f.meta.pure, ..FnMeta::default() },
+                repr: UnitRepr { params: param_classes, ..UnitRepr::default() },
+            });
+            for (p, args) in std::iter::once((rep, free)).chain(others) {
+                covered[p..p + nodes[p].size].iter_mut().for_each(|c| *c = true);
+                plan.insert(
+                    p,
+                    Core::App(Box::new(Core::Global(GlobalId(name.clone()), Vec::new())), args.into_iter().map(Core::Var).collect()),
+                );
+            }
+        }
+    }
+    if plan.is_empty() {
+        return None;
+    }
+    let mut body = f.body.clone();
+    let mut pre = 0;
+    share_rewrite(&mut body, &mut pre, &nodes, &mut plan);
+    Some((body, shared))
+}
+
+/// A term's operands in preorder: an application's head, then
+/// [`each_child`]'s children.
+fn each_operand<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
+    if let Core::App(head, _) = e {
+        visit(head);
+    }
+    each_child(e, visit);
+}
+
+fn share_scan<'a>(e: &'a Core, nodes: &mut Vec<ShareNode>, refs: &mut Vec<&'a Core>, classes: &mut HashMap<usize, Class>) -> usize {
+    use std::hash::{Hash, Hasher};
+    let pre = nodes.len();
+    nodes.push(ShareNode { size: 1, hash: 0, shareable: true });
+    refs.push(e);
+    match e {
+        Core::Let(x, c, ..) => {
+            classes.insert(x.0, *c);
+        }
+        Core::Case { alts, .. } => {
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(x, c) => {
+                        classes.insert(x.0, *c);
+                    }
+                    CPat::Con { fields, classes: cs, .. } => {
+                        for (x, c) in fields.iter().zip(cs) {
+                            classes.insert(x.0, *c);
+                        }
+                    }
+                    CPat::Wild => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    share_head(e, &mut hasher);
+    let mut size = 1;
+    let mut shareable = !matches!(e, Core::Quote { .. } | Core::DeclsQuote { .. } | Core::SpliceVal(_) | Core::SyntaxLit(..) | Core::StrLit(_));
+    each_operand(e, &mut |child| {
+        let c = share_scan(child, nodes, refs, classes);
+        size += nodes[c].size;
+        nodes[c].hash.hash(&mut hasher);
+        shareable &= nodes[c].shareable;
+    });
+    nodes[pre] = ShareNode { size, hash: hasher.finish(), shareable };
+    pre
+}
+
+/// Hash a node's own payload: everything but its operands and its locals.
+fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
+    use std::hash::Hash;
+    std::mem::discriminant(e).hash(h);
+    match e {
+        Core::Int(n) => n.hash(h),
+        Core::ConstBig { nat, digits } => (nat, digits).hash(h),
+        Core::ConstBytes(b) => b.hash(h),
+        Core::ConstString { ctor, bytes } => (ctor, bytes).hash(h),
+        Core::ConstSym(s) | Core::Foreign(s) | Core::StrLit(s) => s.hash(h),
+        Core::Bool(b) => b.hash(h),
+        Core::SpliceVal(i) => i.hash(h),
+        Core::Global(id, cs) | Core::Ctor(id, cs) => (id, cs).hash(h),
+        Core::Prim(op) => op.hash(h),
+        Core::DictProj(_, i, site, c) => (i, format!("{site:?}"), c).hash(h),
+        Core::Proj(_, field) => format!("{field:?}").hash(h),
+        Core::InstDict(id, args, cs) => (id, args.len(), cs).hash(h),
+        Core::App(_, args) => args.len().hash(h),
+        Core::Lam { fn_id, env, classes } => (fn_id, env.len(), classes).hash(h),
+        Core::Let(_, c, ..) | Core::Demand(_, c) | Core::BoxInit(_, _, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c)
+        | Core::RefSet(_, _, c) | Core::Dup(_, c, _) | Core::Drop(_, c, _) => c.hash(h),
+        Core::If(_, t, f) => (t.weight, f.weight).hash(h),
+        Core::Case { alts, .. } => {
+            alts.len().hash(h);
+            for a in alts {
+                a.weight.hash(h);
+                match &a.pat {
+                    CPat::Var(_, c) => (0u8, c).hash(h),
+                    CPat::Wild => 1u8.hash(h),
+                    CPat::Con { tag, fields, classes } => (2u8, tag, fields.len(), classes).hash(h),
+                }
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => holes.len().hash(h),
+        Core::Unit | Core::Var(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::LazyInit(..) | Core::SyntaxLit(..) => {}
+    }
+}
+
+/// Every local a subterm mentions, in preorder of first mention, with
+/// whether a binder inside the subterm introduces it.
+#[derive(Default)]
+struct ShareLocals {
+    order: Vec<(usize, bool)>,
+    index: HashMap<usize, usize>,
+}
+
+impl ShareLocals {
+    fn of(e: &Core) -> ShareLocals {
+        let mut seen = ShareLocals::default();
+        seen.scan(e);
+        seen
+    }
+
+    fn mention(&mut self, l: LocalId, binder: bool) {
+        match self.index.get(&l.0) {
+            Some(&i) => self.order[i].1 |= binder,
+            None => {
+                self.index.insert(l.0, self.order.len());
+                self.order.push((l.0, binder));
+            }
+        }
+    }
+
+    fn scan(&mut self, e: &Core) {
+        match e {
+            Core::Var(l) | Core::LazyInit(l, _) | Core::BoxInit(l, ..) | Core::RefSet(l, ..) | Core::Dup(l, ..) | Core::Drop(l, ..) => {
+                self.mention(*l, false)
+            }
+            Core::Let(l, ..) => self.mention(*l, true),
+            Core::Case { alts, .. } => {
+                for a in alts {
+                    match &a.pat {
+                        CPat::Var(l, _) => self.mention(*l, true),
+                        CPat::Con { fields, .. } => fields.iter().for_each(|l| self.mention(*l, true)),
+                        CPat::Wild => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        each_operand(e, &mut |child| self.scan(child));
+    }
+}
+
+/// The subterm's free locals in first-mention order.
+fn share_free(e: &Core) -> Vec<LocalId> {
+    ShareLocals::of(e).order.into_iter().filter(|(_, bound)| !bound).map(|(l, _)| LocalId(l)).collect()
+}
+
+/// Rename a shared body into its own unit's space: the free locals become
+/// the parameters `0..free.len()` and every binder follows, in order of
+/// first mention.
+fn share_rename(e: &mut Core, free: &[LocalId]) {
+    let mut map: HashMap<usize, usize> = free.iter().enumerate().map(|(i, l)| (l.0, i)).collect();
+    for (l, bound) in ShareLocals::of(e).order {
+        if bound {
+            let next = map.len();
+            map.insert(l, next);
+        }
+    }
+    fn go(e: &mut Core, map: &HashMap<usize, usize>) {
+        let m = |l: &mut LocalId| *l = LocalId(map[&l.0]);
+        match e {
+            Core::Var(l) | Core::LazyInit(l, _) | Core::BoxInit(l, ..) | Core::RefSet(l, ..) | Core::Dup(l, ..) | Core::Drop(l, ..)
+            | Core::Let(l, ..) => m(l),
+            Core::Case { alts, .. } => {
+                for a in alts.iter_mut() {
+                    match &mut a.pat {
+                        CPat::Var(l, _) => m(l),
+                        CPat::Con { fields, .. } => fields.iter_mut().for_each(m),
+                        CPat::Wild => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        if let Core::App(head, _) = e {
+            go(head, map);
+        }
+        for k in child_slots(e) {
+            go(k, map);
+        }
+    }
+    go(e, &map);
+}
+
+/// Whether `b` is `a` up to a renaming of locals: binders correspond to
+/// binders, and each free local of `a` to one local of `b` of the same
+/// class. Answers the free-local correspondence.
+fn share_match(a: &Core, b: &Core, classes: &HashMap<usize, Class>) -> Option<HashMap<usize, usize>> {
+    struct M<'c> {
+        bound: HashMap<usize, usize>,
+        bound_b: std::collections::HashSet<usize>,
+        free: HashMap<usize, usize>,
+        classes: &'c HashMap<usize, Class>,
+    }
+    impl M<'_> {
+        fn local(&mut self, a: LocalId, b: LocalId) -> bool {
+            if let Some(x) = self.bound.get(&a.0) {
+                return *x == b.0;
+            }
+            if self.bound_b.contains(&b.0) {
+                return false;
+            }
+            match self.free.get(&a.0) {
+                Some(x) => *x == b.0,
+                None => {
+                    let (ca, cb) = (self.classes.get(&a.0), self.classes.get(&b.0));
+                    if ca.is_none() || ca != cb {
+                        return false;
+                    }
+                    self.free.insert(a.0, b.0);
+                    true
+                }
+            }
+        }
+        fn bind(&mut self, a: LocalId, b: LocalId) -> bool {
+            if self.free.contains_key(&a.0) || self.bound.contains_key(&a.0) || self.bound_b.contains(&b.0) {
+                return false;
+            }
+            self.bound.insert(a.0, b.0);
+            self.bound_b.insert(b.0);
+            true
+        }
+        fn all(&mut self, a: &[Core], b: &[Core]) -> bool {
+            a.len() == b.len() && a.iter().zip(b).all(|(x, y)| self.go(x, y))
+        }
+        fn go(&mut self, a: &Core, b: &Core) -> bool {
+            match (a, b) {
+                (Core::Int(x), Core::Int(y)) => x == y,
+                (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => n1 == n2 && d1 == d2,
+                (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
+                (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => c1 == c2 && b1 == b2,
+                (Core::ConstSym(x), Core::ConstSym(y)) | (Core::Foreign(x), Core::Foreign(y)) => x == y,
+                (Core::Bool(x), Core::Bool(y)) => x == y,
+                (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) | (Core::BoxAlloc, Core::BoxAlloc) => true,
+                (Core::Var(x), Core::Var(y)) => self.local(*x, *y),
+                (Core::Global(i1, c1), Core::Global(i2, c2)) | (Core::Ctor(i1, c1), Core::Ctor(i2, c2)) => i1 == i2 && c1 == c2,
+                (Core::Prim(x), Core::Prim(y)) => x == y,
+                (Core::DictProj(d1, i1, s1, c1), Core::DictProj(d2, i2, s2, c2)) => i1 == i2 && s1 == s2 && c1 == c2 && self.go(d1, d2),
+                (Core::Proj(d1, f1), Core::Proj(d2, f2)) => f1 == f2 && self.go(d1, d2),
+                (Core::InstDict(i1, a1, c1), Core::InstDict(i2, a2, c2)) => i1 == i2 && c1 == c2 && self.all(a1, a2),
+                (Core::App(h1, a1), Core::App(h2, a2)) => self.go(h1, h2) && self.all(a1, a2),
+                (Core::Lam { fn_id: f1, env: e1, classes: c1 }, Core::Lam { fn_id: f2, env: e2, classes: c2 }) => {
+                    f1 == f2 && c1 == c2 && self.all(e1, e2)
+                }
+                (Core::Let(x, c1, v1, b1), Core::Let(y, c2, v2, b2)) => c1 == c2 && self.go(v1, v2) && self.bind(*x, *y) && self.go(b1, b2),
+                (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
+                    t1.weight == t2.weight && f1.weight == f2.weight && self.go(c1, c2) && self.go(&t1.body, &t2.body) && self.go(&f1.body, &f2.body)
+                }
+                (Core::Case { scrut: s1, alts: a1 }, Core::Case { scrut: s2, alts: a2 }) => {
+                    a1.len() == a2.len()
+                        && self.go(s1, s2)
+                        && a1.iter().zip(a2).all(|(x, y)| {
+                            x.weight == y.weight
+                                && match (&x.pat, &y.pat) {
+                                    (CPat::Wild, CPat::Wild) => true,
+                                    (CPat::Var(p, c1), CPat::Var(q, c2)) => c1 == c2 && self.bind(*p, *q),
+                                    (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+                                        t1 == t2 && k1 == k2 && f1.len() == f2.len() && f1.iter().zip(f2).all(|(p, q)| self.bind(*p, *q))
+                                    }
+                                    _ => false,
+                                }
+                                && self.go(&x.body, &y.body)
+                        })
+                }
+                (Core::Demand(d1, c1), Core::Demand(d2, c2)) | (Core::BoxGet(d1, c1), Core::BoxGet(d2, c2)) | (Core::BoxClear(d1, c1), Core::BoxClear(d2, c2)) => {
+                    c1 == c2 && self.go(d1, d2)
+                }
+                (Core::LazyInit(x, t1), Core::LazyInit(y, t2)) => self.local(*x, *y) && self.go(t1, t2),
+                (Core::BoxInit(x, v1, c1), Core::BoxInit(y, v2, c2)) | (Core::RefSet(x, v1, c1), Core::RefSet(y, v2, c2)) => {
+                    c1 == c2 && self.local(*x, *y) && self.go(v1, v2)
+                }
+                (Core::Dup(x, c1, b1), Core::Dup(y, c2, b2)) | (Core::Drop(x, c1, b1), Core::Drop(y, c2, b2)) => {
+                    c1 == c2 && self.local(*x, *y) && self.go(b1, b2)
+                }
+                _ => false,
+            }
+        }
+    }
+    let mut m = M { bound: HashMap::new(), bound_b: std::collections::HashSet::new(), free: HashMap::new(), classes };
+    m.go(a, b).then_some(m.free)
+}
+
+/// Replace the planned subterms by their shared calls, walking in the
+/// preorder [`share_scan`] numbered.
+fn share_rewrite(e: &mut Core, pre: &mut usize, nodes: &[ShareNode], plan: &mut HashMap<usize, Core>) {
+    let here = *pre;
+    if let Some(call) = plan.remove(&here) {
+        *pre += nodes[here].size;
+        *e = call;
+        return;
+    }
+    *pre += 1;
+    if let Core::App(head, _) = e {
+        share_rewrite(head, pre, nodes, plan);
+    }
+    for k in child_slots(e) {
+        share_rewrite(k, pre, nodes, plan);
+    }
 }
 
 #[cfg(test)]
@@ -7472,6 +7917,49 @@ mod tests {
                         "discarded expansions must not be reported as installed");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn repeated_subterms_move_into_one_shared_unit() {
+        // Two copies of one body under different binders, as two leaves
+        // of a compiled match produce them: equal up to renaming.
+        let copy = |binder: usize| Core::Let(
+            LocalId(binder),
+            Class::Obj,
+            Box::new(Core::Var(LocalId(0))),
+            Box::new(Core::App(
+                Box::new(Core::Global(GlobalId("T.g".into()), vec![])),
+                vec![Core::Var(LocalId(binder)); SHARE_MIN_NODES],
+            )),
+        );
+        let unit = FnDef {
+            id: GlobalId("T.f".into()),
+            params: vec!["x".into()],
+            body: Core::If(Box::new(Core::Bool(true)), CBranch::new(copy(1)), CBranch::new(copy(2))),
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { params: vec![Class::Obj], ..UnitRepr::default() },
+        };
+        let mut program = Program {
+            total_bodies: crate::total::CheckedGraph::empty(),
+            fns: vec![unit], instances: vec![], main: None, rewrites: vec![],
+            plans: Default::default(), foreigns: Default::default(),
+            prims: vec![], laws: vec![],
+        };
+        share_repeated_subterms(&mut program);
+        assert_eq!(program.fns.len(), 2);
+        let shared = &program.fns[1];
+        assert_eq!(shared.id.0, "T.f.shared0");
+        assert_eq!(shared.repr.params, vec![Class::Obj]);
+        assert!(matches!(&shared.body, Core::Let(LocalId(1), Class::Obj, value, _) if matches!(**value, Core::Var(LocalId(0)))));
+        let Core::If(_, then, otherwise) = &program.fns[0].body else { panic!("the decision stays") };
+        for branch in [&then.body, &otherwise.body] {
+            assert!(matches!(&**branch, Core::App(head, args)
+                if matches!(&**head, Core::Global(id, _) if id.0 == "T.f.shared0")
+                    && matches!(args.as_slice(), [Core::Var(LocalId(0))])));
         }
     }
 

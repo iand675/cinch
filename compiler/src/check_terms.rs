@@ -1649,9 +1649,11 @@ impl Checker {
             // An inference-created arrow is not permission to discard an
             // outer declared usage. Unify before checking when possible;
             // ordinary subsumption still validates refinements afterwards.
-            let mut trial = self.uni.clone();
-            if trial.unify(&actual, expected).is_ok() {
-                self.uni = trial;
+            let trial = self.uni.snapshot();
+            if self.uni.unify(&actual, expected).is_ok() {
+                self.uni.commit(trial);
+            } else {
+                self.uni.rollback_to(trial);
             }
             let actual = Self::code_usage_hint(&self.uni.zonk(&actual), &self.uni.zonk(expected));
             let previous_goal_site = self.proof_goal_site;
@@ -7846,9 +7848,9 @@ impl Checker {
         }
         for (name, _) in &info.ctors {
             let Ok(constructor) = self.ctor_of_type(&info, name) else { return false };
-            let before = self.uni.clone();
+            let trial = self.uni.snapshot();
             let matched = self.match_ctor(&constructor, &args);
-            self.uni = before;
+            self.uni.rollback_to(trial);
             if !matches!(matched, Ok(CtorMatch::Refuted)) {
                 return false;
             }
@@ -8524,6 +8526,25 @@ impl Checker {
                 let mut alt_maps = Vec::new();
                 let mut alt_pats: Vec<CPat> = Vec::new();
                 let mut branch_lists: Vec<Vec<Row>> = Vec::new();
+                // Which `branch_lists` entry each alternative's weight sums.
+                let mut alt_branch: Vec<usize> = Vec::new();
+                // Constructors no row names are reached by the variable and
+                // wildcard rows alone, and those rows see the same matrix
+                // under every such constructor. When two or more share it,
+                // and its branch would bind no facts and no field, it is
+                // compiled once as one wildcard alternative instead of once
+                // per constructor (which multiplies through nested columns).
+                let column_reading = match &col0 {
+                    ECore::Var(l) => self.col_readings.get(l).cloned(),
+                    _ => None,
+                };
+                let share_default = !var_rows.is_empty()
+                    && !matches!(ty0, Ty::Mut(..))
+                    && !list_shaped
+                    && !matches!(column_reading.as_ref().map(|r| &r.kind), Some(ReadingKind::Order(..)))
+                    && var_rows.iter().all(|r| r.proof.is_none())
+                    && info.ctors.iter().filter(|(_, tag)| ctor_rows[*tag].is_empty()).count() >= 2;
+                let mut default_alt: Option<(ECore, HashMap<LocalId, UseNode>, usize)> = None;
                 for (name, tag) in info.ctors.clone() {
                     // A constructor with no explicit arm may still run
                     // (wildcard rows reach it), so it gets a branch unless
@@ -8546,6 +8567,31 @@ impl Checker {
                         .map(|(b, t, _)| (b.clone(), t.clone()))
                         .collect();
                     let arity = runtime_fields.len();
+                    if share_default && ctor_rows[tag].is_empty() {
+                        // Weights still count the shared rows once per
+                        // constructor, exactly as separate branches did.
+                        let mut shared = var_rows.clone();
+                        shared.sort_by_key(|r| r.idx);
+                        let branch_index = branch_lists.len();
+                        if default_alt.is_none() {
+                            let key = BranchKey::Ctor { name: name.clone(), arity, list: list_shaped };
+                            let mut branch_rows = shared.clone();
+                            self.bind_column_facts(&mut branch_rows, &col0, &key, ctx_span)?;
+                            let (core, m) = self.isolate(|s| {
+                                s.compile_rows(
+                                    branch_rows,
+                                    cols[1..].to_vec(),
+                                    types[1..].to_vec(),
+                                    expected,
+                                    ctx_span,
+                                    &format!("constructor {name}"),
+                                )
+                            })?;
+                            default_alt = Some((core, m, branch_index));
+                        }
+                        branch_lists.push(shared);
+                        continue;
+                    }
                     let fields: Vec<LocalId> = (0..arity).map(|_| self.fresh_local()).collect();
                     if let ECore::Var(l) = &col0 {
                         for f in &fields {
@@ -8657,9 +8703,16 @@ impl Checker {
                     } else {
                         (fields, core)
                     };
+                    alt_branch.push(branch_lists.len());
                     branch_lists.push(branch);
                     alt_maps.push(m);
                     alt_pats.push(CPat::con(tag, slots));
+                    alts.push(core);
+                }
+                if let Some((core, m, branch_index)) = default_alt {
+                    alt_branch.push(branch_index);
+                    alt_maps.push(m);
+                    alt_pats.push(CPat::Wild);
                     alts.push(core);
                 }
                 self.merge_branches(alt_maps);
@@ -8678,8 +8731,8 @@ impl Checker {
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)
-                    .zip(sums)
-                    .map(|((pat, body), w)| CAlt::weighted(pat, w, body))
+                    .zip(alt_branch)
+                    .map(|((pat, body), branch)| CAlt::weighted(pat, sums[branch], body))
                     .collect();
                 Ok(ECore::Case { scrut: Box::new(observed), alts })
             }
@@ -9298,18 +9351,19 @@ impl Checker {
         // Solve the index equations on a trial substitution and commit it
         // on success: the metavariables must belong to the unifier the
         // branch elaboration continues with.
-        let mut trial = self.uni.clone();
+        let trial = self.uni.snapshot();
         let res: Vec<Ty> = parts
             .res_args
             .iter()
             .map(|t| Self::subst_ty(t, &meta_of))
             .collect();
         for (a, b) in res.iter().zip(ty_args.iter()) {
-            if trial.unify(a, b).is_ok() {
+            if self.uni.unify(a, b).is_ok() {
                 continue;
             }
-            let za = trial.zonk(a);
-            let zb = trial.zonk(b);
+            let za = self.uni.zonk(a);
+            let zb = self.uni.zonk(b);
+            self.uni.rollback_to(trial);
             if idx_ground(&za) && idx_ground(&zb) {
                 return Ok(CtorMatch::Refuted);
             }
@@ -9321,9 +9375,10 @@ impl Checker {
             if let IxParam::Val(n, t) = p {
                 if *t == Ty::Nat {
                     if let Some(Ty::Idx(it)) = meta_of.get(n) {
-                        let solved = trial.resolve_idx(it).normalize();
+                        let solved = self.uni.resolve_idx(it).normalize();
                         if let ITerm::Num(d) = &solved {
                             if d.parse::<i128>().map(|v| v < 0).unwrap_or(false) {
+                                self.uni.rollback_to(trial);
                                 return Ok(CtorMatch::Refuted);
                             }
                         }
@@ -9337,7 +9392,7 @@ impl Checker {
             .map(|(b, t, e)| (b, Self::subst_ty(&t, &meta_of), e))
             .collect();
         let res_args = res.clone();
-        self.uni = trial;
+        self.uni.commit(trial);
         Ok(CtorMatch::Possible(CtorParts {
             fields,
             local_idx: parts.local_idx,
@@ -10299,9 +10354,9 @@ impl Checker {
         for (i, arg) in candidates.into_iter().rev() {
             match (&arg, &label.arg) {
                 (Some(x), Some(y)) => {
-                    let mut trial = self.uni.clone();
-                    if trial.unify_regions(x, y).is_ok() {
-                        self.uni = trial;
+                    // A failed region unification changes nothing, so no
+                    // trial scope is needed.
+                    if self.uni.unify_regions(x, y).is_ok() {
                         found = Some(i);
                         break;
                     }
@@ -11089,14 +11144,8 @@ impl Checker {
                 continue;
             }
             let same = match (&l.arg, &label.arg) {
-                (Some(x), Some(y)) => {
-                    let mut trial = self.uni.clone();
-                    let ok = trial.unify_regions(x, y).is_ok();
-                    if ok {
-                        self.uni = trial;
-                    }
-                    ok
-                }
+                // A failed region unification changes nothing.
+                (Some(x), Some(y)) => self.uni.unify_regions(x, y).is_ok(),
                 (None, None) => true,
                 _ => false,
             };

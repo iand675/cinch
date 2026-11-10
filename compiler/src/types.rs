@@ -3772,11 +3772,18 @@ fn unify_mults(a: Mult, b: Mult) -> std::result::Result<(), String> {
 }
 
 /// Hindley-Milner style substitution with row typing.
+///
+/// Speculation uses snapshots instead of copies: `snapshot` opens a
+/// scope, every mutation made while any scope is open is recorded in
+/// `undo`, and `rollback_to` replays those records backwards to restore
+/// the exact state the snapshot saw (lengths, bindings, lacks order and
+/// region identities). `commit` keeps the mutations. Scopes nest and
+/// close in LIFO order. With no open scope nothing is recorded.
 #[derive(Clone, Default)]
 pub struct Unifier {
     provisional_declarations: bool,
-    subst: Vec<Option<Ty>>,
-    row_subst: Vec<Option<EffRow>>,
+    subst: ChunkVec<Option<Ty>>,
+    row_subst: ChunkVec<Option<EffRow>>,
     /// Tail metavariables that must lack a label (memo black-hole rule).
     lacks: Vec<(RowMetaId, EffLabel)>,
     /// Region-name substitution: a flexible name (created when a scheme
@@ -3785,20 +3792,210 @@ pub struct Unifier {
     /// Region names that may still be identified with another region.
     flex_regions: Vec<String>,
     /// Inference variables for index values (implicit index arguments).
-    idx_subst: Vec<Option<ITerm>>,
+    idx_subst: ChunkVec<Option<ITerm>>,
     /// Inference variables for propositions (implicit evidence types).
-    prop_subst: Vec<Option<PTerm>>,
+    prop_subst: ChunkVec<Option<PTerm>>,
+    /// How many bound entries of `subst`, `idx_subst` and `prop_subst`
+    /// mention provisional declaration evidence.
+    pending_bindings: usize,
+    /// Inverse of every mutation made since the outermost open snapshot,
+    /// oldest first. Empty whenever `open_snapshots` is zero.
+    undo: Vec<Undo>,
+    /// Number of snapshots taken and not yet rolled back or committed.
+    open_snapshots: usize,
+}
+
+/// Entries per `ChunkVec` chunk.
+const CHUNK: usize = 64;
+
+/// A vector stored as shared fixed-size chunks. Cloning copies one pointer
+/// per chunk, not the elements; a write copies only the chunk it touches,
+/// and only while another clone still shares it. Every chunk but the last
+/// holds exactly `CHUNK` elements, and the last is never empty.
+#[derive(Clone)]
+struct ChunkVec<T> {
+    chunks: Vec<std::sync::Arc<Vec<T>>>,
+    len: usize,
+}
+
+impl<T> Default for ChunkVec<T> {
+    fn default() -> Self {
+        Self { chunks: Vec::new(), len: 0 }
+    }
+}
+
+impl<T: Clone> ChunkVec<T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn get(&self, index: usize) -> Option<&T> {
+        if index < self.len { Some(&self.chunks[index / CHUNK][index % CHUNK]) } else { None }
+    }
+
+    fn push(&mut self, value: T) {
+        if self.len % CHUNK == 0 {
+            self.chunks.push(std::sync::Arc::new(Vec::with_capacity(CHUNK)));
+        }
+        std::sync::Arc::make_mut(self.chunks.last_mut().expect("a chunk with room")).push(value);
+        self.len += 1;
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        let last = self.chunks.last_mut()?;
+        let value = std::sync::Arc::make_mut(last).pop();
+        self.len -= 1;
+        if self.len % CHUNK == 0 {
+            self.chunks.pop();
+        }
+        value
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        self.chunks.iter().flat_map(|chunk| chunk.iter())
+    }
+}
+
+impl<T> std::ops::Index<usize> for ChunkVec<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &T {
+        assert!(index < self.len, "index {index} out of bounds for length {}", self.len);
+        &self.chunks[index / CHUNK][index % CHUNK]
+    }
+}
+
+impl<T: Clone> std::ops::IndexMut<usize> for ChunkVec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut T {
+        assert!(index < self.len, "index {index} out of bounds for length {}", self.len);
+        &mut std::sync::Arc::make_mut(&mut self.chunks[index / CHUNK])[index % CHUNK]
+    }
+}
+
+/// The inverse of one `Unifier` mutation.
+#[derive(Clone)]
+enum Undo {
+    Provisional(bool),
+    NewType,
+    BindType(usize, Option<Ty>),
+    NewRow,
+    BindRow(usize, Option<EffRow>),
+    NewIndex,
+    BindIndex(usize, Option<ITerm>),
+    NewProp,
+    BindProp(usize, Option<PTerm>),
+    PushLacks,
+    ReplaceLacks(Vec<(RowMetaId, EffLabel)>),
+    BindRegion(String, Option<String>),
+    NewFlexRegion,
+}
+
+/// An open speculation scope on a `Unifier`. It must be closed exactly
+/// once, by `Unifier::rollback_to` or `Unifier::commit`, after every
+/// snapshot taken later has been closed.
+#[must_use = "a snapshot must be rolled back or committed"]
+pub struct Snapshot {
+    undo_len: usize,
+    depth: usize,
 }
 
 impl Unifier {
-    pub(crate) fn provisional_declarations(&mut self, enabled: bool) {
-        self.provisional_declarations = enabled;
+    /// Open a speculation scope. Mutations from now on can be undone with
+    /// `rollback_to` until the scope is closed.
+    pub fn snapshot(&mut self) -> Snapshot {
+        self.open_snapshots += 1;
+        Snapshot { undo_len: self.undo.len(), depth: self.open_snapshots }
     }
 
+    /// Undo every mutation made since `snapshot` and close it.
+    pub fn rollback_to(&mut self, snapshot: Snapshot) {
+        assert_eq!(snapshot.depth, self.open_snapshots, "unifier snapshots close in LIFO order");
+        while self.undo.len() > snapshot.undo_len {
+            match self.undo.pop().expect("length checked") {
+                Undo::Provisional(old) => self.provisional_declarations = old,
+                Undo::NewType => { self.subst.pop(); }
+                Undo::BindType(id, old) => { self.set_type(id, old); }
+                Undo::NewRow => { self.row_subst.pop(); }
+                Undo::BindRow(id, old) => self.row_subst[id] = old,
+                Undo::NewIndex => { self.idx_subst.pop(); }
+                Undo::BindIndex(id, old) => { self.set_index(id, old); }
+                Undo::NewProp => { self.prop_subst.pop(); }
+                Undo::BindProp(id, old) => { self.set_prop(id, old); }
+                Undo::PushLacks => { self.lacks.pop(); }
+                Undo::ReplaceLacks(old) => self.lacks = old,
+                Undo::BindRegion(name, old) => match old {
+                    Some(old) => { self.region_subst.insert(name, old); }
+                    None => { self.region_subst.remove(&name); }
+                },
+                Undo::NewFlexRegion => { self.flex_regions.pop(); }
+            }
+        }
+        self.open_snapshots -= 1;
+    }
+
+    /// Keep every mutation made since `snapshot` and close it. An
+    /// enclosing snapshot can still roll them back.
+    pub fn commit(&mut self, snapshot: Snapshot) {
+        assert_eq!(snapshot.depth, self.open_snapshots, "unifier snapshots close in LIFO order");
+        self.open_snapshots -= 1;
+        if self.open_snapshots == 0 {
+            self.undo.clear();
+        }
+    }
+
+    /// Record the inverse of a mutation, if any snapshot is open.
+    #[inline]
+    fn log(&mut self, undo: impl FnOnce() -> Undo) {
+        if self.open_snapshots > 0 {
+            self.undo.push(undo());
+        }
+    }
+
+    /// Replace a type binding, keeping `pending_bindings` exact.
+    fn set_type(&mut self, id: usize, value: Option<Ty>) -> Option<Ty> {
+        let added = value.as_ref().is_some_and(Ty::has_declaration_pending);
+        let old = std::mem::replace(&mut self.subst[id], value);
+        let removed = old.as_ref().is_some_and(Ty::has_declaration_pending);
+        self.pending_bindings = self.pending_bindings + usize::from(added) - usize::from(removed);
+        old
+    }
+
+    /// Replace an index binding, keeping `pending_bindings` exact.
+    fn set_index(&mut self, id: usize, value: Option<ITerm>) -> Option<ITerm> {
+        let added = value.as_ref().is_some_and(ITerm::has_declaration_pending);
+        let old = std::mem::replace(&mut self.idx_subst[id], value);
+        let removed = old.as_ref().is_some_and(ITerm::has_declaration_pending);
+        self.pending_bindings = self.pending_bindings + usize::from(added) - usize::from(removed);
+        old
+    }
+
+    /// Replace a proposition binding, keeping `pending_bindings` exact.
+    fn set_prop(&mut self, id: usize, value: Option<PTerm>) -> Option<PTerm> {
+        let added = value.as_ref().is_some_and(PTerm::has_declaration_pending);
+        let old = std::mem::replace(&mut self.prop_subst[id], value);
+        let removed = old.as_ref().is_some_and(PTerm::has_declaration_pending);
+        self.pending_bindings = self.pending_bindings + usize::from(added) - usize::from(removed);
+        old
+    }
+
+    fn bind_type(&mut self, id: usize, ty: Ty) {
+        let old = self.set_type(id, Some(ty));
+        self.log(|| Undo::BindType(id, old));
+    }
+
+    pub(crate) fn provisional_declarations(&mut self, enabled: bool) {
+        let old = std::mem::replace(&mut self.provisional_declarations, enabled);
+        self.log(|| Undo::Provisional(old));
+    }
+
+    /// Does any binding mention provisional declaration evidence?
     pub(crate) fn has_declaration_pending(&self) -> bool {
-        self.subst.iter().flatten().any(Ty::has_declaration_pending)
-            || self.idx_subst.iter().flatten().any(ITerm::has_declaration_pending)
-            || self.prop_subst.iter().flatten().any(PTerm::has_declaration_pending)
+        debug_assert_eq!(
+            self.pending_bindings > 0,
+            self.subst.iter().flatten().any(Ty::has_declaration_pending)
+                || self.idx_subst.iter().flatten().any(ITerm::has_declaration_pending)
+                || self.prop_subst.iter().flatten().any(PTerm::has_declaration_pending)
+        );
+        self.pending_bindings > 0
     }
     pub fn new() -> Self {
         Self::default()
@@ -3807,6 +4004,7 @@ impl Unifier {
     pub fn fresh(&mut self) -> Ty {
         let id = self.subst.len();
         self.subst.push(None);
+        self.log(|| Undo::NewType);
         Ty::Meta(MetaId(id))
     }
 
@@ -3815,6 +4013,7 @@ impl Unifier {
     pub fn fresh_idx(&mut self) -> Ty {
         let id = self.idx_subst.len();
         self.idx_subst.push(None);
+        self.log(|| Undo::NewIndex);
         Ty::Idx(Box::new(ITerm::MVar(id)))
     }
 
@@ -3822,6 +4021,7 @@ impl Unifier {
     pub fn fresh_prop(&mut self) -> Ty {
         let id = self.prop_subst.len();
         self.prop_subst.push(None);
+        self.log(|| Undo::NewProp);
         Ty::Prp(Box::new(PTerm::MVar(id)))
     }
 
@@ -3836,6 +4036,7 @@ impl Unifier {
     pub fn fresh_row(&mut self) -> EffRow {
         let id = self.row_subst.len();
         self.row_subst.push(None);
+        self.log(|| Undo::NewRow);
         EffRow { labels: Vec::new(), tail: RowTail::Meta(RowMetaId(id)) }
     }
 
@@ -3845,6 +4046,7 @@ impl Unifier {
     pub fn note_flex_region(&mut self, name: &str) {
         if !self.flex_regions.iter().any(|x| x == name) {
             self.flex_regions.push(name.to_string());
+            self.log(|| Undo::NewFlexRegion);
         }
     }
 
@@ -3875,25 +4077,39 @@ impl Unifier {
         let a_flex = self.flex_regions.iter().any(|x| *x == ra);
         let b_flex = self.flex_regions.iter().any(|x| *x == rb);
         if a_flex {
-            self.region_subst.insert(ra, rb);
+            self.bind_region(ra, rb);
             Ok(())
         } else if b_flex {
-            self.region_subst.insert(rb, ra);
+            self.bind_region(rb, ra);
             Ok(())
         } else {
             Err(format!("regions do not match: {ra} vs {rb}"))
         }
     }
 
+    fn bind_region(&mut self, from: String, to: String) {
+        if self.open_snapshots > 0 {
+            let old = self.region_subst.insert(from.clone(), to);
+            self.undo.push(Undo::BindRegion(from, old));
+        } else {
+            self.region_subst.insert(from, to);
+        }
+    }
+
     /// Follow metavar bindings one level.
     fn shallow(&self, ty: &Ty) -> Ty {
-        match ty {
-            Ty::Meta(MetaId(m)) => match self.subst.get(*m).and_then(|s| s.as_ref()) {
-                Some(t) => self.shallow(t),
-                None => ty.clone(),
-            },
-            other => other.clone(),
+        self.shallow_ref(ty).clone()
+    }
+
+    /// Follow metavar bindings one level without copying the result.
+    fn shallow_ref<'a>(&'a self, mut ty: &'a Ty) -> &'a Ty {
+        while let Ty::Meta(MetaId(m)) = ty {
+            match self.subst.get(*m).and_then(|s| s.as_ref()) {
+                Some(t) => ty = t,
+                None => break,
+            }
         }
+        ty
     }
 
     /// Follow index metavariable bindings.
@@ -4008,7 +4224,7 @@ impl Unifier {
     }
 
     fn prop_occurs_type(&self, id: usize, ty: &Ty) -> bool {
-        match self.shallow(ty) {
+        match self.shallow_ref(ty) {
             Ty::Prp(prop) => self.prop_occurs(id, &prop),
             Ty::Idx(term) => self.prop_occurs_index(id, &term),
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(|ty| self.prop_occurs_type(id, ty)),
@@ -4033,7 +4249,8 @@ impl Unifier {
                 "cannot construct infinite index: ?i{id} in {t}"
             ));
         }
-        self.idx_subst[id] = Some(t);
+        let old = self.set_index(id, Some(t));
+        self.log(|| Undo::BindIndex(id, old));
         Ok(())
     }
 
@@ -4049,7 +4266,8 @@ impl Unifier {
                 "cannot construct infinite proposition: ?p{id} in {p}"
             ));
         }
-        self.prop_subst[id] = Some(p);
+        let old = self.set_prop(id, Some(p));
+        self.log(|| Undo::BindProp(id, old));
         Ok(())
     }
 
@@ -4058,14 +4276,18 @@ impl Unifier {
     /// bindings (inverting `?k + 1` against a numeral) are guesses that
     /// the final conversion check must confirm.
     pub fn unify_idx(&mut self, a: &ITerm, b: &ITerm) -> std::result::Result<(), String> {
-        let mut trial = self.clone();
-        trial.unify_idx_raw(a, b)?;
-        let left = trial.resolve_idx(a);
-        let right = trial.resolve_idx(b);
-        if left.eq(&right) || (trial.provisional_declarations && (left.has_declaration_pending() || right.has_declaration_pending())) {
-            *self = trial;
+        let snapshot = self.snapshot();
+        if let Err(error) = self.unify_idx_raw(a, b) {
+            self.rollback_to(snapshot);
+            return Err(error);
+        }
+        let left = self.resolve_idx(a);
+        let right = self.resolve_idx(b);
+        if left.eq(&right) || (self.provisional_declarations && (left.has_declaration_pending() || right.has_declaration_pending())) {
+            self.commit(snapshot);
             Ok(())
         } else {
+            self.rollback_to(snapshot);
             Err(format!(
                 "index mismatch: {} vs {}",
                 self.resolve_idx(a),
@@ -4126,14 +4348,18 @@ impl Unifier {
 
     /// Unify two propositions (validated like index terms).
     pub fn unify_prop(&mut self, a: &PTerm, b: &PTerm) -> std::result::Result<(), String> {
-        let mut trial = self.clone();
-        trial.unify_prop_raw(a, b)?;
-        let left = trial.resolve_prop(a);
-        let right = trial.resolve_prop(b);
-        if left.eq(&right) || (trial.provisional_declarations && (left.has_declaration_pending() || right.has_declaration_pending())) {
-            *self = trial;
+        let snapshot = self.snapshot();
+        if let Err(error) = self.unify_prop_raw(a, b) {
+            self.rollback_to(snapshot);
+            return Err(error);
+        }
+        let left = self.resolve_prop(a);
+        let right = self.resolve_prop(b);
+        if left.eq(&right) || (self.provisional_declarations && (left.has_declaration_pending() || right.has_declaration_pending())) {
+            self.commit(snapshot);
             Ok(())
         } else {
+            self.rollback_to(snapshot);
             Err(format!(
                 "propositions do not match: {} vs {}",
                 self.resolve_prop(a),
@@ -4293,24 +4519,24 @@ impl Unifier {
 
     fn zonk_in(&self, ty: &Ty, map: Option<&HashMap<MetaId, Ty>>) -> Ty {
         let z = |t: &Ty| self.zonk_in(t, map);
-        match self.shallow(ty) {
-            Ty::Meta(m) => match map.and_then(|mp| mp.get(&m)) {
+        match self.shallow_ref(ty) {
+            Ty::Meta(m) => match map.and_then(|mp| mp.get(m)) {
                 Some(t) => self.zonk(t),
-                None => Ty::Meta(m),
+                None => Ty::Meta(*m),
             },
-            Ty::Adt(t, args) => Ty::Adt(t, args.iter().map(z).collect()),
-            Ty::App(h, args) => Ty::apply_spine(z(&h), args.iter().map(z).collect::<Vec<_>>()),
+            Ty::Adt(t, args) => Ty::Adt(t.clone(), args.iter().map(z).collect()),
+            Ty::App(h, args) => Ty::apply_spine(z(h), args.iter().map(z).collect::<Vec<_>>()),
             Ty::Tuple(args) => Ty::Tuple(args.iter().map(z).collect()),
-            Ty::Fun(a, m, e, b) => Ty::fun_mult(z(&a), m, self.resolve_row(&e), z(&b)),
+            Ty::Fun(a, m, e, b) => Ty::fun_mult(z(a), *m, self.resolve_row(e), z(b)),
             Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
-                var,
+                var: var.clone(),
                 dom: Box::new(z(&dom)),
-                mult,
+                mult: *mult,
                 eff: self.resolve_row(&eff),
                 cod: Box::new(z(&cod)),
             },
             Ty::Sigma { var, dom, cod } => Ty::Sigma {
-                var,
+                var: var.clone(),
                 dom: Box::new(z(&dom)),
                 cod: Box::new(z(&cod)),
             },
@@ -4338,9 +4564,9 @@ impl Unifier {
                 input: Box::new(z(&input)),
                 output: Box::new(z(&output)),
                 eff: self.resolve_row(&eff),
-                resumption,
+                resumption: *resumption,
             },
-            t => t,
+            t => t.clone(),
         }
     }
 
@@ -4408,13 +4634,13 @@ impl Unifier {
     }
 
     fn gen_ty(&self, ty: &Ty, names: &HashMap<EitherMeta, String>) -> Ty {
-        match self.shallow(ty) {
-            Ty::Meta(m) => match names.get(&EitherMeta::Type(m)) {
+        match self.shallow_ref(ty) {
+            Ty::Meta(m) => match names.get(&EitherMeta::Type(*m)) {
                 Some(n) => Ty::Param(n.clone()),
-                None => Ty::Meta(m),
+                None => Ty::Meta(*m),
             },
             Ty::Adt(n, args) => {
-                Ty::Adt(n, args.iter().map(|a| self.gen_ty(a, names)).collect())
+                Ty::Adt(n.clone(), args.iter().map(|a| self.gen_ty(a, names)).collect())
             }
             Ty::App(head, args) => Ty::apply_spine(
                 self.gen_ty(&head, names),
@@ -4425,19 +4651,19 @@ impl Unifier {
             }
             Ty::Fun(a, m, e, b) => Ty::fun_mult(
                 self.gen_ty(&a, names),
-                m,
+                *m,
                 self.gen_row(&e, names),
                 self.gen_ty(&b, names),
             ),
             Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
-                var,
+                var: var.clone(),
                 dom: Box::new(self.gen_ty(&dom, names)),
-                mult,
+                mult: *mult,
                 eff: self.gen_row(&eff, names),
                 cod: Box::new(self.gen_ty(&cod, names)),
             },
             Ty::Sigma { var, dom, cod } => Ty::Sigma {
-                var,
+                var: var.clone(),
                 dom: Box::new(self.gen_ty(&dom, names)),
                 cod: Box::new(self.gen_ty(&cod, names)),
             },
@@ -4450,14 +4676,14 @@ impl Unifier {
             Ty::Later(inner) => Ty::Later(Box::new(self.gen_ty(&inner, names))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.gen_row(&eff, names),
-                region,
+                region: region.clone(),
                 inner: Box::new(self.gen_ty(&inner, names)),
             },
             Ty::Ref(region, inner) => {
-                Ty::Ref(region, Box::new(self.gen_ty(&inner, names)))
+                Ty::Ref(region.clone(), Box::new(self.gen_ty(&inner, names)))
             }
             Ty::Mut(region, inner) => {
-                Ty::Mut(region, Box::new(self.gen_ty(&inner, names)))
+                Ty::Mut(region.clone(), Box::new(self.gen_ty(&inner, names)))
             }
             Ty::Ptr { role, pointee } => Ty::Ptr {
                 role: role.clone(),
@@ -4468,9 +4694,9 @@ impl Unifier {
                 input: Box::new(self.gen_ty(&input, names)),
                 output: Box::new(self.gen_ty(&output, names)),
                 eff: self.gen_row(&eff, names),
-                resumption,
+                resumption: *resumption,
             },
-            t => t,
+            t => t.clone(),
         }
     }
 
@@ -4489,8 +4715,8 @@ impl Unifier {
     }
 
     fn occurs(&self, id: MetaId, ty: &Ty) -> bool {
-        match self.shallow(ty) {
-            Ty::Meta(m) => m == id,
+        match self.shallow_ref(ty) {
+            Ty::Meta(m) => *m == id,
             Ty::Idx(term) => {
                 let mut found = false;
                 term.visit_types(&mut |ty| found |= self.occurs(id, ty));
@@ -4533,21 +4759,34 @@ impl Unifier {
         if self.row_occurs(id, &row) {
             return Err("cannot construct infinite effect row".to_string());
         }
-        for (m, label) in self.lacks.clone() {
-            if m == id && row.contains(&label) {
+        // Pushes below append past `existing`, so only the constraints
+        // present on entry are visited.
+        let existing = self.lacks.len();
+        for i in 0..existing {
+            let m = self.lacks[i].0;
+            if m == id && row.contains(&self.lacks[i].1) {
                 return Err(format!(
-                    "effect row must not contain {label} (a memo cell cannot demand its own group)"
+                    "effect row must not contain {} (a memo cell cannot demand its own group)",
+                    self.lacks[i].1
                 ));
             }
             if let RowTail::Meta(other) = row.tail {
                 if other != m {
                     // Propagate the lacks constraint to the new tail.
+                    let label = self.lacks[i].1.clone();
                     self.lacks.push((other, label));
+                    self.log(|| Undo::PushLacks);
                 }
             }
         }
-        self.lacks.retain(|(m, _)| *m != id);
-        self.row_subst[id.0] = Some(row);
+        if self.lacks.iter().any(|(m, _)| *m == id) {
+            if self.open_snapshots > 0 {
+                self.undo.push(Undo::ReplaceLacks(self.lacks.clone()));
+            }
+            self.lacks.retain(|(m, _)| *m != id);
+        }
+        let old = std::mem::replace(&mut self.row_subst[id.0], Some(row));
+        self.log(|| Undo::BindRow(id.0, old));
         Ok(())
     }
 
@@ -4563,6 +4802,7 @@ impl Unifier {
             RowTail::Meta(m) => {
                 if !self.lacks.contains(&(m, label.clone())) {
                     self.lacks.push((m, label));
+                    self.log(|| Undo::PushLacks);
                 }
                 Ok(())
             }
@@ -4579,15 +4819,9 @@ impl Unifier {
         }
         match (&a.arg, &b.arg) {
             (None, None) => true,
-            (Some(x), Some(y)) => {
-                let mut trial = self.clone();
-                if trial.unify_regions(x, y).is_ok() {
-                    *self = trial;
-                    true
-                } else {
-                    false
-                }
-            }
+            // A failed region unification changes nothing, so no trial
+            // scope is needed.
+            (Some(x), Some(y)) => self.unify_regions(x, y).is_ok(),
             _ => false,
         }
     }
@@ -4771,7 +5005,7 @@ impl Unifier {
                         self.zonk(&image)
                     ));
                 }
-                self.subst[m.0] = Some(image.clone());
+                self.bind_type(m.0, image.clone());
                 let rebuilt = eta(&image, &[], &xs);
                 return self.unify(&rebuilt, b);
             }
@@ -4787,7 +5021,7 @@ impl Unifier {
                         self.zonk(&image)
                     ));
                 }
-                self.subst[m.0] = Some(image.clone());
+                self.bind_type(m.0, image.clone());
                 let rebuilt = eta(&image, &[], &ys);
                 return self.unify(a, &rebuilt);
             }
@@ -4830,7 +5064,7 @@ impl Unifier {
                         self.zonk(t)
                     ));
                 }
-                self.subst[m.0] = Some(t.clone());
+                self.bind_type(m.0, t.clone());
                 Ok(())
             }
             (Ty::Adt(t1, a1), Ty::Adt(t2, a2)) if t1 == t2 && a1.len() == a2.len() => {
@@ -5344,6 +5578,42 @@ mod tests {
             .unwrap();
         assert!(!u.lacks_label(&row, &EffLabel::plain("IO")));
         assert!(u.lacks_label(&row, &label));
+    }
+
+    #[test]
+    fn snapshots_roll_back_every_store_and_nest() {
+        let mut u = Unifier::new();
+        let a = u.fresh();
+        let row = u.fresh_row();
+        let label = EffLabel::with_arg("Eval", "r#1");
+        u.require_lacks(&row, label.clone()).unwrap();
+        u.note_flex_region("r#2");
+        let outer = u.snapshot();
+        u.unify(&a, &Ty::Int).unwrap();
+        let inner = u.snapshot();
+        let b = u.fresh();
+        let tail = u.fresh_row();
+        u.unify_rows(&row, &EffRow { labels: vec![EffLabel::plain("IO")], tail: tail.tail.clone() }).unwrap();
+        u.unify_regions("r#2", "rigid").unwrap();
+        u.note_flex_region("r#3");
+        let i = u.fresh_idx_term();
+        u.unify_idx(&i, &ITerm::num(3)).unwrap();
+        assert!(u.lacks_label(&tail, &label), "the constraint moved to the new tail");
+        u.rollback_to(inner);
+        assert_eq!(u.zonk(&a), Ty::Int, "the outer scope's binding survives the inner rollback");
+        assert_eq!(u.fresh(), b, "the inner scope's variables are gone");
+        assert_eq!(u.resolve_row(&row), row);
+        assert!(u.lacks_label(&row, &label));
+        assert_eq!(u.resolve_region("r#2"), "r#2");
+        assert!(!u.is_flex_region("r#3"));
+        assert!(u.fresh_idx_term().eq(&i));
+        u.rollback_to(outer);
+        assert_eq!(u.zonk(&a), a);
+        let kept = u.snapshot();
+        u.unify(&a, &Ty::Bool).unwrap();
+        u.commit(kept);
+        assert_eq!(u.zonk(&a), Ty::Bool);
+        assert!(u.undo.is_empty() && u.open_snapshots == 0);
     }
 
     #[test]

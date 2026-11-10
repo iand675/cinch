@@ -33,15 +33,16 @@ impl DictionaryResolver<'_> {
         for (local, binder) in scope.iter().rev() {
             let binder_z = self.uni.zonk_class(binder);
             if binder_z.class == wanted_z.class {
-                let mut trial = self.uni.clone();
-                let ok = trial.unify(
+                let trial = self.uni.snapshot();
+                let ok = self.uni.unify(
                     &Ty::Adt(binder_z.class.clone(), binder_z.args.clone()),
                     &Ty::Adt(wanted_z.class.clone(), wanted_z.args.clone()),
                 );
                 if ok.is_ok() {
-                    self.uni = trial;
+                    self.uni.commit(trial);
                     return Some(DictExpr::Binder(local.clone()));
                 }
+                self.uni.rollback_to(trial);
             }
         }
         None
@@ -123,6 +124,12 @@ impl DictionaryResolver<'_> {
         let wanted_z = self.uni.zonk_class(wanted);
         let wanted_app = Ty::Adt(class.clone(), wanted_z.args.clone());
         let mut matches: Vec<MatchCand> = Vec::new();
+        // Candidate trials run inside `outer`. Every trial is rolled back
+        // after its candidate is measured, so between trials the store only
+        // gains the candidates' fresh instance parameters. The counters
+        // let the winner be replayed on exactly the store its trial saw.
+        let outer = self.uni.snapshot();
+        let (mut fresh_types, mut fresh_props) = (0usize, 0usize);
         if let Some(idxs) = self.checker.resolution_class_indices(&class) {
             for i in idxs {
                 if !self.checker.resolution_instances()[i].implicit && Some(i) != self.checker.self_instance
@@ -143,7 +150,7 @@ impl DictionaryResolver<'_> {
                 let inst = &self.checker.resolution_instances()[i];
                 // One-way match: the instance's parameters become fresh
                 // metavariables and the target is unified with the wanted
-                // class application in a trial unifier, so a candidate that
+                // class application in a trial scope, so a candidate that
                 // fails leaves no bindings. A wanted metavariable is
                 // determined by the unique matching instance, which is what
                 // fixes literal types (primitive types specification,
@@ -152,29 +159,33 @@ impl DictionaryResolver<'_> {
                 // unification in the lattice match.
                 let prop_params = Checker::prop_param_names(&inst.params, &inst.target);
                 let mut fresh: HashMap<String, Ty> = HashMap::new();
+                let fresh_before = (fresh_types, fresh_props);
                 for p in &inst.params {
                     fresh.insert(
                         p.clone(),
                         if prop_params.contains(p) {
+                            fresh_props += 1;
                             self.uni.fresh_prop()
                         } else {
+                            fresh_types += 1;
                             self.uni.fresh()
                         },
                     );
                 }
                 let target = Checker::subst_class(&inst.target, &fresh);
-                let mut trial = self.uni.clone();
+                let trial = self.uni.snapshot();
                 let target_app = Ty::Adt(class.clone(), target.args.clone());
                 // Structural matching first (the ordinary case), then the
                 // refinement lattice: a head at `refined h` serves every
                 // want whose predicate implies `h` (the value weakens to
                 // the head), and a plain head serves refined wants (the
                 // container's methods at the point).
-                let matched = trial.unify(&target_app, &wanted_app).is_ok()
+                let matched = self.uni.unify(&target_app, &wanted_app).is_ok()
                     || self
                         .checker
-                        .lattice_match(&target.args, &wanted_z.args, &mut trial);
+                        .lattice_match(&target.args, &wanted_z.args, &mut self.uni);
                 if !matched {
+                    self.uni.rollback_to(trial);
                     continue;
                 }
                 // A candidate whose target leaves an instance parameter
@@ -193,7 +204,7 @@ impl DictionaryResolver<'_> {
                 let mut sub = HashMap::new();
                 let mut determined = true;
                 for p in &inst.params {
-                    let t = trial.zonk(&fresh[p]);
+                    let t = self.uni.zonk(&fresh[p]);
                     if t == fresh[p] {
                         determined = false;
                         break;
@@ -201,32 +212,36 @@ impl DictionaryResolver<'_> {
                     sub.insert(p.clone(), t);
                 }
                 if !determined {
+                    self.uni.rollback_to(trial);
                     continue;
                 }
-                let mut cond = self.checker.head_cond(&target.args, &trial);
+                let mut cond = self.checker.head_cond(&target.args, &self.uni);
                 for item in &inst.ctx {
                     if let InstCtx::Oblig(PropOblig::Pred(p)) = item {
                         // A constraint-form instance's applicability
                         // condition is its obligation set (ordered by the
                         // same implication lattice).
                         let p = Checker::subst_pt(p, &sub);
-                        let p = trial.resolve_prop(&p);
+                        let p = self.uni.resolve_prop(&p);
                         cond = Some(match cond {
                             None => p,
                             Some(q) => PTerm::And(Box::new(q), Box::new(p)),
                         });
                     }
                 }
+                self.uni.rollback_to(trial);
                 matches.push(MatchCand {
                     idx: i,
                     sub,
-                    trial,
+                    fresh,
+                    fresh_before,
                     cond,
                     generic_head: !prop_params.is_empty(),
                 });
             }
         }
         if matches.is_empty() {
+            self.uni.commit(outer);
             return Err(Error::at(
                 span,
                 format!(
@@ -265,6 +280,7 @@ impl DictionaryResolver<'_> {
         let ground = self.uni.free_metas(&wanted_app).is_empty();
         let ambiguous = if classes.len() > 1 {
             if !ground {
+                self.uni.commit(outer);
                 return Ok(Ambiguous);
             }
             // Incomparable strongest heads at a common refinement: no
@@ -277,6 +293,7 @@ impl DictionaryResolver<'_> {
                 .find_map(|t| self.checker.refine_view(t))
                 .map(|v| v.pred.to_string())
                 .unwrap_or_else(|| wanted_z.to_string());
+            self.uni.commit(outer);
             return Err(Error::at(
                 span,
                 format!(
@@ -303,10 +320,13 @@ impl DictionaryResolver<'_> {
         };
         let pick = match ambiguous {
             Some(p) => p,
-            None => return Ok(Ambiguous),
+            None => {
+                self.uni.commit(outer);
+                return Ok(Ambiguous);
+            }
         };
         let cand = &matches[pick];
-        let (idx, sub, trial) = (cand.idx, cand.sub.clone(), cand.trial.clone());
+        let (idx, sub) = (cand.idx, cand.sub.clone());
         // A unique match that leaves an instance parameter bound
         // only to an undetermined literal defers to literal
         // defaulting (decision D7): `[1]` with no other constraint
@@ -316,13 +336,38 @@ impl DictionaryResolver<'_> {
             .values()
             .any(|t| matches!(t, Ty::Meta(m) if lits.contains(&EitherMeta::Type(*m))));
         if undetermined {
+            self.uni.commit(outer);
             return Ok(Ambiguous);
         }
         let (ctx, base_id, base) = {
             let inst = &self.checker.resolution_instances()[idx];
             (inst.ctx.clone(), inst.base_id.clone(), inst.base)
         };
-        self.uni = trial.clone();
+        // Replay the winner: drop every allocation and binding since
+        // `outer`, allocate as many instance parameters as existed when
+        // the winner's trial ran (its own last, in the same order, so they
+        // get the same ids), and redo its deterministic match.
+        self.uni.rollback_to(outer);
+        let (types_before, props_before) = cand.fresh_before;
+        for _ in 0..types_before {
+            self.uni.fresh();
+        }
+        for _ in 0..props_before {
+            self.uni.fresh_prop();
+        }
+        {
+            let inst = &self.checker.resolution_instances()[idx];
+            let prop_params = Checker::prop_param_names(&inst.params, &inst.target);
+            for p in &inst.params {
+                let meta = if prop_params.contains(p) { self.uni.fresh_prop() } else { self.uni.fresh() };
+                debug_assert!(meta == cand.fresh[p], "replayed instance parameter ids match the trial's");
+            }
+            let target = Checker::subst_class(&inst.target, &cand.fresh);
+            let target_app = Ty::Adt(class.clone(), target.args.clone());
+            let matched = self.uni.unify(&target_app, &wanted_app).is_ok()
+                || self.checker.lattice_match(&target.args, &wanted_z.args, &mut self.uni);
+            debug_assert!(matched, "replaying the winning candidate's match succeeds");
+        }
         let mut subs = Vec::new();
         // The module's own instance dictionary closes over the
         // module's parameters (the definition's leading binders).

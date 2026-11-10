@@ -230,6 +230,9 @@ struct IndexInference {
 }
 
 impl IndexInference {
+    /// The store is a copy: index inference runs while the checker is only
+    /// borrowed, its private metavariables must never reach the checker's
+    /// store, and only fully resolved results leave it.
     fn new(uni: &Unifier) -> Self { Self { uni: uni.clone(), dictionaries: Vec::new(), proofs: Vec::new(), transfers: Vec::new(), regions: Vec::new() } }
 }
 
@@ -580,7 +583,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
 }
 
 fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
-    remap_ecore(e, &Remap { locals: map, units: None, tys: None, deferred: None })
+    remap_ecore(e, &Remap { locals: map, units: None, tys: None, deferred: None, substitutions: std::cell::OnceCell::new() })
 }
 
 /// A renaming of an elaborated body: its locals, and optionally its
@@ -591,13 +594,20 @@ struct Remap<'a> {
     units: Option<&'a HashMap<GlobalId, GlobalId>>,
     tys: Option<&'a dyn Fn(&Ty) -> Ty>,
     deferred: Option<&'a CopyDeferred>,
+    /// `locals` as an evidence substitution and a local-value substitution,
+    /// built once on the first `ty` without `tys` (a body has many types and
+    /// `locals` covers every local of it).
+    substitutions: std::cell::OnceCell<(HashMap<IndexEvidence, ITerm>, HashMap<LocalId, ITerm>)>,
 }
 
 impl Remap<'_> {
     fn ty(&self, t: &Ty) -> Ty {
         match self.tys {
             Some(f) => f(t),
-            None => t.subst_evidence(&self.evidence()).subst_local_values(&self.local_values()),
+            None => {
+                let (evidence, local_values) = self.substitutions.get_or_init(|| (self.evidence(), self.local_values()));
+                t.subst_evidence(evidence).subst_local_values(local_values)
+            }
         }
     }
 
@@ -1696,11 +1706,15 @@ impl InstCtx {
 /// with the head condition it states at the want (the predicate whose
 /// values its methods serve; `None` is the trivial condition of a plain
 /// head) and whether the head's predicate came from a predicate
-/// parameter (the generic transfer: the least specific head).
+/// parameter (the generic transfer: the least specific head). The trial
+/// itself is rolled back; `fresh` and `fresh_before` (how many type and
+/// proposition parameters earlier candidates had allocated) are what
+/// replaying it on the resolver's store needs.
 struct MatchCand {
     idx: usize,
     sub: HashMap<String, Ty>,
-    trial: Unifier,
+    fresh: HashMap<String, Ty>,
+    fresh_before: (usize, usize),
     cond: Option<PTerm>,
     generic_head: bool,
 }
@@ -5726,6 +5740,8 @@ impl Checker {
 
     fn instantiated_index_type(&self, scheme: &Scheme, call: &IndexInstantiation, span: ast::Span) -> Result<Ty> {
         let (types, rows, regions, evidence) = Self::index_instantiation_bindings(scheme, call, span)?;
+        // A private copy: this runs with the checker only borrowed, and the
+        // row instantiation must not bind anything in the checker's store.
         let mut uni = self.uni.clone();
         let mut tails = HashMap::new();
         for (name, row) in rows {
@@ -7153,14 +7169,20 @@ impl Checker {
         // Inference arrows may still contain an unspecified multiplicity.
         // Ordinary compatibility permits that placeholder, but it must not
         // specialize a type/index/row/region while comparing index carriers.
-        let compatible = |actual: &Ty| {
+        let compatible = |scratch: &mut Option<Unifier>, actual: &Ty| {
             if *actual == expected { return true; }
-            let mut trial = self.uni.clone();
-            trial.unify(actual, &expected).is_ok()
-                && trial.zonk(actual) == *actual && trial.zonk(&expected) == expected
+            // One private copy (the checker is only borrowed) serves every
+            // attempt; each runs in a trial scope that is rolled back.
+            let uni = scratch.get_or_insert_with(|| self.uni.clone());
+            let trial = uni.snapshot();
+            let ok = uni.unify(actual, &expected).is_ok()
+                && uni.zonk(actual) == *actual && uni.zonk(&expected) == expected;
+            uni.rollback_to(trial);
+            ok
         };
-        if !compatible(&actual) && !compatible(&carrier)
-            && !compatible(&self.numeric_index_read_carrier(&actual)) {
+        let mut scratch = None;
+        if !compatible(&mut scratch, &actual) && !compatible(&mut scratch, &carrier)
+            && !compatible(&mut scratch, &self.numeric_index_read_carrier(&actual)) {
             return Err(Error::at(
                 span,
                 format!("captured index `{name}` has kind {actual}, expected {expected}"),
@@ -7432,8 +7454,40 @@ impl Checker {
     }
 
     fn finish_index_inference(&self, inference: &mut IndexInference) -> Result<()> {
-        let mut resolver = DictionaryResolver { checker: self, uni: inference.uni.clone(), transfers: Vec::new() };
-        let mut pending = std::mem::take(&mut inference.dictionaries);
+        // The store moves into the resolver and back instead of being
+        // copied. A failed resolution rolls it back, leaving it as it was on
+        // entry, which is what keeping the original beside a copy did.
+        let mut uni = std::mem::take(&mut inference.uni);
+        let snapshot = uni.snapshot();
+        let mut resolver = DictionaryResolver { checker: self, uni, transfers: Vec::new() };
+        let pending = std::mem::take(&mut inference.dictionaries);
+        let resolved = self.resolve_index_dictionaries(&mut resolver, pending);
+        let DictionaryResolver { mut uni, transfers, .. } = resolver;
+        match resolved {
+            Ok(()) => uni.commit(snapshot),
+            Err(_) => uni.rollback_to(snapshot),
+        }
+        inference.uni = uni;
+        resolved?;
+        inference.transfers.extend(transfers);
+        if self.provisional_declarations {
+            inference.proofs.clear();
+            return Ok(());
+        }
+        for proof in std::mem::take(&mut inference.proofs) {
+            let substitutions = proof.substitutions.into_iter().map(|(name, ty)| (name, inference.uni.zonk(&ty))).collect();
+            let regions = proof.regions.into_iter().map(|(name, region)| (name, inference.uni.resolve_region(&region))).collect();
+            let signature = inference.uni.zonk(&proof.signature);
+            if !self.uni.owns_all_metas(&signature) {
+                return Err(Error::at(proof.span, "index proof arguments have an unsolved carrier"));
+            }
+            let arguments: Vec<_> = proof.arguments.iter().collect();
+            self.check_index_obligations(&inference.uni, &proof.scheme, &substitutions, &proof.rows, &regions, &proof.evidence, &inference.uni.zonk(&proof.signature), &arguments, &proof.variables, proof.span)?;
+        }
+        Ok(())
+    }
+
+    fn resolve_index_dictionaries(&self, resolver: &mut DictionaryResolver<'_>, mut pending: Vec<PendingIndexDictionary>) -> Result<()> {
         while !pending.is_empty() {
             let mut remaining = Vec::new(); let mut progress = false;
             for request in pending {
@@ -7503,23 +7557,6 @@ impl Checker {
                 return Err(Error::at(request.span, format!("ambiguous index dictionary for {}", resolver.uni.zonk_class(&request.class))));
             }
             pending = remaining;
-        }
-        let DictionaryResolver { uni, transfers, .. } = resolver;
-        inference.transfers.extend(transfers);
-        inference.uni = uni;
-        if self.provisional_declarations {
-            inference.proofs.clear();
-            return Ok(());
-        }
-        for proof in std::mem::take(&mut inference.proofs) {
-            let substitutions = proof.substitutions.into_iter().map(|(name, ty)| (name, inference.uni.zonk(&ty))).collect();
-            let regions = proof.regions.into_iter().map(|(name, region)| (name, inference.uni.resolve_region(&region))).collect();
-            let signature = inference.uni.zonk(&proof.signature);
-            if !self.uni.owns_all_metas(&signature) {
-                return Err(Error::at(proof.span, "index proof arguments have an unsolved carrier"));
-            }
-            let arguments: Vec<_> = proof.arguments.iter().collect();
-            self.check_index_obligations(&inference.uni, &proof.scheme, &substitutions, &proof.rows, &regions, &proof.evidence, &inference.uni.zonk(&proof.signature), &arguments, &proof.variables, proof.span)?;
         }
         Ok(())
     }
@@ -9898,7 +9935,8 @@ impl Checker {
 
     fn check_length_index(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, span: ast::Span) -> Result<()> {
         if !Self::length_in_index(it) { return Ok(()); }
-        // This validation must not solve or specialize the enclosing checker.
+        // This validation must not solve or specialize the enclosing checker,
+        // and runs with it only borrowed, so it works on a private copy.
         let mut uni = self.uni.clone();
         let actual = self.length_index_type(it, expected, env, &mut uni, span)?;
         if let Some(want) = expected {
@@ -10479,7 +10517,7 @@ impl Checker {
                 &uni.zonk(ty).subst_index_metas(&witnesses).subst_evidence(&evidence).subst_local_values(&local_values),
                 &scope.types, &scope.rows, &scope.regions, &scope.evidence,
             ), map);
-            let rename = Remap { locals: &locals, units: Some(&ids), tys: Some(&tys), deferred: Some(&deferred) };
+            let rename = Remap { locals: &locals, units: Some(&ids), tys: Some(&tys), deferred: Some(&deferred), substitutions: std::cell::OnceCell::new() };
             // Complete the renaming first: types can refer to dictionaries
             // allocated after the value binder whose type retains them.
             let local_types: Vec<_> = locals.iter().filter_map(|(old, new)|
@@ -10813,7 +10851,12 @@ impl Checker {
         depth: usize,
         span: ast::Span,
     ) -> Result<SolveOutcome> {
-        let mut resolver = DictionaryResolver { checker: self, uni: self.uni.clone(), transfers: Vec::new() };
+        // The resolver never reads `self.uni` (its checker helpers take the
+        // store as an argument), so the store moves in and back out instead
+        // of being copied. The resolver's store replaces the checker's on
+        // every outcome, as before.
+        let uni = std::mem::take(&mut self.uni);
+        let mut resolver = DictionaryResolver { checker: self, uni, transfers: Vec::new() };
         let result = resolver.solve(wanted, scope, depth, span);
         let DictionaryResolver { uni, transfers, .. } = resolver;
         self.uni = uni;

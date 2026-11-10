@@ -5889,8 +5889,9 @@ impl Checker {
         }
         let target = Self::subst_class(&target, &fresh);
         let target_app = Ty::Adt(target.class.clone(), target.args.clone());
-        let mut trial = self.uni.clone();
-        if trial.unify(&target_app, wanted).is_err() {
+        let trial = self.uni.snapshot();
+        if self.uni.unify(&target_app, wanted).is_err() {
+            self.uni.rollback_to(trial);
             return Err(Error::at(
                 span,
                 format!(
@@ -5899,7 +5900,7 @@ impl Checker {
                 ),
             ));
         }
-        self.uni = trial;
+        self.uni.commit(trial);
         let mut sub: HashMap<String, Ty> = HashMap::new();
         for p in &params {
             let t = self.uni.zonk(&fresh[p]);

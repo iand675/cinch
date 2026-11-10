@@ -270,6 +270,9 @@ fn emit_module(
     out.push_str("declare void @cinch_drop_mt(i64)\n");
     out.push_str("declare void @cinch_free(i64)\n");
     out.push_str("declare void @cinch_reclaim_enable()\n");
+    if reg.reclaim && !reg.rc_debug {
+        out.push_str(&rc_helpers());
+    }
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
     // runtime words (immediates or bignum block pointers) passed and
@@ -1502,11 +1505,6 @@ fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
-        // The address `bytesData` hands out aliases the caller's buffer,
-        // so the unit must not release it on return: the caller's own
-        // reference is what keeps the payload alive for as long as the
-        // pointer is used.
-        PrimOp::Bytes(BytesOp::Data) => i == 0,
         _ => false,
     }
 }
@@ -2196,10 +2194,12 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
         "cinch_alloc_raw" | "cinch_alloc_ctor" | "cinch_alloc_shaped" => Callee::Alloc,
         "memcpy" => Callee::Copy,
         // A dup writes a header (design/reclamation.md section 11, item 9).
-        "cinch_dup" | "cinch_dup_mt" => Callee::Copy,
+        "cinch_dup" | "cinch_dup_mt" | "cinch.rc.dup.obj" | "cinch.rc.dup.tobj" => Callee::Copy,
         // A drop may free what the caller passed or allocated before the
         // call, and so does the raw release of a unique closure.
-        "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" => Callee::Free,
+        "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" | "cinch.rc.drop.obj" | "cinch.rc.drop.tobj" => {
+            Callee::Free
+        }
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
         "cinch_scope_close"
@@ -2675,10 +2675,17 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
 
     // Enough arguments: call with the first `arity` merged words.
     b.start(&lcall);
-    let mb = b.reg();
-    b.line(&format!("{mb} = mul i64 {tot}, 8"));
+    // The size is rounded up to an even word count (a multiple of 16
+    // bytes) by hand: with `"probe-stack"="inline-asm"`, LLVM's AArch64
+    // lowering of a dynamic alloca skips its own rounding to the stack
+    // alignment, leaves `sp` misaligned, and the next stack access faults
+    // in optimized builds.
+    let plus = b.reg();
+    b.line(&format!("{plus} = add i64 {tot}, 1"));
+    let even = b.reg();
+    b.line(&format!("{even} = and i64 {plus}, -2"));
     let m = b.reg();
-    b.line(&format!("{m} = alloca i8, i64 {mb}"));
+    b.line(&format!("{m} = alloca i64, i64 {even}, align 16"));
     let nfb2 = b.reg();
     b.line(&format!("{nfb2} = mul i64 {nf}, 8"));
     b.line(&format!("call ptr @memcpy(ptr {m}, ptr {ss}, i64 {nfb2})"));
@@ -3418,20 +3425,11 @@ fn header_load(b: &mut Builder, hp: &str) -> String {
 
 /// One reference count operation on the word `w` of class `class`
 /// (design/reclamation.md sections 3, 4 and 8). `Raw` words are never
-/// counted. An `Obj` word may be 0 (the `Copy` marker dictionary is the
-/// unit word), and a `TObj` word tests its low bit first: an immediate
-/// owns no block. A block word then reads its header at -8, whose low
-/// `RC_BITS` are the signed count, and shifts the count to the top of
-/// the word ([`RC_TOP_SHIFT`]): positive is a count only this thread
-/// changes, updated in place; negative is a block shared with other
-/// tasks, whose count only `cinch_dup_mt`/`cinch_drop_mt` change
-/// (atomically); 0 is immortal (statics, interned symbols) and is never
-/// written.
-///
-/// Dup increments a positive count after one compare. Drop decrements a
-/// count above one after one compare, and hands a count of one to
-/// `cinch_drop_slow`, which releases the block and everything only it
-/// kept alive. Both are inline. Under
+/// counted. A counted word's operation is a call to its module's private
+/// helper ([`rc_helpers`], the inline fast path of [`rc_inline`]): one
+/// line per operation instead of a dozen, which keeps the emitted IR in
+/// proportion to the program. An optimizing link (`--opt-level`) inlines
+/// the helpers back. Under
 /// [`TargetProfile::rc_debug`](crate::core::TargetProfile::rc_debug) both
 /// call the out-of-line `cinch_dup`/`cinch_drop` instead, so that
 /// `CINCH_RC_DEBUG=1`'s header checks see every operation.
@@ -3444,6 +3442,50 @@ fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
         b.line(&format!("call void @{f}(i64 {w})"));
         return;
     }
+    b.line(&format!("call void @{}(i64 {w})", rc_helper_name(drop, class)));
+}
+
+/// The module-private helper performing one count operation of `class`.
+fn rc_helper_name(drop: bool, class: Class) -> &'static str {
+    match (drop, class) {
+        (false, Class::TObj) => "cinch.rc.dup.tobj",
+        (true, Class::TObj) => "cinch.rc.drop.tobj",
+        (false, _) => "cinch.rc.dup.obj",
+        (true, _) => "cinch.rc.drop.obj",
+    }
+}
+
+/// The definitions of the four count helpers [`rc_op`] calls, private to
+/// each emitted module.
+fn rc_helpers() -> String {
+    let mut out = String::new();
+    for class in [Class::Obj, Class::TObj] {
+        for drop in [false, true] {
+            let mut b = Builder::new();
+            b.reclaim = true;
+            rc_inline(&mut b, drop, "%w", class);
+            b.line("ret void");
+            out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", rc_helper_name(drop, class), b.code));
+        }
+    }
+    out
+}
+
+/// The fast path of one count operation. An `Obj` word may be 0 (the
+/// `Copy` marker dictionary is the unit word), and a `TObj` word tests its
+/// low bit first: an immediate owns no block. A block word then reads its
+/// header at -8, whose low `RC_BITS` are the signed count, and shifts the
+/// count to the top of the word ([`RC_TOP_SHIFT`]): positive is a count
+/// only this thread changes, updated in place; negative is a block shared
+/// with other tasks, whose count only `cinch_dup_mt`/`cinch_drop_mt`
+/// change (atomically); 0 is immortal (statics, interned symbols) and is
+/// never written.
+///
+/// Dup increments a positive count after one compare. Drop decrements a
+/// count above one after one compare, and hands a count of one to
+/// `cinch_drop_slow`, which releases the block and everything only it
+/// kept alive.
+fn rc_inline(b: &mut Builder, drop: bool, w: &str, class: Class) {
     let lblock = b.label();
     let ldone = b.label();
     let skip = b.reg();

@@ -49,6 +49,8 @@ flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
   --package-object <path>  link an installed package object in build/run
+  --opt-level <0|1|2|3>  clang's optimization level for build, run and
+              emit-object (default 0 for build and run, 2 for emit-object)
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --target <triple>  the target to compile for: aarch64-apple-darwin,
@@ -120,6 +122,7 @@ The first word of `cinch doc` with no further argument prints `cinch doc: expect
 | `-o <path>` | `emit-ir`, `emit-object`, `build` | Sets the output path. `check` and `run` parse it and never use it, so `cinch check Main.cinch -o ignored.txt` exits 0 and creates no file. The path is written without any check that it is not the entry source; `cinch emit-ir Main.cinch -o Main.cinch` overwrites the source with IR. |
 | `--object-roots <path>` | all modes parse it, `emit-object` uses it | Names a JSON document of concrete library variants. An empty document is accepted everywhere and does nothing; a document with a row in any other mode is refused. |
 | `--package-object <path>` | `build`, `run` | Links one separately produced package object. |
+| `--opt-level <0\|1\|2\|3>` | `build`, `run`, `emit-object` | The optimization level clang assembles the emitted IR at, passed as `-O<n>`. `build` and `run` default to 0, which compiles fastest; `emit-object` defaults to 2, because a library object is assembled once and linked into every consumer. Reference counting is emitted as calls to small helpers private to each module, which an optimizing level inlines. Any other value, or the flag in another mode, exits 2. |
 | `--rebuild` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Forces a rewrite of this compile's package-store entry. |
 | `--target <triple>` | `check`, `emit-ir`, `emit-object`, `build`, `run` | Sets the target. Four triples are accepted: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, and `aarch64-unknown-linux-gnu`. Any of them checks and emits IR on any host, and the emitted module states that target's `target triple` and `target datalayout`, because layout and `when arch` body selection follow the target. The profile's operating system, architecture, C library, word size, and byte order come from the triple, never from the host, and the profile is named after the triple so the package store key and the artifact manifest identify the same target on every host. Any other triple is refused with the list of the four. A cross `build` needs `--runtime-archive`; `run` stays on the host's own target. |
 | `--runtime-archive <path>` | `build` | The `libcinchruntime.a` built for a foreign `--target`, which the cross build links. The archive is read before the link: a path that does not exist, a file that is not a static archive, and an archive whose objects belong to another architecture are each refused by name. Without it a cross `build` fails naming the flag and the triple. A link for a target other than the host also passes `-target` to the assembler and linker, so the cross toolchain has to be one that produces that target's objects (`CINCH_CLANG` names it). |

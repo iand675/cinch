@@ -3658,13 +3658,15 @@ fn link(ir_path: &Path, out: &Path) -> Result<()> {
 /// runtime archive, and the triple the assembler and linker build for.
 /// The host's own target needs neither spelled out (the archive is built
 /// here, and clang's default is the host), and a foreign target needs
-/// both.
+/// both. `opt_level` is the `--opt-level` clang optimizes the program at.
 #[derive(Clone, Copy, Default)]
 struct LinkTarget<'a> {
     /// The triple to hand clang with `-target`; `None` for the host.
     triple: Option<&'a str>,
     /// `--runtime-archive`: the archive built for `triple`.
     archive: Option<&'a Path>,
+    /// `-O<n>` for clang; 0 is clang's own default and is not spelled.
+    opt_level: u8,
 }
 
 /// The link inputs one compile needs: a foreign target hands clang its
@@ -3674,13 +3676,15 @@ fn link_target<'a>(
     profile: &'a crate::core::TargetProfile,
     opts: &'a DriverOptions,
 ) -> LinkTarget<'a> {
+    let opt_level = opts.opt_level.unwrap_or(0);
     if is_foreign(profile) {
         LinkTarget {
             triple: Some(profile.triple.as_str()),
             archive: opts.runtime_archive.as_deref(),
+            opt_level,
         }
     } else {
-        LinkTarget::default()
+        LinkTarget { opt_level, ..LinkTarget::default() }
     }
 }
 
@@ -3696,6 +3700,9 @@ fn link_for(
 ) -> Result<()> {
     let mut cmd = std::process::Command::new(clang());
     cmd.arg(ir_path);
+    if target.opt_level > 0 {
+        cmd.arg(format!("-O{}", target.opt_level));
+    }
     for o in objects {
         cmd.arg(o);
     }
@@ -3937,6 +3944,11 @@ pub struct DriverOptions {
     /// the archive is checked to be a static archive of the target's
     /// objects before the link starts.
     pub runtime_archive: Option<PathBuf>,
+    /// `--opt-level <0..3>`: the optimization level clang assembles the
+    /// emitted IR at. `None` takes the mode's default: 0 for `build` and
+    /// `run` (fast compiles, as the test suites need), 2 for `emit-object`
+    /// (a library object is assembled once and linked many times).
+    pub opt_level: Option<u8>,
     /// `--target-version <version>`: the target platform version a
     /// package's `os_version` conditions are evaluated against. It is an
     /// explicit parameter rather than the host's version, because a
@@ -4472,6 +4484,7 @@ pub fn driver_with_profile_opts(
             path,
             out,
             &emit_modules,
+            opts.opt_level.unwrap_or(2),
         );
     }
     let ir = if emit_modules.is_empty() {
@@ -4511,7 +4524,7 @@ pub fn driver_with_profile_opts(
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             let objects = object_paths(&opts.package_objects);
             let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
-            link_with(&ir_path, &exe, &refs, &link_plan)?;
+            link_for(&ir_path, &exe, &refs, &link_plan, &LinkTarget { opt_level: opts.opt_level.unwrap_or(0), ..LinkTarget::default() })?;
             // The program's own command line (the CLI's forwarded
             // words): the entry glue captures them, so the built
             // program reads them with `process-args`.
@@ -4536,6 +4549,7 @@ fn write_object(
     path: &Path,
     out: Option<&Path>,
     emit_modules: &[String],
+    opt_level: u8,
 ) -> Result<i32> {
     use crate::interface::{parse_json, JsonValue as J};
     let object = codegen::emit_object_for_modules(profile, program, emit_modules)?;
@@ -4561,7 +4575,11 @@ fn write_object(
     std::fs::write(&ir_path, &object.ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
     let mut assemble = std::process::Command::new(clang());
-    assemble.arg("-c").arg(&ir_path).arg("-o").arg(&out);
+    // Library objects are assembled once and linked into every consumer,
+    // so they are optimized by default (`--opt-level`, 2 unless given):
+    // unoptimized objects keep every local in a stack slot and every call
+    // out of line.
+    assemble.arg(format!("-O{opt_level}")).arg("-c").arg(&ir_path).arg("-o").arg(&out);
     // An object for a foreign target is assembled for that target: the
     // triple decides which instruction set the body's `asm` is, and the
     // emitted module says so in its own header.

@@ -35,6 +35,8 @@ flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
   --package-object <path>  link an installed package object in build/run
+  --opt-level <0|1|2|3>  clang's optimization level for build, run and
+              emit-object (default 0 for build and run, 2 for emit-object)
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --target <triple>  the target to compile for: aarch64-apple-darwin,
@@ -252,6 +254,20 @@ fn main() {
                     Some(path) => opts.runtime_archive = Some(PathBuf::from(path)),
                     None => {
                         eprintln!("cinch: --runtime-archive needs a path to libcinchruntime.a");
+                        exit(2);
+                    }
+                }
+            }
+            "--opt-level" => {
+                if !matches!(mode, Mode::Build | Mode::Run | Mode::EmitObject) {
+                    eprintln!("cinch: --opt-level applies to build, run and emit-object");
+                    exit(2);
+                }
+                i += 1;
+                match rest.get(i).and_then(|level| level.parse::<u8>().ok()).filter(|level| *level <= 3) {
+                    Some(level) => opts.opt_level = Some(level),
+                    None => {
+                        eprintln!("cinch: --opt-level needs 0, 1, 2 or 3");
                         exit(2);
                     }
                 }
