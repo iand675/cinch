@@ -367,6 +367,109 @@ After the fix the emit profile's top self entries are the allocator
 `memcmp` 1.1% and `Iface::iface_hash` 1.0%; no string sort appears in the
 top twenty any more.
 
+\\\\\\\        to: xzyvtooz 2aa7371a "Make interface set validation cheap where it is actually expensive" (rebased revision)
++### 2.3 Set validation: what it actually costs (2026-11-11)
++
++Section 2.2 named `validate-interface-set` as the next lever and called it a
++set-membership problem. That diagnosis was wrong in two ways, and both are
++now measured rather than assumed. Attribution below is the two-line program
++at `-O0` (identical block counts to the `-O2` link, frames not inlined), one
++stage of validation added at a time:
++
++| validation stage | blocks | delta |
++| --- | --- | --- |
++| none (validation skipped) | 56,532,198 | |
++| duplicate check and dependency ordering | 57,141,679 | +0.61M |
++| plus `verify-set` (stale and missing dependencies) | 57,186,141 | +0.04M |
++| plus `verify-nominal-set` | 78,720,303 | **+21.53M** |
++| plus `verify-body-set` | 79,832,313 | +1.11M |
++
++So validation is 29% of the two-line fixed cost, not 20%, and 92% of it is
++`verify-nominal-set`; membership and ordering are 0.65M, 2.8% of validation.
++Inside `verify-nominal-set`, measured by removing one operation at a time:
++
++| operation | blocks |
++| --- | --- |
++| `verify-signature-contracts`, of which the law-closure test | 13.02M (7.72M) |
++| - within it, the projection comparison (`canonical-bytes`) | 5.14M |
++| `canonical-bytes` of every nominal row | 4.78M |
++| `signature-owner-valid` (compares two parameter lists) | 2.17M |
++| the `prior-nominal` duplicate scan | 0 (no allocations) |
++
++**Hash sets were tried and are a pessimisation here.** An index of
++`HashMap String` (module name to interface, name set to `0`, both shapes the
++pinned object carries at `[Obj, Obj]` and `[Obj, TObj]`) built once per
++validated set, with every `member` and `find-interface` replaced by a probe,
++grew the two-line build from 79,832,313 to 81,368,760 blocks (+1.9%) and moved
++CPU by +0.6%. The reason is the prelude's `Hash String`: `Data.Bytes` hashes
++by folding `nat-mul h 31` over the bytes in `Nat`, so hashing one module name
++is a chain of bignum multiplications, while the scan it replaces is a couple
++of dozen short `string-compare`s that exit on the first differing byte. A set
++of 59 short names is cheaper to scan. `Bootstrap.Load`'s `InterfaceIndex`
++therefore carries a list and the reason is recorded where the code is.
++
++What landed instead, in `Bootstrap.Load`:
++
++* **Ownership prefixes are encoded once per set.** `body-node-owner` used to
++  build `name <> "."` and encode it per interface per body node; the index
++  now carries each module's name, width and encoded prefix.
++* **A signature contract owned by the interface being checked is not
++  compared with itself.** `signature-owner-valid` and
++  `verify-signature-contracts` looked the definition up and then compared two
++  independently canonicalised projections of the same row. A row whose
++  identity is owned by the module under test is that row, and `canonical-bytes`
++  is deterministic, so the comparison is skipped and the law-closure check
++  still runs.
++* **Private method rows are read at load, once per interface.** They were
++  derived per ask, and the law-closure test asks every interface for them once
++  per law reference.
++
++Result on the two-line program (`--no-pgo` stage links, median of five):
++
++| metric | before | after |
++| --- | --- | --- |
++| blocks | 79,832,313 | 77,790,358 (-2.6%) |
++| bytes | 2.182 GB | 2.129 GB (-2.4%) |
++| CPU | 1.668 s | 1.667 s |
++
++Emitted interfaces are byte-identical for the two-line program and for the
++toolkit bundle, and for the compiler bundle itself.
++
++The next largest item in this path is now the law-closure test (7.72M blocks,
++9.7% of the fixed cost): `law-export-present` re-encodes every export identity
++of every interface with `interface-global` on each query. The fix is the one
++`loaded-exports` already got, applied to the name a law may reference: read
++the law-referable global names per interface at load and make the closure test
++a scan of those. After that, `canonical-bytes` of nominal rows (4.78M) is the
++floor unless rows are deduplicated before encoding.
++
++### 2.4 Serialisation (proposal, not implemented)
++
++`parse-json` is 9.5% of the fixed-cost sample after the last round (330 of
++3,469 samples in section 2.2), and the nominal and signature checks above are
++22% between them because they re-derive text from the parsed form. A sectioned
++encoding is worth it only after the algorithmic items, and it is a schema
++bump: `iface-schema-version` 10 to 11, so every `.cinchif` and the pinned
++provider must be regenerated, and the fixed point must be re-established at
++18 interfaces per module rather than per file.
++
++What each side would have to change:
++
++* The Cinch reader (`Bootstrap.Interface`, `Bootstrap.Load`) gains a section
++  table: a fixed header, then length-prefixed sections for the export name
++  tables, the value rows, the type and instance rows, the nominal rows and the
++  total bodies. `ExportEntries` already wants exactly this shape; today it is
++  extracted from a general JSON document.
++* The Rust seed (`compiler/src/interface.rs`) writes the sections instead of
++  `JsonValue::write_canonical`, and `iface_hash` covers the section bytes
++  directly instead of a blanked projection, which removes the text surgery
++  `blank-field-string`/`empty-array-field` performs today.
++* The fixed point requires the seed, the library provider and all three stages
++  to agree on the new bytes, so it is a coordinated bump, not an incremental
++  one. Nothing here should be started before the demand-driven load in
++  section 12 item 4 lands, because both touch the same reader.
++
++
 ## 3. The query graph (rustc, Salsa, Shake)
 
 The single largest structural gap. Today a build rechecks whatever the

@@ -64,10 +64,14 @@ module Bootstrap.Load where
       -> HashMap String Json -> HashMap String Json -> HashMap String Json
       -> HashMap String (List (String, String, String)) -> ExportEntries
 
+  -- `exports` and `private-methods` are the two row sets every consumer asks
+  -- for by name, and both are read once here rather than per ask: a law
+  -- closure test asks every interface for them, so deriving them per ask was
+  -- queries x interfaces x rows work.
   data LoadedInterface where
     MkLoadedInterface :: String -> String -> Json -> List ImportedValue
       -> List (String, String, Nat) -> List (String, String) -> ExportEntries
-      -> List (String, String, String) -> LoadedInterface
+      -> List (String, String, String) -> List (String, String, String) -> LoadedInterface
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
@@ -118,22 +122,22 @@ module Bootstrap.Load where
     Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
 
   loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> name
+  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> name
 
   loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> hash
+  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> hash
 
   loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> doc
+  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> doc
 
   loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> values
+  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> values
 
   loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> fixes
+  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> fixes
 
   loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> refs
+  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
@@ -141,14 +145,14 @@ module Bootstrap.Load where
   -- loaded: every name a consumer binds asks for these rows, so deriving
   -- them per ask cost names x rows allocations per interface.
   loaded-exports :: LoadedInterface -> List (String, String, String)
-  loaded-exports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> exports
+  loaded-exports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> exports
 
   -- The defining identities of one public name, document order, each once:
   -- the probe `public-global` and `overloads` make per name, answered from
   -- the name table the load built instead of a scan of every row.
   loaded-identities :: LoadedInterface -> String -> List String
   loaded-identities i name = case i of
-    MkLoadedInterface at hash doc values fixes refs entries exports ->
+    MkLoadedInterface at hash doc values fixes refs entries exports private-methods ->
       identity-list (hash-map-lookup name (name-entries entries))
   identity-list :: Option (List (String, String, String)) -> List String
   identity-list looked = case looked of
@@ -197,7 +201,7 @@ module Bootstrap.Load where
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
   loaded-entry i kind identity = case i of
-    MkLoadedInterface name hash doc values fixes refs entries exports ->
+    MkLoadedInterface name hash doc values fixes refs entries exports private-methods ->
       if same kind "value" then entry-in value-entries identity entries
       else if same kind "type" then entry-in type-entries identity entries
       else if same kind "signature" then entry-in signature-entries identity entries
@@ -304,8 +308,8 @@ module Bootstrap.Load where
     other -> acc
 
   loaded-private-methods :: LoadedInterface -> List (String, String, String)
-  loaded-private-methods i =
-    private-signature-methods (loaded-module i) (field "signatures" (field "exports" (loaded-contract i)))
+  loaded-private-methods i = case i of
+    MkLoadedInterface name hash doc values fixes refs entries exports private-methods -> private-methods
 
   private-signature-methods :: String -> Json -> List (String, String, String)
   private-signature-methods owner rows = case rows of
@@ -712,7 +716,8 @@ module Bootstrap.Load where
     let exports = field "exports" doc in
     Ok (MkLoadedInterface name hash doc (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries exports) (export-rows exports))
+      (export-entries exports) (export-rows exports)
+      (private-signature-methods name (field "signatures" exports)))
 
   find-interface :: String -> List LoadedInterface -> Option LoadedInterface
   find-interface name loaded = case loaded of
@@ -737,23 +742,68 @@ module Bootstrap.Load where
         Err message -> Err (string-concat-all [name, ": ", message])
         Ok i -> read-contract-set rest (Cons i loaded)
 
-  verify-refs :: List (String, String) -> List LoadedInterface -> Result String Unit
-  verify-refs refs all = case refs of
+  -- The module index a set check asks its questions of. Built once per
+  -- validated set, it answers the two questions the checks ask thousands of
+  -- times: which interface a module name denotes, and whether a module is in
+  -- a checked closure. It also carries each module's name, its width and its
+  -- `Name.` bytes, so a body node's owner is decided by comparing bytes that
+  -- already exist instead of encoding a fresh prefix per module per node.
+  --
+  -- Both lookups are list scans, deliberately. A `HashMap String` here was
+  -- measured on the two-line program (2026-11-11): the prelude's `Hash
+  -- String` is a bignum polynomial (`nat-mul h 31` per byte), so hashing the
+  -- 59 module names costs more than the scans a set of 59 short names needs,
+  -- and the build grew by 1.5M blocks (1.9%) with no CPU change. The set
+  -- stays small and the keys stay short; a scan is the cheaper index.
+  --
+  -- No answer depends on iteration order: the ordered context a caller
+  -- receives is still the list the ordering pass produced, and every other
+  -- use is a membership test or a probe.
+  data InterfaceIndex where
+    MkInterfaceIndex :: List LoadedInterface -> List (String, Nat, Bytes) -> InterfaceIndex
+
+  index-interfaces :: List LoadedInterface -> InterfaceIndex
+  index-interfaces loaded = MkInterfaceIndex loaded (reverse (index-prefixes loaded Nil))
+
+  index-prefixes :: List LoadedInterface -> List (String, Nat, Bytes) -> List (String, Nat, Bytes)
+  index-prefixes loaded acc = case loaded of
+    Nil -> acc
+    Cons i rest -> let name = loaded-module i in
+      let prefix = string-to-bytes (string-concat name ".") in
+      index-prefixes rest (Cons (name, bytes-len (string-to-bytes name), prefix) acc)
+
+  name-set :: String -> List String -> List String
+  name-set name set = Cons name set
+
+  name-in :: String -> List String -> Bool
+  name-in name set = member name set
+
+  interface-by-name :: InterfaceIndex -> String -> Option LoadedInterface
+  interface-by-name ix name = case ix of MkInterfaceIndex all prefixes -> find-interface name all
+
+  interfaces-of :: InterfaceIndex -> List LoadedInterface
+  interfaces-of ix = case ix of MkInterfaceIndex all prefixes -> all
+
+  prefixes-of :: InterfaceIndex -> List (String, Nat, Bytes)
+  prefixes-of ix = case ix of MkInterfaceIndex all prefixes -> prefixes
+
+  verify-refs :: List (String, String) -> InterfaceIndex -> Result String Unit
+  verify-refs refs ix = case refs of
     Nil -> Ok ()
-    Cons (name, hash) rest -> case find-interface name all of
+    Cons (name, hash) rest -> case interface-by-name ix name of
       None -> Err (string-concat "missing interface dependency: " name)
-      Some i -> if same hash (loaded-hash i) then verify-refs rest all
+      Some i -> if same hash (loaded-hash i) then verify-refs rest ix
         else Err (string-concat "stale interface dependency: " name)
 
-  verify-set :: List LoadedInterface -> List LoadedInterface -> Result String Unit
-  verify-set remaining all = case remaining of
+  verify-set :: List LoadedInterface -> InterfaceIndex -> Result String Unit
+  verify-set remaining ix = case remaining of
     Nil -> Ok ()
-    Cons i rest -> case verify-refs (loaded-imports i) all of
+    Cons i rest -> case verify-refs (loaded-imports i) ix of
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
-      Ok unit -> verify-set rest all
+      Ok unit -> verify-set rest ix
 
   refs-ready :: List (String, String) -> List String -> Bool
-  refs-ready refs done = case refs of Nil -> True; Cons (name, hash) rest -> member name done && refs-ready rest done
+  refs-ready refs done = case refs of Nil -> True; Cons (name, hash) rest -> name-in name done && refs-ready rest done
 
   ready-interface :: List LoadedInterface -> List LoadedInterface -> List String -> Option (LoadedInterface, List LoadedInterface)
   ready-interface remaining before done = case remaining of
@@ -766,7 +816,7 @@ module Bootstrap.Load where
     Nil -> Ok (reverse ordered)
     Cons first rest -> case ready-interface remaining Nil done of
       None -> Err (string-concat "cyclic interface dependencies involving " (loaded-module first))
-      Some (i, pending) -> order-interfaces pending (Cons i ordered) (Cons (loaded-module i) done)
+      Some (i, pending) -> order-interfaces pending (Cons i ordered) (name-set (loaded-module i) done)
 
   load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
   load-interface-set inputs = case read-set inputs Nil of
@@ -808,13 +858,13 @@ module Bootstrap.Load where
       <> exported-nominals (field "instances" exports) <> conditional-instance-nominals (field "instances" exports)
   dependency-names :: List (String, String) -> List String
   dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
-  reachable-modules :: List String -> List LoadedInterface -> List String -> List String
-  reachable-modules pending all seen = case pending of
+  reachable-modules :: List String -> InterfaceIndex -> List String -> List String
+  reachable-modules pending ix seen = case pending of
     Nil -> seen
-    Cons name rest -> if member name seen then reachable-modules rest all seen else
-      case find-interface name all of
-        None -> reachable-modules rest all (Cons name seen)
-        Some i -> reachable-modules (dependency-names (loaded-imports i) <> rest) all (Cons name seen)
+    Cons name rest -> if name-in name seen then reachable-modules rest ix seen else
+      case interface-by-name ix name of
+        None -> reachable-modules rest ix (name-set name seen)
+        Some i -> reachable-modules (dependency-names (loaded-imports i) <> rest) ix (name-set name seen)
   nominal-owner-reversed :: List Char -> Bool -> String
   nominal-owner-reversed chars has-name = case chars of
     Nil -> ""
@@ -839,80 +889,97 @@ module Bootstrap.Load where
     Nil -> False
     Cons (local, kind, identity) rest -> same name (interface-global identity) || law-export-present name rest
 
-  law-global-present :: String -> List String -> List LoadedInterface -> Bool
-  law-global-present name reachable all = case all of
-    Nil -> False
-    Cons i rest -> (member (loaded-module i) reachable &&
-      (law-export-present name (loaded-exports i) || law-export-present name (loaded-private-methods i)))
-      || law-global-present name reachable rest
+  law-global-present :: String -> List String -> InterfaceIndex -> Bool
+  law-global-present name reachable ix = export-present-in (interfaces-of ix) name reachable
 
-  law-global :: List String -> List LoadedInterface -> String -> Option String
-  law-global reachable all name = if law-kernel-name name || member name ["True", "False"]
-    || law-global-present name reachable all then Some name else None
+  -- The walk is over the interface list itself; `ix` is the query, never the
+  -- cursor, so it is taken apart once by the caller.
+  export-present-in :: List LoadedInterface -> String -> List String -> Bool
+  export-present-in members name reachable = case members of
+    Nil -> False
+    Cons i rest -> (name-in (loaded-module i) reachable &&
+      (law-export-present name (loaded-exports i) || law-export-present name (loaded-private-methods i)))
+      || export-present-in rest name reachable
+
+  law-global :: List String -> InterfaceIndex -> String -> Option String
+  law-global reachable ix name = if law-kernel-name name || member name ["True", "False"]
+    || law-global-present name reachable ix then Some name else None
   law-kernel-name :: String -> Bool
   law-kernel-name name = case unpack name of
     Cons prefix (Cons dot rest) -> char-code prefix == 98 && char-code dot == 46
     other -> False
 
-  class-law-references-owned :: Json -> List String -> List LoadedInterface -> Bool
-  class-law-references-owned rows reachable all = case rows of
+  class-law-references-owned :: Json -> List String -> InterfaceIndex -> Bool
+  class-law-references-owned rows reachable ix = case rows of
     JArr row rest -> (case field "syntax" row of
       JNull -> True
-      syntax -> (case portable-law-syntax (Span 0 0 1 1) (law-global reachable all) syntax of
+      syntax -> (case portable-law-syntax (Span 0 0 1 1) (law-global reachable ix) syntax of
         Some decoded -> True
-        None -> False)) && class-law-references-owned rest reachable all
+        None -> False)) && class-law-references-owned rest reachable ix
     JArrEnd -> True
     other -> False
 
-  verify-signature-contracts :: Json -> List String -> List LoadedInterface -> Result String Unit
-  verify-signature-contracts rows reachable all = case rows of
+  -- `home` is the interface whose rows these are. When a row's identity is
+  -- owned by `home`, the defining contract the check reads is that same row,
+  -- so the projection comparison below cannot fail and both canonical forms
+  -- are skipped: `canonical-bytes` is deterministic, so a value agrees with
+  -- itself. An identity another interface owns is compared as before.
+  verify-signature-contracts :: String -> Json -> List String -> InterfaceIndex -> Result String Unit
+  verify-signature-contracts home rows reachable ix = case rows of
     JArr row rest ->
       let identity = text (field "identity" row) in
       let owner-name = nominal-owner identity in
-      if not (member owner-name reachable) then Err (string-concat "signature identity is outside the checked dependency closure: " identity)
-      else case find-interface owner-name all of
+      if not (name-in owner-name reachable) then Err (string-concat "signature identity is outside the checked dependency closure: " identity)
+      else case interface-by-name ix owner-name of
         None -> Err (string-concat "missing defining signature interface: " identity)
         Some owner -> case loaded-entry owner "signature" identity of
           None -> Err (string-concat "signature identity has no defining contract: " identity)
-          Some definition -> if bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
+          Some definition -> if same owner-name home || bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
             then (case field "laws" definition of
               JArr first more ->
-                if class-law-references-owned (JArr first more) (reachable-modules [owner-name] all Nil) all
-                then verify-signature-contracts rest reachable all
+                if class-law-references-owned (JArr first more) (reachable-modules [owner-name] ix Nil) ix
+                then verify-signature-contracts home rest reachable ix
                 else Err (string-concat "class law references are outside the defining dependency closure: " identity)
-              other -> verify-signature-contracts rest reachable all)
+              other -> verify-signature-contracts home rest reachable ix)
             else Err (string-concat "conflicting defining signature contract: " identity)
     JArrEnd -> Ok ()
     other -> Err "invalid signature contract table"
-  signature-owner-valid :: Json -> List LoadedInterface -> Bool
-  signature-owner-valid row all =
+  signature-owner-valid :: String -> Json -> InterfaceIndex -> Bool
+  signature-owner-valid home row ix =
     let identity = text (field "identity" row) in
-    case find-interface (nominal-owner identity) all of
+    case interface-by-name ix (nominal-owner identity) of
       None -> False
       Some owner -> case loaded-entry owner "signature" identity of
         None -> not (same (text (field "kind" row)) "signature")
         Some definition -> same (text (field "kind" row)) "signature"
-          && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
-  verify-nominal-rows :: List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
-  verify-nominal-rows rows reachable all seen = case rows of
+          && (same (nominal-owner identity) home
+            || bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0)
+  -- A nominal row is a mention, so the same identity recurs across the set:
+  -- canonicalising each row once up front, where the scan reaches it, is the
+  -- cheap order. Deferring the encoding to the first repeat was measured and
+  -- costs more, because the repeat is the common case.
+  verify-nominal-rows :: String -> List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-nominal-rows home rows reachable ix seen = case rows of
     Nil -> Ok seen
     Cons row rest ->
       let identity = text (field "identity" row) in
       let bytes = canonical-bytes row in
-      if not (member (nominal-owner identity) reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
-      else if not (signature-owner-valid row all) then Err (string-concat "signature identity has no matching defining contract: " identity)
+      if not (name-in (nominal-owner identity) reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
+      else if not (signature-owner-valid home row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
       else case prior-nominal identity seen of
-        None -> verify-nominal-rows rest reachable all (Cons (identity, bytes) seen)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-nominal-rows rest reachable all seen
+        None -> verify-nominal-rows home rest reachable ix (Cons (identity, bytes) seen)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
-  verify-nominal-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
-  verify-nominal-set remaining all seen = case remaining of
+  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> List (String, Bytes) -> Result String Unit
+  verify-nominal-set remaining ix seen = case remaining of
     Nil -> Ok ()
-    Cons i rest -> case verify-nominal-rows (interface-nominals i) (reachable-modules [loaded-module i] all Nil) all seen of
-      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
-      Ok checked -> case verify-signature-contracts (field "signatures" (field "exports" (loaded-contract i))) (reachable-modules [loaded-module i] all Nil) all of
-        Err message -> Err message
-        Ok unit -> verify-nominal-set rest all checked
+    Cons i rest -> let home = loaded-module i in
+      let reachable = reachable-modules [home] ix Nil in
+      case verify-nominal-rows home (interface-nominals i) reachable ix seen of
+        Err message -> Err (string-concat-all [home, ": ", message])
+        Ok checked -> case verify-signature-contracts home (field "signatures" (field "exports" (loaded-contract i))) reachable ix of
+          Err message -> Err message
+          Ok unit -> verify-nominal-set rest ix checked
 
   body-declaration :: String -> Json -> Json
   body-declaration identity row = JObj "identity" (JStr identity) (JObj "resolved" (field "resolved" row) (JObj "total_body" (field "total_body" row) JObjEnd))
@@ -945,70 +1012,71 @@ module Bootstrap.Load where
     if offset >= bytes-len prefix then True
     else if offset >= bytes-len identity then False
     else bytes-get prefix offset == bytes-get identity offset && body-owner-prefix prefix identity (offset + 1)
-  body-node-owner :: String -> List LoadedInterface -> String -> String
-  body-node-owner identity interfaces best = body-node-owner-bytes (string-to-bytes identity) interfaces best (bytes-len (string-to-bytes best))
-  body-node-owner-bytes :: Bytes -> List LoadedInterface -> String -> Nat -> String
-  body-node-owner-bytes identity interfaces best width = case interfaces of
+  body-node-owner :: List (String, Nat, Bytes) -> String -> String -> String
+  body-node-owner prefixes identity best = body-node-owner-bytes (string-to-bytes identity) prefixes best (bytes-len (string-to-bytes best))
+  body-node-owner-bytes :: Bytes -> List (String, Nat, Bytes) -> String -> Nat -> String
+  body-node-owner-bytes identity prefixes best width = case prefixes of
     Nil -> best
-    Cons i rest -> let name = loaded-module i in
-      let size = bytes-len (string-to-bytes name) in
-      if size > width && body-owner-prefix (string-to-bytes (string-concat name ".")) identity 0 then
-        body-node-owner-bytes identity rest name size
-      else body-node-owner-bytes identity rest best width
-  verify-body-nodes :: Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
-  verify-body-nodes rows reachable all seen = case rows of
+    Cons entry rest -> case entry of
+      (name, size, prefix) ->
+        if size > width && body-owner-prefix prefix identity 0 then
+          body-node-owner-bytes identity rest name size
+        else body-node-owner-bytes identity rest best width
+  verify-body-nodes :: Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-nodes rows reachable ix seen = case rows of
     JArr row rest -> let identity = text (field "identity" row) in
-      let owner = body-node-owner identity all "" in
+      let owner = body-node-owner (prefixes-of ix) identity "" in
       let key = string-concat "#total-definition:" identity in
       let bytes = canonical-bytes row in
-      if string-length owner == 0 || not (member owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
+      if string-length owner == 0 || not (name-in owner reachable) then Err (string-concat "total body dependency is outside the checked module closure: " identity)
       else (case prior-nominal key seen of
-        None -> verify-body-nodes rest reachable all (Cons (key, bytes) seen)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-body-nodes rest reachable all seen
+        None -> verify-body-nodes rest reachable ix (Cons (key, bytes) seen)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-body-nodes rest reachable ix seen
           else Err (string-concat "conflicting actual total body dependency: " identity))
     JArrEnd -> Ok seen
     other -> Err "invalid total body definition table"
-  verify-body-declarations :: List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
-  verify-body-declarations declarations reachable all seen = case declarations of
+  verify-body-declarations :: List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-body-declarations declarations reachable ix seen = case declarations of
     Nil -> Ok seen
     Cons row rest -> let identity = text (field "identity" row) in
       let bytes = canonical-bytes (body-declaration identity row) in
-      if not (member (body-node-owner identity all "") reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
-      else (case find-interface (body-node-owner identity all "") all of
+      let owner-name = body-node-owner (prefixes-of ix) identity "" in
+      if not (name-in owner-name reachable) then Err (string-concat "total body identity is outside the checked dependency closure: " identity)
+      else (case interface-by-name ix owner-name of
         None -> Err (string-concat "missing defining total body interface: " identity)
         Some owner -> (case loaded-entry owner "value" identity of
-          Some definition -> if bytes-compare bytes (canonical-bytes (body-declaration identity definition)) == 0 then verify-body-consistency row rest reachable all seen bytes
+          Some definition -> if bytes-compare bytes (canonical-bytes (body-declaration identity definition)) == 0 then verify-body-consistency row rest reachable ix seen bytes
             else Err (string-concat "total body disagrees with its declaring module: " identity)
-          None -> verify-body-consistency row rest reachable all seen bytes))
-  verify-body-consistency :: Json -> List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Bytes -> Result String (List (String, Bytes))
-  verify-body-consistency row rest reachable all seen bytes = let identity = text (field "identity" row) in
-    case verify-body-nodes (field "definitions" (field "total_body" row)) reachable all seen of
+          None -> verify-body-consistency row rest reachable ix seen bytes))
+  verify-body-consistency :: Json -> List Json -> List String -> InterfaceIndex -> List (String, Bytes) -> Bytes -> Result String (List (String, Bytes))
+  verify-body-consistency row rest reachable ix seen bytes = let identity = text (field "identity" row) in
+    case verify-body-nodes (field "definitions" (field "total_body" row)) reachable ix seen of
       Err message -> Err message
       Ok checked -> (case prior-nominal identity checked of
-        None -> verify-body-declarations rest reachable all (Cons (identity, bytes) checked)
-        Some prior -> if bytes-compare prior bytes == 0 then verify-body-declarations rest reachable all checked
+        None -> verify-body-declarations rest reachable ix (Cons (identity, bytes) checked)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-body-declarations rest reachable ix checked
           else Err (string-concat "conflicting defining total body declarations: " identity))
-  method-body-owners-valid :: Json -> String -> List LoadedInterface -> Bool
-  method-body-owners-valid rows owner all = case rows of
-    JArr row rest -> same (body-node-owner (text (field "implementation" row)) all "") owner && method-body-owners-valid rest owner all
+  method-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
+  method-body-owners-valid rows owner ix = case rows of
+    JArr row rest -> same (body-node-owner (prefixes-of ix) (text (field "implementation" row)) "") owner && method-body-owners-valid rest owner ix
     JArrEnd -> True
     other -> False
-  instance-body-owners-valid :: Json -> String -> List LoadedInterface -> Bool
-  instance-body-owners-valid rows owner all = case rows of
+  instance-body-owners-valid :: Json -> String -> InterfaceIndex -> Bool
+  instance-body-owners-valid rows owner ix = case rows of
     JArr row rest -> (case field "method_bodies" row of
-      JArr first more -> same (body-node-owner (text (field "id" row)) all "") owner && method-body-owners-valid (field "method_bodies" row) owner all
-      other -> True) && instance-body-owners-valid rest owner all
+      JArr first more -> same (body-node-owner (prefixes-of ix) (text (field "id" row)) "") owner && method-body-owners-valid (field "method_bodies" row) owner ix
+      other -> True) && instance-body-owners-valid rest owner ix
     JArrEnd -> True
     other -> False
   ordering-slot-present :: Nat -> Json -> Bool
   ordering-slot-present slot rows = case rows of
     JArr row rest -> number (field "slot" row) == slot || ordering-slot-present slot rest
     other -> False
-  ordering-owner-valid :: String -> Json -> List String -> List LoadedInterface -> Bool
-  ordering-owner-valid identity row reachable all =
-    let owner = body-node-owner identity all "" in
-    member owner reachable && member "Relation.Ord" reachable &&
-    (case (find-interface owner all, find-interface "Relation.Ord" all, read-keyed-ordering identity (field "keyed_ordering" row)) of
+  ordering-owner-valid :: String -> Json -> List String -> InterfaceIndex -> Bool
+  ordering-owner-valid identity row reachable ix =
+    let owner = body-node-owner (prefixes-of ix) identity "" in
+    name-in owner reachable && name-in "Relation.Ord" reachable &&
+    (case (interface-by-name ix owner, interface-by-name ix "Relation.Ord", read-keyed-ordering identity (field "keyed_ordering" row)) of
       (Some provider, Some classes, Some body) -> (case (loaded-entry provider "value" identity, loaded-entry classes "signature" "Relation.Ord.Ord", keyed-ordering-slots body) of
         (Some defining, Some declaration, Some (less, greater)) ->
           bytes-compare (canonical-bytes (field "keyed_ordering" defining)) (canonical-bytes (field "keyed_ordering" row)) == 0
@@ -1016,49 +1084,51 @@ module Bootstrap.Load where
           && ordering-slot-present less (field "methods" declaration) && ordering-slot-present greater (field "methods" declaration)
         other -> False)
       other -> False)
-  ordering-owners-valid :: Json -> List String -> List LoadedInterface -> Bool
-  ordering-owners-valid rows reachable all = case rows of
-    JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable all)
-      && ordering-owners-valid rest reachable all
+  ordering-owners-valid :: Json -> List String -> InterfaceIndex -> Bool
+  ordering-owners-valid rows reachable ix = case rows of
+    JArr row rest -> (not (has-field "keyed_ordering" row) || ordering-owner-valid (text (field "symbol" row)) row reachable ix)
+      && ordering-owners-valid rest reachable ix
     other -> True
-  verify-body-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
-  verify-body-set remaining all seen = case remaining of
+  verify-body-set :: List LoadedInterface -> InterfaceIndex -> List (String, Bytes) -> Result String Unit
+  verify-body-set remaining ix seen = case remaining of
     Nil -> Ok ()
     Cons i rest ->
       let exports = field "exports" (loaded-contract i) in
-      let reachable = reachable-modules [loaded-module i] all Nil in
-      if not (instance-body-owners-valid (field "instances" exports) (loaded-module i) all) then Err "method body is not owned by its declaring dictionary module"
-      else if not (ordering-owners-valid (field "values" exports) reachable all) then Err "keyed ordering body disagrees with its defining value or dictionary contract"
-      else (case verify-body-declarations (interface-body-declarations i) reachable all seen of
+      let reachable = reachable-modules [loaded-module i] ix Nil in
+      if not (instance-body-owners-valid (field "instances" exports) (loaded-module i) ix) then Err "method body is not owned by its declaring dictionary module"
+      else if not (ordering-owners-valid (field "values" exports) reachable ix) then Err "keyed ordering body disagrees with its defining value or dictionary contract"
+      else (case verify-body-declarations (interface-body-declarations i) reachable ix seen of
       Err message -> Err (string-concat-all [loaded-module i, ": ", message])
-      Ok checked -> verify-body-set rest all checked)
+      Ok checked -> verify-body-set rest ix checked)
 
   validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
-  validate-interface-set loaded = if duplicate-module loaded Nil then Err "duplicate interface module in resolved context"
+  validate-interface-set loaded = let ix = index-interfaces loaded in
+    if duplicate-module loaded Nil then Err "duplicate interface module in resolved context"
     else case order-interfaces loaded Nil Nil of
-      Err message -> case verify-set loaded loaded of
-        Err dependency -> if missing-dependency loaded loaded then Err dependency else Err message
+      Err message -> case verify-set loaded ix of
+        Err dependency -> if missing-dependency loaded ix then Err dependency else Err message
         Ok unit -> Err message
-      Ok ordered -> case verify-set loaded loaded of
+      Ok ordered -> case verify-set loaded ix of
         Err message -> Err message
-        Ok unit -> case verify-nominal-set loaded loaded Nil of Err message -> Err message; Ok checked -> (case verify-body-set loaded loaded Nil of Err message -> Err message; Ok unit -> Ok ordered)
+        Ok unit -> case verify-nominal-set loaded ix Nil of Err message -> Err message; Ok checked -> (case verify-body-set loaded ix Nil of Err message -> Err message; Ok unit -> Ok ordered)
 
   duplicate-module :: List LoadedInterface -> List String -> Bool
   duplicate-module loaded seen = case loaded of
     Nil -> False
-    Cons i rest -> member (loaded-module i) seen || duplicate-module rest (Cons (loaded-module i) seen)
+    Cons i rest -> if name-in (loaded-module i) seen then True
+      else duplicate-module rest (name-set (loaded-module i) seen)
 
-  missing-ref :: List (String, String) -> List LoadedInterface -> Bool
-  missing-ref refs loaded = case refs of
+  missing-ref :: List (String, String) -> InterfaceIndex -> Bool
+  missing-ref refs ix = case refs of
     Nil -> False
-    Cons (name, hash) rest -> case find-interface name loaded of
+    Cons (name, hash) rest -> case interface-by-name ix name of
       None -> True
-      Some i -> missing-ref rest loaded
+      Some i -> missing-ref rest ix
 
-  missing-dependency :: List LoadedInterface -> List LoadedInterface -> Bool
-  missing-dependency remaining loaded = case remaining of
+  missing-dependency :: List LoadedInterface -> InterfaceIndex -> Bool
+  missing-dependency remaining ix = case remaining of
     Nil -> False
-    Cons i rest -> missing-ref (loaded-imports i) loaded || missing-dependency rest loaded
+    Cons i rest -> missing-ref (loaded-imports i) ix || missing-dependency rest ix
 
 
   conditional-body-declarations :: Json -> List Json
