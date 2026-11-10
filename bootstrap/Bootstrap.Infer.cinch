@@ -19,7 +19,7 @@ module Bootstrap.Infer where
   import Bootstrap.Instance
   import Bootstrap.Global
   import Bootstrap.Contracts (declaration-references, expr-references)
-  import Bootstrap.Load (InterfaceSet, load-checked-interface-set, interface-set-body, interface-set-has-body)
+  import Bootstrap.Load (InterfaceSet, load-checked-interface-set-from-contracts, interface-set-body, interface-set-has-body)
   import Text.Json (canonical-bytes)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
@@ -5665,7 +5665,7 @@ module Bootstrap.Infer where
 
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m =
-    let interfaces = load-checked-interface-set (total-interface-inputs (module-decls m)) in
+    let interfaces = load-checked-interface-set-from-contracts (total-interface-inputs (module-decls m)) in
     elaborate-module-with-source-bodies interfaces True label m
   elaborate-module-with-source-bodies :: Result String InterfaceSet -> Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies interfaces enable label m =
@@ -6206,10 +6206,13 @@ module Bootstrap.Infer where
   -- refinement alias is handled by its defining contract, not its spelling.
   -- Selection grants no authority: actual preliminary Core, the closed graph
   -- and final independent body/context association still have to agree.
-  total-interface-inputs :: List Decl -> List (String, String, Bytes)
+  -- The declared contracts are already parsed, and each one's identity is
+  -- the hash its own load derived: the set is admitted from the pair, so
+  -- elaboration neither re-encodes nor re-parses an interface.
+  total-interface-inputs :: List Decl -> List (String, String, Json)
   total-interface-inputs declarations = case declarations of
     Nil -> Nil
-    Cons (DInterface sp name hash metadata) rest -> Cons (name, hash, canonical-bytes metadata) (total-interface-inputs rest)
+    Cons (DInterface sp name hash metadata) rest -> Cons (name, hash, metadata) (total-interface-inputs rest)
     Cons other rest -> total-interface-inputs rest
   total-imported-methods :: InterfaceSet -> String -> CoreClass -> Scheme -> List CoreClassMethod -> TypeContext -> Store -> (TypeContext, Store)
   total-imported-methods interfaces dictionary description factory members kinds st = case members of

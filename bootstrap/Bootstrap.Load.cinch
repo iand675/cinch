@@ -1,6 +1,13 @@
 -- Interface loading and dependency identity checks. The complete JSON
 -- contract remains attached to every loaded module: loading names is not
 -- permission to erase its proofs, layouts, instances or assumptions.
+--
+-- A contract is checked once, when its bytes become a `LoadedInterface`:
+-- `load-interface` parses the text, checks the envelope and derives the
+-- contract identity. A `DInterface` declaration carries that contract and
+-- the identity it was derived to, so a consumer that reads the declaration
+-- re-admits the pair with `load-interface-from-contract` instead of
+-- encoding the contract to bytes and parsing it back.
 module Bootstrap.Load where
 
   import Bootstrap.Ast (TypeExpr, portable-law-syntax)
@@ -23,8 +30,10 @@ module Bootstrap.Load where
   export loaded-values, loaded-fixities, loaded-imports
   export loaded-exports
   export load-interface, load-interface-set, validate-interface-set
+  export load-interface-from-contract, load-interface-set-from-contracts
   export loaded-entry, loaded-private-methods
-  export InterfaceSet, load-checked-interface-set, check-interface-set, interface-set-members
+  export InterfaceSet, load-checked-interface-set, load-checked-interface-set-from-contracts
+  export check-interface-set, interface-set-members
   export interface-set-body, interface-set-has-body
 
   data ImportedValue where
@@ -99,6 +108,12 @@ module Bootstrap.Load where
   check-interface-set loaded = case validate-interface-set loaded of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
   load-checked-interface-set :: List (String, String, Bytes) -> Result String InterfaceSet
   load-checked-interface-set inputs = case load-interface-set inputs of Err error -> Err error; Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
+  -- The same set from contracts a caller already holds parsed, each with
+  -- the identity its own first load derived and checked.
+  load-checked-interface-set-from-contracts :: List (String, String, Json) -> Result String InterfaceSet
+  load-checked-interface-set-from-contracts inputs = case load-interface-set-from-contracts inputs of
+    Err error -> Err error
+    Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
 
   loaded-module :: LoadedInterface -> String
   loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries -> name
@@ -611,20 +626,44 @@ module Bootstrap.Load where
     JArr r rest -> Cons (text (field "module" r), text (field "iface_hash" r)) (read-refs rest)
     other -> Nil
 
+  -- What every consumer of a contract must agree with before its rows
+  -- mean anything: the module it claims to be, the schema and runtime ABI
+  -- this reader understands, and the contract's own internal consistency.
+  check-contract-envelope :: String -> Json -> Result String Unit
+  check-contract-envelope expected-name doc =
+    if not (same expected-name (text (field "module" doc))) then Err "interface module name mismatch"
+    else if not (nat-p (field "schema" doc)) || number (field "schema" doc) /= iface-schema-version then Err "unsupported interface schema"
+    else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= runtime-abi then Err "interface runtime ABI mismatch"
+    else if not (envelope-valid doc) then Err "malformed interface contract envelope"
+    else Ok ()
+
   load-interface :: String -> String -> Bytes -> Result String LoadedInterface
   load-interface expected-name expected-hash src = case iface-parse src of
     None -> Err "interface is not valid JSON"
-    Some doc ->
-      if not (same expected-name (text (field "module" doc))) then Err "interface module name mismatch"
-      else if not (nat-p (field "schema" doc)) || number (field "schema" doc) /= iface-schema-version then Err "unsupported interface schema"
-      else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= runtime-abi then Err "interface runtime ABI mismatch"
-      else if not (envelope-valid doc) then Err "malformed interface contract envelope"
-      else let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
+    Some doc -> case check-contract-envelope expected-name doc of
+      Err message -> Err message
+      Ok unit ->
+        let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
         if not (same hash expected-hash) then Err "interface contract identity mismatch"
-        else let exports = field "exports" doc in
-          Ok (MkLoadedInterface expected-name hash doc (read-values (field "values" exports))
-            (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-            (export-entries exports))
+        else accepted-interface expected-name hash doc
+
+  -- The contract an interface declaration carries, beside the identity the
+  -- load that parsed it derived: the envelope is re-checked, and the pair
+  -- is taken as the declaration states it, so no consumer re-encodes the
+  -- contract to re-derive a hash it already holds.
+  load-interface-from-contract :: String -> String -> Json -> Result String LoadedInterface
+  load-interface-from-contract expected-name hash doc = case check-contract-envelope expected-name doc of
+    Err message -> Err message
+    Ok unit -> accepted-interface expected-name hash doc
+
+  -- A contract whose envelope and identity are settled: its rows become the
+  -- loaded module's tables.
+  accepted-interface :: String -> String -> Json -> Result String LoadedInterface
+  accepted-interface name hash doc =
+    let exports = field "exports" doc in
+    Ok (MkLoadedInterface name hash doc (read-values (field "values" exports))
+      (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
+      (export-entries exports))
 
   find-interface :: String -> List LoadedInterface -> Option LoadedInterface
   find-interface name loaded = case loaded of
@@ -639,6 +678,15 @@ module Bootstrap.Load where
       None -> case load-interface name hash src of
         Err message -> Err (string-concat-all [name, ": ", message])
         Ok i -> read-set rest (Cons i loaded)
+
+  read-contract-set :: List (String, String, Json) -> List LoadedInterface -> Result String (List LoadedInterface)
+  read-contract-set inputs loaded = case inputs of
+    Nil -> Ok (reverse loaded)
+    Cons (name, hash, doc) rest -> case find-interface name loaded of
+      Some previous -> Err (string-concat "duplicate interface module: " name)
+      None -> case load-interface-from-contract name hash doc of
+        Err message -> Err (string-concat-all [name, ": ", message])
+        Ok i -> read-contract-set rest (Cons i loaded)
 
   verify-refs :: List (String, String) -> List LoadedInterface -> Result String Unit
   verify-refs refs all = case refs of
@@ -673,6 +721,11 @@ module Bootstrap.Load where
 
   load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
   load-interface-set inputs = case read-set inputs Nil of
+    Err message -> Err message
+    Ok loaded -> validate-interface-set loaded
+
+  load-interface-set-from-contracts :: List (String, String, Json) -> Result String (List LoadedInterface)
+  load-interface-set-from-contracts inputs = case read-contract-set inputs Nil of
     Err message -> Err message
     Ok loaded -> validate-interface-set loaded
 
