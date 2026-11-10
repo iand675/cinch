@@ -34,7 +34,7 @@
 //! tag), and dictionary slots by slot number. Two runs over the same program
 //! produce identical bytes.
 
-use crate::core::{CAlt, CPat, Core, FnDef, ForeignPlan, InstanceDef, LocalId, PrimTier, Program, TargetProfile};
+use crate::core::{CPat, Core, FnDef, ForeignPlan, InstanceDef, LocalId, PrimTier, Program, TargetProfile};
 use crate::interface::Iface;
 use crate::repr::Class;
 use sha2::{Digest, Sha256};
@@ -1238,13 +1238,6 @@ struct ParsedUnit {
 }
 
 impl ParsedUnit {
-    fn annotation(&self, name: &str) -> Option<&str> {
-        self.anns.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
-    }
-
-    fn stage(&self) -> Option<&str> {
-        self.annotation("stage")
-    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -1981,7 +1974,6 @@ impl<'a> Checker<'a> {
                 // them reads the same way.
                 let binder = atom_at(tail, 0, unit, path, errors).map(str::to_string);
                 let body_index = tail.len().saturating_sub(1);
-                let value_index = tail.len().saturating_sub(2);
                 for (index, child) in tail.iter().enumerate().skip(1) {
                     if index == body_index {
                         let before = scope.len();
@@ -1991,7 +1983,6 @@ impl<'a> Checker<'a> {
                         self.expr(child, scope, unit, &child_path(head, index, path), errors);
                         scope.truncate(before);
                     } else {
-                        let _ = value_index;
                         self.expr(child, scope, unit, &child_path(head, index, path), errors);
                     }
                 }

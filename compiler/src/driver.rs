@@ -4014,7 +4014,6 @@ pub fn driver_opts(
 struct CoreDump<'a> {
     stage: Option<crate::coretext::Stage>,
     out: Option<PathBuf>,
-    only: bool,
     profile: &'a crate::core::TargetProfile,
     modules: std::collections::BTreeSet<String>,
     dir: PathBuf,
@@ -4051,7 +4050,6 @@ impl<'a> CoreDump<'a> {
         CoreDump {
             stage: opts.dump_core,
             out: opts.core_out.clone(),
-            only: opts.core_only,
             profile,
             modules,
             dir: out_dir.to_path_buf(),
