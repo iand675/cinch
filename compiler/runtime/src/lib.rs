@@ -309,7 +309,11 @@
 //! header blocks that are not immortal) is not 0, an opt-in diagnostic of
 //! the compiler's reclamation for tests; `CINCH_RC_DEBUG=1` poisons and
 //! quarantines freed blocks and validates every header the count entry
-//! points touch.
+//! points touch; `CINCH_ALLOC_KINDS=1` prints the allocation census of
+//! [`alloc_kinds`] beside the stats line: one `cinch-alloc-kind:
+//! kind=<name> blocks=<n> bytes=<n>` line per block kind and one
+//! `cinch-alloc-size: upto=<n>|above blocks=<n> bytes=<n>` line per
+//! size class, all counting header blocks and their whole allocation.
 //!
 //! `Nat` (unbounded natural numbers; negative input or results fault).
 //! Every result word is canonical (see "Small `Nat`/`Int` immediates"),
@@ -535,6 +539,7 @@
 //! themselves; `std` stays in use for allocation, threads and mutexes.
 
 pub mod abi;
+pub mod alloc_kinds;
 pub mod block;
 pub mod bytes;
 pub mod arrays;

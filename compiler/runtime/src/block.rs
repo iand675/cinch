@@ -152,6 +152,7 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
         crate::heap::request_too_large(payload);
     };
     let base = unsafe { crate::heap::alloc_block(layout, immortal, zeroed) };
+    crate::alloc_kinds::note(header_kind(header), layout.size());
     let p = match ext {
         Some(x) => {
             unsafe { base.cast::<u64>().write(x) };

@@ -58,6 +58,11 @@
 //!   the cap.
 //! * `CINCH_LEAK_CHECK=1` and `CINCH_RC_DEBUG=1`: the diagnostics of
 //!   [`crate::rc`].
+//! * `CINCH_ALLOC_KINDS=1`: the allocation census of
+//!   [`crate::alloc_kinds`], registered from this module's one read of
+//!   the environment and written by the same `atexit` handler as the
+//!   stats line: one line per block kind and one per size class. It never
+//!   changes what is allocated, and the stats line keeps its format.
 //!
 //! The cap bounds live bytes, not the lifetime total: reclamation frees
 //! blocks as they die, so a program whose live heap stays under the cap
@@ -209,6 +214,10 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     let stats = env_bytes(c"CINCH_ALLOC_STATS") == Some(b"1");
     if stats {
         crate::sys::atexit(print_stats);
+    }
+    if env_bytes(c"CINCH_ALLOC_KINDS") == Some(b"1") {
+        crate::alloc_kinds::enable();
+        crate::sys::atexit(crate::alloc_kinds::print);
     }
     let limit = configured_limit(env_bytes(c"CINCH_HEAP_LIMIT"));
     Config {
