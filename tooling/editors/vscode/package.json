@@ -1,14 +1,14 @@
 {
   "name": "cinch",
   "displayName": "Cinch",
-  "description": "Cinch surface syntax (draft 0.2 plus local amendments) with LSP hookup",
+  "description": "Cinch surface syntax and Cinch Core (draft 0.2 plus local amendments) with LSP hookup",
   "version": "0.1.0",
   "publisher": "cinch-design-repo",
   "license": "UNLICENSED",
   "engines": { "vscode": "^1.75.0" },
   "categories": ["Programming Languages"],
   "main": "./extension.js",
-  "activationEvents": ["onLanguage:cinch"],
+  "activationEvents": ["onLanguage:cinch", "onLanguage:cinch-core"],
   "contributes": {
     "languages": [
       {
@@ -16,6 +16,12 @@
         "aliases": ["Cinch", "cinch"],
         "extensions": [".cinch"],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "cinch-core",
+        "aliases": ["Cinch Core", "cinch-core"],
+        "extensions": [".core"],
+        "configuration": "./language-configuration-core.json"
       }
     ],
     "grammars": [
@@ -23,6 +29,11 @@
         "language": "cinch",
         "scopeName": "source.cinch",
         "path": "./syntaxes/cinch.tmLanguage.json"
+      },
+      {
+        "language": "cinch-core",
+        "scopeName": "source.cinch-core",
+        "path": "./syntaxes/cinch-core.tmLanguage.json"
       }
     ],
     "configuration": {

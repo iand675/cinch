@@ -1,0 +1,77 @@
+core 1
+module Main
+target aarch64-apple-darwin opt-level 2
+source sha256:9f2c0d1e2b3a4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+
+-- Core is a checked artifact. Comments are for the reader, not the reader
+-- program (design/core-output.md section 4).
+
+unit Main.map :: forall a b. (a -> b) -> List a -> List b @borrowed(1,2)
+  @span Main.cinch:20:3
+  @specialised(<Nat, Int>) from List.map
+  params: f :: a -> b @borrowed, xs :: List a @borrowed
+  body:
+    (case (local xs)
+      ((ctor Nil 0 0) (ctor Nil 0 0))
+      ((ctor Cons 2 2) (app (local f) (local h)) @tailrec))
+end
+
+unit Main.literals :: Nat -> String @owned
+  @span Main.cinch:31:1
+  @class owned
+  @captures(1,2)
+  @params n :: Nat @owned, k :: Int @uncounted
+  body:
+    (let n :: Nat @owned (nat "123456789012345678901234567890")
+      (if (bool true)
+        (string "tab\there" 8)
+        (bytes "\x00\xff\x7f" 3)))
+end
+
+unit Main.scrutinee :: Bool @owned
+  @span Main.cinch:44:1
+  body:
+    (case (local b)
+      (_ (unit))
+      ((var) (unit))
+      (0 (unit))
+      (Nil (unit)))
+end
+
+unit $d.Ord.Nat :: Ord Nat @immortal
+  @span Data/Nat.cinch:88:1
+  static { compare = Data.Nat.Ord_Nat.compare, eq = Data.Nat.Eq_Nat.eq }
+end
+
+unit Main.owned :: Int -> Int @lent
+  @span Main.cinch:57:9
+  @join(1)
+  @tailrec
+  body:
+    (lam (x :: Int @lent)
+      (release x (moved y) (rest z)
+        (refset z (boxget (boxinit y (int -42))))))
+end
+
+unit Main.misc :: Word @owned
+  @span Main.cinch:71:1
+  body:
+    (app (foreign "sl_memcpy")
+      (dup x) (drop y)
+      (dictproj (instdict Data.Nat.Ord_Nat (global Data.Nat.Eq_Nat.eq)) compare Ord)
+      (proj (ctor Cons 2 2) head)
+      (boxclear knot)
+      (unit)
+      (bytes b"\x00\x01\x02\x03" 4)
+      (prim add))
+end
+
+unit Main.quoted :: Syntax @uncounted
+  @span Main.cinch:64:1
+  @stage(lowered)
+  @prim(add for Int)
+  @rewrite(assoc v3)
+  @resolved(Data.Nat.Ord_Nat at Data/Nat.cinch:88:1)
+  body:
+    (demand (quote 1 (app (splice 2) (syntaxlit 3))))
+end

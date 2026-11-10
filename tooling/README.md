@@ -23,7 +23,8 @@ D198-D205, D221-D227 where the specs understate).
   `check-real-files-parse.sh` parses. Same `test/corpus` symlink and the
   same rule that generated parser sources are not committed.
 - `editors/vim`, `editors/emacs`, `editors/sublime`, `editors/zed`,
-  `editors/vscode`: the integrations.
+  `editors/vscode`: the integrations for the surface syntax and for
+  Cinch Core (`*.core`, see "Core files" below).
 - `lsp-driver/`: a two-file cargo binary that runs the compiler's
   language server over stdio (see below).
 - `check-grammar-drift.sh`: the drift check (regenerates the parser and
@@ -174,25 +175,34 @@ either way.
 `editors/zed` is a dev extension for Zed 1.27 (manifest
 `schema_version = 1`):
 
-- `extension.toml`: the grammar entry (`[grammars.cinch]`) and the
-  language server entry (`[language_servers.cinch-lsp]`, language
-  `Cinch`, LSP `languageId` `cinch`).
+- `extension.toml`: the grammar entries (`[grammars.cinch]` and
+  `[grammars.cinch-core]`) and the language server entry
+  (`[language_servers.cinch-lsp]`, languages `Cinch` and `Cinch Core`,
+  LSP `languageId`s `cinch` and `cinch-core`).
 - `languages/cinch/config.toml`: file suffix `cinch`, `-- ` line
   comments, nested `{- ... -}` block comments, brackets that do not
   fire inside strings or raw text, `'` as a word character (it is an
   identifier character), and `.` as a completion query character.
-- `languages/cinch/{highlights,brackets,indents,outline,textobjects,overrides}.scm`:
-  tree-sitter queries over the grammar's own node names.
+- `languages/cinch-core/config.toml`: file suffix `core`, `-- ` line
+  comments, no block comments, `(`/`)` and `{`/`}` brackets, and `$`,
+  `.` and `-` as word characters (they are canonical-name characters).
+- `languages/cinch/{highlights,brackets,indents,outline,textobjects,overrides}.scm`
+  and `languages/cinch-core/{highlights,brackets,indents,outline}.scm`:
+  tree-sitter queries over each grammar's own node names.
 - `src/lib.rs`: the only procedural part. It resolves the server through
   the worktree's login-shell environment (`cinch-lsp`, then `cinch lsp`)
   and reports a message naming the build command when neither exists.
 - `sync-grammar.sh`: Zed does not run `tree-sitter generate`. It clones
   a git repository, checks out one revision, and compiles `src/parser.c`
-  (plus `src/scanner.c`) with wasi-sdk clang. The generated parser is not
-  committed, so this script builds a small local repository from
-  `grammar.js`, generates the parser there, commits it, and pins that
-  revision in `extension.toml`. Both values are machine local: rerun it
-  after any grammar change, then rebuild the extension in Zed.
+  (plus `src/scanner.c`) with wasi-sdk clang. The generated parsers are
+  not committed, so this script builds one small local repository per
+  grammar from its `grammar.js`, generates the parser there, commits it,
+  and pins that revision in `extension.toml` (`grammar-repo` for
+  `cinch`, `grammar-repo-core` for `cinch-core`). All four values are
+  machine local: rerun it after any grammar change, then rebuild the
+  extension in Zed. It checks every grammar source before generating
+  anything, so with `tooling/tree-sitter-cinch-core/` absent it exits 1
+  naming that directory and leaves `extension.toml` unchanged.
 
 Install (once):
 
@@ -221,6 +231,106 @@ Zed only asks for when the language has semantic tokens enabled:
 `combined` keeps the tree-sitter colours and adds the server's tokens on
 top, so comments (and resolution-aware `type`/`class`/`function` tokens)
 take the theme's colours.
+
+## Core files
+
+`.core` files are Cinch Core, the textual Core format of
+`design/core-output.md`: the text format is section 4, the normative
+grammar is section 10, and the editor support implemented here is section
+8. Every integration uses:
+
+- extension `.core`, language id `cinch-core`, display name "Cinch Core"
+- line comments `--`, no block comments
+- the first line `core 1` as the file signature, so a file without the
+  extension is still recognised by content
+- two-space indentation, one s-expression node per line
+
+The highlighter categories are the format's own (section 8.3): unit names,
+dictionary bindings (`$d.*`, `$static`), ownership classes (`owned`,
+`borrowed`, `lent`, `uncounted`, `immortal`), annotation names (`@span`,
+`@class`, `@captures`, `@specialised`, `@rewrite`, `@prim`, `@resolved`,
+`@tailrec`, `@join`, `@stage`), numerals, string and byte literals, the
+header (`core`, `module`, `target`, `source`, `opt-level`), and `end`.
+
+| Editor | Files | Check |
+| --- | --- | --- |
+| vim | `editors/vim/ftdetect/cinch-core.vim`, `editors/vim/syntax/cinch-core.vim`, `editors/vim/queries/cinch-core/highlights.scm` (the nvim-treesitter path) | `editors/vim/test/run.sh` |
+| emacs | `editors/emacs/cinch-core-mode.el` | `editors/emacs/test/run.sh` |
+| sublime | `editors/sublime/CinchCore.sublime-syntax` | `python3 editors/sublime/test/check.py` |
+| vscode | `editors/vscode/package.json`, `editors/vscode/language-configuration-core.json`, `editors/vscode/syntaxes/cinch-core.tmLanguage.json`, `editors/vscode/extension.js` | `node editors/vscode/test/check.mjs` |
+| zed | `editors/zed/languages/cinch-core/{config.toml,highlights.scm,outline.scm,brackets.scm,indents.scm}`, `editors/zed/extension.toml`, `editors/zed/sync-grammar.sh` | `python3.11 editors/zed/test/check.py` |
+
+Every `editors/<editor>/test/fixture.core` is the same representative
+file: a header, a unit with `params` and a nested `case`, a unit with
+`@params`, a static dictionary unit, every annotation, and every literal
+form.
+
+What each check proves, and what it cannot:
+
+- vim: `editors/vim/test/run.sh` runs `vim -Nu NONE -es -S test/check.vim`
+  and asserts the filetype (by extension and by the `core 1` signature)
+  and the syntax group at a known token for every category, 32 checks. It
+  takes the binary as its argument, so `run.sh /usr/bin/vim` and
+  `run.sh $(command -v nvim)` both pass.
+- emacs: `editors/emacs/test/run.sh` runs `emacs -Q --batch` with
+  `test/check.el` and asserts the `auto-mode-alist` entry, `prog-mode`
+  derivation, non-empty `font-lock-keywords`, the `imenu` unit index, `--`
+  as a comment, and the face at a known token per category, 24 checks.
+  Emacs is not installed on this machine; the check ran through
+  `nix shell nixpkgs#emacs-nox --command editors/emacs/test/run.sh <emacs>`.
+- sublime: Sublime Text cannot be driven here, so `check.py` validates the
+  definition as data: the YAML parses, every `include` resolves, every
+  section 8.3 category has a scope, unit names carry
+  `entity.name.function` (the Goto Symbol list, which is this editor's
+  imenu), and all 33 form names appear. Rendering is unverified.
+- vscode: `check.mjs` validates every JSON file, that both languages and
+  both grammars are contributed with distinct configurations, that every
+  `include` resolves and every regex compiles, that the section 8.3 scopes
+  are present, and that `extension.js` passes `node --check` and selects
+  both language ids. The extension is not activated in a running VS Code.
+- zed: `check.py` parses both TOML files, requires every language
+  referenced by `extension.toml` to exist on disk, requires both grammar
+  entries, and validates every query file (balanced, and every node name
+  and anonymous token present in the grammar contract below). The queries
+  are not compiled against the grammar here, because
+  `tooling/tree-sitter-cinch-core/` belongs to the grammar slice and is
+  not in this workspace: `editors/zed/sync-grammar.sh` exits 1 naming that
+  directory until it lands, and Zed's own query compiler is the real check
+  once it does.
+
+`editors/zed/test/check.py` needs `tomllib`, so Python 3.11 or newer. The
+macOS system `python3` is 3.9, so on this machine it runs as
+
+```sh
+nix shell nixpkgs#python311 --command python3 tooling/editors/zed/test/check.py
+```
+
+The Core grammar contract these queries are written against, as recorded by
+the grammar slice:
+
+- `source_file` holds `header`, `module_line` (`name`), `target_line`
+  (`target_triple`) and `source_line` as siblings, then the `unit` nodes.
+- `unit` holds `unit_name` (`name`), `type`, `annotation` nodes, the
+  anonymous `body` token, one expression, and the anonymous `end` token.
+- `annotation` holds `annotation_name` (`name`), or `annotation_args`,
+  `ownership_counts`, `span`, or `class`, depending on the annotation.
+- `params` holds `param` nodes of `name`, `type`, `class`; `class` is a
+  leaf and the five class words are anonymous tokens.
+- `type` holds `name`, `rigid_var`, `meta_var`, `refinement_type` or
+  `row_type`.
+- `local_ref`, `global_ref`, `ctor_ref` and `prim_ref` each wrap a `name`;
+  `foreign_ref` is a leaf.
+- Every form in section 8.2 is a node, in snake_case (`int_lit`,
+  `nat_lit`, `bytes_lit`, `string_lit`, `sym_lit`, `bool_lit`, `unit_lit`,
+  `local_ref`, `global_ref`, `ctor_ref`, `prim_ref`, `foreign_ref`, `app`,
+  `lam`, `dict_proj`, `proj`, `inst_dict`, `let`, `if`, `case`, `alt`,
+  `pat`, `dup`, `drop`, `release`, `box_init`, `box_get`, `box_clear`,
+  `ref_set`, `quote`, `splice`, `syntax_lit`, `demand`).
+- `comment` is a named node; `--` is not a token of its own.
+- Anonymous tokens: `(`, `)`, `{`, `}`, `,`, `::`, `->`, `:`, `@`, `_`,
+  `.`, `-`, the form words, `unit`, `body`, `end`, `forall`, `refine`,
+  `with`, `moved`, `rest`, `from`, `true`, `false`, and the class words.
+  The grammar has no `=` and no `|` token.
 
 ## Scanner and grammar decisions (unnumbered)
 

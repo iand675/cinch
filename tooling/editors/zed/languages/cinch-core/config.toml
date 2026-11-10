@@ -1,0 +1,26 @@
+name = "Cinch Core"
+grammar = "cinch-core"
+path_suffixes = ["core"]
+line_comments = ["-- "]
+tab_size = 2
+hard_tabs = false
+autoclose_before = ")]}"
+# `$`, `.` and `-` are canonical-name characters (`$d.Ord.Nat`,
+# `Main.map`, `opt-level`). `;` is not a word character; the format never
+# uses it.
+word_characters = ["$", ".", "-"]
+completion_query_characters = []
+
+# The format is line oriented: a unit runs from `unit` to `end`, and a body
+# expression indents its children two spaces per level (design/core-output.md
+# section 4). There are no block comments.
+brackets = [
+    { start = "(", end = ")", close = true, newline = false, not_in = ["string"] },
+    { start = "{", end = "}", close = true, newline = false, not_in = ["string"] },
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["string"] },
+]
+
+# A `.` is part of a canonical name (`Main.map`, `$d.Ord.Nat`), never a
+# completion request.
+[overrides.string]
+completion_query_characters = []

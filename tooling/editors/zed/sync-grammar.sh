@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# Build the local grammar repository that Zed clones for the Cinch grammar.
+# Build the local grammar repositories that Zed clones, one per grammar.
 #
 # Zed does not run `tree-sitter generate`: it clones a git repository, checks
 # out one revision, and compiles `src/parser.c` (plus `src/scanner.c`) with
 # the wasi-sdk clang into a wasm grammar. This repository does not commit the
-# generated parser (tooling/tree-sitter-cinch/.gitignore), so the extension
-# points at a small throwaway repository built here from grammar.js.
+# generated parsers, so this script builds a small throwaway repository per
+# grammar from its `grammar.js`, generates the parser there, commits it, and
+# pins that revision in `extension.toml`.
 #
-# Run this after any change to tooling/tree-sitter-cinch/, then rebuild the
-# dev extension in Zed (`zed: rebuild dev extension`).
+#   cinch       -> tooling/tree-sitter-cinch        -> zed/grammar-repo
+#   cinch-core  -> tooling/tree-sitter-cinch-core   -> zed/grammar-repo-core
+#
+# Run this after any change to either grammar, then rebuild the dev
+# extension in Zed (`zed: rebuild dev extension`).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-grammar="$(cd "$here/../../tree-sitter-cinch" && pwd)"
-repo="$here/grammar-repo"
 manifest="$here/extension.toml"
 
 TREE_SITTER="${TREE_SITTER:-tree-sitter}"
@@ -21,37 +23,83 @@ if ! command -v "$TREE_SITTER" >/dev/null 2>&1; then
   TREE_SITTER="npx --yes tree-sitter-cli"
 fi
 
-rm -rf "$repo"
-mkdir -p "$repo/src"
+# grammar name : grammar source directory under tooling/ : local repository
+grammars=(
+  "cinch:tree-sitter-cinch:grammar-repo"
+  "cinch-core:tree-sitter-cinch-core:grammar-repo-core"
+)
 
-cp "$grammar/grammar.js" "$grammar/tree-sitter.json" "$repo/"
-cp "$grammar/src/scanner.c" "$repo/src/"
+# Check every grammar before touching anything. The Core grammar is written by
+# its own slice (design/core-output.md section 8.2); this script never invents
+# one, and it leaves extension.toml alone when a grammar is absent.
+missing=()
+for entry in "${grammars[@]}"; do
+  IFS=: read -r name dir repo <<<"$entry"
+  src="$(cd "$here/../.." && pwd)/$dir"
+  if [ ! -f "$src/grammar.js" ]; then
+    missing+=("$name: $src/grammar.js")
+  fi
+done
 
-echo "sync-grammar: generating parser"
-(cd "$repo" && $TREE_SITTER generate)
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "sync-grammar: missing grammar source, nothing generated:" >&2
+  for item in "${missing[@]}"; do
+    echo "  - $item" >&2
+  done
+  echo "sync-grammar: the Cinch Core grammar lives at tooling/tree-sitter-cinch-core" >&2
+  echo "sync-grammar: (written by the grammar slice); extension.toml was not changed." >&2
+  exit 1
+fi
 
-git -C "$repo" init -q -b main
-git -C "$repo" add -A
-git -C "$repo" -c user.name="Cinch grammar" \
-  -c user.email="cinch-grammar@example.invalid" \
-  commit -qm "cinch grammar snapshot"
-rev="$(git -C "$repo" rev-parse HEAD)"
+for entry in "${grammars[@]}"; do
+  IFS=: read -r name dir repo <<<"$entry"
+  src="$(cd "$here/../.." && pwd)/$dir"
+  dest="$here/$repo"
 
-# Zed keeps its own clone of the grammar under grammars/cinch; drop it so the
-# next extension build fetches this snapshot instead of checking out the
-# previous commit from the local objects.
-rm -rf "$here/grammars/cinch" "$here/grammars/cinch.wasm"
+  rm -rf "$dest"
+  mkdir -p "$dest/src"
 
-python3 - "$manifest" "file://$repo" "$rev" <<'PY'
+  cp "$src/grammar.js" "$dest/"
+  if [ -f "$src/tree-sitter.json" ]; then
+    cp "$src/tree-sitter.json" "$dest/"
+  fi
+  if [ -f "$src/src/scanner.c" ]; then
+    cp "$src/src/scanner.c" "$dest/src/"
+  fi
+
+  echo "sync-grammar: generating the $name parser"
+  (cd "$dest" && $TREE_SITTER generate)
+
+  git -C "$dest" init -q -b main
+  git -C "$dest" add -A
+  git -C "$dest" -c user.name="Cinch grammar" \
+    -c user.email="cinch-grammar@example.invalid" \
+    commit -qm "$name grammar snapshot"
+  rev="$(git -C "$dest" rev-parse HEAD)"
+
+  # Zed keeps its own clone of each grammar under grammars/<name>; drop it so
+  # the next extension build fetches this snapshot instead of checking out the
+  # previous commit from the local objects.
+  rm -rf "$here/grammars/$name" "$here/grammars/$name.wasm"
+
+  python3 - "$manifest" "$name" "file://$dest" "$rev" <<'PY'
 import re
 import sys
 
-path, url, rev = sys.argv[1:4]
+path, grammar, url, rev = sys.argv[1:5]
 text = open(path, encoding="utf-8").read()
-text = re.sub(r'(?m)^repository = "file://.*"$', f'repository = "{url}"', text, count=1)
-text = re.sub(r'(?m)^rev = ".*"$', f'rev = "{rev}"', text, count=1)
-open(path, "w", encoding="utf-8").write(text)
+
+header = re.compile(r"(?ms)^\[grammars\." + re.escape(grammar) + r"\]$.*?(?=^\[|\Z)")
+match = header.search(text)
+if match is None:
+    sys.exit(f"sync-grammar: no [grammars.{grammar}] section in {path}")
+
+block = match.group(0)
+block = re.sub(r'(?m)^repository = ".*"$', f'repository = "{url}"', block, count=1)
+block = re.sub(r'(?m)^rev = ".*"$', f'rev = "{rev}"', block, count=1)
+open(path, "w", encoding="utf-8").write(text[: match.start()] + block + text[match.end() :])
 PY
 
-echo "sync-grammar: grammar repository at $repo"
-echo "sync-grammar: pinned $rev in $manifest"
+  echo "sync-grammar: $name repository at $dest"
+  echo "sync-grammar: pinned $name $rev in $manifest"
+done

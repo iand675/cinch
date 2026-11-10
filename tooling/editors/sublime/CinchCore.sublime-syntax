@@ -1,0 +1,130 @@
+%YAML 1.2
+---
+# Cinch Core syntax for Sublime Text.
+#
+# The format is design/core-output.md: the header (section 4), the normative
+# text grammar (section 10), and the highlighter categories in section 8.3.
+# Unit names carry `entity.name.function`, which is what Sublime indexes for
+# the Goto Symbol list (the "imenu" of this editor), so every `unit` line
+# becomes a symbol named after the unit.
+name: Cinch Core
+file_extensions: [core]
+scope: source.cinch-core
+# Section 8.1: the first line is the file signature, so a Core file without
+# the extension is still recognised by content.
+first_line_match: '^core \d+$'
+
+contexts:
+  main:
+    - include: comments
+    - include: header
+    - include: units
+    - include: annotations
+    - include: classes
+    - include: literals
+    - include: forms
+    - include: keywords
+    - include: operators
+
+  comments:
+    - match: '--.*$'
+      scope: comment.line.double-dash.cinch-core
+
+  header:
+    # `core 1` is the signature; `module`, `target` and `source` follow it.
+    - match: '^(core)\s+(\d+)$'
+      captures:
+        1: keyword.other.header.cinch-core
+        2: constant.numeric.version.cinch-core
+    - match: '^(module)(\s+)([^\s]+)'
+      captures:
+        1: keyword.other.header.cinch-core
+        3: entity.name.namespace.cinch-core
+    - match: '^(target)(\s+)([^\s]+)(\s+)(opt-level)(\s+)(\d+)'
+      captures:
+        1: keyword.other.header.cinch-core
+        3: constant.other.triple.cinch-core
+        5: keyword.other.header.cinch-core
+        7: constant.numeric.version.cinch-core
+    - match: '^(source)(\s+)(sha256:[0-9A-Fa-f]+)'
+      captures:
+        1: keyword.other.header.cinch-core
+        3: constant.other.digest.cinch-core
+
+  units:
+    # Dictionary units are named `$d.<Class>.<Type>` and read as bindings,
+    # not as ordinary unit names.
+    - match: '^(unit)(\s+)(\$d\.[^\s:]+)'
+      captures:
+        1: keyword.other.unit.cinch-core
+        3: variable.other.dictionary.cinch-core
+    - match: '^(unit)(\s+)([^\s:]+)(\s*)(::)'
+      captures:
+        1: keyword.other.unit.cinch-core
+        3: entity.name.function.cinch-core
+        5: keyword.operator.type.cinch-core
+    - match: '^end$'
+      scope: keyword.other.unit.cinch-core
+    # `params:` and `body:` (section 4) and `@params`/`body` (section 10).
+    - match: '^\s+(body|params)\b'
+      captures:
+        1: keyword.other.unit.cinch-core
+    - match: '^\s+(static)\b'
+      scope: keyword.other.unit.cinch-core
+    - match: '\$static\b'
+      scope: variable.other.dictionary.cinch-core
+
+  annotations:
+    # `@span`, `@class`, `@captures`, `@specialised`, `@rewrite`, `@prim`,
+    # `@resolved`, `@tailrec`, `@join`, `@stage`.
+    - match: '@[A-Za-z_]+'
+      scope: storage.type.annotation.cinch-core
+
+  classes:
+    # A parameter's class prints `@<class>` as well as `@ <class>`, so the
+    # class rule sits after the annotation rule and wins the `@` position.
+    - match: '@(owned|borrowed|lent|uncounted|immortal)\b'
+      captures:
+        1: storage.modifier.ownership.cinch-core
+    - match: '\b(owned|borrowed|lent|uncounted|immortal)\b'
+      scope: storage.modifier.ownership.cinch-core
+
+  literals:
+    # A byte buffer is `b"..."`; a string is `"..."` (section 4).
+    - match: '\bb(")(?:[^"\\]|\\.)*(")'
+      captures:
+        1: punctuation.definition.string.begin.cinch-core
+        2: punctuation.definition.string.end.cinch-core
+      scope: string.quoted.double.bytes.cinch-core
+    - match: '"'
+      scope: punctuation.definition.string.begin.cinch-core
+      push:
+        - meta_scope: string.quoted.double.cinch-core
+        - match: '\\[\\"nt]|\\x[0-9A-Fa-f]{2}'
+          scope: constant.character.escape.cinch-core
+        - match: '"'
+          scope: punctuation.definition.string.end.cinch-core
+          pop: true
+    - match: '-?\b\d+\b'
+      scope: constant.numeric.cinch-core
+
+  forms:
+    # Canonical s-expression heads, one per node form in section 8.2.
+    - match: '(?<=\()(int|nat|bytes|string|sym|bool|unit|local|global|ctor|prim|foreign|app|lam|dictproj|proj|instdict|let|if|case|alt|pat|dup|drop|release|boxinit|boxget|boxclear|refset|quote|splice|syntaxlit|demand)\b'
+      scope: support.function.form.cinch-core
+
+  keywords:
+    - match: '\b(forall|refine|with)\b'
+      scope: keyword.other.type.cinch-core
+    - match: '\b(true|false)\b'
+      scope: constant.language.boolean.cinch-core
+    - match: '\b(moved|rest|from)\b'
+      scope: keyword.other.unit.cinch-core
+
+  operators:
+    - match: '->|::|=>|<=|>='
+      scope: keyword.operator.cinch-core
+    - match: '[-<>=|:,]'
+      scope: keyword.operator.cinch-core
+    - match: '[][(){}]'
+      scope: punctuation.section.group.cinch-core
