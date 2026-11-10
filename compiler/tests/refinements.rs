@@ -14,7 +14,7 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, driver_with_profile, Mode};
+use cinch::driver::{check_sources, Mode};
 mod common;
 use common::source_frontend::run_source;
 use std::path::PathBuf;
@@ -125,10 +125,11 @@ fn write_project(name: &str, src: &str) -> PathBuf {
 /// honest statuses).
 fn manifest_of(name: &str, src: &str) -> String {
     let dir = write_project(name, src);
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::native(),
     )
@@ -566,8 +567,8 @@ module Main where
 fn unprovable_transfers_report_not_checked_honestly() {
     // The honest boundary (the P18 law tier): a refined result inside
     // another type former is not decided at samples (`Traversable`'s
-    // `traverse : ... -> f (NonEmpty b)`), and laws over methods the
-    // instance does not carry report `not checked`, never a false pass.
+    // `traverse : ... -> f (NonEmpty b)`), so it reports `not checked`,
+    // never a false pass.
     let m = manifest_of(
         "not-checked",
         r#"
@@ -587,11 +588,17 @@ module Main where
         row.contains("Traversable_NonEmpty") && row.contains("not checked"),
         "{row}"
     );
+    // A unit law names `<>`, Algebra.Semigroup's method, which a class
+    // constraint does not entail; the law's own context supplies the
+    // `Semigroup (NonZero Int)` dictionary, so the check reads that
+    // instance's product and identity and is decided at samples (the
+    // same resolution `laws.rs` asserts for its own `Monoid_Ticket`,
+    // where a wrong identity is a counterexample).
     assert!(
         m.contains(
-            "{\"class\":\"Monoid\",\"instance\":\"Data.NonZero.Monoid_NonZero\",\"law\":\"left-unit\",\"status\":\"not checked"
+            "{\"class\":\"Monoid\",\"instance\":\"Data.NonZero.Monoid_NonZero\",\"law\":\"left-unit\",\"status\":\"checked ("
         ),
-        "the unit law over the methods the instance does not carry reports `not checked`: {m}"
+        "the unit law over `<>` resolves the instance's Semigroup sibling and is decided at samples: {m}"
     );
 }
 

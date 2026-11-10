@@ -10,7 +10,6 @@ mod common;
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::driver_with_profile;
 use common::source_frontend::{check_source_interfaces, check_sources};
 use std::path::PathBuf;
 
@@ -46,10 +45,11 @@ fn write_project(name: &str, src: &str) -> PathBuf {
 /// The artifact manifest of one checked source.
 fn manifest_of(name: &str, src: &str) -> String {
     let dir = write_project(name, src);
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::native(),
     )

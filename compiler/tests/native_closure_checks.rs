@@ -2,8 +2,10 @@
 //! and the same exhaustive pattern compiler as case/function equations.
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{driver_with_profile, Mode};
+use cinch::driver::Mode;
 use std::process::Command;
+
+mod common;
 
 #[test]
 fn returned_functions_and_lambda_patterns_check_execute_and_reclaim() {
@@ -35,7 +37,7 @@ fn returned_functions_and_lambda_patterns_check_execute_and_reclaim() {
             std::fs::write(&input, source).unwrap();
             let output = dir.join("artifact");
             let profile = TargetProfile { reclaim: true, rc_debug: true, ..TargetProfile::native() };
-            driver_with_profile(Mode::Build, StageMode::Refresh, &input, Some(&output), &profile)
+            common::drive_with_profile(Mode::Build, StageMode::Refresh, &dir, "Main.cinch", Some(output.clone()), &profile)
                 .unwrap_or_else(|error| panic!("{name}: {error}"));
             let ran = Command::new(&output).env("CINCH_HEAP_LIMIT", "32M").env("CINCH_LEAK_CHECK", "1").env("CINCH_RC_DEBUG", "1").output().unwrap();
             let stderr = String::from_utf8_lossy(&ran.stderr);
@@ -55,7 +57,7 @@ fn returned_functions_and_lambda_patterns_check_execute_and_reclaim() {
             let input = dir.join("Main.cinch");
             std::fs::write(&input, source).unwrap();
             let profile = TargetProfile::native();
-            assert!(driver_with_profile(Mode::Check, StageMode::Refresh, &input, None, &profile).is_err(), "negative{index} accepted");
+            assert!(common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &profile).is_err(), "negative{index} accepted");
         }
     }).unwrap().join().unwrap();
 }

@@ -1,7 +1,8 @@
 //! Native declaration objects preserve the scope of captured field types.
 mod common;
 
-use cinch::driver::{driver_with, Mode, StageMode};
+use cinch::driver::{Mode, StageMode};
+use common::drive_with;
 use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 
 fn run(source: &str) {
@@ -133,7 +134,7 @@ fn generated_nominal_names_and_constructors_reach_the_driver_manifest() {
   main :: Int
   main = 42
 "#).unwrap();
-    driver_with(Mode::Check, StageMode::Refresh, &path, None).unwrap();
+    drive_with(Mode::Check, StageMode::Refresh, &directory, "Main.cinch", None).unwrap();
     let manifest = std::fs::read_to_string(directory.join("build/Main.manifest.json")).unwrap();
     let compact: String = manifest.chars().filter(|character| !character.is_whitespace()).collect();
     assert!(compact.contains(r#""generated":{"Main":["Choice","Envelope","Off","On"]}"#), "{manifest}");

@@ -306,7 +306,8 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
             assert_eq!(fact.status, "checked (2 samples)");
             let invalid = law_client.replace(&format!("{method} x = if x then False else True"), &format!("{method} x = False"));
             assert_eq!(run(&invalid).status.code(), Some(4));
-            assert!(common::read_output(&dir, "class-default-report.txt").contains(&format!("class law {law} failed for ReverseBool")));
+            let refused = common::read_output(&dir, "class-default-report.txt");
+            assert!(refused.contains(&format!("instance `ReverseBool` breaks class law `Reverse.{law}` on a Boolean sample")), "{refused}");
             assert!(common::read_output(&dir, "class-default-interfaces.jsonl").is_empty());
         }
         let leaked = law_client.replace("main = 0", "main = if private-reverse True then 0 else 1");
@@ -345,11 +346,11 @@ fn source_class_defaults_are_checked_at_the_owner_and_inherited_with_closed_cont
         assert_eq!(observation.status, format!("checked ({samples} samples)"));
     }
     for (original, changed, law, dictionary) in [
-        ("empty-value = Ticket 0", "empty-value = Ticket 1", "left-unit", "EmptyTicket"),
-        ("prefer x y = x", "prefer x y = y", "left-choice", "PreferBox"),
+        ("empty-value = Ticket 0", "empty-value = Ticket 1", "Empty.left-unit", "EmptyTicket"),
+        ("prefer x y = x", "prefer x y = y", "Prefer.left-choice", "PreferBox"),
     ] {
         assert_eq!(run(&finite_fields.replace(original, changed)).status.code(), Some(4), "{}", report());
-        assert!(report().contains(&format!("class law {law} failed for {dictionary}")), "{}", report());
+        assert!(report().contains(&format!("instance `{dictionary}` breaks class law `FiniteFields.{law}` on a finite constructor sample")), "{}", report());
         assert!(common::read_output(&dir, "class-default-interfaces.jsonl").is_empty());
     }
 

@@ -11,10 +11,8 @@ mod common;
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{
-    check_sources, check_sources_profile, driver_with_profile, target_profile, DriverOptions, Mode,
-};
-use common::source_frontend::run_source;
+use cinch::driver::{check_sources, target_profile, DriverOptions, Mode};
+use common::source_frontend::{check_sources_profile, run_source};
 use std::path::PathBuf;
 
 /// The `prim` acceptance fixture: one prim with `llvm` and `asm` bodies
@@ -88,7 +86,7 @@ fn write_project(name: &str, src: &str) -> PathBuf {
 /// The artifact manifest of one checked source under `profile`.
 fn manifest_of(name: &str, src: &str, profile: &TargetProfile) -> String {
     let dir = write_project(name, src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, profile)
+    common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, profile)
         .unwrap_or_else(|e| panic!("{name}: check run failed: {e}"));
     std::fs::read_to_string(dir.join("build/Main.manifest.json"))
         .unwrap_or_else(|e| panic!("{name}: manifest missing: {e}"))
@@ -306,8 +304,10 @@ module Main where
     // the same result.
     let ir0 = ir_of("pick-baseline", src);
     assert!(body_of(&ir0, "Main.pick.llvm").contains("add i32 %0, 1"), "{ir0}");
-    let ir1_program =
-        check_sources_profile(src, "pick-cap", &capped).expect("the capped artifact checks");
+    // The emitted IR is the observation, so this program comes from the
+    // Rust frontend.
+    let ir1_program = cinch::driver::check_sources_profile(src, "pick-cap", &capped)
+        .expect("the capped artifact checks");
     let ir1 = cinch::codegen::emit(&ir1_program).expect("emit");
     assert!(body_of(&ir1, "Main.pick.llvm").contains("add i32 1, %0"), "{ir1}");
     assert_eq!(run_source(src).expect("baseline run"), 0);
@@ -315,7 +315,7 @@ module Main where
     // Selection is representation: the contract projection carries no
     // family and no condition.
     let dir = write_project("pick-iface", src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, &capped)
+    common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &capped)
         .expect("check run");
     let iface =
         std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
@@ -571,7 +571,10 @@ fn profile_for(triple: &str, os: &str, arch: &str, libc: &str, word_size: u32) -
 
 /// The emitted LLVM IR of one checked source under an explicit profile.
 fn ir_profile(name: &str, src: &str, profile: &TargetProfile) -> String {
-    let program = check_sources_profile(src, name, profile)
+    // An IR observation needs the checked program itself, so it reads the
+    // Rust frontend; every check a caller only observes the outcome of
+    // goes through the selected frontend.
+    let program = cinch::driver::check_sources_profile(src, name, profile)
         .unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
     cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
@@ -660,7 +663,7 @@ module Main where
     // platform, and the program's behavior does not depend on the body
     // chosen.
     let dir = write_project("pop-iface", src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, &x86)
+    common::drive_with_profile(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None, &x86)
         .expect("check run");
     let iface = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
     assert!(!iface.contains("x86_64") && !iface.contains("arch "), "{iface}");

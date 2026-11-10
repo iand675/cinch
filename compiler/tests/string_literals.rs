@@ -35,7 +35,8 @@ mod common;
 use cinch::check::{check_program_multi_full, StagingCx};
 use common::source_frontend::{check_sources, run_source};
 use cinch::core::TargetProfile;
-use cinch::driver::{driver_with, parse_prelude, parse_source, Mode, StageMode};
+use cinch::driver::{parse_prelude, parse_source, Mode, StageMode};
+use common::drive_with;
 use cinch::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -597,11 +598,12 @@ fn emit_ir_references_the_constant_directly() {
          \x20   else 1\n",
     )]);
     let ir_path = dir.join("out.ll");
-    driver_with(
+    drive_with(
         Mode::EmitIr,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
-        Some(&ir_path),
+        &dir,
+        "Main.cinch",
+        Some(ir_path.clone()),
     )
     .expect("emit-ir");
     let ir = std::fs::read_to_string(&ir_path).expect("ir text");
@@ -635,7 +637,7 @@ fn emit_ir_references_the_constant_directly() {
         ir.contains(&format!("ptr @{name}, i64 0, i32 1) to i64")),
         "the constant is referenced directly"
     );
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
+    let code = drive_with(Mode::Run, StageMode::Refresh, &dir, "Main.cinch", None)
         .expect("run");
     assert_eq!(code, 0, "the emitted program runs");
 }

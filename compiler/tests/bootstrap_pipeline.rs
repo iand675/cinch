@@ -580,7 +580,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let unlawful = boolean_law.replace("if x then False else True", "False");
     let (status, diagnostics) = invoke("--emit-interfaces", &unlawful, "refused-boolean-law");
     assert_eq!(status, Some(4), "{diagnostics}");
-    assert!(diagnostics.contains("class law involution failed for Restore_Bool on a Boolean sample"), "{diagnostics}");
+    assert!(diagnostics.contains("instance `Restore_Bool` breaks class law `LawExample.Restore.involution` on a Boolean sample"), "{diagnostics}");
     assert!(!dir.join("refused-boolean-law.LawExample.cinchif").exists());
     let finite_law = r#"module EnumLaw where
   data Comparison where
@@ -607,7 +607,7 @@ fn checked_source_library_replacement(dir: &Path, exe: &Path, manifest: &Path, l
     let wrong_unit = finite_law.replace("unit-of = Same", "unit-of = Greater");
     let (status, diagnostics) = invoke("--emit-interfaces", &wrong_unit, "refused-finite-law");
     assert_eq!(status, Some(4), "{diagnostics}");
-    assert!(diagnostics.contains("class law left-unit failed for UnitComparison on a finite constructor sample"), "{diagnostics}");
+    assert!(diagnostics.contains("instance `UnitComparison` breaks class law `EnumLaw.UnitOf.left-unit` on a finite constructor sample"), "{diagnostics}");
     assert!(!dir.join("refused-finite-law.EnumLaw.cinchif").exists());
     let function_law = format!("{class_law}  implicit instance Restore_Function :: Restore (Int -> Int) where\n    restore f = f\n");
     let (status, diagnostics) = invoke("--emit-interfaces", &function_law, "unsampled-function-law");

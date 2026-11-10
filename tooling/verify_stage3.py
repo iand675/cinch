@@ -22,29 +22,40 @@ def publish_interfaces(manifest, source, prefix):
         shutil.copyfile(path, build / path.name.removeprefix(prefix.name + "."))
 
 
+# Target profile flags the staged compiler accepts in any position before its
+# paths. The selectors in compiler/tests/common put them after the mode word.
+PROFILE_FLAGS = ("--rc-debug",)
+
+
 def compile_client(compiler, objects, runtime, args):
     """Adapt the shared Rust test harness to the staged frontend and linker."""
     env = bootstrap.environment()
     env.update(CINCH_RC_DEBUG="0", CINCH_LEAK_CHECK="1")
     api = env.get("CINCH_TEST_API_EMIT_INTERFACES") == "1"
+    profile = [arg for arg in args if arg in PROFILE_FLAGS]
+    args = [arg for arg in args if arg not in PROFILE_FLAGS]
     if args[0:1] == ["--interfaces"] and args[2:3] == ["--objects"] and args[4:5] == ["run"]:
-        return subprocess.call([compiler, *args], env=env)
+        return subprocess.call([compiler, *profile, *args], env=env)
+    # The selectors run a check as the interface-and-manifest emitting mode,
+    # because this CLI has no check mode that writes those artifacts.
+    if args[0:1] == ["--emit-ir-with-interfaces"]:
+        return subprocess.call([compiler, *profile, *args], env=env)
     if args[0:1] == ["--check"] and len(args) == 5 and args[1] == "--interfaces":
         mode = "--emit-interfaces" if api else "--check"
-        code = subprocess.call([compiler, mode, *args[1:]], env=env)
+        code = subprocess.call([compiler, mode, *profile, *args[1:]], env=env)
         if code == 0 and api:
             publish_interfaces(*(Path(value) for value in args[2:]))
         return code
     if args[0:1] == ["--emit-object"]:
-        return subprocess.call([compiler, *args], env=env)
+        return subprocess.call([compiler, args[0], *profile, *args[1:]], env=env)
     if args[0:1] == ["--emit-ir"]:
         flags = [] if "--objects" in args else ["--objects", objects]
-        return subprocess.call([compiler, args[0], *flags, *args[1:]], env=env)
+        return subprocess.call([compiler, args[0], *profile, *flags, *args[1:]], env=env)
     if len(args) != 7 or args[:2] != ["--compile-only", "--interfaces"]:
         return 1
     manifest, source, ir, exe, report = map(Path, args[2:])
     mode = "--emit-ir-with-interfaces" if api else "--emit-ir"
-    code = subprocess.call([compiler, mode, "--interfaces", manifest, "--objects", objects, source, ir], env=env)
+    code = subprocess.call([compiler, mode, *profile, "--interfaces", manifest, "--objects", objects, source, ir], env=env)
     if code:
         return code
     if api:

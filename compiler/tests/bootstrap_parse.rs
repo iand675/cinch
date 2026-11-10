@@ -12,7 +12,7 @@
 //!   * `examples/compiler/fib.cinch` and `classes.cinch` parse with ZERO
 //!     unmodeled nodes, and their declaration names, constructor names
 //!     and fixity facts are the hand-listed ones;
-//!   * every corpus module (the 55 of
+//!   * every corpus module (the 59 of
 //!     `compiler/prelude/cinch-base.cinchpkg` plus `examples/source/*.cinch`)
 //!     is fed through the parser in its OWN process (one module's
 //!     allocation per process, while the runtime frees nothing), and its
@@ -23,10 +23,11 @@
 //!     module has an unmodeled node to account for the miss. A missing
 //!     name with no unmodeled node is the silent drop this catches.
 //!
-//! What is still unmodeled (named, so the boundary is honest): class `law`
-//! members, provider-specific sequencing forms, and any
-//! form only `examples/source` (the surface proposals, "not compiled")
-//! uses. `EXPECTED_UNMODELED` is the measured residual per module.
+//! What is still unmodeled (named, so the boundary is honest): the `when`
+//! clauses of a conditional import (`Prim.Sys` selects its backend that
+//! way, one unmodeled node per conditional import), and any form only
+//! `examples/source` (the surface proposals, "not compiled") uses.
+//! `EXPECTED_UNMODELED` is the measured residual per module.
 
 mod common;
 
@@ -115,7 +116,11 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.Path", 0),
     ("Effect.Sequencing", 0),
     ("Effect.Concurrent", 0),
-    ("Effect.Clock", 3),
+    ("Effect.Clock", 0),
+    ("Prim.Sys.Darwin", 0),
+    ("Prim.Sys.Linux", 0),
+    ("Prim.Sys.Portable", 0),
+    ("Prim.Sys", 3),
     ("Effect.Fs", 0),
     ("Effect.Process", 0),
     ("Effect.Io", 0),
@@ -147,16 +152,14 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.HashMap", 0),
     ("01-bounded-index", 0),
     ("02-vector-filter", 2),
-    ("03-map-fusion", 2),
-    ("04-productive-stream", 5),
+    ("03-map-fusion", 0),
+    ("04-productive-stream", 0),
     ("05-schema-generator", 1),
-    ("06-counter-upgrade", 3),
+    ("06-counter-upgrade", 0),
     ("07-rejected-programs", 0),
-    ("08-platform-simd", 1),
-    ("09-foreign-codec", 1),
-    // Record construction is modeled; the surrounding component form
-    // remains an explicit unmodeled declaration.
-    ("10-wasm-component", 1),
+    ("08-platform-simd", 0),
+    ("09-foreign-codec", 0),
+    ("10-wasm-component", 0),
     ("11-structured-tasks", 0),
     ("12-runtime-effects", 1),
 ];

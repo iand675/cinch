@@ -8,9 +8,11 @@
 //! the TARGET, not the build host: the same test binary runs on one host and
 //! asserts two operating systems and two architectures.
 
+mod common;
+
 use cinch::core::TargetProfile;
 use cinch::driver::{
-    base_package, driver_opts, target_profile, DriverOptions, Mode, SUPPORTED_TARGETS,
+    base_package, target_profile, DriverOptions, Mode, SUPPORTED_TARGETS,
 };
 use std::path::PathBuf;
 
@@ -191,13 +193,12 @@ fn a_darwin_target_emits_a_macho_datalayout() {
 #[test]
 fn a_cross_build_without_a_runtime_archive_names_what_is_missing() {
     let dir = write_project("cross-no-archive", TRIVIAL);
-    let entry = dir.join("Main.cinch");
     let out = dir.join("prog");
     let opts = DriverOptions {
         target: Some("aarch64-unknown-linux-gnu".to_string()),
         ..DriverOptions::default()
     };
-    let err = driver_opts(Mode::Build, &entry, Some(&out), &opts)
+    let err = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(out.clone()), &opts)
         .expect_err("a cross build without the target's runtime archive fails");
     let msg = err.to_string();
     assert!(msg.contains("aarch64-unknown-linux-gnu"), "{msg}");
@@ -216,14 +217,13 @@ fn a_cross_build_without_a_runtime_archive_names_what_is_missing() {
 #[test]
 fn a_runtime_archive_that_is_absent_is_named_by_path() {
     let dir = write_project("cross-absent-archive", TRIVIAL);
-    let entry = dir.join("Main.cinch");
     let missing = dir.join("nope").join("libcinchruntime.a");
     let opts = DriverOptions {
         target: Some("x86_64-unknown-linux-gnu".to_string()),
         runtime_archive: Some(missing.clone()),
         ..DriverOptions::default()
     };
-    let err = driver_opts(Mode::Build, &entry, Some(&dir.join("prog")), &opts)
+    let err = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("prog")), &opts)
         .expect_err("an absent archive fails the build");
     let msg = err.to_string();
     assert!(msg.contains(&missing.display().to_string()), "{msg}");
@@ -234,7 +234,6 @@ fn a_runtime_archive_that_is_absent_is_named_by_path() {
 #[test]
 fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
     let dir = write_project("cross-wrong-archive", TRIVIAL);
-    let entry = dir.join("Main.cinch");
     // A well-formed archive whose one member is an x86_64 Mach-O object,
     // offered for an aarch64 Linux target.
     let mut object = vec![0u8; 32];
@@ -247,7 +246,7 @@ fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
         runtime_archive: Some(archive.clone()),
         ..DriverOptions::default()
     };
-    let err = driver_opts(Mode::Build, &entry, Some(&dir.join("prog")), &opts)
+    let err = common::drive_opts(Mode::Build, &dir, "Main.cinch", Some(dir.join("prog")), &opts)
         .expect_err("the wrong architecture is refused before the link");
     let msg = err.to_string();
     assert!(msg.contains("x86_64"), "{msg} does not name what the archive holds");
@@ -259,12 +258,11 @@ fn a_runtime_archive_of_the_wrong_architecture_is_named_as_such() {
 #[test]
 fn run_refuses_a_foreign_target_and_says_why() {
     let dir = write_project("cross-run", TRIVIAL);
-    let entry = dir.join("Main.cinch");
     let opts = DriverOptions {
         target: Some("x86_64-unknown-linux-gnu".to_string()),
         ..DriverOptions::default()
     };
-    let err = driver_opts(Mode::Run, &entry, None, &opts)
+    let err = common::drive_opts(Mode::Run, &dir, "Main.cinch", None, &opts)
         .expect_err("a foreign target cannot run here");
     let msg = err.to_string();
     assert!(msg.contains("x86_64-unknown-linux-gnu"), "{msg}");
@@ -278,12 +276,11 @@ fn run_refuses_a_foreign_target_and_says_why() {
 #[test]
 fn the_artifact_manifest_records_the_target_of_a_cross_check() {
     let dir = write_project("cross-manifest", TRIVIAL);
-    let entry = dir.join("Main.cinch");
     let opts = DriverOptions {
         target: Some("aarch64-unknown-linux-gnu".to_string()),
         ..DriverOptions::default()
     };
-    driver_opts(Mode::Check, &entry, None, &opts).expect("the cross check writes its artifacts");
+    common::drive_opts(Mode::Check, &dir, "Main.cinch", None, &opts).expect("the cross check writes its artifacts");
     let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
         .expect("the artifact manifest");
     assert!(

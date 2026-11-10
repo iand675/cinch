@@ -6389,8 +6389,13 @@ impl Checker {
                     .cloned()
                     .ok_or_else(|| Error::plain(format!("unknown signature {name}")))
             }
-            [m, name] => {
-                for (dm, dn) in self.scope_qual_candidates(m, name) {
+            // `Module.Sig`, where the module name may itself be dotted: an
+            // interface publishes a class constraint at its defining
+            // identity (`Effect.Sequencing.DirectSequencing`), and a
+            // constraint path keeps every dot as a segment.
+            [qualifier @ .., name] => {
+                let m = qualifier.join(".");
+                for (dm, dn) in self.scope_qual_candidates(&m, name) {
                     if let Some(s) = self
                         .sigs
                         .get(&dn)
@@ -6399,15 +6404,16 @@ impl Checker {
                         return Ok(s.clone());
                     }
                 }
-                if self.module_names.contains(*m) {
-                    return Err(Error::plain(format!("unknown signature {m}.{name}")));
-                }
+                // A checked contract names a class at its defining
+                // identity, and a consumer of that contract resolves the
+                // identity directly: which class a constraint names is
+                // fixed by the identity, never by an import.
                 self.qualified_sigs
-                    .get(&(m.to_string(), name.to_string()))
+                    .get(&(m.clone(), name.to_string()))
                     .cloned()
                     .ok_or_else(|| Error::plain(format!("unknown signature {m}.{name}")))
             }
-            _ => Err(Error::plain("signature paths deeper than Module.Sig are not supported")),
+            [] => Err(Error::plain("an empty signature path names no signature")),
         }
     }
 

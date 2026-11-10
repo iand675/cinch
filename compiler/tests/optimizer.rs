@@ -9,7 +9,7 @@
 use cinch::core::{optimize, OptReport, Program, TargetProfile};
 mod common;
 
-use cinch::driver::{check_sources, run_source_profile, Mode};
+use cinch::driver::{check_sources, Mode};
 use std::path::{Path, PathBuf};
 
 fn checked(name: &str, src: &str) -> Program {
@@ -28,7 +28,7 @@ fn ir_of(name: &str, src: &str, profile: &TargetProfile) -> String {
 }
 
 fn run(name: &str, src: &str, profile: &TargetProfile) -> i32 {
-    run_source_profile(src, profile)
+    common::source_frontend::run_source_profile(src, profile)
         .unwrap_or_else(|e| panic!("{name}: run failed: {e}"))
 }
 
@@ -721,10 +721,11 @@ module Main where
         vector_shape: cinch::core::VectorShape::Scalable,
         ..TargetProfile::native()
     };
-    cinch::driver::driver_with_profile(
+    common::drive_with_profile(
         Mode::Run,
         cinch::driver::StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &profile,
     )

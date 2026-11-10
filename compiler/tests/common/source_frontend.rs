@@ -1,5 +1,7 @@
 //! Shared source checks that use the selected frontend when configured.
 use super::{cleanup, external_frontend, project_directory};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
 use cinch::driver::{self, Mode};
 use cinch::interface::Iface;
 use std::io::Write;
@@ -50,6 +52,43 @@ pub fn run_source(source: &str) -> Result<i32, String> {
             external_frontend::drive(&frontend, Mode::Run, dir, entry, None)
         }),
         None => driver::run_source(source).map_err(|error| error.to_string()),
+    }
+}
+
+/// [`check_sources`] under an explicit target profile.
+pub fn check_sources_profile(source: &str, name: &str, profile: &TargetProfile) -> Result<(), String> {
+    match external_frontend::configured()? {
+        Some(frontend) => {
+            let request = external_frontend::profile_request(Mode::Check, StageMode::Refresh, profile)?;
+            source_project(name, source, |dir, entry| {
+                external_frontend::drive_profile(&frontend, Mode::Check, dir, entry, None, &request).map(|_| ())
+            })
+        }
+        None => driver::check_sources_profile(source, name, profile).map(|_| ()).map_err(|error| error.to_string()),
+    }
+}
+
+/// [`check_source_interfaces`] under an explicit target profile.
+pub fn check_source_interfaces_profile(source: &str, name: &str, profile: &TargetProfile) -> Result<Vec<Iface>, String> {
+    if external_frontend::configured()?.is_some() {
+        source_project(name, source, |dir, entry| super::check_interfaces_profile(dir, entry, profile))
+    } else {
+        driver::check_sources_profile_ifaces(source, name, profile)
+            .map(|(_, interfaces)| interfaces)
+            .map_err(|error| error.to_string())
+    }
+}
+
+/// [`run_source`] under an explicit target profile.
+pub fn run_source_profile(source: &str, profile: &TargetProfile) -> Result<i32, String> {
+    match external_frontend::configured()? {
+        Some(frontend) => {
+            let request = external_frontend::profile_request(Mode::Run, StageMode::Refresh, profile)?;
+            source_project("Main.cinch", source, |dir, entry| {
+                external_frontend::drive_profile(&frontend, Mode::Run, dir, entry, None, &request)
+            })
+        }
+        None => driver::run_source_profile(source, profile).map_err(|error| error.to_string()),
     }
 }
 

@@ -9,16 +9,9 @@ fn checked_intrinsic_exports_are_object_roots_with_exact_word_classes() {
   foreign import ccall "cinch.runtime.intNeg" negate :: Int -> Int
 "#)]);
     let object = dir.join("library.o");
-    let input = dir.join("Library.cinch");
     let roots = cinch::specialize::parse_object_roots(r#"{"schema":1,"units":[{"symbol":"Library.compare","classes":""},{"symbol":"Library.negate","classes":""}]}"#).unwrap();
-    std::thread::Builder::new().stack_size(64 * 1024 * 1024).spawn({
-        let object = object.clone();
-        move || {
-            let opts = cinch::driver::DriverOptions { object_roots: roots, ..Default::default() };
-            cinch::driver::driver_with_profile_opts(cinch::driver::Mode::EmitObject, cinch::driver::StageMode::Refresh,
-                &input, Some(&object), &cinch::core::TargetProfile::native(), &opts).unwrap();
-        }
-    }).unwrap().join().unwrap();
+    let opts = cinch::driver::DriverOptions { object_roots: roots, ..Default::default() };
+    common::drive_opts(cinch::driver::Mode::EmitObject, &dir, "Library.cinch", Some(object.clone()), &opts).unwrap();
     let metadata = std::fs::read_to_string(object.with_extension("abi.json")).unwrap();
     for (name, params, result) in [("Library.compare", "[\"O\",\"O\"]", "R"), ("Library.negate", "[\"T\"]", "T")] {
         // Unit rows are flat objects in the actual canonical ABI artifact.

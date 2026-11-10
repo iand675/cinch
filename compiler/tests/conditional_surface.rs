@@ -35,9 +35,8 @@
 
 mod common;
 
-use cinch::driver::{
-    check_sources_profile, check_sources_profile_ifaces, target_profile, DriverOptions,
-};
+use cinch::driver::{target_profile, DriverOptions, Mode};
+use common::source_frontend::{check_source_interfaces_profile, check_sources_profile};
 use cinch::interface::Iface;
 use std::collections::BTreeSet;
 
@@ -58,7 +57,6 @@ fn profile(triple: &str) -> cinch::core::TargetProfile {
 
 fn check_at(name: &str, src: &str, triple: &str) -> Result<(), String> {
     check_sources_profile(src, "<test>", &profile(triple))
-        .map(|_| ())
         .map_err(|e| format!("{name}: {e}"))
 }
 
@@ -196,7 +194,7 @@ module Main where
   main :: Unit ->{IO r} Int
   main u = 0
 "#;
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(DARWIN))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(DARWIN))
         .expect("the darwin view checks");
     let main = iface_of(&ifaces, "Main");
     let names = iface_values(main);
@@ -209,7 +207,7 @@ module Main where
         "the Linux declaration is absent on Darwin: {names:?}"
     );
 
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(LINUX))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(LINUX))
         .expect("the linux view checks");
     let names = iface_values(iface_of(&ifaces, "Main"));
     assert!(
@@ -258,12 +256,12 @@ module Main where
   main :: Unit ->{IO r} Int
   main u = 0
 "#;
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(DARWIN))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(DARWIN))
         .expect("the darwin view checks");
     let names = iface_values(iface_of(&ifaces, "Main"));
     assert!(names.contains("word"), "exactly one definition applies: {names:?}");
 
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(LINUX))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(LINUX))
         .expect("the linux view checks");
     let names = iface_values(iface_of(&ifaces, "Main"));
     assert!(names.contains("word"), "exactly one definition applies: {names:?}");
@@ -357,7 +355,7 @@ module Main where
   main :: Unit ->{IO r} Int
   main u = 0
 "#;
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(DARWIN))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(DARWIN))
         .expect("the darwin view checks");
     let imports = iface_imports(iface_of(&ifaces, "Main"));
     assert!(
@@ -369,7 +367,7 @@ module Main where
         "the unselected import is absent from a Darwin interface: {imports:?}"
     );
 
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(LINUX))
+    let ifaces = check_source_interfaces_profile(src, "<test>", &profile(LINUX))
         .expect("the linux view checks");
     let imports = iface_imports(iface_of(&ifaces, "Main"));
     assert!(
@@ -389,9 +387,9 @@ module Main where
 #[test]
 fn the_facade_surface_is_the_selected_backends_surface() {
     let src = "module Main where\n\n  main :: Unit ->{IO r} Int\n  main u = 0\n";
-    let (_program, darwin) = check_sources_profile_ifaces(src, "<test>", &profile(DARWIN))
+    let darwin = check_source_interfaces_profile(src, "<test>", &profile(DARWIN))
         .expect("the darwin view checks");
-    let (_program, linux) = check_sources_profile_ifaces(src, "<test>", &profile(LINUX))
+    let linux = check_source_interfaces_profile(src, "<test>", &profile(LINUX))
         .expect("the linux view checks");
 
     let facade_darwin = iface_values(iface_of(&darwin, "Prim.Sys"));
@@ -434,7 +432,7 @@ fn a_target_with_neither_backend_reaches_the_portable_floor() {
     windows.os = "windows".to_string();
     windows.arch = "x86_64".to_string();
     windows.libc = "msvcrt".to_string();
-    let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &windows)
+    let ifaces = check_source_interfaces_profile(src, "<test>", &windows)
         .expect("the prelude family checks for a backend-less target");
     let imports = iface_imports(iface_of(&ifaces, "Prim.Sys"));
     assert!(
@@ -460,7 +458,7 @@ fn a_target_with_neither_backend_reaches_the_portable_floor() {
 #[test]
 fn the_facade_interface_names_one_backend() {
     let src = "module Main where\n\n  main :: Unit ->{IO r} Int\n  main u = 0\n";
-    let (_program, darwin) = check_sources_profile_ifaces(src, "<test>", &profile(DARWIN))
+    let darwin = check_source_interfaces_profile(src, "<test>", &profile(DARWIN))
         .expect("the darwin view checks");
     let imports = iface_imports(iface_of(&darwin, "Prim.Sys"));
     assert!(
@@ -472,7 +470,7 @@ fn the_facade_interface_names_one_backend() {
         "the facade imports no other backend: {imports:?}"
     );
 
-    let (_program, linux) = check_sources_profile_ifaces(src, "<test>", &profile(LINUX))
+    let linux = check_source_interfaces_profile(src, "<test>", &profile(LINUX))
         .expect("the linux view checks");
     let imports = iface_imports(iface_of(&linux, "Prim.Sys"));
     assert!(
@@ -491,7 +489,7 @@ fn the_filesystem_home_reaches_the_platform_layer_through_the_facade() {
     // interface names the facade, and the facade names one backend.
     let src = "module Main where\n\n  main :: Unit ->{IO r} Int\n  main u = 0\n";
     for triple in [DARWIN, LINUX] {
-        let (_program, ifaces) = check_sources_profile_ifaces(src, "<test>", &profile(triple))
+        let ifaces = check_source_interfaces_profile(src, "<test>", &profile(triple))
             .unwrap_or_else(|e| panic!("the {triple} view checks: {e}"));
         let imports = iface_imports(iface_of(&ifaces, "Effect.Fs"));
         assert!(
@@ -556,7 +554,7 @@ fn check_project(
         target: triple.map(str::to_string),
         ..DriverOptions::default()
     };
-    cinch::driver::driver_opts(cinch::driver::Mode::Check, &dir.join(entry), None, &opts)
+    common::drive_opts(Mode::Check, dir, entry, None, &opts)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }

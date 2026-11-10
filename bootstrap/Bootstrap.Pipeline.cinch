@@ -20,7 +20,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
-  import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
+  import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-default-roots, emit-runtime-library-object-with-object)
   import Bootstrap.Object (RuntimeObject, read-runtime-object-document, read-runtime-object-config, runtime-object-input-files, admit-runtime-object)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
@@ -144,21 +144,23 @@ module Bootstrap.Pipeline where
         Err error -> pipeline-read-failed
         Ok src -> after-parse-with mode interfaces source src (parse-program-with source src (interface-headers interfaces)) ir exe report
 
-  compile-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-source-with-object manifest object-config source ir = compile-source-object False manifest object-config source ir
-  compile-source-with-object-interfaces :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-source-with-object-interfaces manifest object-config source ir = compile-source-object True manifest object-config source ir
-  compile-source-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
-  compile-source-object publish manifest object-config source ir =
-    if publish then publish-object-client manifest object-config source ir else
+  -- `debug` selects debug counting (`--rc-debug`): the emitted program's
+  -- count operations call the runtime's checked out-of-line entries.
+  compile-source-with-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-source-with-object debug manifest object-config source ir = compile-source-object debug False manifest object-config source ir
+  compile-source-with-object-interfaces :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-source-with-object-interfaces debug manifest object-config source ir = compile-source-object debug True manifest object-config source ir
+  compile-source-object :: forall r. using (io :: Io r) => Bool -> Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  compile-source-object debug publish manifest object-config source ir =
+    if publish then publish-object-client debug manifest object-config source ir else
       (case read-interfaces manifest of
         Err message -> write-failure ir ("bootstrap.interfaces: " <> message) pipeline-interface-failed
         Ok interfaces -> case read-runtime-object-document interfaces object-config of
           Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
-          Ok (provider, metadata, object-path, code) -> emit-object-client None interfaces provider source ir)
+          Ok (provider, metadata, object-path, code) -> emit-object-client debug None interfaces provider source ir)
 
-  publish-object-client :: forall r. using (io :: Io r) => String -> String -> String -> Path ->{IO r, Diverge} Int
-  publish-object-client manifest object-config source ir =
+  publish-object-client :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> Path ->{IO r, Diverge} Int
+  publish-object-client debug manifest object-config source ir =
     let output = build-manifest-path ir in
     let normalize-name = \name -> path-to-string (path-normalize (path-from-string name)) in
     let outputs = map normalize-name [path-to-string ir, path-to-string (refusal-path ir), path-to-string output] in
@@ -180,7 +182,7 @@ module Bootstrap.Pipeline where
                 Ok config -> case admit-runtime-object interfaces config of
                   Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
                   Ok (provider, metadata, object-path, code) ->
-                    emit-object-client (Some metadata) interfaces provider source ir)
+                    emit-object-client debug (Some metadata) interfaces provider source ir)
 
   interface-input-files :: List (String, String, String) -> List String
   interface-input-files references = case references of
@@ -193,8 +195,8 @@ module Bootstrap.Pipeline where
 
   build-manifest-path :: Path -> Path
   build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
-  emit-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
-  emit-object-client metadata interfaces provider source ir = case fs-read (path-from-string source) of
+  emit-object-client :: forall r. using (io :: Io r) => Bool -> Option Json -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
+  emit-object-client debug metadata interfaces provider source ir = case fs-read (path-from-string source) of
     Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
     Ok src -> case parse-program-with source src (interface-headers interfaces) of
       Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
@@ -203,7 +205,7 @@ module Bootstrap.Pipeline where
         Ok checked -> let admitted = unshadowed-interfaces (program-modules program) interfaces in
           let entry = path-stem (path-from-string source) in
           case emit-client-artifacts entry src checked admitted of
-            done -> after-object-client metadata admitted provider checked entry src ir
+            done -> after-object-client debug metadata admitted provider checked entry src ir
       Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
 
   -- The client compile path also leaves the driver's artifact set in the
@@ -216,13 +218,13 @@ module Bootstrap.Pipeline where
 
   -- A published interface client writes its interfaces beside the IR path
   -- and its build manifest beside them; a plain client build only emits.
-  after-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Bytes -> Path ->{IO r, Diverge} Int
-  after-object-client metadata admitted provider checked entry src ir = case metadata of
-    None -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+  after-object-client :: forall r. using (io :: Io r) => Bool -> Option Json -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Bytes -> Path ->{IO r, Diverge} Int
+  after-object-client debug metadata admitted provider checked entry src ir = case metadata of
+    None -> write-runtime-module ir (emit-runtime-program-counting debug checked (Some provider))
     Some document -> case export-interfaces checked admitted src of
       Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
       Ok rows -> case write-interface-output ir (Ok rows) of
-        0 -> case write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)) of
+        0 -> case write-runtime-module ir (emit-runtime-program-counting debug checked (Some provider)) of
           0 -> (case fs-write (build-manifest-path ir)
               (canonical-bytes (build-manifest entry document admitted rows)) of
             Ok written -> pipeline-ok
@@ -230,8 +232,8 @@ module Bootstrap.Pipeline where
           code -> code
         code -> code
 
-  run-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
-  run-source-with-object manifest config runtime prefix source words =
+  run-source-with-object :: forall r. using (io :: Io r) => Bool -> String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
+  run-source-with-object debug manifest config runtime prefix source words =
     let ir = path-from-string (prefix <> ".ll") in
     let executable = prefix <> ".exe" in
     let object-copy = prefix <> ".library.o" in
@@ -244,7 +246,7 @@ module Bootstrap.Pipeline where
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-interface-failed
         Ok (provider, metadata, object-path, object-bytes) ->
           if object-path-member (normalize-path object-path) paths then pipeline-bad-args
-          else case emit-object-client None interfaces provider source ir of
+          else case emit-object-client debug None interfaces provider source ir of
             0 -> (case fs-write (path-from-string object-copy) object-bytes of
               Err error -> pipeline-write-failed
               Ok written -> link-object-client ir executable object-copy runtime metadata words)

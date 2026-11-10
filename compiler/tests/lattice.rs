@@ -19,15 +19,15 @@ use cinch::check::StageMode;
 use cinch::core::TargetProfile;
 mod common;
 
-use cinch::driver::{check_sources, driver_with_profile, Mode};
+use cinch::driver::Mode;
 use common::source_frontend::run_source;
 use std::path::PathBuf;
 
 /// Assert that checking the program fails with errors containing every
 /// `needle`.
 fn expect_err(name: &str, src: &str, needles: &[&str]) {
-    match check_sources(src, name) {
-        Ok(program) => panic!("{name}: expected an error, but the program checked; law results: {:#?}", program.laws),
+    match common::source_frontend::check_sources(src, name) {
+        Ok(_) => panic!("{name}: expected an error, but the program checked"),
         Err(e) => {
             let msg = e.to_string();
             for n in needles {
@@ -80,10 +80,11 @@ fn write_project(name: &str, src: &str) -> PathBuf {
 /// honest statuses).
 fn manifest_of(name: &str, src: &str) -> String {
     let dir = write_project(name, src);
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::native(),
     )
@@ -853,10 +854,11 @@ module Main where
   main = 0
 "#,
     );
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::native(),
     )

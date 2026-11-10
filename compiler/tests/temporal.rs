@@ -26,7 +26,7 @@ mod common;
 
 use cinch::check::{check_program_multi_full, StagingCx};
 use cinch::core::TargetProfile;
-use cinch::driver::{driver_with_profile, parse_prelude, parse_source, Mode, StageMode};
+use cinch::driver::{parse_prelude, parse_source, Mode, StageMode};
 use common::source_frontend::{check_source_interfaces, check_sources};
 use cinch::interface::{ContractFact, Iface};
 use std::collections::HashMap;
@@ -575,10 +575,11 @@ module Main where
   main = 0
 "#,
     )]);
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::native(),
     )

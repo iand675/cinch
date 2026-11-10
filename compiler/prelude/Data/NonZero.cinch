@@ -20,10 +20,11 @@
 -- written at the container's types (the transfer rule): the product of
 -- non-zeros is non-zero (preserved) and 1 is non-zero, so unlike
 -- `Monoid (NonEmpty a)` (whose identity is empty) `Monoid (NonZero
--- Int)` exists. The unit laws state over `Semigroup.<>`, which the
--- Monoid instance does not carry, so they report `not checked`
--- honestly (the P18 law boundary); asserted in
--- compiler/tests/refinements.rs.
+-- Int)` exists. The unit laws state over `Semigroup.<>`, which a class
+-- constraint does not entail; the law's own context supplies the
+-- `Semigroup (NonZero Int)` dictionary, so the check reads this
+-- module's product and identity and decides both laws at samples
+-- (asserted in compiler/tests/refinements.rs).
 module Data.NonZero where
 
   import Algebra.Semigroup

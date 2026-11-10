@@ -18,7 +18,10 @@
 
 use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{driver_with_profile, Mode};
+use cinch::driver::Mode;
+
+mod common;
+use common::drive_with_profile;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -36,13 +39,7 @@ fn project(tag: &str, src: &str) -> PathBuf {
 fn build(dir: &Path, debug: bool) -> PathBuf {
     let exe = dir.join(if debug { "prog_dbg" } else { "prog" });
     let profile = TargetProfile { reclaim: true, rc_debug: debug, ..TargetProfile::native() };
-    let (src, out) = (dir.join("Main.cinch"), exe.clone());
-    std::thread::Builder::new()
-        .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver_with_profile(Mode::Build, StageMode::Refresh, &src, Some(&out), &profile))
-        .expect("driver thread")
-        .join()
-        .expect("driver thread panicked")
+    drive_with_profile(Mode::Build, StageMode::Refresh, dir, "Main.cinch", Some(exe.clone()), &profile)
         .unwrap_or_else(|e| panic!("build failed: {e}"));
     exe
 }

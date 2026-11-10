@@ -46,11 +46,11 @@ const ARTIFACT_DIR_PLACEHOLDER: &str = "__MANIFEST_ARTIFACT_DIR__";
 const PACKAGE_PATH_PLACEHOLDER: &str = "__MANIFEST_PACKAGE_PATH__";
 
 /// The package facts hand-listed from `compiler/prelude/cinch-base.cinchpkg`:
-/// 55 entries in `modules` and in `order`, `Prelude` is the facade and sits
-/// at index 33 of `order`, and `order` is a permutation of the module names.
-const PACKAGE_MODULES: &str = "55";
+/// 59 entries in `modules` and in `order`, `Prelude` is the facade and sits
+/// at index 37 of `order`, and `order` is a permutation of the module names.
+const PACKAGE_MODULES: &str = "59";
 const PACKAGE_FACADE: &str = "Prelude";
-const PACKAGE_FACADE_INDEX: &str = "33";
+const PACKAGE_FACADE_INDEX: &str = "37";
 
 /// A module with a data type, an instance and a foreign import, so the
 /// artifacts carry more than an empty export table.

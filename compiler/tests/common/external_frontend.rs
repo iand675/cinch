@@ -1,5 +1,7 @@
 //! Invoke the selected Cinch executable; no Rust frontend is used on this path.
-use cinch::driver::{Mode, Package, BASE_PACKAGE};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{DriverOptions, Mode, Package, BASE_PACKAGE};
 use cinch::lsp::{parse_json, Json};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -8,6 +10,114 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub struct Frontend {
     pub compiler: PathBuf,
     pub interfaces: PathBuf,
+}
+
+/// What one compile asks of the selected compiler beyond its mode: the
+/// command-line words that select a target profile, and the words a `Run`
+/// hands the built program.
+#[derive(Clone, Debug, Default)]
+pub struct Request {
+    pub flags: Vec<String>,
+    pub program_args: Vec<String>,
+}
+
+/// The profile the selected compiler implements without flags: the build
+/// host's native target with reference counting on, because its runtime
+/// emission counts every block.
+fn implemented_profile() -> TargetProfile {
+    TargetProfile { reclaim: true, ..TargetProfile::native() }
+}
+
+/// The request for a compile under `stage` and `profile`, or the options the
+/// selected compiler cannot honour. Never a Native fallback.
+pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) -> Result<Request, String> {
+    // The selected compiler performs no compile-time I/O, so it has no
+    // snapshots to replay and no live provenance to record.
+    if stage != StageMode::Refresh {
+        return Err(format!("external frontend lacks compile-time I/O stage mode {stage:?}"));
+    }
+    let host = implemented_profile();
+    // Destructured whole, so a new profile field fails to compile here
+    // until the selector decides how the selected compiler meets it.
+    let TargetProfile {
+        name, triple, os, arch, libc, os_version, word_size, endian, vector_shape, features,
+        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim,
+    } = profile;
+    // Fuel and measure are upper bounds on driving. The selected compiler
+    // performs no driving, so it meets every bound.
+    let mut lacking = Vec::new();
+    for (field, same) in [
+        ("name", *name == host.name),
+        ("triple", *triple == host.triple),
+        ("os", *os == host.os),
+        ("arch", *arch == host.arch),
+        ("libc", *libc == host.libc),
+        ("os_version", *os_version == host.os_version),
+        ("word_size", *word_size == host.word_size),
+        ("endian", *endian == host.endian),
+        ("vector_shape", *vector_shape == host.vector_shape),
+        ("features", *features == host.features),
+        ("allow_eval", *allow_eval == host.allow_eval),
+        ("artifact", *artifact == host.artifact),
+        ("required", *required == host.required),
+        ("jpl", *jpl == host.jpl),
+        ("reclaim", *reclaim == host.reclaim),
+    ] {
+        if !same {
+            lacking.push(field);
+        }
+    }
+    if *rc_debug && mode == Mode::EmitObject {
+        lacking.push("rc_debug (library objects)");
+    }
+    if !lacking.is_empty() {
+        return Err(format!("external frontend lacks target profile `{name}`: it differs from the host profile in {}", lacking.join(", ")));
+    }
+    let flags = if *rc_debug { vec!["--rc-debug".to_owned()] } else { Vec::new() };
+    Ok(Request { flags, program_args: Vec::new() })
+}
+
+/// The request for a compile under driver `opts`, or the options the
+/// selected compiler cannot honour. Never a Native fallback.
+pub fn options_request(mode: Mode, opts: &DriverOptions) -> Result<Request, String> {
+    let DriverOptions {
+        object_roots, emit_modules, package_objects, rebuild_store, native_words, print_link_plan,
+        allow_raw_link, target, runtime_archive, opt_level, target_version, dump_core, core_out,
+        core_only, program_args,
+    } = opts;
+    let mut lacking = Vec::new();
+    // The selected compiler compiles for the build host only; naming the
+    // host's own triple asks for exactly that.
+    if let Some(triple) = target {
+        if *triple != implemented_profile().triple {
+            lacking.push(format!("--target {triple}"));
+        }
+    }
+    for (option, requested) in [
+        ("explicit object roots", !object_roots.is_empty()),
+        ("emitted module sets", !emit_modules.is_empty()),
+        ("package objects", !package_objects.is_empty()),
+        ("--rebuild", *rebuild_store),
+        ("resolved native words", !native_words.is_empty()),
+        ("--print-link-plan", *print_link_plan),
+        ("--allow-raw-link", !allow_raw_link.is_empty()),
+        ("--runtime-archive", runtime_archive.is_some()),
+        ("--opt-level", opt_level.is_some()),
+        ("--target-version", target_version.is_some()),
+        ("--dump-core", dump_core.is_some()),
+        ("core emit output", core_out.is_some()),
+        ("core emit mode", *core_only),
+    ] {
+        if requested {
+            lacking.push(option.to_owned());
+        }
+    }
+    if !lacking.is_empty() {
+        return Err(format!("external frontend lacks {}", lacking.join(", ")));
+    }
+    // The program's words reach only a program the compile runs.
+    let program_args = if mode == Mode::Run { program_args.clone() } else { Vec::new() };
+    Ok(Request { flags: Vec::new(), program_args })
 }
 
 pub fn configured() -> Result<Option<Frontend>, String> {
@@ -143,15 +253,24 @@ pub fn run_cli(frontend: &Frontend, entry: &Path, words: &[&str]) -> Result<i32,
 }
 
 pub fn drive(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
-    let objects = if mode == Mode::EmitObject {
+    drive_profile(frontend, mode, dir, entry, out, &Request::default())
+}
+
+pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>) -> Result<i32, String> {
+    drive_request(frontend, mode, dir, entry, out, objects, &Request::default())
+}
+
+/// [`drive`] with the profile flags and program words of `request`.
+pub fn drive_profile(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, request: &Request) -> Result<i32, String> {
+    let objects = if matches!(mode, Mode::EmitObject | Mode::Check) {
         std::env::var_os("CINCH_TEST_OBJECTS").filter(|p| !p.is_empty()).map(PathBuf::from)
     } else {
         None
     };
-    drive_with_objects(frontend, mode, dir, entry, out, objects)
+    drive_request(frontend, mode, dir, entry, out, objects, request)
 }
 
-pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>) -> Result<i32, String> {
+fn drive_request(frontend: &Frontend, mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, objects: Option<PathBuf>, request: &Request) -> Result<i32, String> {
     let compiler = frontend.compiler.canonicalize().map_err(|e| format!("selected compiler (no Native fallback): {e}"))?;
     let interfaces = frontend.interfaces.canonicalize().map_err(|e| format!("selected interfaces: {e}"))?;
     validate_interfaces(&interfaces)?;
@@ -180,15 +299,23 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
     let requested_output = out.is_some();
     let exe = out.map(|p| if p.is_absolute() { p } else { std::env::current_dir().unwrap_or_else(|_| dir.clone()).join(p) }).unwrap_or_else(|| if mode == Mode::EmitObject { entry.with_extension("o") } else { work.join("program") });
     let report = work.join("link-report.txt");
-    let flag = match mode { Mode::Check => "--check", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
-    let mut args = vec![flag.into(), "--interfaces".into(), interfaces.display().to_string()];
+    // This CLI has no check mode that writes the artifacts a Native check
+    // writes, so a check runs its interface-and-manifest emitting mode and
+    // the selector publishes what it wrote into the project's `build/`.
+    let flag = match mode { Mode::Check => "--emit-ir-with-interfaces", Mode::EmitIr => "--emit-ir", Mode::EmitObject => "--emit-object", Mode::Build | Mode::Run => "--compile-only" };
+    let mut args = vec![flag.to_owned()];
+    args.extend(request.flags.iter().cloned());
+    args.extend(["--interfaces".into(), interfaces.display().to_string()]);
+    if mode == Mode::Check && objects.is_none() {
+        return Err("external check requires CINCH_TEST_OBJECTS: this CLI writes a check's interfaces and build manifest only in its interface mode".into());
+    }
     if mode == Mode::EmitObject {
         if objects.is_none() { return Err("external object emission requires explicit CINCH_TEST_OBJECTS; refusing a Native fallback".into()); }
         ir = exe.with_extension("ll");
         if exe == ir || exe == exe.with_extension("abi.json") { return Err("object output collides with its companions".into()); }
         std::fs::create_dir_all(dir.join("build")).map_err(|e| e.to_string())?;
     }
-    if matches!(mode, Mode::EmitObject | Mode::EmitIr) {
+    if matches!(mode, Mode::EmitObject | Mode::EmitIr | Mode::Check) {
         if let Some(configuration) = objects {
             let configuration = configuration.canonicalize().map_err(|e| format!("selected library object configuration: {e}"))?;
             args.extend(["--objects".into(), configuration.display().to_string()]);
@@ -213,10 +340,10 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
         return Err(format!("selected Cinch compiler exited {:?}: {diagnostic}\ninvocation: {}", output.status.code(), work.display()));
     }
     match mode {
-        Mode::Check => Ok(0),
+        Mode::Check => { publish_check_artifacts(frontend, &dir, &entry, &ir)?; Ok(0) }
         Mode::Build => if exe.is_file() { Ok(0) } else { Err("selected compiler succeeded without an executable".into()) },
         // Match the Native driver: programs inherit the test caller's working directory.
-        Mode::Run => std::process::Command::new(&exe).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
+        Mode::Run => std::process::Command::new(&exe).args(&request.program_args).status().map_err(|e| e.to_string())?.code().ok_or_else(|| "external test artifact terminated without an exit code".into()),
         Mode::EmitIr => if ir.is_file() {
             if requested_output { std::fs::copy(&ir, &exe).map_err(|e| e.to_string())?; }
             else { print!("{}", std::fs::read_to_string(&ir).map_err(|e| e.to_string())?); }
@@ -225,4 +352,46 @@ pub fn drive_with_objects(frontend: &Frontend, mode: Mode, dir: &Path, entry: &s
         Mode::EmitObject => if exe.is_file() && ir.is_file() && exe.with_extension("abi.json").is_file() { Ok(0) }
             else { Err("selected compiler succeeded without object companions".into()) },
     }
+}
+
+/// Publish a check's artifacts into the project's `build/` directory: the
+/// base interfaces the selected manifest names, the project's own
+/// interfaces, and the build manifest. That is the layout a Native check
+/// leaves, which the selectors read back.
+fn publish_check_artifacts(frontend: &Frontend, dir: &Path, entry: &Path, ir: &Path) -> Result<(), String> {
+    let build = dir.join("build");
+    std::fs::create_dir_all(&build).map_err(|error| format!("{}: {error}", build.display()))?;
+    let text = std::fs::read_to_string(&frontend.interfaces)
+        .map_err(|error| format!("{}: {error}", frontend.interfaces.display()))?;
+    let manifest = parse_json(&text)?;
+    let rows = manifest
+        .get("interfaces")
+        .and_then(Json::as_arr)
+        .ok_or("selected interface manifest names no interfaces")?;
+    for row in rows {
+        let fields = row.as_arr().ok_or("selected interface manifest row is not a list")?;
+        let (Some(name), Some(path)) = (
+            fields.first().and_then(Json::as_str),
+            fields.get(2).and_then(Json::as_str),
+        ) else {
+            return Err("selected interface manifest row is not (name, hash, path)".into());
+        };
+        let target = build.join(format!("{name}.cinchif"));
+        std::fs::copy(path, &target).map_err(|error| format!("{}: {error}", target.display()))?;
+    }
+    let work = ir.parent().ok_or("check output needs a directory")?;
+    let named = ir.file_name().and_then(|name| name.to_str()).ok_or("check output needs a filename")?;
+    let prefix = format!("{named}.");
+    for artifact in std::fs::read_dir(work).map_err(|error| format!("{}: {error}", work.display()))? {
+        let path = artifact.map_err(|error| error.to_string())?.path();
+        let file = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        let Some(module) = file.strip_prefix(&prefix).and_then(|rest| rest.strip_suffix(".cinchif")) else { continue };
+        let target = build.join(format!("{module}.cinchif"));
+        std::fs::copy(&path, &target).map_err(|error| format!("{}: {error}", target.display()))?;
+    }
+    let stem = entry.file_stem().and_then(|name| name.to_str()).ok_or("check entry needs a name")?;
+    let written = PathBuf::from(format!("{}.manifest.json", ir.display()));
+    let target = build.join(format!("{stem}.manifest.json"));
+    std::fs::copy(&written, &target).map_err(|error| format!("{}: {error}", target.display()))?;
+    Ok(())
 }

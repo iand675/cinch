@@ -23,7 +23,7 @@ module Bootstrap.RuntimeIr where
   import Data.Json
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
-  export emit-runtime-program, emit-runtime-program-with-object, check-runtime-entry
+  export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export runtime-library-default-roots, emit-runtime-library-object-with-object
 
@@ -3114,11 +3114,15 @@ module Bootstrap.RuntimeIr where
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
   declarations :: String
-  declarations = cat [
+  declarations = declarations-counting False
+  -- The module prelude. Debug counting swaps only the two count helpers,
+  -- so every other declaration and every call site is the same bytes.
+  declarations-counting :: Bool -> String
+  declarations-counting debug = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
-    count-helpers,
+    if debug then debug-count-helpers else count-helpers,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
@@ -3152,6 +3156,16 @@ module Bootstrap.RuntimeIr where
     "  %plain = icmp sgt i64 %top, 16777216\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
     "other:\n  switch i64 %top, label %mt [\n    i64 0, label %done\n    i64 16777216, label %slow\n  ]\n",
     "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nmt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
+  -- The reference count debugging build (TargetProfile::rc_debug in
+  -- compiler/src/core.rs): both helpers call the runtime's out-of-line
+  -- cinch_dup and cinch_drop, so CINCH_RC_DEBUG=1 checks every count
+  -- operation this module performs against a live header. The helpers are
+  -- the only count operations the module emits, so no inline path stays.
+  debug-count-helpers :: String
+  debug-count-helpers = cat [
+    "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\n",
+    "define internal void @cinch.typed.rc.dup(i64 %w) {\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
+    "define internal void @cinch.typed.rc.drop(i64 %w) {\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
   apply-entry :: String
   apply-entry = apply-entry-with-linkage ""
   apply-entry-with-linkage :: String -> String
@@ -3575,7 +3589,12 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program :: CheckedProgram -> Result (List Diagnostic) String
   emit-runtime-program checked = emit-runtime-program-with-object checked None
   emit-runtime-program-with-object :: CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
-  emit-runtime-program-with-object checked provider =
+  emit-runtime-program-with-object checked provider = emit-runtime-program-counting False checked provider
+  -- A debug-counting program routes its own count operations through the
+  -- runtime's checked entries; a linked provider object keeps the counts
+  -- it was compiled with.
+  emit-runtime-program-counting :: Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-counting debug checked provider =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
@@ -3588,5 +3607,5 @@ module Bootstrap.RuntimeIr where
         -- shares the name; only then does the entry need its own pass.
         Some mode -> let settled = settled-workers definitions [("main", Nil)] info in
           case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer (writer-program settled))); None -> settled) of
-            Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
+            Writer next globals code Nil layouts datas -> Ok (cat [declarations-counting debug, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
             Writer next globals code errors layouts datas -> Err errors

@@ -11,7 +11,7 @@ use cinch::check::{
     check_program_multi_full, Diagnostic, JplSummary, SafetyReport, StagingCx,
 };
 use cinch::core::{Program, TargetProfile};
-use cinch::driver::{driver_with_profile, parse_prelude, parse_source, Mode, StageMode};
+use cinch::driver::{parse_prelude, parse_source, Mode, StageMode};
 mod common;
 use common::source_frontend::{check_source_interfaces, check_sources, run_source};
 use cinch::interface::Iface;
@@ -1422,10 +1422,11 @@ module Main where
       No _ -> 3
 "#,
     )]);
-    driver_with_profile(
+    common::drive_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.cinch"),
+        &dir,
+        "Main.cinch",
         None,
         &TargetProfile::jpl(),
     )

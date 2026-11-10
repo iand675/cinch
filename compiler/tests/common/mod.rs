@@ -11,7 +11,9 @@
 //! `Effect.Io`/`Process`/`Fs`/`Clock`) is in the embedded family and
 //! resolves on its own.
 
-use cinch::driver::{driver, Mode};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{driver, DriverOptions, Mode};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -162,14 +164,47 @@ pub fn drive(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Resul
 
 fn drive_native(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
     let path = dir.join(entry);
-    let handle = std::thread::Builder::new()
+    on_driver_thread(move || driver(mode, &path, out.as_deref()))
+}
+
+fn on_driver_thread(compile: impl FnOnce() -> cinch::Result<i32> + Send + 'static) -> Result<i32, String> {
+    std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
-        .spawn(move || driver(mode, &path, out.as_deref()))
-        .expect("spawn driver thread");
-    handle
+        .spawn(compile)
+        .expect("spawn driver thread")
         .join()
         .expect("driver thread panicked")
         .map_err(|e| e.to_string())
+}
+
+/// [`drive`] under an explicit compile-time I/O mode, for the native
+/// target profile.
+pub fn drive_with(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>) -> Result<i32, String> {
+    drive_with_profile(mode, stage, dir, entry, out, &TargetProfile::native())
+}
+
+/// [`drive`] under an explicit compile-time I/O mode and target profile.
+/// The selected compiler receives the profile as flags, or the selector
+/// names the profile fields it lacks.
+pub fn drive_with_profile(mode: Mode, stage: StageMode, dir: &Path, entry: &str, out: Option<PathBuf>, profile: &TargetProfile) -> Result<i32, String> {
+    if let Some(frontend) = external_frontend::configured()? {
+        let request = external_frontend::profile_request(mode, stage, profile)?;
+        return external_frontend::drive_profile(&frontend, mode, dir, entry, out, &request);
+    }
+    let (path, profile) = (dir.join(entry), profile.clone());
+    on_driver_thread(move || cinch::driver::driver_with_profile(mode, stage, &path, out.as_deref(), &profile))
+}
+
+/// [`drive`] with explicit driver options (target triple, object roots,
+/// program words). The selected compiler receives what it supports, or the
+/// selector names the options it lacks.
+pub fn drive_opts(mode: Mode, dir: &Path, entry: &str, out: Option<PathBuf>, opts: &DriverOptions) -> Result<i32, String> {
+    if let Some(frontend) = external_frontend::configured()? {
+        let request = external_frontend::options_request(mode, opts)?;
+        return external_frontend::drive_profile(&frontend, mode, dir, entry, out, &request);
+    }
+    let (path, opts) = (dir.join(entry), opts.clone());
+    on_driver_thread(move || cinch::driver::driver_opts(mode, &path, out.as_deref(), &opts))
 }
 
 /// Compile and run `entry`; the exit code is the program's.
@@ -188,6 +223,17 @@ pub fn check(dir: &Path, entry: &str) -> Result<(), String> {
 /// Read checked contracts from the compiler that checked the project.
 pub fn check_interfaces(dir: &Path, entry: &str) -> Result<Vec<cinch::interface::Iface>, String> {
     check(dir, entry)?;
+    build_interfaces(dir)
+}
+
+/// [`check_interfaces`] under an explicit target profile.
+pub fn check_interfaces_profile(dir: &Path, entry: &str, profile: &TargetProfile) -> Result<Vec<cinch::interface::Iface>, String> {
+    drive_with_profile(Mode::Check, StageMode::Refresh, dir, entry, None, profile)?;
+    build_interfaces(dir)
+}
+
+/// Every `build/*.cinchif` the last check of the project wrote.
+fn build_interfaces(dir: &Path) -> Result<Vec<cinch::interface::Iface>, String> {
     let build = dir.join("build");
     let mut interfaces = Vec::new();
     for artifact in std::fs::read_dir(&build).map_err(|error| format!("{}: {error}", build.display()))? {

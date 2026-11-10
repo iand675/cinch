@@ -5,7 +5,8 @@
 
 mod common;
 
-use cinch::driver::{driver_with, run_source_with, Mode, StageMode, StagingCx};
+use cinch::driver::{run_source_with, Mode, StageMode, StagingCx};
+use common::drive_with;
 use common::source_frontend::run_source;
 use std::path::PathBuf;
 
@@ -294,7 +295,7 @@ fn generate_file_capability_feeds_the_program() {
              \x20 main = nat-to-int answer\n",
         ),
     ]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
+    let code = drive_with(Mode::Run, StageMode::Refresh, &dir, "Main.cinch", None)
         .expect("file capability run");
     assert_eq!(code, 42);
     // The build identity records the captured input (modules
@@ -326,9 +327,9 @@ fn stage_replay_uses_captured_inputs() {
              \x20 main = nat-to-int answer\n",
         ),
     ]);
-    driver_with(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None).expect("refresh");
+    drive_with(Mode::Check, StageMode::Refresh, &dir, "Main.cinch", None).expect("refresh");
     std::fs::remove_file(dir.join("input.txt")).expect("remove input");
-    let code = driver_with(Mode::Run, StageMode::Replay, &dir.join("Main.cinch"), None)
+    let code = drive_with(Mode::Run, StageMode::Replay, &dir, "Main.cinch", None)
         .expect("replay from the snapshot");
     assert_eq!(code, 42);
     // Without any snapshot, replay names the missing input.
@@ -344,7 +345,7 @@ fn stage_replay_uses_captured_inputs() {
          \x20 main :: Int\n\
          \x20 main = nat-to-int answer\n",
     )]);
-    let err = driver_with(Mode::Check, StageMode::Replay, &dir.join("Main.cinch"), None)
+    let err = drive_with(Mode::Check, StageMode::Replay, &dir, "Main.cinch", None)
         .expect_err("no captured input");
     let err = err.to_string();
     assert!(err.contains("no captured input"), "{err}");
@@ -367,7 +368,7 @@ fn generate_subprocess_capability_runs_a_tool() {
          \x20 main :: Int\n\
          \x20 main = nat-to-int answer\n",
     )]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
+    let code = drive_with(Mode::Run, StageMode::Refresh, &dir, "Main.cinch", None)
         .expect("subprocess capability run");
     // `/bin/echo hi` writes `hi\n`.
     assert_eq!(code, 3);
@@ -625,7 +626,7 @@ fn schema_build_identity_records_the_tool_not_the_credential() {
     );
     std::env::set_var("CINCH_SCHEMA_TOOL", &tool);
     let dir = write_project(&[("Main.cinch", A6_PROGRAM)]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
+    let code = drive_with(Mode::Run, StageMode::Refresh, &dir, "Main.cinch", None)
         .expect("schema introspection run");
     assert_eq!(code, 0);
     let manifest =

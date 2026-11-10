@@ -9,8 +9,8 @@
 mod common;
 
 use cinch::core::{ArtifactProfile, TargetProfile};
-use cinch::driver::{check_sources_profile, package_variants};
-use common::source_frontend::{check_source_interfaces, check_sources, run_source};
+use cinch::driver::package_variants;
+use common::source_frontend::{check_source_interfaces, check_sources, check_sources_profile, run_source};
 use cinch::interface::{build_wit_adapter, CanonicalAbi};
 use cinch::parser::parse_wit;
 
@@ -145,7 +145,9 @@ module Wide where
     )
     .expect_err("the literal must not fit a 32-bit Usize");
     assert!(err.to_string().contains("out of range for Usize"), "{err}");
-    let program = check_sources_profile(
+    // The emitted IR is the observation, so this program comes from the
+    // Rust frontend.
+    let program = cinch::driver::check_sources_profile(
         &wide("4294967295"),
         "<test>",
         &TargetProfile::wasm32(ArtifactProfile::CoreWasm),
@@ -211,8 +213,8 @@ module Trivial where
   main :: Int
   main = 0
 "#;
-    let program =
-        check_sources_profile(src, "<test>", &needing).expect("checking needs no admission");
+    let program = cinch::driver::check_sources_profile(src, "<test>", &needing)
+        .expect("checking needs no admission");
     let err = cinch::driver::admit_artifact(&needing, &program, &[])
         .expect_err("the assumed baseline is not available");
     assert!(
@@ -274,7 +276,7 @@ module GlueProbe where
     let path = dir.join("client.cinch");
     std::fs::write(&path, src).expect("write client.cinch");
     let wasm = TargetProfile::wasm32(ArtifactProfile::WasiComponent);
-    let program = check_sources_profile(src, path.to_str().unwrap(), &wasm)
+    let program = cinch::driver::check_sources_profile(src, path.to_str().unwrap(), &wasm)
         .expect("the adapter program checks");
     let ir = cinch::codegen::emit_for(&wasm, &program).expect("wasm32 emission");
     // The canonical call signature: the flattened parameters and the
@@ -446,10 +448,11 @@ module GlueProbe where
     let path = dir.join("client.cinch");
     std::fs::write(&path, src).expect("write client.cinch");
     let wasm = TargetProfile::wasm32(ArtifactProfile::WasiComponent);
-    cinch::driver::driver_with_profile(
+    common::drive_with_profile(
         cinch::driver::Mode::Check,
         cinch::check::StageMode::Refresh,
-        &path,
+        &dir,
+        "client.cinch",
         None,
         &wasm,
     )
