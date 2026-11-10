@@ -1,0 +1,15 @@
+[package]
+name = "cinch-zed"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Zed compiles this crate to wasm32-wasip2 and loads it as the extension
+# binary. It exists only to supply the language server command
+# (`cinch lsp`); the grammar and queries are declared in extension.toml and
+# languages/cinch/.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7.0"

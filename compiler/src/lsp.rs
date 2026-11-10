@@ -336,7 +336,7 @@ pub fn read_frame(r: &mut impl std::io::BufRead) -> Result<Option<String>, Strin
 // --------------------------------------------------------------- server
 
 /// The semantic token legend, in wire order.
-pub const TOKEN_TYPES: [&str; 12] = [
+pub const TOKEN_TYPES: [&str; 13] = [
     "keyword",
     "variable",
     "function",
@@ -349,6 +349,10 @@ pub const TOKEN_TYPES: [&str; 12] = [
     "number",
     "string",
     "operator",
+    // Comments are lexical trivia, so grammars that keep them out of the
+    // syntax tree leave editors with nothing to highlight; reporting them as
+    // tokens is what lets an editor colour them.
+    "comment",
 ];
 
 /// The language server (see the module docs).

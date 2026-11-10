@@ -454,6 +454,42 @@ fn semantic_tokens_are_delta_encoded() {
 }
 
 #[test]
+fn comments_are_reported_as_semantic_tokens() {
+    let (mut client, handle) = start("file:///project");
+    // One line comment and a block comment that spans two lines.
+    let src = "\nmodule C where\n  -- a note\n  {- block\n     second -}\n  c :: Int\n  c = 1\n";
+    did_open(&mut client, "file:///project/C.cinch", src);
+    let resp = client.request(
+        "textDocument/semanticTokens/full",
+        Json::obj(vec![("textDocument", doc("file:///project/C.cinch"))]),
+    );
+    let data: Vec<f64> = resp
+        .get("result")
+        .and_then(|r| r.get("data"))
+        .and_then(|d| d.as_arr())
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|n| n.as_num())
+        .collect();
+    assert!(!data.is_empty(), "{resp:?}");
+    let mut tokens: Vec<(f64, f64, f64, f64)> = Vec::new();
+    let (mut line, mut col) = (0.0, 0.0);
+    for c in data.chunks(5) {
+        line += c[0];
+        col = if c[0] == 0.0 { col + c[1] } else { c[1] };
+        tokens.push((line, col, c[2], c[3]));
+    }
+    let comment = TOKEN_TYPES.iter().position(|t| *t == "comment").expect("legend") as f64;
+    // `-- a note` (0-based line 2, column 2, 9 characters).
+    assert!(tokens.contains(&(2.0, 2.0, 9.0, comment)), "{tokens:?}");
+    // The block comment reports one token per line: `{- block`, then the
+    // remainder of the line that closes it (the whole line is comment text).
+    assert!(tokens.contains(&(3.0, 2.0, 8.0, comment)), "{tokens:?}");
+    assert!(tokens.contains(&(4.0, 0.0, 14.0, comment)), "{tokens:?}");
+    let _ = shutdown(&mut client, handle);
+}
+
+#[test]
 fn a_change_rechecks_the_file_and_its_dependents_only() {
     let (mut client, handle) = start("file:///project");
     // A is independent of D: B imports A, C imports B, D imports

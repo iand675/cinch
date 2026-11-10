@@ -1380,7 +1380,8 @@ impl Analysis {
     }
 
     /// The semantic tokens of a file (P22): the lexer's tokens,
-    /// classified with the module indices.
+    /// classified with the module indices, plus the comments the lexer
+    /// treats as trivia.
     pub fn semantic_tokens(&self, file: &str) -> Vec<SemToken> {
         let Some(text) = self.document(file) else {
             return Vec::new();
@@ -1452,6 +1453,12 @@ impl Analysis {
                 kind,
             });
         }
+        for (line, col, len) in comment_tokens(text) {
+            out.push(SemToken { line, col, len, kind: "comment" });
+        }
+        // The comment scan runs separately, so merge it back into source
+        // order: the wire format encodes positions as deltas.
+        out.sort_by_key(|token| (token.line, token.col));
         out
     }
 
@@ -1946,6 +1953,49 @@ pub fn render_value(ty: &Ty, v: &Value) -> String {
         Value::Schema(_) => "<schema>".to_string(),
         Value::Cap(_) => "<capability>".to_string(),
     }
+}
+
+/// Comment tokens, one single-line token per line of a (possibly block)
+/// comment. Comments are lexical trivia: the lexer drops them, so they are
+/// scanned separately, in workspace 1-based coordinates like every other
+/// token.
+fn comment_tokens(text: &str) -> Vec<(u32, u32, u32)> {
+    let mut out = Vec::new();
+    let (mut line, mut col, mut pos) = (1u32, 1u32, 0usize);
+    for (start, end) in crate::highlight::comment_ranges(text) {
+        while pos < start {
+            let ch = text[pos..].chars().next().expect("in bounds");
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+            pos += ch.len_utf8();
+        }
+        let (mut token_line, mut token_col, mut len) = (line, col, 0u32);
+        while pos < end {
+            let ch = text[pos..].chars().next().expect("in bounds");
+            if ch == '\n' {
+                if len > 0 {
+                    out.push((token_line, token_col, len));
+                }
+                line += 1;
+                col = 1;
+                token_line = line;
+                token_col = col;
+                len = 0;
+            } else {
+                len += 1;
+                col += 1;
+            }
+            pos += ch.len_utf8();
+        }
+        if len > 0 {
+            out.push((token_line, token_col, len));
+        }
+    }
+    out
 }
 
 /// The token class of a definition kind.

@@ -1,136 +1,181 @@
 ; Cinch highlight query for Zed (tree-sitter).
-; Node names come from tooling/tree-sitter-cinch/grammar.js; keyword
-; spellings are the reserved words of the surface grammar.
+;
+; Node names come from tooling/tree-sitter-cinch/grammar.js. Comments are
+; not captured: the grammar keeps the comment token a hidden extra, so a
+; comment never becomes a node a query can match. The scanner has to see
+; comments as trivia for the minus and symbol rules, which is why they are
+; hidden. Zed colours them from the language server's `comment` semantic
+; tokens instead, so `semantic_tokens` must be on for Cinch (see
+; tooling/README.md).
 
-(kw_module) @keyword
-(kw_where) @keyword
-(kw_data) @keyword
-(kw_record) @keyword
-(kw_codata) @keyword
-(kw_effect) @keyword
-(kw_signature) @keyword
-(kw_instance) @keyword
-(kw_implicit) @keyword
-(kw_import) @keyword
-(kw_export) @keyword
-(kw_as) @keyword
-(kw_type) @keyword
-(kw_opaque) @keyword
-(kw_foreign) @keyword
-(kw_ccall) @keyword
-(kw_component) @keyword
-(kw_prim) @keyword
-(kw_law) @keyword
-(kw_contract) @keyword
-(kw_rewrite) @keyword
-(kw_target) @keyword
-(kw_upgrade) @keyword
-(kw_generate) @keyword
-(kw_infix) @keyword
-(kw_infixl) @keyword
-(kw_infixr) @keyword
-(kw_proof) @keyword
-(kw_spec) @keyword
-(kw_stage) @keyword
-(kw_corec) @keyword
-(kw_macro) @keyword
+[
+  (kw_always)
+  (kw_as)
+  (kw_asm)
+  (kw_assume)
+  (kw_attributes)
+  (kw_case)
+  (kw_ccall)
+  (kw_clr)
+  (kw_codata)
+  (kw_component)
+  (kw_contract)
+  (kw_corec)
+  (kw_data)
+  (kw_do)
+  (kw_effect)
+  (kw_else)
+  (kw_erased)
+  (kw_eventually)
+  (kw_export)
+  (kw_for)
+  (kw_forall)
+  (kw_foreign)
+  (kw_generate)
+  (kw_handle)
+  (kw_handler)
+  (kw_if)
+  (kw_immarg)
+  (kw_implicit)
+  (kw_import)
+  (kw_in)
+  (kw_infix)
+  (kw_infixl)
+  (kw_infixr)
+  (kw_instance)
+  (kw_justify)
+  (kw_jvm)
+  (kw_law)
+  (kw_let)
+  (kw_letrec)
+  (kw_liveness)
+  (kw_llvm)
+  (kw_macro)
+  (kw_match)
+  (kw_module)
+  (kw_of)
+  (kw_opaque)
+  (kw_own)
+  (kw_prim)
+  (kw_proof)
+  (kw_quotedecls)
+  (kw_record)
+  (kw_recur)
+  (kw_recurrence)
+  (kw_replace)
+  (kw_replaceable)
+  (kw_require)
+  (kw_resume)
+  (kw_return)
+  (kw_rewrite)
+  (kw_safety)
+  (kw_sigma)
+  (kw_signature)
+  (kw_spec)
+  (kw_specialized)
+  (kw_stability)
+  (kw_stable)
+  (kw_stage)
+  (kw_target)
+  (kw_then)
+  (kw_to)
+  (kw_type)
+  (kw_unsafe)
+  (kw_upgrade)
+  (kw_uses)
+  (kw_using)
+  (kw_wasm)
+  (kw_when)
+  (kw_where)
+  (kw_with)
+] @keyword
 
-(kw_forall) @keyword
-(kw_sigma) @keyword
-(kw_using) @keyword
-(kw_in) @keyword
-(kw_let) @keyword
-(kw_letrec) @keyword
-(kw_of) @keyword
-
-(kw_if) @keyword
-(kw_then) @keyword
-(kw_else) @keyword
-(kw_case) @keyword
-(kw_do) @keyword
-(kw_handle) @keyword
-(kw_with) @keyword
-
-(kw_match) @keyword
-(kw_replace) @keyword
-(kw_require) @keyword
-(kw_justify) @keyword
-(kw_to) @keyword
-(kw_erased) @keyword
-(kw_own) @keyword
-(kw_return) @keyword
-(kw_resume) @keyword
-
-; Contextual words keep identifier colour except where the form makes
-; them structural (D221-D227 keeps `unsafe` usable as an identifier).
-(kw_unsafe) @keyword
-(kw_safety) @keyword
-(kw_liveness) @keyword
-(kw_recurrence) @keyword
-(kw_stability) @keyword
-(kw_always) @keyword
-(kw_eventually) @keyword
-(kw_recur) @keyword
-(kw_stable) @keyword
-(kw_assume) @keyword
-(kw_when) @keyword
-(kw_uses) @keyword
-(kw_immarg) @keyword
-(kw_for) @keyword
-(kw_migrate) @keyword
-(kw_related) @keyword
-(kw_attributes) @keyword
-(kw_replaceable) @keyword
-(kw_specialized) @keyword
-(target_family) @keyword
+; Reserved multiplicities: %0, %1, %aff, %many.
+[
+  (mult_zero)
+  (mult_one)
+  (mult_aff)
+  (mult_many)
+] @keyword
 
 (identifier) @variable
-(constructor) @type
+(wildcard) @variable.special
+(constructor) @constructor
 (type_variable) @variable
 (type_name_literal) @type
-(qualified_value (constructor_path (constructor) @type) (identifier) @function)
-(variable (identifier) @function)
+(effect_label) @label
 
 (int_literal) @number
 (float_literal) @number
 (string_literal) @string
 (char_literal) @string
-(symbol_literal) @constant
+(symbol_literal) @string.special.symbol
+
 (attr_name) @attribute
 (attr_args) @string
-
-(operator) @operator
-(op_star) @operator
-(op_slash) @operator
-(op_percent) @operator
-(op_plus) @operator
-(op_minus) @operator
-(op_ltlt) @operator
-(op_gtgt) @operator
-(op_amp) @operator
-(op_caret) @operator
-(op_ltgt) @operator
-(op_ltstar) @operator
-(op_stargt) @operator
-(op_ltbar) @operator
-(op_eqeq) @operator
-(op_slasheq) @operator
-(op_lt) @operator
-(op_le) @operator
-(op_gt) @operator
-(op_ge) @operator
-(op_andand) @operator
-(op_barbar) @operator
-(op_bind) @operator
-(colon_colon) @operator
-(arrow) @operator
-(larrow) @operator
-(darrow) @operator
-(dollar) @operator
-(pipe) @operator
-(tilde) @operator
-(bang) @operator
-(at) @operator
-
 (prim_fragment) @string
 (token_tree) @string
+
+[
+  (op_amp)
+  (op_andand)
+  (op_barbar)
+  (op_bind)
+  (op_caret)
+  (op_eqeq)
+  (op_ge)
+  (op_gt)
+  (op_gtgt)
+  (op_le)
+  (op_lt)
+  (op_ltbar)
+  (op_ltgt)
+  (op_ltlt)
+  (op_ltstar)
+  (op_minus)
+  (op_percent)
+  (op_plus)
+  (op_slash)
+  (op_slasheq)
+  (op_star)
+  (op_stargt)
+  (operator)
+  (arrow)
+  (larrow)
+  (darrow)
+  (equals)
+  (backslash)
+  (dollar)
+  (pipe)
+  (tilde)
+  (bang)
+  (colon_colon)
+] @operator
+
+[
+  (lparen)
+  (rparen)
+  (lbracket)
+  (rbracket)
+  (lbrace)
+  (rbrace)
+] @punctuation.bracket
+
+[
+  (comma)
+  (semicolon)
+  (dot)
+] @punctuation.delimiter
+
+[
+  (at)
+  (attr_open)
+  (lquote)
+  (rquote)
+  (splice_open)
+] @punctuation.special
+
+(qualified_value
+  (constructor_path
+    (constructor) @constructor)
+  (identifier) @function)

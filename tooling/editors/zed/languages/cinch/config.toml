@@ -1,21 +1,26 @@
 name = "Cinch"
 grammar = "cinch"
+path_suffixes = ["cinch"]
+line_comments = ["-- "]
+block_comment = { start = "{-", prefix = "", end = "-}", tab_size = 0 }
+tab_size = 2
+hard_tabs = false
+autoclose_before = ")]},"
+word_characters = ["'"]
+completion_query_characters = ["."]
 
-path_suffixes = ["lang"]
-line_comment = "--"
-block_comment = ["{-", "-}"]
-
-[auto_indent]
-increase_indent_pattern = "(where|of|do|let|letrec)\\s*$"
-decrease_indent_pattern = "^\\s*(in|else)\\b"
-
-[brackets]
-pairs = [
-  { open = "(", close = ")" },
-  { open = "[", close = "]" },
-  { open = "{", close = "}" },
-  { open = "[|", close = "|]" },
+# `not_in` names come from overrides.scm, not from grammar node names.
+brackets = [
+    { start = "(", end = ")", close = true, newline = false, not_in = ["string", "raw"] },
+    { start = "[", end = "]", close = true, newline = false, not_in = ["string", "raw"] },
+    { start = "[|", end = "|]", close = true, newline = false, not_in = ["string", "raw"] },
+    { start = "{", end = "}", close = true, newline = true, not_in = ["string", "raw"] },
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["string", "raw"] },
 ]
 
-[autocomplete]
-always_on_words = ["module", "where", "data", "record", "signature", "instance", "let", "in", "case", "of", "do", "if", "then", "else"]
+# A `.` inside a string is field projection text, not a completion request.
+[overrides.string]
+completion_query_characters = []
+
+[overrides.raw]
+completion_query_characters = []

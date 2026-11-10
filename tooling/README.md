@@ -68,6 +68,59 @@ execs `cinch lsp` when the binary is on PATH and otherwise builds and
 runs the driver; the `cinch.lsp.command` setting overrides the command
 either way.
 
+## Zed extension
+
+`editors/zed` is a dev extension for Zed 1.27 (manifest
+`schema_version = 1`):
+
+- `extension.toml`: the grammar entry (`[grammars.cinch]`) and the
+  language server entry (`[language_servers.cinch-lsp]`, language
+  `Cinch`, LSP `languageId` `cinch`).
+- `languages/cinch/config.toml`: file suffix `cinch`, `-- ` line
+  comments, nested `{- ... -}` block comments, brackets that do not
+  fire inside strings or raw text, `'` as a word character (it is an
+  identifier character), and `.` as a completion query character.
+- `languages/cinch/{highlights,brackets,indents,outline,textobjects,overrides}.scm`:
+  tree-sitter queries over the grammar's own node names.
+- `src/lib.rs`: the only procedural part. It resolves the server through
+  the worktree's login-shell environment (`cinch-lsp`, then `cinch lsp`)
+  and reports a message naming the build command when neither exists.
+- `sync-grammar.sh`: Zed does not run `tree-sitter generate`. It clones
+  a git repository, checks out one revision, and compiles `src/parser.c`
+  (plus `src/scanner.c`) with wasi-sdk clang. The generated parser is not
+  committed, so this script builds a small local repository from
+  `grammar.js`, generates the parser there, commits it, and pins that
+  revision in `extension.toml`. Both values are machine local: rerun it
+  after any grammar change, then rebuild the extension in Zed.
+
+Install (once):
+
+```sh
+cargo build --release --manifest-path compiler/Cargo.toml   # the `cinch` binary
+tooling/editors/zed/sync-grammar.sh
+```
+
+then in Zed, `zed: extensions` -> `Install Dev Extension` ->
+`tooling/editors/zed`. Zed compiles the crate to `wasm32-wasip2`, clones
+the grammar repository, and compiles the grammar with its own wasi-sdk.
+`cinch` has to be reachable from the login shell Zed sees (a
+`~/.local/bin` symlink or `cargo install`); otherwise set
+`lsp.cinch-lsp.binary.path` and `arguments: ["lsp"]` in settings.
+
+Comments need one more setting. The grammar keeps comments as scanner
+trivia (the minus and symbol rules need to see them), so they never
+become tree-sitter nodes and no highlight query can match them. The
+language server reports them as `comment` semantic tokens instead, which
+Zed only asks for when the language has semantic tokens enabled:
+
+```json
+{ "languages": { "Cinch": { "semantic_tokens": "combined" } } }
+```
+
+`combined` keeps the tree-sitter colours and adds the server's tokens on
+top, so comments (and resolution-aware `type`/`class`/`function` tokens)
+take the theme's colours.
+
 ## Scanner and grammar decisions (unnumbered)
 
 - All terminals come from `src/scanner.c`, a straight port of
@@ -118,14 +171,19 @@ either way.
 ## Known gaps (honest)
 
 - The corpus is green end to end: `tooling/check-grammar-drift.sh`
-  regenerates the parser and passes all 88 assertions in seconds, and
-  `tooling/check-real-files-parse.sh` parses every `.cinch` under
-  `compiler/prelude/` and `examples/source/` (58 files today, plus the
-  two `examples/compiler/` files) with zero ERROR nodes. The one corpus
-  case that ever failed without a scanner fault ("minus table: a line
-  comment splits x--3") had lost its expected tree and was restored
-  from the asserted behavior (`y--3` lexes as identifier `y` plus line
-  comment `--3`).
+  regenerates the parser and passes all 88 assertions in seconds. The
+  one corpus case that ever failed without a scanner fault ("minus
+  table: a line comment splits x--3") had lost its expected tree and was
+  restored from the asserted behavior (`y--3` lexes as identifier `y`
+  plus line comment `--3`).
+- `tooling/check-real-files-parse.sh` is not green today: it parses 109
+  files under `compiler/prelude/` and `examples/source/` and 25 of them
+  report ERROR nodes. Those modules use forms the grammar does not have
+  yet, refinement types first among them (`type Ascii = refine (s ::
+  String) with Ascii s` in `compiler/prelude/Data/Ascii.cinch`). The
+  drift check stays green, so this is missing grammar coverage rather
+  than a scanner fault, and it is what an editor shows as invalid
+  syntax in those files.
 - `npx tree-sitter-cli` is the documented fallback when the CLI is not
   on PATH; it was not exercised here (the nix-profile `tree-sitter`
   0.26.11 is what ran).

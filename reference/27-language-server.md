@@ -87,7 +87,7 @@ main = quad 21
 
 ```text
 --> {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": "file:///tmp/cinch-docs/ref-tooling/lsp-proj", "capabilities": {}}}
-<-- {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"completionProvider": {"resolveProvider": false, "triggerCharacters": ["."]}, "definitionProvider": true, "hoverProvider": true, "semanticTokensProvider": {"full": true, "legend": {"tokenModifiers": [], "tokenTypes": ["keyword", "variable", "function", "type", "class", "enumMember", "method", "property", "namespace", "number", "string", "operator"]}}, "textDocumentSync": 1}, "serverInfo": {"name": "cinch", "version": "0.1.0"}}}
+<-- {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"completionProvider": {"resolveProvider": false, "triggerCharacters": ["."]}, "definitionProvider": true, "hoverProvider": true, "semanticTokensProvider": {"full": true, "legend": {"tokenModifiers": [], "tokenTypes": ["keyword", "variable", "function", "type", "class", "enumMember", "method", "property", "namespace", "number", "string", "operator", "comment"]}}, "textDocumentSync": 1}, "serverInfo": {"name": "cinch", "version": "0.1.0"}}}
 ```
 
 `textDocumentSync: 1` is full synchronization. `resolveProvider: false` means the server does not hold back completion details for a second request. There is no `renameProvider`, no `documentFormattingProvider`, and no `signatureHelpProvider`, so a client should not offer those actions for a Cinch buffer.
@@ -247,6 +247,8 @@ Each group of five numbers is `deltaLine, deltaStart, length, tokenType, tokenMo
 | 5 | 12 to 14 | `21` | number |
 
 `deltaStart` is relative to the previous token's start only when `deltaLine` is zero, and absolute otherwise. Every response is a full document; the server does not implement the delta request, so a client must not advertise or request `semanticTokens/full/delta`.
+
+Comments are lexical trivia: the grammar keeps them out of the syntax tree, so a client that highlights from a tree-sitter grammar has nothing to colour. The array therefore carries the comments too, as `comment` tokens, one per line of a block comment. An editor that only enables semantic tokens on request (Zed's default) needs `semantic_tokens` turned on for Cinch to see them.
 
 A reference is classified `function` only when its declaration is in the analysis. With `Util.cinch` closed, the same request classifies `quad` as `variable`, because the reference is unresolved. Grammar highlighting is unaffected either way, and neither classification claims that the buffer checks.
 

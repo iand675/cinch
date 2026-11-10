@@ -1,0 +1,7 @@
+# Zed compiles a dev extension inside its source directory: the extension
+# wasm, the crate's target dir, the grammar clone it makes, and the compiled
+# grammar all land here.
+target/
+extension.wasm
+grammars/
+grammar-repo/

@@ -73,9 +73,9 @@ fn collect(node: Node<'_>, spans: &mut Vec<Span>) {
     }
 }
 
-/// Comment spans are not present in the parse tree: `_comment` is an extra.
-/// Scan them separately so the highlighter still colours prose the grammar
-/// intentionally skips.
+/// Comment spans are not present in the parse tree: the scanner emits them as
+/// a hidden token in `extras`. Scan them separately so front ends can colour
+/// prose the grammar intentionally skips.
 fn comment_spans(source: &str) -> Vec<CharSpan> {
     let bytes = source.as_bytes();
     let mut spans = Vec::new();
@@ -125,6 +125,16 @@ fn comment_spans(source: &str) -> Vec<CharSpan> {
         index += 1;
     }
     spans
+}
+
+/// Byte ranges of comments, in source order. Comments are lexical trivia
+/// (not parse-tree nodes), so anything that reports them to a front end has
+/// to scan for them.
+pub fn comment_ranges(source: &str) -> Vec<(usize, usize)> {
+    comment_spans(source)
+        .into_iter()
+        .map(|span| (span.start, span.end))
+        .collect()
 }
 
 /// Token spans with class names, for front ends that paint their own cells.
