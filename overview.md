@@ -85,6 +85,7 @@ Each page records a decision, its evidence, or the work remaining for one part o
 - [Scoped effect policies (draft)](design/scoped-effect-policies.md)
 - [Transaction effect policies (draft)](design/transaction-effect-policies.md)
 - [Package management](design/package-management.md)
+- [Parallel evaluation: deterministic pure parallelism for the compiler](design/parallel-evaluation.md)
 - [Proof automation: decision procedures and tactics](design/proof-automation.md)
 - [Reclamation: precise reference counting (Perceus) for Cinch](design/reclamation.md)
 - [Recursive bindings, tail calls, and surface ergonomics](design/recursive-bindings-and-tail-calls.md)
