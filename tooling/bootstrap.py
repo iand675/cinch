@@ -394,7 +394,9 @@ def build_self(builder: Path, files: dict[str, bytes], directory: Path,
         if diagnostics.is_file():
             write_json(directory / "requested-roots.json", requested_roots(diagnostics.read_text(errors="replace")))
     if code == 0:
-        command = [os.environ.get("CINCH_CLANG", "clang"), ir, provider["object"], runtime, "-o", exe]
+        # Optimized: the stage compilers are the bootstrap's hot loop, and
+        # identical IR under identical flags still yields identical binaries.
+        command = [os.environ.get("CINCH_CLANG", "clang"), "-O2", "-Wno-override-module", ir, provider["object"], runtime, "-o", exe]
         if HOST["system"] == "Linux":
             command.extend(["-ldl", "-lpthread", "-lm"])
         code = run(command, directory, log, append=True)
