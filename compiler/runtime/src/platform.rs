@@ -557,7 +557,10 @@ pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
         .max(crate::stack::MIN_STACK_BYTES);
     let spawned = std::thread::Builder::new()
         .stack_size(size)
-        .spawn(move || crate::stack::guarded(|| entry()));
+        .spawn(move || {
+            crate::small::claim_sole();
+            crate::stack::guarded(|| entry())
+        });
     match spawned {
         // Every runtime extern is `extern "C"`, so a Rust panic aborts in
         // place and never unwinds into the join: a failed join is a

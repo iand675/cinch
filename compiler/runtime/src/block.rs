@@ -8,8 +8,9 @@
 //! `block_kinds.rs`, which the code generator includes verbatim.
 //!
 //! [`allocate_block`] and [`free`] are the only functions that touch the
-//! backing allocator, so replacing it (the system allocator today, through
-//! the counting wrapper of [`crate::heap`]) is a change to these two alone.
+//! backing allocator, through [`crate::heap::alloc_block`] and
+//! [`crate::heap::free_block`] (the small-object heap of [`crate::small`]
+//! for every block of up to 256 bytes, the system allocator above that).
 //!
 //! A constructor block's `layout` is its layout id (the tag is in it, see
 //! `block_kinds.rs`), and a closure's or a dictionary's is its shape's
@@ -109,7 +110,7 @@ pub unsafe fn register_layouts(table: *const u64, len: usize) {
 }
 
 /// The registered table as a slice (empty before registration).
-fn layout_table() -> &'static [u64] {
+pub(crate) fn layout_table() -> &'static [u64] {
     use std::sync::atomic::Ordering::Acquire;
     let len = LAYOUTS_LEN.load(Acquire);
     let table = LAYOUTS.load(Acquire);
@@ -150,13 +151,7 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
     let Some(layout) = plan(payload, ext.is_some()) else {
         crate::heap::request_too_large(payload);
     };
-    let base = unsafe {
-        if zeroed {
-            std::alloc::alloc_zeroed(layout)
-        } else {
-            std::alloc::alloc(layout)
-        }
-    };
+    let base = unsafe { crate::heap::alloc_block(layout, immortal, zeroed) };
     let p = match ext {
         Some(x) => {
             unsafe { base.cast::<u64>().write(x) };
@@ -165,7 +160,6 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
         None => unsafe { base.add(HEADER_BYTES) },
     };
     unsafe { write_header(p, header) };
-    crate::heap::account_block(layout.size(), immortal);
     p
 }
 
@@ -297,6 +291,13 @@ pub unsafe fn payload_bytes(p: *const u8, h: u64) -> Option<(usize, bool)> {
 
 /// How the drop machinery reads one block's payload: how many words it
 /// has and which of them are counted.
+///
+/// Every block whose codes fit one word (a shaped block whose entry
+/// holds its map, which is every block of at most 16 words, and every
+/// fixed kind but the arrays, quote blocks, tensors and column trees)
+/// keeps them in `map`, validated once, so [`Scan::counted_below`] finds
+/// the next counted slot with one bit search instead of decoding every
+/// slot. The rest decode slot by slot.
 pub struct Scan {
     words: usize,
     kind: u8,
@@ -304,49 +305,106 @@ pub struct Scan {
     entry: u64,
     /// A wide entry's extension words.
     ext: &'static [u64],
+    /// The codes of the payload words below `words`, `SCAN_BITS` each,
+    /// when `inline`.
+    map: u64,
+    inline: bool,
 }
+
+/// The map bits of the codes of the first `words` slots.
+#[inline]
+const fn slots_below(words: usize) -> u64 {
+    if words >= (64 / SCAN_BITS) as usize {
+        !0
+    } else {
+        (1u64 << (SCAN_BITS as usize * words)) - 1
+    }
+}
+
+/// The low bit of every code in a map word.
+const CODE_LOW_BITS: u64 = 0x5555_5555_5555_5555;
+const _: () = assert!(SCAN_BITS == 2 && SCAN_TOBJ == 2 && SCAN_CODE_MASK == 3);
 
 impl Scan {
     /// The scan of the live heap or static block at `p` whose header is
     /// `h`. A shaped block whose layout the table does not record, a
-    /// closure filled past its shape, or a truncated extension is a
-    /// compiler bug and traps.
+    /// closure filled past its shape, an invalid pointer map code or a
+    /// truncated extension is a compiler bug and traps.
     ///
     /// # Safety
     ///
     /// `p` is the payload pointer of a header block whose header is `h`.
+    #[inline]
     pub unsafe fn of(p: *const u8, h: u64) -> Scan {
+        unsafe { Scan::with(p, h, layout_table()) }
+    }
+
+    /// [`Scan::of`] against `table`, the registered layout table, which a
+    /// walk visiting many blocks reads once.
+    ///
+    /// # Safety
+    ///
+    /// As for [`Scan::of`]; `table` is [`layout_table`]'s answer.
+    #[inline(always)]
+    pub(crate) unsafe fn with(p: *const u8, h: u64, table: &'static [u64]) -> Scan {
         let k = kind(h);
         if !kind_has_shape(k) {
-            let Some((bytes, _)) = (unsafe { payload_bytes(p, h) }) else {
-                crate::abi::panic_exit(b"compiler bug: block header corrupt");
-            };
-            let entry = if k == KIND_ARRAY { unsafe { p.cast::<u64>().read() } } else { 0 };
-            return Scan { words: bytes / 8, kind: k, entry, ext: &[] };
+            return unsafe { Scan::fixed(p, h, k) };
         }
-        let Some(entry) = (unsafe { shape_entry(p, h) }) else {
+        let l = layout(h);
+        let ext = if l == LAYOUT_BIG { unsafe { ext_word(p) } } else { 0 };
+        let Some(&entry) = usize::try_from(ctor_index(l, ext)).ok().and_then(|i| table.get(i)) else {
             crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
         };
-        let words = unsafe { shaped_words(p, h, entry) };
         let mapped = layout_entry_words(entry) as usize;
-        if k == KIND_CLOSURE && words > mapped {
-            crate::abi::panic_exit(b"compiler bug: closure filled past its shape");
-        }
-        let ext = if layout_entry_inline(entry) {
-            &[][..]
-        } else {
-            let table = layout_table();
-            let start = layout_entry_map(entry) as usize;
-            let n = scan_ext_len(mapped as u64) as usize;
-            match start.checked_add(n).and_then(|end| table.get(start..end)) {
-                Some(ext) => ext,
-                None => crate::abi::panic_exit(b"compiler bug: layout map extension out of range"),
-            }
-        };
         // A constructor or dictionary is scanned over its mapped words: a
         // zero-field constructor's one allocated word holds nothing.
-        let words = if k == KIND_CLOSURE { words } else { mapped };
-        Scan { words, kind: k, entry, ext }
+        let words = if k == KIND_CLOSURE {
+            let words = unsafe { shaped_words(p, h, entry) };
+            if words > mapped {
+                crate::abi::panic_exit(b"compiler bug: closure filled past its shape");
+            }
+            words
+        } else {
+            mapped
+        };
+        if layout_entry_inline(entry) {
+            let map = layout_entry_map(entry) & slots_below(words);
+            return Scan::mapped(words, k, entry, map);
+        }
+        let start = layout_entry_map(entry) as usize;
+        let n = scan_ext_len(mapped as u64) as usize;
+        let Some(ext) = start.checked_add(n).and_then(|end| table.get(start..end)) else {
+            crate::abi::panic_exit(b"compiler bug: layout map extension out of range");
+        };
+        Scan { words, kind: k, entry, ext, map: 0, inline: false }
+    }
+
+    /// The scan of a block whose kind fixes its map.
+    #[inline(never)]
+    unsafe fn fixed(p: *const u8, h: u64, k: u8) -> Scan {
+        let Some((bytes, _)) = (unsafe { payload_bytes(p, h) }) else {
+            crate::abi::panic_exit(b"compiler bug: block header corrupt");
+        };
+        let words = bytes / 8;
+        match k {
+            KIND_ARRAY => {
+                let entry = unsafe { p.cast::<u64>().read() };
+                Scan { words, kind: k, entry, ext: &[], map: 0, inline: false }
+            }
+            KIND_TENSOR | KIND_COLUMNAR | KIND_CODE => Scan { words, kind: k, entry: 0, ext: &[], map: 0, inline: false },
+            KIND_MEMO => Scan::mapped(words, k, 0, scan_slot(SCAN_OBJ, MEMO_OWNED_WORD) & slots_below(words)),
+            _ => Scan::mapped(words, k, 0, 0),
+        }
+    }
+
+    /// A scan whose codes are `map`, trapping on an invalid code.
+    #[inline(always)]
+    fn mapped(words: usize, kind: u8, entry: u64, map: u64) -> Scan {
+        if map & (map >> 1) & CODE_LOW_BITS != 0 {
+            crate::abi::panic_exit(b"compiler bug: invalid pointer map code");
+        }
+        Scan { words, kind, entry, ext: &[], map, inline: true }
     }
 
     /// The number of payload words to visit.
@@ -356,14 +414,16 @@ impl Scan {
 
     /// The code (`SCAN_*`) of payload word `slot` (below [`Scan::words`]).
     /// An invalid code is a compiler bug and traps.
+    #[inline]
     pub fn code(&self, slot: usize) -> u64 {
+        if self.inline {
+            return scan_code_at(self.map, slot as u64);
+        }
         let slot = slot as u64;
         let code = if self.kind == KIND_ARRAY {
             if slot >= 2 && self.entry <= SCAN_TOBJ { self.entry } else { SCAN_RAW }
         } else if !kind_has_shape(self.kind) {
             fixed_scan_code(self.kind, slot)
-        } else if self.ext.is_empty() {
-            scan_code_at(layout_entry_map(self.entry), slot)
         } else {
             scan_code_at(self.ext[(slot / SCAN_EXT_WORDS) as usize], slot % SCAN_EXT_WORDS)
         };
@@ -372,40 +432,87 @@ impl Scan {
         }
         code
     }
+
+    /// The highest slot below `below` whose code is not `SCAN_RAW`, with
+    /// that code: the next slot a reverse walk visits.
+    #[inline(always)]
+    pub fn counted_below(&self, below: usize) -> Option<(usize, u64)> {
+        if !self.inline {
+            return self.decode_below(below);
+        }
+        let m = self.map & slots_below(below);
+        if m == 0 {
+            return None;
+        }
+        let slot = (63 - m.leading_zeros() as usize) / SCAN_BITS as usize;
+        Some((slot, scan_code_at(m, slot as u64)))
+    }
+
+    /// [`Scan::counted_below`] for a block whose codes are decoded slot
+    /// by slot.
+    #[inline(never)]
+    fn decode_below(&self, below: usize) -> Option<(usize, u64)> {
+        (0..below).rev().find_map(|slot| match self.code(slot) {
+            SCAN_RAW => None,
+            code => Some((slot, code)),
+        })
+    }
 }
 
 /// The poison every payload word of a freed block holds in debug mode.
 pub const POISON: u64 = 0xdead_beef_dead_beef;
 
-/// Return a heap block's memory to the allocator. The payload is not
-/// inspected: a caller that owns resources inside it (a `Nat`'s limbs, a
-/// buffer's data) releases them first. Under `CINCH_RC_DEBUG=1` the
-/// block is poisoned instead (kind `KIND_FREED`, every payload word
-/// [`POISON`]) and kept, so a later use finds the poison rather than a
-/// reused block.
+/// Return a heap block's memory to the allocator and count it freed. The
+/// payload is not inspected: a caller that owns resources inside it (a
+/// `Nat`'s limbs, a buffer's data) releases them first. Under
+/// `CINCH_RC_DEBUG=1` the block is poisoned instead (kind `KIND_FREED`,
+/// every payload word [`POISON`]) and kept, so a later use finds the
+/// poison rather than a reused block.
 ///
 /// # Safety
 ///
 /// `p` must be the payload pointer of a live, mortal heap block allocated
 /// by [`allocate`] or [`allocate_shaped`], not used again afterwards.
 pub unsafe fn free(p: *mut u8) {
-    let h = unsafe { read_header(p) };
-    let Some((payload, ext)) = (unsafe { payload_bytes(p, h) }) else {
-        crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
-    };
-    if crate::heap::rc_debug() {
+    unsafe { free_in(p, read_header(p), crate::heap::rc_debug(), crate::small::local()) }
+}
+
+/// [`free`] of the block `p` whose header is `h`, for a caller that
+/// already knows whether debug mode is on and the calling thread's small
+/// heap ([`crate::small::local`]), as the release walk does once for
+/// every block it frees.
+///
+/// # Safety
+///
+/// As for [`free`]; `local` is the calling thread's heap, or `None`.
+#[inline(always)]
+pub(crate) unsafe fn free_in(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
+    if debug {
+        let Some((payload, _)) = (unsafe { payload_bytes(p, h) }) else {
+            crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
+        };
         let words = p.cast::<u64>();
         for i in 0..payload / 8 {
             unsafe { words.add(i).write(POISON) };
         }
         unsafe { write_header(p, header(RC_IMMORTAL, KIND_FREED, layout(h))) };
+        crate::heap::account_block_free();
         return;
     }
-    let Some(layout) = plan(payload, ext) else {
-        crate::abi::panic_exit(b"compiler bug: block header corrupt");
-    };
-    let prefix = layout.size() - payload;
-    unsafe { std::alloc::dealloc(p.sub(prefix), layout) };
+    // The escape word, when there is one, is where the allocation starts.
+    let prefix = if layout(h) == LAYOUT_BIG { 2 * HEADER_BYTES } else { HEADER_BYTES };
+    let base = unsafe { p.sub(prefix) };
+    unsafe {
+        crate::heap::free_block(local, base, || {
+            let Some((payload, ext)) = payload_bytes(p, h) else {
+                crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
+            };
+            match plan(payload, ext) {
+                Some(layout) => layout,
+                None => crate::abi::panic_exit(b"compiler bug: block header corrupt"),
+            }
+        })
+    }
 }
 
 /// A layout table for the unit tests. Entry `i < 200` records `i % 7`

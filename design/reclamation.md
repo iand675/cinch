@@ -1093,10 +1093,19 @@ the plan above or fills it in:
     validate the header kind. Freed blocks are poisoned (kind `freed`,
     payload `0xdeadbeef...`) and quarantined instead of returned to the
     allocator.
-  - ASan: link with `clang -fsanitize=address`. The runtime allocates
-    through `System` (`heap.rs:228`, `malloc`), so ASan intercepts it even
-    with an uninstrumented Rust runtime [INFERENCE]. Valgrind works on
-    Linux only [INFERENCE].
+  - ASan: link with `clang -fsanitize=address`. Only requests above 256
+    bytes reach `System` (`malloc`), which ASan intercepts even with an
+    uninstrumented Rust runtime [INFERENCE]. Every block of up to 256
+    bytes, which is nearly every Cinch value, comes from the runtime's
+    small-object heap (`runtime/src/small.rs`): segregated size classes
+    in 64 KiB pages carved from one address range the runtime reserves
+    itself, with thread-local free lists. ASan sees none of those
+    allocations, and a freed small block is reused promptly by the next
+    request of its class, so a use after free reads a live block instead
+    of faulting. For use-after-free hunting on Cinch values, rely on
+    `CINCH_RC_DEBUG=1`, whose quarantine never returns a block to either
+    allocator. Valgrind works on Linux only, with the same limit
+    [INFERENCE].
 - **Semantic guards** (existing). `compiler/tests/integration.rs` (32
   tests), `letrec.rs` (10), `ownership.rs` (19), `concurrency.rs` (14),
   `ffi.rs` (12), `codata.rs` (9), `wasm.rs` (11), `alloc_accounting.rs`

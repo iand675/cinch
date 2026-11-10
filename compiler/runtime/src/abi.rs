@@ -537,7 +537,6 @@ pub unsafe extern "C" fn cinch_free(word: i64) {
         drop_box_payload(p, crate::block::kind(h));
         crate::block::free(p);
     }
-    crate::heap::account_block_free();
 }
 
 // ---------------------------------------------------------------------------

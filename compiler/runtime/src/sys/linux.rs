@@ -46,6 +46,8 @@ const O_RDONLY: i32 = 0;
 /// `O_CLOEXEC`: the descriptor must not survive an `exec`.
 const O_CLOEXEC: i32 = 0o2000000;
 
+/// `PROT_NONE`.
+const PROT_NONE: i32 = 0;
 /// `PROT_READ`.
 const PROT_READ: i32 = 1;
 /// `PROT_WRITE`.
@@ -54,6 +56,8 @@ const PROT_WRITE: i32 = 2;
 const MAP_PRIVATE: i32 = 2;
 /// `MAP_ANONYMOUS` (the same value on every Linux architecture).
 const MAP_ANONYMOUS: i32 = 0x20;
+/// `MAP_NORESERVE` (the same value on x86_64 and aarch64).
+const MAP_NORESERVE: i32 = 0x4000;
 
 // ---------------------------------------------------------------------------
 // The pinned numbers
@@ -247,6 +251,21 @@ pub(crate) fn mmap_anon(size: usize) -> (i64, i64) {
             size as i64,
             i64::from(PROT_READ | PROT_WRITE),
             i64::from(MAP_PRIVATE | MAP_ANONYMOUS),
+            -1,
+            0,
+        )
+    };
+    split(raw)
+}
+
+pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
+    let raw = unsafe {
+        syscall(
+            nr::MMAP,
+            0,
+            size as i64,
+            i64::from(PROT_NONE),
+            i64::from(MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE),
             -1,
             0,
         )

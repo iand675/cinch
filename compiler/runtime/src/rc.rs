@@ -331,16 +331,14 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
     let mut parent: *mut u8 = std::ptr::null_mut();
     // The slots of `cur` still to visit, or `None` on a fresh visit.
     let mut resume: Option<usize> = None;
+    let table = block::layout_table();
     loop {
-        let scan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        let scan = unsafe { Scan::with(cur, block::read_header(cur), table) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
         let mut child: Option<*mut u8> = None;
-        while next > 0 {
-            next -= 1;
-            if scan.code(next) == SCAN_RAW {
-                continue;
-            }
-            let slot = unsafe { cur.cast::<i64>().add(next) };
+        while let Some((at, _)) = scan.counted_below(next) {
+            next = at;
+            let slot = unsafe { cur.cast::<i64>().add(at) };
             let w = unsafe { slot.read() };
             if is_block_word(w) && unsafe { claim(w) } {
                 unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
@@ -360,16 +358,13 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
         // just finished and resume below it.
         let done = cur;
         cur = parent;
-        let pscan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        let pscan = unsafe { Scan::with(cur, block::read_header(cur), table) };
         let mut at = pscan.words();
         let link = loop {
-            if at == 0 {
+            let Some((slot, _)) = pscan.counted_below(at) else {
                 corrupt();
-            }
-            at -= 1;
-            if pscan.code(at) == SCAN_RAW {
-                continue;
-            }
+            };
+            at = slot;
             let w = unsafe { cur.cast::<i64>().add(at).read() };
             if w & 3 == MARK_LINK {
                 break w;
@@ -453,11 +448,17 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
 /// The iterative release (module docs): free `root` and every block only
 /// it kept alive, children before parents, slots in reverse order.
 ///
+/// The walk reads the debug setting, the layout table and the calling
+/// thread's small heap once, not once per block, and visits only the
+/// counted slots of each block ([`Scan::counted_below`]).
+///
 /// # Safety
 ///
 /// `root` is a live mortal block whose last reference the caller holds.
 unsafe fn release(root: *mut u8) {
     let debug = crate::heap::rc_debug();
+    let table = block::layout_table();
+    let local = crate::small::local();
     let mut cur = root;
     let mut parent: *mut u8 = std::ptr::null_mut();
     // The slots of `cur` still to visit, or `None` on a fresh visit.
@@ -467,16 +468,12 @@ unsafe fn release(root: *mut u8) {
         if !live_kind(block::kind(h)) {
             corrupt();
         }
-        let scan = unsafe { Scan::of(cur, h) };
+        let scan = unsafe { Scan::with(cur, h, table) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
         let mut child: Option<*mut u8> = None;
-        while next > 0 {
-            next -= 1;
-            let code = scan.code(next);
-            if code == SCAN_RAW {
-                continue;
-            }
-            let slot = unsafe { cur.cast::<i64>().add(next) };
+        while let Some((at, code)) = scan.counted_below(next) {
+            next = at;
+            let slot = unsafe { cur.cast::<i64>().add(at) };
             let w = unsafe { slot.read() };
             if !is_block_word(w) {
                 // An `Obj` slot never holds an immediate.
@@ -505,7 +502,7 @@ unsafe fn release(root: *mut u8) {
                 // `c` dies: park `cur` (its cursor in its count field, its
                 // parent in the vacated slot) and descend.
                 unsafe {
-                    block::write_header(cur, block::header(next as i64, block::kind(h), block::layout(h)));
+                    block::write_header(cur, block::header(at as i64, block::kind(h), block::layout(h)));
                     slot.write(parent as usize as i64);
                 }
                 child = Some(c);
@@ -517,7 +514,7 @@ unsafe fn release(root: *mut u8) {
             cur = c;
             continue;
         }
-        unsafe { dispose(cur, h) };
+        unsafe { dispose(cur, h, debug, local) };
         if parent.is_null() {
             return;
         }
@@ -536,8 +533,10 @@ unsafe fn release(root: *mut u8) {
 ///
 /// # Safety
 ///
-/// `p` is a dead heap block whose children have been released.
-unsafe fn dispose(p: *mut u8, h: u64) {
+/// `p` is a dead heap block whose children have been released; `debug`
+/// and `local` are as [`block::free_in`] takes them.
+#[inline]
+unsafe fn dispose(p: *mut u8, h: u64, debug: bool, local: Option<&crate::small::Heap>) {
     #[cfg(test)]
     FREE_LOG.with(|log| {
         if let Some(v) = log.borrow_mut().as_mut() {
@@ -546,9 +545,8 @@ unsafe fn dispose(p: *mut u8, h: u64) {
     });
     unsafe {
         crate::abi::drop_box_payload(p, block::kind(h));
-        block::free(p);
+        block::free_in(p, h, debug, local);
     }
-    crate::heap::account_block_free();
 }
 
 #[cfg(test)]

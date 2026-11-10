@@ -31,6 +31,8 @@ const O_RDONLY: i32 = 0;
 /// `O_CLOEXEC`: the descriptor must not survive an `exec`.
 const O_CLOEXEC: i32 = 0x100_0000;
 
+/// `PROT_NONE`.
+const PROT_NONE: i32 = 0;
 /// `PROT_READ`.
 const PROT_READ: i32 = 1;
 /// `PROT_WRITE`.
@@ -193,6 +195,11 @@ pub(crate) fn mmap_anon(size: usize) -> (i64, i64) {
         )
     };
     // `MAP_FAILED` is `-1`, so the answer needs no separate check.
+    pair(p as i64)
+}
+
+pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
+    let p = unsafe { c::mmap(null_mut(), size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0) };
     pair(p as i64)
 }
 

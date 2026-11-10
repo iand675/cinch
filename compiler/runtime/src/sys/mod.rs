@@ -210,6 +210,14 @@ pub(crate) fn mmap_anon(size: usize) -> (i64, i64) {
     back::mmap_anon(size)
 }
 
+/// Reserve `size` bytes of private anonymous address space with no
+/// access, committing nothing: the address, or `-1` and the error
+/// number. [`mprotect`] makes parts of it usable. The small-object
+/// allocator ([`crate::small`]) carves its pages from one such range.
+pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
+    back::mmap_reserve(size)
+}
+
 /// Release a mapping `mmap_anon` made: 0, or `-1` and the error
 /// number.
 pub(crate) fn munmap(addr: i64, size: usize) -> (i64, i64) {
@@ -222,6 +230,52 @@ pub(crate) fn munmap(addr: i64, size: usize) -> (i64, i64) {
 pub(crate) fn mprotect(addr: i64, size: usize, prot: i32) -> (i64, i64) {
     back::mprotect(addr, size, prot)
 }
+
+/// A word that identifies the calling thread among the live threads, read
+/// from the thread register in one instruction: the thread's TSD base
+/// (`TPIDRRO_EL0`, low bits masked) on Darwin arm64, the thread pointer
+/// (`TPIDR_EL0`, or the TCB self pointer at `fs:0`) on Linux. A thread
+/// that has exited may have its word reused by a later thread. Targets
+/// without such a register answer [`NO_THREAD_WORD`], which no thread
+/// matches. Not a system call: it is here because the registers are the
+/// platform's ABI.
+#[inline(always)]
+pub(crate) fn thread_word() -> usize {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        let w: usize;
+        // SAFETY: reading the read-only thread register has no effects.
+        unsafe { std::arch::asm!("mrs {}, tpidrro_el0", out(reg) w, options(nomem, nostack, preserves_flags)) };
+        w & !7
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        let w: usize;
+        // SAFETY: as above.
+        unsafe { std::arch::asm!("mrs {}, tpidr_el0", out(reg) w, options(nomem, nostack, preserves_flags)) };
+        w
+    }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        let w: usize;
+        // SAFETY: `fs:0` is the TCB's pointer to itself on x86_64 Linux,
+        // readable by its thread at any time.
+        unsafe { std::arch::asm!("mov {}, fs:0", out(reg) w, options(nostack, preserves_flags, readonly)) };
+        w
+    }
+    #[cfg(not(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(target_os = "linux", any(target_arch = "aarch64", target_arch = "x86_64"))
+    )))]
+    {
+        NO_THREAD_WORD
+    }
+}
+
+/// What [`thread_word`] answers where no thread register is read; no
+/// thread's word is ever this value (a thread register holds an aligned
+/// address).
+pub(crate) const NO_THREAD_WORD: usize = 1;
 
 /// The system page size in bytes. Cannot fail: the platform answers a
 /// fixed power of two for the life of the process.

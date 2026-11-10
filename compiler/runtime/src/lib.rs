@@ -523,6 +523,7 @@ pub mod net;
 pub mod platform;
 pub mod pty;
 pub mod rc;
+mod small;
 pub mod string;
 pub mod stack;
 pub mod sym;
