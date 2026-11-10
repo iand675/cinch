@@ -625,7 +625,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
             for primitive in ["eqI64", "wrappingAddI64", "wrappingSubI64"] {
                 let header = format!("define i64 @\"cinch.typed.cinch.prim.{primitive}\"(");
                 let body = ir.split(&header).nth(1).expect("machine primitive worker").split('}').next().unwrap();
-                assert!(!body.contains("@cinch_dup") && !body.contains("@cinch_drop"), "raw machine arguments must not be reference counted: {body}");
+                assert!(!body.contains("@cinch_dup") && !body.contains("@cinch_drop") && !body.contains("@cinch.typed.rc."), "raw machine arguments must not be reference counted: {body}");
                 assert!(!body.contains(" nsw ") && !body.contains(" nuw "), "wrapping operations must preserve overflow: {body}");
             }
         }
@@ -634,7 +634,7 @@ fn typed_runtime_numbers_preserve_exact_values_and_reclaim_owned_words() {
             let raw_header = ir.lines().find(|line| line.starts_with("define i64 ") && line.contains("105_100_101_110_116_105_116_121_.r0")).expect("raw identity worker");
             let raw = ir.split(raw_header).nth(1).unwrap();
             let raw_body = raw.split('}').next().unwrap();
-            assert!(!raw_body.contains("@cinch_dup") && !raw_body.contains("@cinch_drop"), "Raw values must never be reference counted: {raw_body}");
+            assert!(!raw_body.contains("@cinch_dup") && !raw_body.contains("@cinch_drop") && !raw_body.contains("@cinch.typed.rc."), "Raw values must never be reference counted: {raw_body}");
         }
         if name == "generic-shared-tobj" || name == "generic-shared-obj" {
             assert_eq!(ir.lines().filter(identity_worker).count(), 1, "{name}: callers with the same class must share one worker");

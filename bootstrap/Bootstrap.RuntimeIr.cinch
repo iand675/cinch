@@ -397,10 +397,19 @@ module Bootstrap.RuntimeIr where
   demand-worker name classes w = request-demand (Demand name classes) w
   runtime-number :: UType -> String
   runtime-number ty = if named ty "Nat" then "nat" else "int"
+  -- Count operations call the module's alwaysinline helpers (count-helpers),
+  -- the inline fast paths of design/reclamation.md sections 3, 4 and 8.
+  -- A constant operand is 0, a raw word or an immediate, never a block.
+  count-call :: Bool -> String -> String
+  count-call duplicate value = cat ["  call void @cinch.typed.rc.", if duplicate then "dup" else "drop", "(i64 ", value, ")"]
+  constant-word :: String -> Bool
+  constant-word value = case string-char-at value 0 of
+    Some c -> let code = char-code c in (code >= 48 && code <= 57) || code == 45
+    None -> False
   count-op :: Bool -> UType -> String -> Writer -> Writer
   count-op duplicate ty value w = case word-class (writer-context w) ty of
     Some 0 -> w
-    Some code -> line w (cat ["  call void @cinch_", if duplicate then "dup" else "drop", "(i64 ", value, ")"])
+    Some code -> if constant-word value then w else line w (count-call duplicate value)
     None -> refuse w (Span 0 0 1 1) "reference operation needs a checked runtime representation"
   drop-locals :: List Local -> Writer -> Writer
   drop-locals locals w = case locals of
@@ -593,27 +602,69 @@ module Bootstrap.RuntimeIr where
   call :: Writer -> String -> List String -> (Writer, String)
   call w name args = let (next, result) = fresh w "%v" in
     (line next (cat ["  ", result, " = call i64 ", name, "(", join (argument-words args), ")"]), result)
+  -- A literal in the runtime ABI's immediate range is its own word,
+  -- v * 2 + 1 for a Nat in 0..2^63-1 or an Int in -2^62..2^62-1 (the word
+  -- cinch_*_from_decimal returns for the same value, compiler/runtime/src/abi.rs).
+  -- Other literals parse their decimal text through the runtime.
   decimal :: Writer -> UType -> String -> (Writer, String)
-  decimal w ty text =
-    let (next, name) = fresh w "@number" in
-    let len = nat-to-string (string-length text) in
-    let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
-    let (ready, result) = fresh declared "%v" in
-    (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
+  decimal w ty text = case immediate-literal (named ty "Nat") text of
+    Some word -> (w, word)
+    None ->
+      let (next, name) = fresh w "@number" in
+      let len = nat-to-string (string-length text) in
+      let declared = global next (cat [name, " = private unnamed_addr constant [", len, " x i8] c\"", text, "\""]) in
+      let (ready, result) = fresh declared "%v" in
+      (line ready (cat ["  ", result, " = call i64 @cinch_", runtime-number ty, "_from_decimal(ptr ", name, ", i64 ", len, ")"]), result)
+  decimal-digits :: List Char -> Nat -> Option Nat
+  decimal-digits chars value = case chars of
+    Nil -> Some value
+    Cons c rest -> let code = char-code c in
+      if code >= 48 && code <= 57 then decimal-digits rest (value * 10 + (code - 48)) else None
+  -- The immediate word of a decimal literal, printed as an unsigned (Nat)
+  -- or signed (Int) i64 constant.
+  immediate-literal :: Bool -> String -> Option String
+  immediate-literal natural text = case unpack text of
+    Nil -> None
+    Cons sign rest -> if char-code sign == 45 then
+        (if natural then None else case rest of
+          Nil -> None
+          Cons first more -> case decimal-digits rest 0 of
+            Some magnitude -> if magnitude == 0 then Some "1" else if magnitude <= 4611686018427387904 then Some (cat ["-", nat-to-string (2 * magnitude - 1)]) else None
+            None -> None)
+      else case decimal-digits (Cons sign rest) 0 of
+        Some value -> if value <= (if natural then 9223372036854775807 else 4611686018427387903) then Some (nat-to-string (2 * value + 1)) else None
+        None -> None
   char-word :: String -> Option String
   char-word text = case unpack text of Cons c Nil -> Some (nat-to-string (char-code c)); other -> None
+  -- An immortal header word: rc 0, then kind at bit 40 and layout at bit 48.
+  static-header :: Nat -> Nat -> Nat
+  static-header kind layout = layout * 281474976710656 + kind * 1099511627776
+  struct-field :: String -> String -> Nat -> String
+  struct-field shape storage index = cat ["getelementptr inbounds (", shape, ", ptr ", storage, ", i64 0, i32 ", nat-to-string index, ")"]
+  -- A string literal is one shared read-only data-section object, as in
+  -- compiler/src/codegen.rs (Core::ConstString): the String constructor
+  -- block { bytes } and the Bytes block { len; data } it wraps, each after
+  -- an immortal header, then the data. The Bytes kind is
+  -- KIND_BYTES_STATIC, so a write faults instead of touching constant data.
+  -- An escaped descriptor goes in the word before the String header.
   string-literal :: Writer -> Span -> UType -> String -> (Writer, String)
   string-literal w sp ty text = case (base ty, program-object (writer-program w)) of
     (UCon name KType, Some provider) -> (case object-string-layout name provider of
-      Some descriptor -> let (one, buffer-constant) = fresh w "@text" in
+      Some descriptor ->
+        let escaped = descriptor >= 65535 in
+        let layout = if escaped then (65535 :: Nat) else descriptor in
+        let at = if escaped then (1 :: Nat) else 0 in
+        let (one, storage) = fresh w "@text" in
         let size = nat-to-string (bytes-len (string-to-bytes text)) in
-        let declared = global one (cat [buffer-constant, " = private unnamed_addr constant [", size, " x i8] c\"", llvm-data-bytes text, "\""]) in
-        let (two, bytes) = fresh declared "%v" in
-        let copied = line two (cat ["  ", bytes, " = call i64 @cinch_bytes_from_data(ptr ", buffer-constant, ", i64 ", size, ")"]) in
-        let (three, pointer) = fresh copied "%ptr" in
-        let allocated = line three (cat ["  ", pointer, " = call ptr @cinch_alloc_ctor(i64 8, i64 ", nat-to-string descriptor, ")"]) in
-        let (done, result) = fresh (line allocated (cat ["  store i64 ", bytes, ", ptr ", pointer])) "%v" in
-        (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"]), result)
+        let contents = if same size "0" then "[0 x i8] zeroinitializer" else cat ["[", size, " x i8] c\"", llvm-data-bytes text, "\""] in
+        let shape = cat ["{ ", if escaped then "i64, " else "", "i64, ptr, i64, i64, ptr, [", size, " x i8] }"] in
+        let declared = global one (cat [storage, " = private unnamed_addr constant ", shape, " { ",
+          if escaped then cat ["i64 ", nat-to-string descriptor, ", "] else "",
+          "i64 ", nat-to-string (static-header 1 layout), ", ptr ", struct-field shape storage (at + 3),
+          ", i64 ", nat-to-string (static-header 9 2), ", i64 ", size, ", ptr ", struct-field shape storage (at + 5),
+          ", ", contents, " }, align 8"]) in
+        let (done, result) = fresh declared "%v" in
+        (line done (cat ["  ", result, " = ptrtoint ptr ", struct-field shape storage (at + 1), " to i64"]), result)
       None -> unsupported w sp "String literal has no checked defining wrapper layout")
     other -> unsupported w sp "String literal needs its checked library object layout"
   string-bytes :: Writer -> String -> (Writer, String)
@@ -1053,13 +1104,27 @@ module Bootstrap.RuntimeIr where
           else let id = 64 * (groups + 1) in
             (Writer next globals code errors (LayoutPlan (groups + 1) (Cons (id, packed) tuples) names (Cons (id, packed) cells)) context, id)
   closure :: Span -> String -> List Nat -> List String -> Writer -> (Writer, String)
-  closure sp name classes values w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
+  closure sp name classes values w = case values of
+    Nil -> case static-closure sp name classes w of
+      (planned, payload) -> let (done, word) = fresh planned "%v" in
+        (line done (cat ["  ", word, " = ptrtoint ptr ", payload, " to i64"]), word)
+    other -> case request-shape sp classes (request-demand (StubDemand name classes) w) of
+      (planned, descriptor) ->
+        let (one, pointer) = fresh planned "%ptr" in
+        let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (3 + list-length values)), ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
+        let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
+        let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
+        (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
+  -- A closure that saves nothing is one immortal data-section block
+  -- { app; arity; 0 } (compiler/src/codegen.rs, clo_def). The result is the
+  -- constant payload address.
+  static-closure :: Span -> String -> List Nat -> Writer -> (Writer, String)
+  static-closure sp name classes w = case request-shape sp classes (request-demand (StubDemand name classes) w) of
     (planned, descriptor) ->
-      let (one, pointer) = fresh planned "%ptr" in
-      let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (3 + list-length values)), ", i64 2, i64 ", nat-to-string descriptor, ")"]) in
-      let prefix = [cat ["ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64)"], nat-to-string (list-length classes), nat-to-string (list-length values)] in
-      let (done, word) = fresh (store-fields allocated pointer 0 (prefix <> values)) "%v" in
-      (line done (cat ["  ", word, " = ptrtoint ptr ", pointer, " to i64"]), word)
+      let (declared, storage) = fresh planned "@closure" in
+      let stored = global declared (cat [storage, " = private unnamed_addr constant [4 x i64] [i64 ", nat-to-string (static-header 2 descriptor),
+        ", i64 ptrtoint (ptr ", symbol (cat [name, ".app"]), " to i64), i64 ", nat-to-string (list-length classes), ", i64 0], align 8"]) in
+      (stored, cat ["getelementptr inbounds ([4 x i64], ptr ", storage, ", i64 0, i64 1)"])
   apply-one :: Writer -> String -> String -> (Writer, String)
   apply-one w function value =
     let (one, argv) = fresh w "%ptr" in
@@ -1162,7 +1227,7 @@ module Bootstrap.RuntimeIr where
   array-drop-arguments :: List Nat -> Nat -> Writer -> Writer
   array-drop-arguments classes index w = case classes of
     Nil -> w
-    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (cat ["  call void @cinch_drop(i64 %arg", nat-to-string index, ")"]))
+    Cons first rest -> array-drop-arguments rest (index + 1) (if first == 0 then w else line w (count-call False (cat ["%arg", nat-to-string index])))
   array-option :: Writer -> Span -> Nat -> String -> String -> List String -> (Writer, String)
   array-option w sp payload-class invalid runtime arguments =
     case (constructor (interface-global "Data.Core.Some") (writer-data w), constructor (interface-global "Data.Core.None") (writer-data w)) of
@@ -1276,16 +1341,16 @@ module Bootstrap.RuntimeIr where
         (case wrapping-worker-plan name of
           Some (operation, unsigned-narrow) -> wrapping-word-worker started operation unsigned-narrow
           None -> unsupported started (Span 0 0 1 1) "checked machine worker has no wrapping operation")
-      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
+      else if same name "b.ioWrite" then (case call started "@cinch_io_write" ["%arg1"] of (done, result) -> (line done (count-call False "%arg1"), "0"))
       else if same name "b.ioSleep" then (case call started "@cinch_nat_to_len" ["%arg1"] of
-        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg1)", "0"))
+        (converted, length) -> case call converted "@cinch_io_sleep" [length] of (done, result) -> (line done (count-call False "%arg1"), "0"))
       else if same name "b.pollCancel" then call started "@cinch_task_poll_cancel" Nil
       else if same name "cinch.runtime.bytesNew" then (case call started "@cinch_nat_to_len" ["%arg0"] of
-        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))
+        (converted, length) -> case call converted "@cinch_bytes_new" [length] of (done, result) -> (line done (count-call False "%arg0"), result))
       else if same name "cinch.runtime.bytesGet" then (case call started "@cinch_nat_to_len" ["%arg1"] of
         (converted, index) -> case call converted "@cinch_bytes_get" ["%arg0", index] of
           (read, byte) -> case call read "@cinch_nat_from_i64" [byte] of
-            (done, result) -> (line (line done "  call void @cinch_drop(i64 %arg0)") "  call void @cinch_drop(i64 %arg1)", result))
+            (done, result) -> (line (line done (count-call False "%arg0")) (count-call False "%arg1"), result))
       else if same name "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
@@ -1294,7 +1359,7 @@ module Bootstrap.RuntimeIr where
       else if same name "cinch.runtime.textF64FromDecimal" then
         (let (one, value) = fresh started "%float" in
          let decoded = line one (cat ["  ", value, " = call double @cinch_text_f64_from_decimal(i64 %arg0)"]) in
-         let (two, result) = fresh (line decoded "  call void @cinch_drop(i64 %arg0)") "%v" in
+         let (two, result) = fresh (line decoded (count-call False "%arg0")) "%v" in
          (line two (cat ["  ", result, " = bitcast double ", value, " to i64"]), result))
       else case nat-arithmetic-extern name of
         Some external -> case call started (cat ["@", external]) ["%arg0", "%arg1"] of
@@ -1302,7 +1367,7 @@ module Bootstrap.RuntimeIr where
             let nat = UCon "Nat" KType in
             (count-op False nat "%arg1" (count-op False nat "%arg0" done), result)
         None -> (case call started "@cinch_bytes_len" ["%arg0"] of
-          (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done "  call void @cinch_drop(i64 %arg0)", result))) in
+          (measured, length) -> case call measured "@cinch_nat_from_i64" [length] of (done, result) -> (line done (count-call False "%arg0"), result))) in
     case lowered of (done, result) -> line (line done (cat ["  ret i64 ", result])) "}"
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
@@ -1932,15 +1997,59 @@ module Bootstrap.RuntimeIr where
           Some fields -> case request-object-shape (Span 0 0 1 1) (Cons 0 fields) scoped of
             (planned, descriptor) ->
               let started = line (line planned (cat ["define ", worker-linkage planned (dictionary-name (instance-name factory) classes), "i64 ", symbol-for-dictionary (instance-name factory) classes, "(", join (argument-words (value-parameters (list-length context) 0)), ") {"])) "entry:" in
-              let (one, pointer) = fresh started "%ptr" in
-              let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + list-length fields)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
-              let initialized = store-fields allocated pointer 0 (Cons (nat-to-string (list-length fields)) (zeros (list-length fields))) in
-              case initialize-values definitions factory classes context (given-bindings context 0) pointer (strict-fields initialized factory (instance-fields factory)) initialized of
-                (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer plans values in
-                  let (done, result) = fresh (drop-locals (given-roots context 0) filled) "%v" in
-                  line (line (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", result])) "}"
+              let count = list-length fields in
+              let fixed = if list-length context == 0 && not (has-strict-values started factory (instance-fields factory)) then static-dictionary-fields factory classes count plans started else None in
+              case fixed of
+                Some (ready, words) ->
+                  let (declared, storage) = fresh ready "@dictionary" in
+                  let block = cat ["[", nat-to-string (count + 2), " x i64]"] in
+                  let stored = global declared (cat [storage, " = private unnamed_addr constant ", block, " [i64 ", nat-to-string (static-header 3 descriptor), ", i64 ", nat-to-string count, static-words (physical-words 0 count words), "], align 8"]) in
+                  let (done, result) = fresh stored "%v" in
+                  line (line (line done (cat ["  ", result, " = ptrtoint ptr getelementptr inbounds (", block, ", ptr ", storage, ", i64 0, i64 1) to i64"])) (cat ["  ret i64 ", result])) "}"
+                None ->
+                  let (one, pointer) = fresh started "%ptr" in
+                  let allocated = line one (cat ["  ", pointer, " = call ptr @cinch_alloc_shaped(i64 ", nat-to-string (8 * (1 + count)), ", i64 3, i64 ", nat-to-string descriptor, ")"]) in
+                  let initialized = store-fields allocated pointer 0 (Cons (nat-to-string count) (zeros count)) in
+                  case initialize-values definitions factory classes context (given-bindings context 0) pointer (strict-fields initialized factory (instance-fields factory)) initialized of
+                    (values, locals) -> let filled = dictionary-fields definitions factory classes context locals pointer plans values in
+                      let (done, result) = fresh (drop-locals (given-roots context 0) filled) "%v" in
+                      line (line (line done (cat ["  ", result, " = ptrtoint ptr ", pointer, " to i64"])) (cat ["  ret i64 ", result])) "}"
           None -> refuse scoped (Span 0 0 1 1) "dictionary field has no runtime representation"
       None -> refuse w (Span 0 0 1 1) "factory factory needs first-order or erased parameters"
+  -- A factory without context whose every method lowers to a closure that
+  -- saves nothing returns one immortal data-section dictionary
+  -- { nmeth; methods... } whose methods are static closures.
+  static-dictionary-fields :: CoreInstance -> List Nat -> Nat -> List MethodSlot -> Writer -> Option (Writer, List (Nat, String))
+  static-dictionary-fields owner classes count plans w = case plans of
+    Nil -> Some (w, Nil)
+    Cons (MethodSlot logical physical own-codes) rest -> if physical >= count then None else case field-at logical (instance-fields owner) of
+      Some field -> let d = dictionary-field-definition field in
+        let actual = classes <> own-codes in
+        (case static-method w d actual of
+          Some parameter-classes -> (case static-closure (Span 0 0 1 1) (specialized-name (core-name d) actual) parameter-classes (demand-worker (core-name d) actual w) of
+            (planned, payload) -> case static-dictionary-fields owner classes count rest planned of
+              Some (done, words) -> Some (done, Cons (physical, cat ["ptrtoint (ptr ", payload, " to i64)"]) words)
+              None -> None)
+          None -> None)
+      None -> None
+  -- The parameter classes of a method that function-call lowers, with no
+  -- context and no arguments, to a closure saving nothing: no self value
+  -- dependencies, no implicit index values, and some given or parameter
+  -- still to come.
+  static-method :: Writer -> CoreDefinition -> List Nat -> Option (List Nat)
+  static-method w d classes = case definition-context d classes w of
+    Some context ->
+      let parameters = definition-parameters d in
+      let required = runtime-givens w d in
+      let quiet = list-length (definition-value-dependencies w d) == 0 && list-length (opening-value-types (core-openings d)) == 0 in
+      if quiet && (list-length required > 0 || list-length parameters > 0) then class-vector context (given-types required <> pattern-types parameters) else None
+    None -> None
+  physical-words :: Nat -> Nat -> List (Nat, String) -> List String
+  physical-words index count words = if index >= count then Nil else Cons (physical-word index words) (physical-words (index + 1) count words)
+  physical-word :: Nat -> List (Nat, String) -> String
+  physical-word index words = case words of Nil -> "0"; Cons (slot, word) rest -> if slot == index then word else physical-word index rest
+  static-words :: List String -> String
+  static-words words = case words of Nil -> ""; Cons first rest -> cat [", i64 ", first, static-words rest]
   pattern-binds :: Nat -> CorePattern -> Bool
   pattern-binds id pattern = case pattern of
     CPVar sp ty key name -> id == key
@@ -2155,7 +2264,7 @@ module Bootstrap.RuntimeIr where
       let (three, next) = fresh two "savednext" in
       let started = line (line (line three (cat ["  ", condition, " = icmp ult i64 ", nat-to-string index, ", ", filled])) (cat ["  br i1 ", condition, ", label %", duplicate, ", label %", next])) (cat [duplicate, ":"]) in
       case load-word started merged (nat-to-string index) of
-        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (cat ["  call void @cinch_dup(i64 ", word, ")"])) (cat ["  br label %", next])) (cat [next, ":"]))
+        (loaded, word) -> saved-dups rest (index + 1) filled merged (line (line (line loaded (count-call True word)) (cat ["  br label %", next])) (cat [next, ":"]))
   load-arguments :: Nat -> Nat -> String -> Writer -> (Writer, List String)
   load-arguments count index merged w = if count == 0 then (w, Nil) else case load-word w merged (nat-to-string index) of
     (loaded, word) -> case load-arguments (count - 1) (index + 1) merged loaded of (done, words) -> (done, Cons word words)
@@ -2172,14 +2281,17 @@ module Bootstrap.RuntimeIr where
       let (six, incoming) = fresh five "%ptr" in
       let copied0 = line six (cat ["  ", total, " = add i64 ", filled, ", %argc"]) in
       let copied1 = line copied0 (cat ["  ", saved, " = getelementptr i64, ptr %self, i64 3"]) in
-      let copied2 = line copied1 (cat ["  ", merged, " = alloca i64, i64 ", total]) in
+      -- An even word count keeps the dynamic alloca a multiple of 16 bytes,
+      -- so sp stays aligned on AArch64 under optimization.
+      let rounded = line (line copied1 (cat ["  ", total, ".odd = add i64 ", total, ", 1"])) (cat ["  ", total, ".even = and i64 ", total, ".odd, -2"]) in
+      let copied2 = line rounded (cat ["  ", merged, " = alloca i64, i64 ", total, ".even, align 16"]) in
       let copied3 = line copied2 (cat ["  ", saved-bytes, " = mul i64 ", filled, ", 8"]) in
       let copied4 = line copied3 (cat ["  ", argument-bytes, " = mul i64 %argc, 8"]) in
       let copied5 = line copied4 (cat ["  call ptr @memcpy(ptr ", merged, ", ptr ", saved, ", i64 ", saved-bytes, ")"]) in
       let copied6 = line copied5 (cat ["  ", incoming, " = getelementptr i64, ptr ", merged, ", i64 ", filled]) in
       let copied = line copied6 (cat ["  call ptr @memcpy(ptr ", incoming, ", ptr %argv, i64 ", argument-bytes, ")"]) in
       let (seven, self-word) = fresh (saved-dups classes 0 filled merged copied) "%v" in
-      let released = line (line seven (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (cat ["  call void @cinch_drop(i64 ", self-word, ")"]) in
+      let released = line (line seven (cat ["  ", self-word, " = ptrtoint ptr %self to i64"])) (count-call False self-word) in
       let (eight, full) = fresh released "%v" in
       let (nine, partial-label) = fresh eight "partial" in
       let (ten, full-label) = fresh nine "saturated" in
@@ -2545,7 +2657,7 @@ module Bootstrap.RuntimeIr where
               let pointed = line one (cat ["  ", pointer, " = inttoptr i64 ", word, " to ptr"]) in
               (case load-word pointed pointer "1" of
                 (loaded, owned) -> let cleared = store-fields loaded pointer 1 ["0"] in
-                  let released = line cleared (cat ["  call void @cinch_drop(i64 ", owned, ")"]) in
+                  let released = line cleared (count-call False owned) in
                   (count-op False cell word released, result)))
       else expression definitions locals w term
     other -> expression definitions locals w term
@@ -2931,7 +3043,8 @@ module Bootstrap.RuntimeIr where
   declarations = cat [
     "declare i64 @cinch_alloc(i64, i64)\ndeclare void @cinch_blackhole() noreturn\n",
     "declare void @llvm.trap()\ndeclare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @memcpy(ptr, ptr, i64)\ndeclare void @cinch_layouts_register(ptr, i64)\n",
-    "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    count-helpers,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
@@ -2939,6 +3052,27 @@ module Bootstrap.RuntimeIr where
     "declare i64 @cinch_int_from_decimal(ptr, i64)\ndeclare i64 @cinch_nat_from_decimal(ptr, i64)\ndeclare i64 @cinch_int_to_i64(i64)\n",
     "declare i64 @cinch_int_add(i64, i64)\ndeclare i64 @cinch_int_sub(i64, i64)\ndeclare i64 @cinch_int_mul(i64, i64)\ndeclare i64 @cinch_int_div(i64, i64)\ndeclare i64 @cinch_int_neg(i64)\ndeclare i64 @cinch_int_cmp(i64, i64)\n",
     "declare i64 @cinch_nat_add(i64, i64)\ndeclare i64 @cinch_nat_sub(i64, i64)\ndeclare i64 @cinch_nat_mul(i64, i64)\ndeclare i64 @cinch_nat_div(i64, i64)\ndeclare i64 @cinch_nat_cmp(i64, i64)\n"]
+  -- The inline count operations of compiler/src/codegen.rs (rc_op), as two
+  -- alwaysinline helpers. A word that is 0 or odd (an immediate) owns no
+  -- block. Otherwise the header at -8 holds the signed count in its low
+  -- 40 bits; shifted left by 24 it compares as the count itself: positive
+  -- is a count only this thread changes, updated in place; negative is a
+  -- block shared with other tasks (the runtime's atomic paths); 0 is an
+  -- immortal block, never written. A drop of the last reference calls
+  -- cinch_drop_slow, which releases the block.
+  count-helpers :: String
+  count-helpers = cat [
+    "define internal void @cinch.typed.rc.dup(i64 %w) alwaysinline {\nentry:\n",
+    "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 24\n",
+    "  %plain = icmp sgt i64 %top, 0\n  br i1 %plain, label %inc, label %other\ninc:\n  %h1 = add i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+    "other:\n  %shared = icmp ne i64 %top, 0\n  br i1 %shared, label %mt, label %done\nmt:\n  call void @cinch_dup_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n",
+    "define internal void @cinch.typed.rc.drop(i64 %w) alwaysinline {\nentry:\n",
+    "  %lo = and i64 %w, 1\n  %null = icmp eq i64 %w, 0\n  %imm = icmp ne i64 %lo, 0\n  %skip = or i1 %null, %imm\n  br i1 %skip, label %done, label %block\nblock:\n",
+    "  %p = inttoptr i64 %w to ptr\n  %hp = getelementptr inbounds i8, ptr %p, i64 -8\n  %h = load atomic i64, ptr %hp monotonic, align 8\n  %top = shl i64 %h, 24\n",
+    "  %plain = icmp sgt i64 %top, 16777216\n  br i1 %plain, label %dec, label %other\ndec:\n  %h1 = sub i64 %h, 1\n  store i64 %h1, ptr %hp\n  br label %done\n",
+    "other:\n  switch i64 %top, label %mt [\n    i64 0, label %done\n    i64 16777216, label %slow\n  ]\n",
+    "slow:\n  call void @cinch_drop_slow(i64 %w)\n  br label %done\nmt:\n  call void @cinch_drop_mt(i64 %w)\n  br label %done\ndone:\n  ret void\n}\n"]
   apply-entry :: String
   apply-entry = apply-entry-with-linkage ""
   apply-entry-with-linkage :: String -> String
@@ -2952,7 +3086,7 @@ module Bootstrap.RuntimeIr where
       else if mode == 3 then cat ["  %function = call i64 ", symbol "main", "()\n  %result = call i64 @__apply(i64 %function, i64 0, ptr null)\n"]
       else cat ["  %function = call i64 ", symbol "main", "()\n  %argv = alloca i64\n  store i64 0, ptr %argv\n  %result = call i64 @__apply(i64 %function, i64 1, ptr %argv)\n"]) in
     cat ["define i64 @cinch.typed.exit() {\nentry:\n", invocation,
-    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch_drop(i64 %result)\n  ret i64 %exit\n}\n",
+    "  %exit = call i64 @cinch_int_to_i64(i64 %result)\n  call void @cinch.typed.rc.drop(i64 %result)\n  ret i64 %exit\n}\n",
     "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  call void @cinch_reclaim_enable()\n  %count = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %count, ptr %argv)\n",
     "  %exit = call i64 @cinch_run_main(ptr @cinch.typed.exit)\n  %checked = call i64 @cinch_exit_check(i64 %exit)\n  %code = trunc i64 %checked to i32\n  ret i32 %code\n}\n"]
   entry-parameters :: List Quant -> Bool
