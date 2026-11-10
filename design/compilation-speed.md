@@ -410,6 +410,27 @@ seed and producer builds mean the two totals are not directly comparable,
 and the marginal cost at the top of a chain is one instrumented link plus
 one training run per stage.
 
+### Alternative allocators: measured, no win (2026-11-10)
+
+Linking the stage compilers against jemalloc or mimalloc is the obvious next
+guess, and the measurement says not to. Interleaved five-run medians on the
+toolkit check: plain 16.6 s, jemalloc 17.1 s, mimalloc 18.3 s, with a spread
+of more than 4 s inside each arm, so the difference is noise.
+
+The reason is structural, and the compiler's own accounting says it: with
+`CINCH_ALLOC_STATS=1` the toolkit check performs 464.1M allocations, of which
+444.8M (96%) are Cinch value blocks served by the runtime's per-thread
+size-class heap, and only 19.3M reach the system allocator. By bytes it is
+10.97 GB total against 10.70 GB of value blocks, so the system allocator sees
+2.5% of the traffic. An alternative malloc cannot help a workload whose
+allocator is already ours.
+
+The number that matters is the volume itself: 464M allocations and 11 GB of
+churn for a 15 s check of 4,000 lines. The lever is fewer allocations, not a
+better allocator: interning names and types, avoiding transient lists in the
+checker, and reusing buffers in the parser and printer. That is section 6's
+work, and the allocator question is closed until the volume drops.
+
 ### Sharded code generation (implemented 2026-11-10)
 
 `tooling/shard_ir.py` cuts the stage module into K shards and
