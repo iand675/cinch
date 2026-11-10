@@ -487,7 +487,7 @@ module Bootstrap.Resolve where
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier visible then
             (name, fail sp (cat ["unknown constructor ", name, ": not exported into this scope"]))
-          else (name, fail sp (cat ["unknown name (name is not in scope: ", name, ")"]))
+          else (name, fail sp (cat ["name is not in scope: ", name]))
 
   list-pattern :: Span -> Pat -> Pat
   list-pattern sp fields = case fields of
