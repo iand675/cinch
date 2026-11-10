@@ -1177,6 +1177,38 @@
     {
       "classes": "T",
       "symbol": "Data.List.drop"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.|"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.&"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.<<"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.>>"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.^"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.replicate"
     }
   ]
 }

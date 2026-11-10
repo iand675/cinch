@@ -478,6 +478,9 @@ module Bootstrap.Ast where
     DPrim :: Span -> String -> TypeExpr -> List PrimBody -> Decl
     DProof :: Span -> Decl -> Decl
     DCorec :: Span -> Decl -> Decl
+    -- `macro name :: ty` and `macro name patterns = body`: a compile-time
+    -- declaration. It carries no runtime presence; expansion marks its uses.
+    DMacro :: Span -> Decl -> Decl
     DStage :: Span -> Decl -> Decl
     DGenerate :: Span -> Decl -> Decl
     DStageEmit :: Span -> Decl -> Decl
@@ -522,6 +525,7 @@ module Bootstrap.Ast where
     DPrim s name ty bodies -> s
     DProof s body -> s
     DCorec s body -> s
+    DMacro s body -> s
     DStage s body -> s
     DGenerate s actions -> s
     DStageEmit s template -> s
@@ -559,6 +563,7 @@ module Bootstrap.Ast where
     DUnmodeled s text -> None
     DProof s body -> decl-name body
     DCorec s body -> decl-name body
+    DMacro s body -> None
     DStage s body -> None
     DGenerate s actions -> None
     DStageEmit s template -> None
@@ -778,6 +783,7 @@ module Bootstrap.Ast where
     DUnmodeled s text -> 1
     DProof s body -> decl-unmodeled-count body
     DCorec s body -> decl-unmodeled-count body
+    DMacro s body -> decl-unmodeled-count body
     DStage s body -> decl-unmodeled-count body
     DGenerate s actions -> decl-unmodeled-count actions
     DStageEmit s template -> decl-unmodeled-count template

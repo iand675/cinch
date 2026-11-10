@@ -1177,11 +1177,13 @@ module Bootstrap.Infer where
     other -> Nil
 
   scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
+  -- An imported scheme keeps its defining module's dictionary order: the
+  -- requirements are read in declaration order from the recorded source
+  -- contract when the producer stored no resolved form.
   scheme-body-from external classes kinds qs ty st = case ty of
-    TUsing s bounds body -> if external then (mono UError, add-error s "imported using context needs a defining signature contract" st)
-      else case convert-requirements classes kinds (quant-locals qs) bounds Nil st of
-        (requirements, sr) -> case convert-contracted False kinds (quant-locals qs) bounds body sr of
-          (out, so) -> (qualified qs requirements out, expect-type s out so)
+    TUsing s bounds body -> case convert-requirements classes kinds (quant-locals qs) bounds Nil st of
+      (requirements, sr) -> case convert-contracted external kinds (quant-locals qs) bounds body sr of
+        (out, so) -> (qualified qs requirements out, expect-type s out so)
     other -> case convert external kinds (quant-locals qs) ty st of (out, so) -> (MkScheme qs out, expect-type (type-expr-span ty) out so)
   convert-requirements :: List (String, Kind) -> TypeContext -> List (String, UType) -> TypeExpr -> List String -> Store -> (List Requirement, Store)
   convert-requirements classes kinds locals bounds seen st = case bounds of
@@ -3876,8 +3878,10 @@ module Bootstrap.Infer where
       None -> None
   -- Borrow reads, writes and opaque calls can observe order even when the
   -- checked effect row is empty. Only stable initializers may move past them.
-  stable-recursive-initializer :: CoreTerm -> Bool
-  stable-recursive-initializer value = case value of
+  -- A group function applied to fewer arguments than it takes only builds
+  -- a closure, so the application is stable.
+  stable-recursive-initializer :: List RecursiveDefinition -> CoreTerm -> Bool
+  stable-recursive-initializer group value = case value of
     CInt sp ty text -> True
     CString sp ty text -> True
     CChar sp ty text -> True
@@ -3885,30 +3889,115 @@ module Bootstrap.Infer where
     CLocal sp ty id name actuals -> True
     CLambda sp ty pattern body -> True
     CUse sp ty name role actuals -> same role "constructor"
-    CApply sp ty f x -> stable-recursive-constructor f && stable-recursive-initializer x
+    CApply sp ty f x -> (stable-recursive-constructor group f || partial-recursive-application group value)
+      && stable-recursive-initializer group x
     CPrimitive sp ty operation args -> has operation ["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "/=", "negate"]
-      && stable-recursive-initializer args
-    CArgument sp value rest -> stable-recursive-initializer value && stable-recursive-initializer rest
+      && stable-recursive-initializer group args
+    CArgument sp value rest -> stable-recursive-initializer group value && stable-recursive-initializer group rest
     CArgumentsEnd sp -> True
-    CTuple sp ty fields -> stable-recursive-initializer fields
-    CLet sp ty id name sc rhs body -> stable-recursive-initializer rhs && stable-recursive-initializer body
-    CIf sp ty condition yes no -> stable-recursive-initializer condition && stable-recursive-initializer yes && stable-recursive-initializer no
-    CProved sp ty evidence body -> stable-recursive-initializer body
-    CForget sp ty body -> stable-recursive-initializer body
+    CTuple sp ty fields -> stable-recursive-initializer group fields
+    CLet sp ty id name sc rhs body -> stable-recursive-initializer group rhs && stable-recursive-initializer group body
+    CIf sp ty condition yes no -> stable-recursive-initializer group condition && stable-recursive-initializer group yes && stable-recursive-initializer group no
+    CProved sp ty evidence body -> stable-recursive-initializer group body
+    CForget sp ty body -> stable-recursive-initializer group body
     other -> False
-  stable-recursive-constructor :: CoreTerm -> Bool
-  stable-recursive-constructor value = case value of
+  stable-recursive-constructor :: List RecursiveDefinition -> CoreTerm -> Bool
+  stable-recursive-constructor group value = case value of
     CUse sp ty name role actuals -> same role "constructor"
-    CApply sp ty f x -> stable-recursive-constructor f && stable-recursive-initializer x
+    CApply sp ty f x -> stable-recursive-constructor group f && stable-recursive-initializer group x
     other -> False
-  recursive-observation-order :: Store -> List RecursiveDefinition -> List Nat
-  recursive-observation-order st definitions = case definitions of
+  partial-recursive-application :: List RecursiveDefinition -> CoreTerm -> Bool
+  partial-recursive-application group value = case application-head value 0 of
+    (CLocal sp ty id name actuals, applied) -> (case recursive-callable group id 0 Nil of
+      Some (callee, remaining) -> applied < remaining
+      None -> False)
+    other -> False
+  application-head :: CoreTerm -> Nat -> (CoreTerm, Nat)
+  application-head term applied = case term of
+    CApply sp ty f x -> application-head f (applied + 1)
+    CApplyEff sp ty row f x -> application-head f (applied + 1)
+    other -> (term, applied)
+  lambda-arity :: CoreTerm -> Nat
+  lambda-arity value = case value of
+    CLambda sp ty pattern body -> 1 + lambda-arity body
+    other -> 0
+  recursive-definition-value :: Nat -> List RecursiveDefinition -> Option CoreTerm
+  recursive-definition-value id definitions = case definitions of
+    Nil -> None
+    Cons (RecursiveDefinition sp key name syntax value) rest -> if id == key then Some value else recursive-definition-value id rest
+  -- Follow group aliases and partial applications to the group function a
+  -- call enters, with the arguments it still needs before its body runs.
+  recursive-callable :: List RecursiveDefinition -> Nat -> Nat -> List Nat -> Option (Nat, Nat)
+  recursive-callable group member arguments seen =
+    if contains-meta member seen then None else case recursive-definition-value member group of
+      None -> None
+      Some value -> case value of
+        CLambda sp ty pattern body -> let arity = lambda-arity value in
+          if arguments < arity then Some (member, arity - arguments) else None
+        other -> case application-head value 0 of
+          (CLocal sp ty alias name actuals, applied) -> recursive-callable group alias (arguments + applied) (Cons member seen)
+          other -> None
+  -- Uses of group members: the target, the number of enclosing suspensions
+  -- (lambdas and delays), and the number of arguments applied to it.
+  recursive-uses :: Nat -> CoreTerm -> List (Nat, Nat, Nat)
+  recursive-uses depth term = case term of
+    CLocal sp ty id name actuals -> Cons (id, depth, 0) (recursive-child-uses depth (term-children term))
+    CApply sp ty f x -> recursive-application-uses depth term Nil
+    CApplyEff sp ty row f x -> recursive-application-uses depth term Nil
+    CLambda sp ty pattern body -> recursive-uses (depth + 1) body
+    CPrimitive sp ty op args -> recursive-child-uses (if same op "thunk-delay" then depth + 1 else depth) (term-children term)
+    other -> recursive-child-uses depth (term-children term)
+  recursive-child-uses :: Nat -> List CoreTerm -> List (Nat, Nat, Nat)
+  recursive-child-uses depth terms = case terms of
+    Nil -> Nil
+    Cons first rest -> recursive-uses depth first <> recursive-child-uses depth rest
+  recursive-application-uses :: Nat -> CoreTerm -> List CoreTerm -> List (Nat, Nat, Nat)
+  recursive-application-uses depth term arguments = case term of
+    CApply sp ty f x -> recursive-application-uses depth f (Cons x arguments)
+    CApplyEff sp ty row f x -> recursive-application-uses depth f (Cons x arguments)
+    CLocal sp ty id name actuals -> Cons (id, depth, list-length arguments) (recursive-child-uses depth (term-children term <> arguments))
+    other -> recursive-uses depth other <> recursive-child-uses depth arguments
+  recursive-use-graph :: List RecursiveDefinition -> List (Nat, List (Nat, Nat, Nat))
+  recursive-use-graph definitions = case definitions of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest -> Cons (id, recursive-uses 0 value) (recursive-use-graph rest)
+  uses-from :: Nat -> List (Nat, List (Nat, Nat, Nat)) -> List (Nat, Nat, Nat)
+  uses-from id graph = case graph of
+    Nil -> Nil
+    Cons (key, uses) rest -> if id == key then uses else uses-from id rest
+  uses-at :: Nat -> List (Nat, Nat, Nat) -> List (Nat, Nat, Nat)
+  uses-at depth uses = case uses of
+    Nil -> Nil
+    Cons (member, at, applied) rest -> if at == depth then Cons (member, at, applied) (uses-at depth rest) else uses-at depth rest
+  -- Initializing a member evaluates its unsuspended uses. A saturated call
+  -- of a group function also evaluates that function's body; storing a
+  -- closure does not read the boxes it captures.
+  required-members :: List RecursiveDefinition -> List (Nat, List (Nat, Nat, Nat)) -> List (Nat, Nat, Nat) -> List Nat -> List (Nat, Bool)
+  required-members group graph pending entered = case pending of
+    Nil -> Nil
+    Cons (member, depth, applied) rest ->
+      let entry = (if applied == 0 then None else case recursive-callable group member 0 Nil of
+            Some (callee, remaining) -> if applied >= remaining && not (contains-meta callee entered) then Some callee else None
+            None -> None) in
+      case entry of
+        Some callee -> let body = (case recursive-definition-value callee group of
+              Some value -> lambda-arity value
+              None -> 0) in
+          Cons (member, False) (required-members group graph (uses-at body (uses-from callee graph) <> rest) (Cons callee entered))
+        None -> Cons (member, False) (required-members group graph rest entered)
+  recursive-dependency-graph :: List RecursiveDefinition -> List (Nat, List (Nat, Nat, Nat)) -> List RecursiveDefinition -> List (Nat, List (Nat, Bool))
+  recursive-dependency-graph group graph pending = case pending of
+    Nil -> Nil
+    Cons (RecursiveDefinition sp id name syntax value) rest ->
+      Cons (id, required-members group graph (uses-at 0 (uses-from id graph)) Nil) (recursive-dependency-graph group graph rest)
+  recursive-observation-order :: Store -> List RecursiveDefinition -> List RecursiveDefinition -> List Nat
+  recursive-observation-order st group definitions = case definitions of
     Nil -> Nil
     Cons (RecursiveDefinition sp id name syntax value) rest ->
       let effects = normalize st (core-effects (map-term-types (normalize st) value)) in
-      let more = recursive-observation-order st rest in
+      let more = recursive-observation-order st group rest in
       case effects of
-        URow UEnd -> if stable-recursive-initializer value then more else Cons id more
+        URow UEnd -> if stable-recursive-initializer group value then more else Cons id more
         other -> Cons id more
   ordered-recursive-bindings :: Span -> List RecursiveDefinition -> Expr
   ordered-recursive-bindings sp definitions = case definitions of
@@ -3930,14 +4019,6 @@ module Bootstrap.Infer where
         Some more -> Some (CRecursiveBinding id name (CLambda sp ty pattern body) more)
         None -> None
     other -> None
-  eager-recursive-edges :: List (Nat, Bool) -> List (Nat, Bool)
-  eager-recursive-edges edges = case edges of
-    Nil -> Nil
-    Cons (id, guarded) rest -> if guarded then eager-recursive-edges rest else Cons (id, False) (eager-recursive-edges rest)
-  eager-recursive-graph :: List (Nat, List (Nat, Bool)) -> List (Nat, List (Nat, Bool))
-  eager-recursive-graph graph = case graph of
-    Nil -> Nil
-    Cons (id, edges) rest -> Cons (id, eager-recursive-edges edges) (eager-recursive-graph rest)
 
   recursive-knot-name :: List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> String
   recursive-knot-name definitions graph = case definitions of
@@ -3952,7 +4033,7 @@ module Bootstrap.Infer where
 
   infer-recursive-values :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Nat -> List RecursiveDefinition -> List (Nat, List (Nat, Bool)) -> Expr -> Option UType -> Store -> (CoreTerm, Store)
   infer-recursive-values classes kinds families env locals sp id definitions graph body wanted st =
-    case order-recursive-members definitions (eager-recursive-graph graph) (recursive-observation-order st definitions) Nil of
+    case order-recursive-members definitions (recursive-dependency-graph definitions (recursive-use-graph definitions) definitions) (recursive-observation-order st definitions definitions) Nil of
       None -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st
       Some ordered ->
         let members = recursive-value-spine ordered in
@@ -3980,17 +4061,19 @@ module Bootstrap.Infer where
                     Some (at, name) -> term-error at ("unguarded recursion through `" <> name <> "`; wrap the use in delay or a lambda") st
                     None -> case store-errors typed of
                       Cons error rest -> (CError sp, restore-level (store-level st) typed)
-                      Nil -> case order-recursive-members definitions strict-graph (recursive-observation-order typed definitions) Nil of
-                        None -> (case order-recursive-members definitions strict-graph Nil Nil of
-                          None -> (case (cells, checked-recursive-closures definitions) of
-                            (Nil, Some closures) -> (case (case wanted of
+                      Nil -> case order-recursive-members definitions strict-graph (recursive-observation-order typed definitions definitions) Nil of
+                        -- Without a lexical order, values tie a knot: an
+                        -- initializer may store a closure over a later box.
+                        None -> (case (cells, checked-recursive-closures definitions) of
+                          (Nil, Some closures) -> (case order-recursive-members definitions strict-graph Nil Nil of
+                            None -> (case (case wanted of
                               Some expected -> check classes kinds families bound locals body expected typed
                               None -> infer classes kinds families bound locals body typed) of
                               (result, done) -> (CRecursiveFunctions sp (core-type result) closures result, restore-level (store-level st) done))
-                            (Nil, None) -> (case infer-recursive-values classes kinds families bound locals sp id definitions strict-graph body wanted typed of
-                              (result, done) -> (result, restore-level (store-level st) done))
-                            other -> term-error sp "guarded recursive value bindings with memo cells need joint scope checking" st)
-                          Some other -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st)
+                            Some other -> term-error sp "recursive initializers cannot satisfy their dependencies in source evaluation order" st)
+                          (Nil, None) -> (case infer-recursive-values classes kinds families bound locals sp id definitions strict-graph body wanted typed of
+                            (result, done) -> (result, restore-level (store-level st) done))
+                          other -> term-error sp "guarded recursive value bindings with memo cells need joint scope checking" st)
                         Some ordered ->
                           infer-local-group classes kinds families env locals sp
                             (recursive-group-bindings bindings (ordered-recursive-bindings sp ordered)) body wanted st))))
@@ -5512,7 +5595,9 @@ module Bootstrap.Infer where
     let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
     let (nominal-kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
     let (runtime-kinds, runtime-store) = imported-runtime-class-kinds rows nominal-kinds sk in
-    let classes = Cons ("b.Io", KFun KRegion KType) (source-class-kinds ds runtime-kinds (class-kinds rows runtime-kinds Nil)) in
+    -- Copy and Share are compiler-known structural classes: their evidence is
+    -- the checked shape of a type, so no module declares them.
+    let classes = Cons ("b.Io", KFun KRegion KType) (Cons ("Copy", KFun KType KType) (Cons ("Share", KFun KType KType) (source-class-kinds ds runtime-kinds (class-kinds rows runtime-kinds Nil)))) in
     let (identity-kinds, identity-store) = collect-source-identities ds ds classes runtime-kinds runtime-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in
     let (class-kinds, class-store) = collect-source-classes ds classes identity-kinds aliases-checked in

@@ -795,6 +795,7 @@ module Bootstrap.Parse where
     else if string-compare w "instance" == 0 then parse-instance toks src fix False
     else if string-compare w "implicit" == 0 then parse-implicit toks src fix
     else if string-compare w "stage" == 0 then parse-marked-decl DStage toks src fix
+    else if string-compare w "macro" == 0 then parse-marked-decl DMacro toks src fix
     else if string-compare w "proof" == 0 then parse-marked-decl DProof toks src fix
     else if string-compare w "corec" == 0 then parse-marked-decl DCorec toks src fix
     else if string-compare w "generate" == 0 then parse-generate-decl toks src fix
@@ -2372,10 +2373,14 @@ module Bootstrap.Parse where
     PBad -> parse-tuple-binding toks src fix
 
   parse-tuple-binding :: List LToken -> Bytes -> List (String, Fix) -> Ps (Pat, Expr)
+  -- A parenthesized variable is that variable, so `let (x) = e` binds `x`
+  -- exactly as `let x = e` does. Every other parenthesized pattern keeps
+  -- the irrefutable-shape restriction below.
   parse-tuple-binding toks src fix = case parse-pat toks src of
     POk p rest -> case p of
       PTuple s args -> tuple-binding-rhs p rest src fix
       PWild s -> tuple-binding-rhs p rest src fix
+      PVar s name -> tuple-binding-rhs p rest src fix
       other -> PBad
     PBad -> PBad
 

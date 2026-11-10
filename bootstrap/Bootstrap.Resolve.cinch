@@ -789,6 +789,13 @@ module Bootstrap.Resolve where
     , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
     , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
     , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]
+  -- The compiler owns Copy and Share, including their evidence: a source
+  -- instance would claim a structural fact the compiler cannot verify.
+  structural-class-head :: TypeExpr -> Bool
+  structural-class-head ty = case ty of
+    TName s name -> same name "Copy" || same name "Share"
+    TApp s head args -> structural-class-head head
+    other -> False
   rename-decl :: String -> List Binding -> List Decl -> Decl -> (List Decl, List Diagnostic)
   rename-decl home visible declarations d = case d of
     DSig s name ty -> (Cons (DSig s (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
@@ -811,7 +818,7 @@ module Bootstrap.Resolve where
       else ([DCodata s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields False visible (parameter-names params) observations)], Nil)
     DClass s name params members ->
-      if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-owned structural signatures and cannot be declared") else
+      if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (global-name home name) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate ->
@@ -821,9 +828,11 @@ module Bootstrap.Resolve where
         (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
     DEffect s name params ops -> (Cons (DEffect s name (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
-    DInstance s only name params class-app members -> case rename-instance-members visible (instance-head-names class-app <> parameter-names params) members of
-      (renamed, errors) -> (Cons (DInstance s only (global-name home name) (rename-params visible Nil params)
-        (rename-type visible (parameter-names params) class-app) renamed) Nil, errors)
+    DInstance s only name params class-app members -> if structural-class-head class-app then
+        (Nil, fail s "Copy and Share are compiler-known classes and take no source instance")
+      else case rename-instance-members visible (instance-head-names class-app <> parameter-names params) members of
+        (renamed, errors) -> (Cons (DInstance s only (global-name home name) (rename-params visible Nil params)
+          (rename-type visible (parameter-names params) class-app) renamed) Nil, errors)
     DForeign s direction abi symbol name ty ->
       if same direction "import" then (Cons (DForeign s direction abi symbol (global-name home name) (rename-type visible Nil ty)) Nil, Nil)
       else case resolve-use s False visible Nil name of
@@ -841,6 +850,7 @@ module Bootstrap.Resolve where
     DCorec s body -> case rename-decl home visible declarations body of
       ([checked], errors) -> ([DCorec s checked], errors)
       (other, errors) -> (Nil, errors <> fail s "a corec declaration requires one signature or equation")
+    DMacro s body -> (Nil, fail s "a macro declaration requires compile-time expansion")
     DStage s body -> (Nil, fail s "a stage declaration requires compile-time checking")
     DGenerate s actions -> (Nil, fail s "a generate block requires compile-time expansion")
     other -> (Cons d Nil, fail (decl-span d) "this declaration requires further namespace elaboration")

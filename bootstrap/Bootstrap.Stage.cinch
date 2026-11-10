@@ -23,6 +23,7 @@ module Bootstrap.Stage where
   stage-work declarations = case declarations of
     Nil -> False
     Cons first rest -> case first of
+      DMacro site body -> True
       DStage site body -> True
       DGenerate site body -> True
       other -> stage-work rest
@@ -133,6 +134,9 @@ module Bootstrap.Stage where
     Cons first rest -> case stage-declarations owner runtime rest of
       Err errors -> Err errors
       Ok tail -> case first of
+        -- A macro declaration is compile-time only: it names no runtime
+        -- value in any module, so the runtime program keeps no trace of it.
+        DMacro site body -> Ok tail
         DStage site body -> if owner then Ok (Cons body tail) else Ok tail
         DGenerate site actions -> if owner then (case generator-probes (decls-of actions) of
           Err errors -> Err errors
@@ -223,6 +227,7 @@ module Bootstrap.Stage where
 
   expand-declaration :: CheckedProgram -> String -> Decl -> Nat -> Result (List Diagnostic) (List Decl, Nat)
   expand-declaration checked owner declaration fuel = case declaration of
+    DMacro site body -> Ok (Nil, fuel)
     DStage site body -> Ok (Nil, fuel)
     DGenerate site actions -> expand-actions checked owner (decls-of actions) fuel
     other -> Ok ([declaration], fuel)
