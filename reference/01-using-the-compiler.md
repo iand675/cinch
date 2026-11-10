@@ -26,6 +26,11 @@ usage:
   cinch build <file.cinch> [-o <out>] [--rebuild]
   cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
+  cinch core emit <file.cinch> [--stage=<name>] [--target <triple>] [-o <out.core>]
+                                   write the Core dump codegen consumes
+  cinch core verify <file.core>    parse and re-check a Core dump
+  cinch core diff <a.core> <b.core>
+                                   report the first structural divergence
   cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
   cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
   cinch doc lookup <symbol> [--dir <root>] [--legacy] [--json]
@@ -51,6 +56,11 @@ flags:
   --package-object <path>  link an installed package object in build/run
   --opt-level <0|1|2|3>  clang's optimization level for build, run and
               emit-object (default 0 for build and run, 2 for emit-object)
+  --dump-core <stage>  also write build/<entry>.core at that pipeline point:
+              checked (solved and elaborated are aliases), owned, or lowered
+              (the default stage, and the exact code generation input); a
+              non-default stage writes build/<entry>.<stage>.core, and
+              `check` dumps the point it reaches, marked in @stage
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
   --target <triple>  the target to compile for: aarch64-apple-darwin,
@@ -198,6 +208,104 @@ cinch: --object-roots needs a path
 cinch emit-object Main.cinch -o
 cinch: -o needs a path
 ```
+
+# Core output
+
+Core is the annotated text between checking and code generation: the program code generation consumes, printed so a wrong answer, a seed/self-host divergence, or a performance change can be read out of an artifact instead of out of the compiler (`design/core-output.md`).
+
+```sh
+cinch core emit Main.cinch                     # build/Main.core, the lowered stage
+cinch core emit Main.cinch --stage=owned -o Main.owned.core
+cinch core verify build/Main.core
+cinch core diff build/Main.core build/Main.owned.core
+```
+
+`core emit` runs the compile pipeline through the dump and stops there: no IR and no binary. Its `--target` and `--target-version` mean what they mean for `emit-ir`.
+
+## Stages
+
+This compiler fuses elaboration with dictionary and evidence solving in one checking pass, so `elaborated` and `solved` are accepted as aliases of `checked`; there is no program between them to print.
+
+| Stage | The program it prints |
+| --- | --- |
+| `checked` | what a check returns: instances resolved by the same pass, no reference counts, no target facts |
+| `owned` | the reference-count pass applied to the checked program: `dup`, `drop`, `release`, the classes each binder carries |
+| `lowered` | after specialization and reference counting: exactly what the LLVM emitter reads, with the target line and the selected `prim` bodies |
+| `solved`, `elaborated` | aliases of `checked` |
+
+`checked` and `owned` are target independent and print no target line, so the same source and the same modules give byte-identical text for every `--target`; that equality is the check that no target fact leaked into the frontend. Only `lowered` prints `target <triple> opt-level <n>` and may differ between targets.
+
+The pipeline runs specialization before reference counting, so `owned` is not a prefix of `lowered`: it is the count pass over the checked program. The dumps of a build are nonetheless consistent, because `lowered` is the exact code generation input and every other stage says which stage it is in `@stage`.
+
+## `--dump-core`
+
+`check`, `emit-ir`, `build` and `run` accept `--dump-core=<stage>` and write the dump beside the other artifacts, without changing what the compile otherwise does:
+
+```sh
+cinch build Main.cinch --dump-core=owned
+ls build/Main.owned.core
+```
+
+The last stage keeps the plain name (`build/<entry>.core`); an earlier stage appends its name (`build/<entry>.checked.core`, `build/<entry>.owned.core`). Each dump is listed in `build/<entry>.manifest.json` under `core`, with its stage, target and the SHA-256 of the text. The stage is the point the pipeline actually reached: `check` never runs the reference-count pass or specialization, so `--dump-core=owned` and `--dump-core=lowered` on `check` write `build/<entry>.checked.core`, and every unit in it says `@stage(checked)`. A dump never claims a stage the mode did not reach.
+
+The dump covers the entry file's modules. A unit it references and does not define (a prelude unit, a dictionary built elsewhere) is declared once in the header as `global <name>`, so the file still resolves every reference on its own.
+
+## What the file looks like
+
+```text
+core 1
+module Main
+target aarch64-apple-darwin opt-level 0
+source sha256:3196f4bd983c5d0d1821cbb8ba28c1df4a9fe4fc64c81aa0cc08e0277590c964
+global Data.Core.Nil
+
+unit Main.main :: Int
+  @stage(lowered)
+  body (let $v0 @class(owned)
+    (ctor Data.Core.Nil @classes(T) 0 0)
+    (drop $v0 @class(owned) (int 0)))
+end
+```
+
+The header is fixed and ordered: `core 1`, one `module` line per dumped module, the `target` line only at `lowered`, `source sha256:<64 hex>` over the checked sources of those modules, then any `global` declarations. Units print sorted by canonical name; annotations print in one documented order; ownership classes, instantiation vectors and alternative weights print as `@` marks on the node they belong to; a node whose children fit in 100 columns prints on one line, and everything else indents two spaces per level.
+
+## Reading it back
+
+`core verify` parses the text and re-checks it without re-elaborating source:
+
+* the header and the grammar, including annotation names and their order;
+* unit names unique, and each unit's module declared;
+* every `(global X)` names a unit of the file or one of its `global` lines;
+* every `(local X)` is in scope, where a `let` binds its name only in its body, a `lam` in its body, and a `case` alternative's pattern in that alternative;
+* every `(dictproj d slot Class)` against the slot table of `d` when `d` is a `(instdict ...)` of a unit the file prints, and its class against the class that unit implements;
+* `dup`, `drop`, `release`, `refset`, `boxinit`, `boxclear`, `lazy-init` name in-scope locals;
+* every `@span`, when present, as `file:line:col`.
+
+A clean file prints one summary line and exits 0; errors print as `unit:path: message` (for example `Main.map:body:alt 2: slot 3 is not in Main.OrdNat's static slot table`) and exit 1.
+
+## Comparing two dumps
+
+`core diff A B` walks both files unit by unit in canonical order and prints the first divergence as a structural path, not a line number:
+
+```sh
+cinch core diff build/Main.checked.core build/Main.owned.core
+Main.main:@stage: left (checked) right (owned)
+cinch core diff a.core b.core
+Main.map:body:alt 2:field 1: left (int 1) right (int 2)
+```
+
+A unit present on one side prints as `Main.helper: only in the right file`. Identical files print nothing and exit 0; differing files exit 1. The header is not compared, because two stages of one build legitimately differ in their target line.
+
+## What this compiler's stages do not print
+
+The format is a checked artifact, not a debug print, so a fact the stage does not carry is omitted or printed as `-` rather than guessed:
+
+* A unit's declared type comes from the checked interface; a unit the interface does not export (a hoisted lambda, the `main` adapter, an instance method, a foreign wrapper) prints `-` in the type slot. A parameter's type prints where the scheme decomposes into the unit's runtime arrows exactly, and `-` for every parameter where it does not.
+* Local binder types are gone before any stage this compiler prints, so a `let` prints its name and class, with no type slot.
+* `@span` is omitted, because this compiler's Core records no per-unit source span; `core verify` checks a span when a hand-written or later file carries one.
+* `@borrowed(...)` prints from the borrow inference the program records (`Program::lent`), which this compiler keeps for primitive units only; primitive ABI parameters are scalars, which are never counted, so a source program does not currently exhibit the annotation.
+* Join points print when the Core has them; this compiler's code generation builds blocks itself and its Core carries no join node, so no `join`/`jump` appears.
+* A `vector` index prints as the resolved type (`Vec 3 Int`); the design's `@compile-time` and `@runtime(n)` annotations need a recorded index decision this compiler does not keep.
 
 # Cross compilation
 

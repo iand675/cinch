@@ -66,6 +66,40 @@ minus the information each stage consumes; nothing is silently dropped.
 The dictionary at `elaborated` that has no counterpart at `solved` is a
 solver bug, and the verifier says so.
 
+### The stage mapping in the seed compiler
+
+The Rust seed does not have four programs for four stages, and the honest
+mapping onto its pipeline is recorded here (`compiler/src/coretext.rs`,
+stage table at the top of the file):
+
+- `elaborated` and `solved` are fused. `crate::check` infers, elaborates to
+  Core and resolves dictionaries and evidence in one walk
+  (`check_terms.rs`'s `infer`/`check`, with instance resolution in
+  `check_dictionary.rs`), so there is no program between "constraints are
+  abstract" and "constraints are concrete" to print. Both names are
+  accepted on the command line and alias `checked`.
+- `checked` is the `Program` a check returns, before `crate::rc` runs.
+- `owned` is `crate::rc::insert` applied to that checked program. The
+  seed's pipeline runs specialization first and reference counting second
+  (specialization duplicates and discards subterms, which would unbalance
+  inserted counts), so `owned` is not a prefix of `lowered` here; it is the
+  count pass over the same target-independent program, which is what makes
+  it comparable across targets.
+- `lowered` is `crate::specialize::optimize` followed by the reference
+  count pass: exactly the program `crate::codegen` reads.
+
+Consequences worth knowing when reading a dump:
+
+- `check` never reaches the count pass or specialization, so
+  `--dump-core=owned` and `--dump-core=lowered` on `check` write the checked
+  program, and every unit in it says `@stage(checked)`. A dump names the
+  stage the mode reached, never the one that was asked for.
+- `checked` and `owned` print no target line and must be byte-identical
+  for every `--target`; only `lowered` names its target and its
+  target-selected `prim` bodies. That equality is the acceptance check that
+  no target fact leaked into the frontend, and it replaces the "elaborated
+  is shared" clause of section 6 for the seed.
+
 `cinch core` subcommands:
 
 - `cinch core emit <file.cinch>` writes `build/<module>.core` at the last
@@ -442,6 +476,72 @@ indented `@` line when long: `@span`, `@class`, `@captures`,
 `@specialised(<keys>)`, `@rewrite(<rule> v<n>)`, `@prim(<Name> for
 <fact>)`, `@resolved(<instance> at <span>)`, `@tailrec`, `@join(<id>)`,
 `@stage(<name>)`. An annotation the stage does not carry is omitted.
+
+### Corrections the seed implementation records
+
+The first printer exposed places where this grammar could not describe what
+the seed's `Program` actually holds. Each is a deliberate, documented
+difference rather than a printer bug; the Cinch-side printer must implement
+the same forms to stay byte-identical.
+
+1. `global <name>` header lines. A dump covers the entry file's modules, so
+   the units its bodies reference and do not define are declared once in the
+   header (sorted, after `source`). The reader resolves `(global X)` against
+   the file's units and these declarations, so a filtered dump still checks.
+2. A type slot may print `-`. Unit types come from the checked interface
+   projection; a unit the interface does not export (a hoisted lambda, the
+   `main` adapter, an instance method, a foreign wrapper) has no scheme to
+   print, and a parameter type prints only where the scheme decomposes into
+   the unit's runtime arrows exactly. `-` means "this stage does not carry
+   the type", never "unknown to the compiler".
+3. The `let` binder prints its name and class, and no type:
+   `(let <name> @class(<class>) <value> <body>)`. Local binder types are gone
+   before any stage the seed prints. The reader takes the binder as the first
+   child and the value and body as the last two, so a printer that does write
+   `:: <type>` reads the same way.
+4. A constructor pattern prints its tag, not its data type's name:
+   `(con <tag> <pat>*)`. Core records the tag; the type is a property of the
+   scrutinee, which the pattern does not carry at these stages.
+5. `dup` and `drop` are continuation forms: `(dup <name> <body>)`,
+   `(drop <name> <body>)`, because the seed's node adds the count and then
+   evaluates its body. `boxclear` takes the box expression, which prints as
+   `(local <name>)`.
+6. A `lam` prints the hoisted unit it names,
+   `(lam (<params>) (global <unit>) @classes(<letters>))`, with its captured
+   environment as a preceding `(env <expr>*)` child when it is not empty.
+   The seed hoists every closure, so there is no body to inline.
+7. Node forms the grammar lacked: `(bigint "<digits>")` for a mathematical
+   `Int` outside the word range, `(fault)` for the match-fallthrough path,
+   `(lazy-alloc)`, `(lazy-init <name> <expr>)`, `(box-alloc)`,
+   `(strlit "<text>")` for a compile-time string, and
+   `(prim-body <family> "<fragment>")` for a `prim` unit's selected body. A
+   quotation prints `(quote <n> (holes <expr>*) <body>)`, where `<body>` is
+   `(template)` when the quote was consumed at compile time; `quoteDecls`
+   prints `(decls-quote <n> (holes <expr>*) (names <i>*))`.
+8. `@` marks carry representation facts on the node they belong to, after the
+   node's first child: `@class(<class>)` (a binder's or a projection's
+   class), `@classes(<letters>)` (an instantiation vector), and
+   `@weight(<n>)` (an alternative's weight).
+9. Record annotations the seed's stages carry, in this order:
+   `@span`, `@params`, `@class`, `@captures`, `@ctor(<tag>, <arity>,
+   <data>)`, `@tier(justified|assumed)`, `@ffi("<symbol>")`,
+   `@borrowed(<i>,...)`, `@specialised(<letters>) from <unit>`,
+   `@rewrite(<rule>)`, `@prim(<Name> for <why>)`, `@resolved(...)`,
+   `@tailrec`, `@join(<id>)`, `@instance(tparams <n>, subdicts <n>)`,
+   `@stage(<name>)`. `@stage` prints on every record: it is the pipeline
+   point the dump reached, which is how a `check`-time dump of `owned` or
+   `lowered` stays honest.
+10. A dictionary unit prints its slot table instead of a body:
+    `static { <slot> = <unit>, ... }`. This is where `dictproj`'s slot check
+    finds its evidence.
+11. A type prints as the checker's canonical scheme text
+    (`forall (a :: Type). using (oe :: Ord a) => (a -> (a -> a))`), with the
+    space before the quantifier's dot removed and no space around arrows. It
+    is the same text the interface records, so a dump and an interface cannot
+    disagree about a unit's type.
+12. A byte or string constant longer than 32 bytes prints as
+    `(<form> <sha256-hex> <len>)`: the digest identifies it and the length
+    makes the shape readable, which is the trade section 4 already asked for.
 
 Classes print `owned`, `borrowed`, `lent`, `uncounted`, `immortal`.
 

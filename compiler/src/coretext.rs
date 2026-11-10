@@ -1976,16 +1976,23 @@ impl<'a> Checker<'a> {
                 return;
             }
             "let" => {
+                // The binder is the first child; the value and the body are the
+                // last two, so a printer that also writes `:: <type>` between
+                // them reads the same way.
                 let binder = atom_at(tail, 0, unit, path, errors).map(str::to_string);
+                let body_index = tail.len().saturating_sub(1);
+                let value_index = tail.len().saturating_sub(2);
                 for (index, child) in tail.iter().enumerate().skip(1) {
-                    match (binder.as_deref(), index) {
-                        (Some(_), 1) => self.expr(child, scope, unit, &child_path(head, index, path), errors),
-                        (Some(name), 2) => {
-                            scope.push(name.to_string());
-                            self.expr(child, scope, unit, &child_path(head, index, path), errors);
-                            scope.pop();
+                    if index == body_index {
+                        let before = scope.len();
+                        if let Some(name) = &binder {
+                            scope.push(name.clone());
                         }
-                        _ => self.expr(child, scope, unit, &child_path(head, index, path), errors),
+                        self.expr(child, scope, unit, &child_path(head, index, path), errors);
+                        scope.truncate(before);
+                    } else {
+                        let _ = value_index;
+                        self.expr(child, scope, unit, &child_path(head, index, path), errors);
                     }
                 }
                 return;
@@ -2240,7 +2247,9 @@ fn child_path(head: &str, index: usize, path: &str) -> String {
         ("if", 2) => "else".to_string(),
         ("let", 0) => "binder".to_string(),
         ("let", 1) => "value".to_string(),
-        ("let", 2) => "body".to_string(),
+        // The body is the last child whatever the printer writes between the
+        // binder and it.
+        ("let", _) => "body".to_string(),
         ("lam", 0) => "params".to_string(),
         ("lam", 1) => "env".to_string(),
         ("lam", 2) => "body".to_string(),
@@ -2418,5 +2427,289 @@ fn diff_node(left: &Node, right: &Node, path: String) -> Option<String> {
             None
         }
         (a, b) => Some(format!("{path}: left {} right {}", a.flat(), b.flat())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stages_parse_and_alias() {
+        assert_eq!(Stage::parse("checked"), Some(Stage::Checked));
+        assert_eq!(Stage::parse("elaborated"), Some(Stage::Checked));
+        assert_eq!(Stage::parse("solved"), Some(Stage::Checked));
+        assert_eq!(Stage::parse("owned"), Some(Stage::Owned));
+        assert_eq!(Stage::parse("lowered"), Some(Stage::Lowered));
+        assert_eq!(Stage::parse("Checked"), None);
+        assert_eq!(Stage::parse(""), None);
+        for spelling in Stage::spellings() {
+            assert!(Stage::parse(spelling).is_some(), "{spelling}");
+        }
+        assert!(!Stage::Checked.is_target_specific());
+        assert!(!Stage::Owned.is_target_specific());
+        assert!(Stage::Lowered.is_target_specific());
+    }
+
+    #[test]
+    fn ownership_classes_print_their_reclaim_kind() {
+        assert_eq!(class_text(Class::Raw), "uncounted");
+        assert_eq!(class_text(Class::Obj), "owned");
+        assert_eq!(class_text(Class::TObj), "owned");
+        assert_eq!(class_text(Class::Param(3)), "param(3)");
+    }
+
+    #[test]
+    fn identifiers_quote_when_they_leave_the_plain_set() {
+        assert_eq!(ident("Data.Core.Nil"), "Data.Core.Nil");
+        assert_eq!(ident("Main.main.lam22"), "Main.main.lam22");
+        assert_eq!(ident("$v1"), "$v1");
+        assert_eq!(ident("+"), "'+'");
+        // A quote inside doubles: the output is open quote, `x`, two quotes,
+        // close quote.
+        assert_eq!(ident("x'"), concat!("'x", "'''"));
+        assert_eq!(ident(""), "''");
+        assert_eq!(unquote("'x''"), "x'");
+    }
+
+    #[test]
+    fn text_and_bytes_escape_the_documented_set() {
+        assert_eq!(escape_text("a\"b\\c\nd\te"), "a\\\"b\\\\c\\nd\\te");
+        assert_eq!(escape_text("\u{1}"), "\\x01");
+        assert_eq!(escape_bytes(&[0, b'a', 0xff]), "\\x00a\\xff");
+        // A long constant prints its digest and length, not its contents.
+        let long = bytes_node("bytes", &[7u8; 40]);
+        let text = text_of(&long);
+        assert!(text.starts_with("(bytes "), "{text}");
+        assert!(text.ends_with(" 40)"), "{text}");
+        assert_eq!(text.split(' ').count(), 3, "digest, then length: {text}");
+    }
+
+    fn text_of(node: &Node) -> String {
+        node.flat()
+    }
+
+    #[test]
+    fn types_print_canonically() {
+        assert_eq!(canonical_type("Int"), "Int");
+        // The quantifier's dot loses its space; the type text is otherwise
+        // the checker's own canonical rendering.
+        assert_eq!(
+            canonical_type("forall (a :: Type) . (a -> (a -> a))"),
+            "forall (a :: Type). (a -> (a -> a))"
+        );
+        assert_eq!(canonical_type("  ((Data.Core.List  Int) -> Int) "), "(Data.Core.List Int) -> Int");
+        assert_eq!(canonical_type(""), "-");
+    }
+
+    #[test]
+    fn arrow_chains_decompose_through_a_using_context() {
+        let scheme = "forall (a :: Type). using (oe :: Relation.Ord.Ord a) => (a -> (a -> a))";
+        assert_eq!(
+            arrow_domains(scheme),
+            Some(vec!["a".to_string(), "a".to_string()])
+        );
+        assert_eq!(
+            arrow_domains("(Data.Core.List Int) -> Int"),
+            Some(vec!["(Data.Core.List Int)".to_string()])
+        );
+        // A bare index is not a function, and neither is a parameter.
+        assert_eq!(arrow_domains("Int"), None);
+        assert_eq!(arrow_domains("a"), None);
+    }
+
+    #[test]
+    fn nodes_print_marks_after_their_first_child() {
+        let node = Node::list("global")
+            .child(Node::atom("Data.List.map"))
+            .mark("@classes(TT)");
+        assert_eq!(node.flat(), "(global Data.List.map @classes(TT))");
+        let let_node = Node::list("let")
+            .child(Node::atom("$v1"))
+            .mark("@class(owned)")
+            .child(Node::atom("(int 1)"))
+            .child(Node::atom("(local $v1)"));
+        assert_eq!(
+            let_node.flat(),
+            "(let $v1 @class(owned) (int 1) (local $v1))"
+        );
+        assert_eq!(Node::list("unit").flat(), "(unit)");
+        let params = Node::list("").child(Node::atom("v0"));
+        assert_eq!(params.flat(), "(v0)", "an empty head takes no space");
+    }
+
+    #[test]
+    fn long_nodes_break_one_child_per_line_under_the_width() {
+        let mut node = Node::list("app").child(Node::atom("(global Main.f)"));
+        for index in 0..12 {
+            node = node.child(Node::atom(format!("(local $v{index})")));
+        }
+        let mut out = String::new();
+        render(&node, 1, &mut out);
+        let lines: Vec<&str> = out.lines().collect();
+        assert!(lines.len() > 1, "a node over the width breaks:\n{out}");
+        assert!(lines[0].starts_with("  (app (global Main.f)"), "{out}");
+        for line in &lines {
+            assert!(line.chars().count() <= LINE_WIDTH, "{line}");
+            let indent = line.len() - line.trim_start().len();
+            assert_eq!(indent % 2, 0, "indentation is two spaces per level: {line}");
+        }
+        assert!(lines.last().unwrap().ends_with("))"), "{out}");
+    }
+
+    /// Check a source and print it, the way a dump point does.
+    fn checked_dump(src: &str) -> (String, Vec<Iface>) {
+        let src = src.to_string();
+        std::thread::Builder::new()
+            .stack_size(64 * 1024 * 1024)
+            .spawn(move || {
+                let (program, ifaces) =
+                    crate::driver::check_sources_ifaces(&src, "test.cinch").expect("check");
+                let modules: BTreeSet<String> = ["Main".to_string()].into_iter().collect();
+                let profile = TargetProfile::native();
+                let text = dump(
+                    &program,
+                    Stage::Checked,
+                    &profile,
+                    &ifaces,
+                    &modules,
+                    &BTreeMap::new(),
+                    0,
+                );
+                (text, ifaces)
+            })
+            .expect("spawn")
+            .join()
+            .expect("check thread")
+    }
+
+    #[test]
+    fn a_checked_dump_prints_the_header_units_and_sorted_records() {
+        let (text, _ifaces) = checked_dump(
+            "module Main where\n  zed :: Int\n  zed = 1\n  alpha :: Int\n  alpha = zed\n  main :: Int\n  main = alpha\n",
+        );
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines[0], "core 1");
+        assert_eq!(lines[1], "module Main");
+        assert!(lines[2].starts_with("source sha256:"), "{}", lines[2]);
+        assert_eq!(lines[2].len(), "source sha256:".len() + 64);
+        // Sorted by canonical name: Main.alpha before Main.main before Main.zed.
+        let units: Vec<&str> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("unit "))
+            .map(|rest| rest.split(" :: ").next().unwrap_or(rest))
+            .collect();
+        let mut sorted = units.clone();
+        sorted.sort();
+        assert_eq!(units, sorted);
+        assert!(units.contains(&"Main.alpha"));
+        // Determinism: printing the same program twice is the same text.
+        let (again, _) = checked_dump(
+            "module Main where\n  zed :: Int\n  zed = 1\n  alpha :: Int\n  alpha = zed\n  main :: Int\n  main = alpha\n",
+        );
+        assert_eq!(text, again);
+        // And the reader accepts it.
+        let report = verify(&text).expect("the dump verifies");
+        assert!(report.units >= 3);
+        assert_eq!(report.stage.as_deref(), Some("checked"));
+    }
+
+    #[test]
+    fn print_without_signatures_leaves_the_type_slot_empty() {
+        let (program, ifaces) = {
+            let src = "module Main where\n  main :: Int\n  main = 0\n";
+            std::thread::Builder::new()
+                .stack_size(64 * 1024 * 1024)
+                .spawn(move || crate::driver::check_sources_ifaces(src, "test.cinch").expect("check"))
+                .expect("spawn")
+                .join()
+                .expect("thread")
+        };
+        let profile = TargetProfile::native();
+        let modules: BTreeSet<String> = ["Main".to_string()].into_iter().collect();
+        let mut ctx = Context::new(Stage::Checked, &profile, "digest");
+        ctx.modules = Some(&modules);
+        let text = print_with(&program, &ctx);
+        assert!(text.contains("unit Main.main :: -\n"), "{text}");
+        let digest = source_digest(&ifaces, &modules);
+        assert_eq!(digest.len(), 64);
+        assert_ne!(digest, source_digest(&ifaces, &BTreeSet::new()));
+    }
+
+    #[test]
+    fn the_reader_checks_scope_cones_and_slot_tables() {
+        let text = "\
+core 1
+module Main
+source sha256:0000000000000000000000000000000000000000000000000000000000000000
+unit Main.dict :: Main.Class
+  @instance(tparams 0, subdicts 0)
+  @stage(checked)
+  static {0 = Main.method, 1 = Main.method}
+end
+unit Main.method :: Int -> Int
+  @params v0 :: Int @owned
+  @stage(checked)
+  body (local v0)
+end
+unit Main.use :: Int -> Int
+  @params v0 :: Int @owned
+  @stage(checked)
+  body (app (dictproj (instdict Main.dict) 1 Main.Class) (local v0))
+end
+";
+        let report = verify(text).expect("the dictionary use resolves");
+        assert_eq!(report.dictionary_bindings, 2);
+        assert_eq!(report.projections, 1);
+        assert_eq!(report.dictionaries, 1);
+        let broken = text.replace("(instdict Main.dict) 1", "(instdict Main.dict) 2");
+        let errors = verify(&broken).expect_err("slot 2 is not printed");
+        assert_eq!(errors[0].unit, "Main.use");
+        assert!(
+            errors[0].message.contains("slot 2"),
+            "{}",
+            errors[0].message
+        );
+        // A local bound by a `case` alternative's pattern is in scope in that
+        // alternative only.
+        let scoped = text.replace(
+            "  body (local v0)\nend\nunit Main.use",
+            "  body (case (local v0) ((con 0 ($v1)) (local $v1)))\nend\nunit Main.use",
+        );
+        verify(&scoped).expect("a pattern binder is in scope in its alternative");
+        let leak = scoped.replace(
+            "body (app (dictproj (instdict Main.dict) 1 Main.Class) (local v0))",
+            "body (local $v1)",
+        );
+        let errors = verify(&leak).expect_err("a pattern binder is not in scope after the case");
+        assert!(errors.iter().any(|error| error.message.contains("$v1")), "{errors:?}");
+    }
+
+    #[test]
+    fn diff_walks_units_in_canonical_order() {
+        let left = "\
+core 1
+module Main
+source sha256:0000000000000000000000000000000000000000000000000000000000000000
+unit Main.a :: Int
+  @stage(checked)
+  body (int 1)
+end
+unit Main.b :: Int
+  @stage(checked)
+  body (int 1)
+end
+";
+        let right = left.replace("Main.b", "Main.c");
+        assert_eq!(
+            diff(left, &right).as_deref(),
+            Some("Main.b: only in the left file")
+        );
+        let changed = left.replace("  body (int 1)\nend\n", "  body (int 2)\nend\n");
+        assert_eq!(
+            diff(left, &changed).as_deref(),
+            Some("Main.a:body: left (int 1) right (int 2)")
+        );
+        assert_eq!(diff(left, left), None);
     }
 }
