@@ -113,7 +113,7 @@ module's, so a caller's mapping is written once.
 
 Close `fd`.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 345
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 353
 
 <a id="value-7379732d6370617468"></a>
 
@@ -133,7 +133,7 @@ Close `fd`.
 
 Create or truncate `path` for writing: the descriptor.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 326
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 334
 
 <a id="value-7379732d6572726f722d6f66"></a>
 
@@ -155,7 +155,7 @@ are fixed by POSIX; anything else is `SysIoError`.
 Fill `buf` with the raw `struct stat` of `path`. The layout belongs
 to the caller that reads the fields out of it.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 390
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 398
 
 <a id="value-7379732d6673796e63"></a>
 
@@ -165,7 +165,7 @@ to the caller that reads the fields out of it.
 
 Flush `fd` to the storage device.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 383
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 391
 
 <a id="value-7379732d676574706964"></a>
 
@@ -175,7 +175,7 @@ Flush `fd` to the storage device.
 
 This process's own id.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 399
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 407
 
 <a id="value-7379732d6c7365656b"></a>
 
@@ -185,7 +185,7 @@ This process's own id.
 
 Move `fd`'s offset.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 351
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 359
 
 <a id="value-7379732d6d6b646972"></a>
 
@@ -195,7 +195,7 @@ Move `fd`'s offset.
 
 Create the directory `path`, one level.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 365
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 373
 
 <a id="value-7379732d6f2d72646f6e6c79"></a>
 
@@ -215,7 +215,7 @@ Create the directory `path`, one level.
 
 Open `path` for reading: the descriptor.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 320
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 328
 
 <a id="value-7379732d72656164"></a>
 
@@ -225,7 +225,7 @@ Open `path` for reading: the descriptor.
 
 Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 332
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 340
 
 <a id="value-7379732d72656e616d65"></a>
 
@@ -235,7 +235,7 @@ Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
 
 Rename `from` onto `dst`, atomically.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 355
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 363
 
 <a id="value-7379732d7365656b2d656e64"></a>
 
@@ -267,7 +267,7 @@ Remove the name `path` with `unlinkat`'s flag word: 0 removes a file
 or a link, `sys-at-removedir` (0x200) an empty directory. The flag is
 spelled out so the caller owns the choice.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 375
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 383
 
 <a id="value-7379732d7772697465"></a>
 
@@ -278,8 +278,8 @@ spelled out so the caller owns the choice.
 Write up to `count` bytes of `buf` from `at` to `fd`: the count
 written.
 
-[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 339
+[Source](/reference-sources/Prim.Sys.Linux.cinch) · line 347
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `e30c5a9c0b5d8f6d5cf78953bf2bd6f7ce6e95f2fde5a4b355f9cfd7d5a9f5cb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `e07ff5eda8fe2ece61dcc9a914e6546a32bf8fd3e4efb0c2225913a3bac30a0b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

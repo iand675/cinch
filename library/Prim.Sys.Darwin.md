@@ -94,7 +94,7 @@ shared vocabulary `Effect.Fs` presents; its mapping is one for one.
 
 Close `fd`.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 194
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 210
 
 <a id="value-7379732d6370617468"></a>
 
@@ -117,7 +117,7 @@ call takes, and it stays valid while the handle is live.
 Create or truncate `path` for writing: the descriptor. This is
 `creat`, the fixed argument form of the creating open.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 163
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 179
 
 <a id="value-7379732d6572726e6f"></a>
 
@@ -152,7 +152,7 @@ by POSIX and identical on Linux; anything else is `SysIoError`.
 Fill `buf` with the raw `struct stat` of `fd`. The layout belongs to
 the caller that reads the fields out of it.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 251
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 267
 
 <a id="value-7379732d6673796e63"></a>
 
@@ -162,7 +162,7 @@ the caller that reads the fields out of it.
 
 Flush `fd` to the storage device.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 242
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 258
 
 <a id="value-7379732d676574706964"></a>
 
@@ -172,7 +172,7 @@ Flush `fd` to the storage device.
 
 This process's own id.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 259
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 275
 
 <a id="value-7379732d6c7365656b"></a>
 
@@ -183,7 +183,7 @@ This process's own id.
 Move `fd`'s offset: the new offset. `whence` is `sys-seek-set` or
 `sys-seek-end`.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 203
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 219
 
 <a id="value-7379732d6d6b646972"></a>
 
@@ -194,7 +194,7 @@ Move `fd`'s offset: the new offset. `whence` is `sys-seek-set` or
 Create the directory `path`. One level only: a missing parent is the
 OS's own refusal, and `mkdir -p` is a caller's walk.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 223
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 239
 
 <a id="value-7379732d6f2d72646f6e6c79"></a>
 
@@ -214,7 +214,7 @@ OS's own refusal, and `mkdir -p` is a caller's walk.
 
 Open `path` for reading: the descriptor.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 153
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 169
 
 <a id="value-7379732d72656164"></a>
 
@@ -226,7 +226,7 @@ Read up to `count` bytes of `fd` into `buf` at `at`: the count read,
 which is 0 at the end of the stream. The kernel writes the bytes; the
 address it writes to is the buffer's own.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 174
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 190
 
 <a id="value-7379732d72656e616d65"></a>
 
@@ -237,7 +237,7 @@ address it writes to is the buffer's own.
 Rename `from` onto `dst`, atomically (POSIX `rename`: the target sees
 the whole old or the whole new content, never a partial).
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 212
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 228
 
 <a id="value-7379732d7365656b2d656e64"></a>
 
@@ -268,7 +268,7 @@ the whole old or the whole new content, never a partial).
 Remove the name `path`. This is `unlink`, so a directory answers the
 OS's refusal; removing one is the separate directory call.
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 233
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 249
 
 <a id="value-7379732d7772697465"></a>
 
@@ -280,8 +280,8 @@ Write up to `count` bytes of `buf` from `at` to `fd`: the count
 written, which may be short (a caller that wants the whole buffer
 written loops).
 
-[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 185
+[Source](/reference-sources/Prim.Sys.Darwin.cinch) · line 201
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Darwin.cinch`. Source SHA-256: `e1b39c28b2ba8667e3f38bbcac810db7321d268b0ee02f55d18173025ced9428`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `compiler/prelude/Prim/Sys/Darwin.cinch`. Source SHA-256: `79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

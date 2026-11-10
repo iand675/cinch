@@ -316,30 +316,38 @@ module Prim.Sys.Linux where
     case bytes-set out (bytes-len src) 0 of
       _ -> out
 
+  -- `x`, holding a reference to `b` until `x` has been computed, the
+  -- same helper as the Darwin module's (whose comment says why a call
+  -- through `bytes-data b` is written `sys-held b (call ...)` and what
+  -- keeps the read of `b` from being optimized away).
+  sys-held :: forall a. Bytes -> a -> a
+  sys-held b x = case bytes-len b of
+    _ -> x
+
   -- Open `path` for reading: the descriptor.
   sys-open-read :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
   sys-open-read path =
     let b = sys-cpath path in
-    linux-result (linux-openat sys-at-fdcwd (bytes-data b) sys-o-rdonly 0)
+    linux-result (sys-held b (linux-openat sys-at-fdcwd (bytes-data b) sys-o-rdonly 0))
 
   -- Create or truncate `path` for writing: the descriptor.
   sys-create :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
   sys-create path =
     let b = sys-cpath path in
-    linux-result (linux-openat sys-at-fdcwd (bytes-data b) sys-o-create sys-create-mode)
+    linux-result (sys-held b (linux-openat sys-at-fdcwd (bytes-data b) sys-o-create sys-create-mode))
 
   -- Read up to `count` bytes of `fd` into `buf` at `at`: the count read.
   sys-read :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
   sys-read fd buf at count =
     let addr = wrapping-add-i64 (bytes-data buf) at in
-    linux-result (linux-read fd addr count)
+    linux-result (sys-held buf (linux-read fd addr count))
 
   -- Write up to `count` bytes of `buf` from `at` to `fd`: the count
   -- written.
   sys-write :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
   sys-write fd buf at count =
     let addr = wrapping-add-i64 (bytes-data buf) at in
-    linux-result (linux-write fd addr count)
+    linux-result (sys-held buf (linux-write fd addr count))
 
   -- Close `fd`.
   sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} Result SysError Unit
@@ -356,7 +364,7 @@ module Prim.Sys.Linux where
   sys-rename from dst =
     let f = sys-cpath from in
     let t = sys-cpath dst in
-    let r = linux-renameat sys-at-fdcwd (bytes-data f) sys-at-fdcwd (bytes-data t) in
+    let r = sys-held f (sys-held t (linux-renameat sys-at-fdcwd (bytes-data f) sys-at-fdcwd (bytes-data t))) in
     case linux-result r of
       Err e -> Err e
       Ok _ -> Ok ()
@@ -365,7 +373,7 @@ module Prim.Sys.Linux where
   sys-mkdir :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
   sys-mkdir path mode =
     let b = sys-cpath path in
-    case linux-result (linux-mkdirat sys-at-fdcwd (bytes-data b) mode) of
+    case linux-result (sys-held b (linux-mkdirat sys-at-fdcwd (bytes-data b) mode)) of
       Err e -> Err e
       Ok _ -> Ok ()
 
@@ -375,7 +383,7 @@ module Prim.Sys.Linux where
   sys-unlink :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
   sys-unlink path flags =
     let b = sys-cpath path in
-    case linux-result (linux-unlinkat sys-at-fdcwd (bytes-data b) flags) of
+    case linux-result (sys-held b (linux-unlinkat sys-at-fdcwd (bytes-data b) flags)) of
       Err e -> Err e
       Ok _ -> Ok ()
 
@@ -390,7 +398,7 @@ module Prim.Sys.Linux where
   sys-fstat-into :: forall r. using (io :: Io r) => String -> Bytes -> I64 ->{IO r} Result SysError Unit
   sys-fstat-into path buf flags =
     let b = sys-cpath path in
-    let r = linux-newfstatat sys-at-fdcwd (bytes-data b) (bytes-data buf) flags in
+    let r = sys-held b (sys-held buf (linux-newfstatat sys-at-fdcwd (bytes-data b) (bytes-data buf) flags)) in
     case linux-result r of
       Err e -> Err e
       Ok _ -> Ok ()

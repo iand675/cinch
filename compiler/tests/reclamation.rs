@@ -216,10 +216,10 @@ fn bignum_temporaries_are_freed() {
     expect_leaked("bignums", BIGNUMS, 0, 0);
 }
 
-/// A `letrec` value knot stays allocated until S8 tears knots down
-/// (D396): the box keeps its value (an uncounted slot), and the value's
-/// closure keeps the box. Exactly those blocks remain: the box, the
-/// tuple, the closure.
+/// A `letrec` value knot is torn down when its scope returns (D396): the
+/// box's slot is cleared, which drops the tuple, its closure and so the
+/// closure's reference to the box. The cycle of box, tuple and closure
+/// leaves nothing behind.
 const KNOT: &str = r#"
 module Main where
   main :: Int
@@ -229,8 +229,8 @@ module Main where
 "#;
 
 #[test]
-fn a_letrec_knot_leaks_exactly_its_cycle() {
-    expect_leaked("knot", KNOT, 0, 3);
+fn a_letrec_knot_is_torn_down_with_its_scope() {
+    expect_leaked("knot", KNOT, 0, 0);
 }
 
 fn loop_program(n: usize, rounds: usize) -> String {
@@ -397,6 +397,50 @@ module Main where
 #[test]
 fn console_file_io_and_handled_effects_are_freed() {
     expect_leaked("effects", EFFECTS, 0, 0);
+}
+
+/// A file written and read back by path, `__DIR__` being the project
+/// directory. The path reaches the kernel as the address of a C-string
+/// buffer (`bytes-data`), which `Prim.Sys`'s `sys-held` keeps alive
+/// across the call.
+const HELD: &str = r#"
+module Main where
+  import Data.Path
+  import Effect.Fs
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let p = path-join (path-from-string "__DIR__") (path-from-string "held.txt") in
+    case fs-write p (string-to-bytes "held across the call") of
+      Err e -> 1
+      Ok _ -> case fs-read p of
+        Err e -> 2
+        Ok b -> 0
+"#;
+
+/// The buffer behind a `bytes-data` address outlives the system call
+/// that uses it, and is freed afterwards. Were it freed first, the
+/// allocator would reuse its first word and the kernel would see another
+/// name: the write and the read would agree on that wrong name, so the
+/// file is checked where the program asked for it.
+#[test]
+fn a_buffer_handed_to_a_system_call_outlives_the_call() {
+    let dir = project("held", "");
+    std::fs::write(dir.join("Main.cinch"), HELD.replace("__DIR__", &dir.display().to_string())).expect("write source");
+    for debug in [false, true] {
+        let exe = build(&dir, debug);
+        let mut env = vec![("CINCH_LEAK_CHECK", "1")];
+        if debug {
+            env.push(("CINCH_RC_DEBUG", "1"));
+        }
+        let out = run(&exe, &env);
+        assert_eq!(out.status.code(), Some(0), "held (debug {debug}): {out:?}");
+        assert_eq!(field(&out, "cinch-leak:", "leaked"), 0, "held (debug {debug}): {out:?}");
+        let held = dir.join("held.txt");
+        assert_eq!(std::fs::read(&held).ok().as_deref(), Some(&b"held across the call"[..]), "held (debug {debug}): {out:?}");
+        std::fs::remove_file(held).expect("remove the written file");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 const RESULTS: &str = r#"

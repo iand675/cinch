@@ -149,11 +149,27 @@ module Prim.Sys.Darwin where
     case bytes-set out (bytes-len src) 0 of
       _ -> out
 
+  -- `x`, holding a reference to `b` until `x` has been computed. A call
+  -- that takes `bytes-data b` is written `sys-held b (call ...)`: the
+  -- reference `bytes-data` borrows is released on its return, so without
+  -- this later use of `b` the buffer (when that was its last use) would
+  -- be freed before the call read or wrote through the address. The read
+  -- of `bytes-len` is what keeps it, not the parameter alone (with a body
+  -- of just `x` the buffer is freed before the call): the optimizer folds
+  -- a `case` only on a known constructor or a constant-foldable
+  -- primitive (`compiler/src/core.rs`, the driver's `node`), and the
+  -- length of a runtime buffer is neither.
+  -- `a_buffer_handed_to_a_system_call_outlives_the_call` in
+  -- `compiler/tests/reclamation.rs` fails if the hold is lost.
+  sys-held :: forall a. Bytes -> a -> a
+  sys-held b x = case bytes-len b of
+    _ -> x
+
   -- Open `path` for reading: the descriptor.
   sys-open-read :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
   sys-open-read path =
     let b = sys-cpath path in
-    let r = c-open (bytes-data b) sys-o-rdonly in
+    let r = sys-held b (c-open (bytes-data b) sys-o-rdonly) in
     case 0 <= r of
       True -> Ok r
       False -> Err (sys-error-of (sys-errno ()))
@@ -163,7 +179,7 @@ module Prim.Sys.Darwin where
   sys-create :: forall r. using (io :: Io r) => String ->{IO r} Result SysError I64
   sys-create path =
     let b = sys-cpath path in
-    let r = c-creat (bytes-data b) sys-create-mode in
+    let r = sys-held b (c-creat (bytes-data b) sys-create-mode) in
     case 0 <= r of
       True -> Ok r
       False -> Err (sys-error-of (sys-errno ()))
@@ -174,7 +190,7 @@ module Prim.Sys.Darwin where
   sys-read :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
   sys-read fd buf at count =
     let addr = wrapping-add-i64 (bytes-data buf) at in
-    let r = c-read fd addr count in
+    let r = sys-held buf (c-read fd addr count) in
     case 0 <= r of
       True -> Ok r
       False -> Err (sys-error-of (sys-errno ()))
@@ -185,7 +201,7 @@ module Prim.Sys.Darwin where
   sys-write :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result SysError I64
   sys-write fd buf at count =
     let addr = wrapping-add-i64 (bytes-data buf) at in
-    let r = c-write fd addr count in
+    let r = sys-held buf (c-write fd addr count) in
     case 0 <= r of
       True -> Ok r
       False -> Err (sys-error-of (sys-errno ()))
@@ -213,7 +229,7 @@ module Prim.Sys.Darwin where
   sys-rename from dst =
     let f = sys-cpath from in
     let t = sys-cpath dst in
-    let r = c-rename (bytes-data f) (bytes-data t) in
+    let r = sys-held f (sys-held t (c-rename (bytes-data f) (bytes-data t))) in
     case 0 <= r of
       True -> Ok ()
       False -> Err (sys-error-of (sys-errno ()))
@@ -223,7 +239,7 @@ module Prim.Sys.Darwin where
   sys-mkdir :: forall r. using (io :: Io r) => String -> I64 ->{IO r} Result SysError Unit
   sys-mkdir path mode =
     let b = sys-cpath path in
-    let r = c-mkdir (bytes-data b) mode in
+    let r = sys-held b (c-mkdir (bytes-data b) mode) in
     case 0 <= r of
       True -> Ok ()
       False -> Err (sys-error-of (sys-errno ()))
@@ -233,7 +249,7 @@ module Prim.Sys.Darwin where
   sys-unlink :: forall r. using (io :: Io r) => String ->{IO r} Result SysError Unit
   sys-unlink path =
     let b = sys-cpath path in
-    let r = c-unlink (bytes-data b) in
+    let r = sys-held b (c-unlink (bytes-data b)) in
     case 0 <= r of
       True -> Ok ()
       False -> Err (sys-error-of (sys-errno ()))
@@ -250,7 +266,7 @@ module Prim.Sys.Darwin where
   -- the caller that reads the fields out of it.
   sys-fstat-into :: forall r. using (io :: Io r) => I64 -> Bytes ->{IO r} Result SysError Unit
   sys-fstat-into fd buf =
-    let r = c-fstat fd (bytes-data buf) in
+    let r = sys-held buf (c-fstat fd (bytes-data buf)) in
     case 0 <= r of
       True -> Ok ()
       False -> Err (sys-error-of (sys-errno ()))

@@ -613,7 +613,7 @@
     {
       "module": "Prim.Sys.Darwin",
       "path": "compiler/prelude/Prim/Sys/Darwin.cinch",
-      "sha256": "e1b39c28b2ba8667e3f38bbcac810db7321d268b0ee02f55d18173025ced9428",
+      "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e",
       "embedded": true,
       "values": 18,
       "public_methods": 0
@@ -621,7 +621,7 @@
     {
       "module": "Prim.Sys.Linux",
       "path": "compiler/prelude/Prim/Sys/Linux.cinch",
-      "sha256": "e30c5a9c0b5d8f6d5cf78953bf2bd6f7ce6e95f2fde5a4b355f9cfd7d5a9f5cb",
+      "sha256": "e07ff5eda8fe2ece61dcc9a914e6546a32bf8fd3e4efb0c2225913a3bac30a0b",
       "embedded": true,
       "values": 17,
       "public_methods": 0
