@@ -28,7 +28,7 @@ module Bootstrap.Load where
   export imported-type
   export LoadedInterface, loaded-module, loaded-hash, loaded-contract, nominal-owner
   export loaded-values, loaded-fixities, loaded-imports
-  export loaded-exports
+  export loaded-exports, loaded-identities
   export load-interface, load-interface-set, validate-interface-set
   export load-interface-from-contract, load-interface-set-from-contracts
   export loaded-entry, loaded-private-methods
@@ -61,11 +61,13 @@ module Bootstrap.Load where
   data ExportEntries where
     MkExportEntries ::
       HashMap String Json -> HashMap String Json -> HashMap String Json
-      -> HashMap String Json -> HashMap String Json -> HashMap String Json -> ExportEntries
+      -> HashMap String Json -> HashMap String Json -> HashMap String Json
+      -> HashMap String (List (String, String, String)) -> ExportEntries
 
   data LoadedInterface where
     MkLoadedInterface :: String -> String -> Json -> List ImportedValue
-      -> List (String, String, Nat) -> List (String, String) -> ExportEntries -> LoadedInterface
+      -> List (String, String, Nat) -> List (String, String) -> ExportEntries
+      -> List (String, String, String) -> LoadedInterface
 
   -- Only a complete dependency-validated set constructs this handle. Keep
   -- typed body graphs once, so method dispatch lookup never reparses them.
@@ -116,31 +118,46 @@ module Bootstrap.Load where
     Ok members -> Ok (CheckedInterfaceSet members (index-graph-bodies (set-bodies members)))
 
   loaded-module :: LoadedInterface -> String
-  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries -> name
+  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> name
 
   loaded-hash :: LoadedInterface -> String
-  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs entries -> hash
+  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> hash
 
   loaded-contract :: LoadedInterface -> Json
-  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs entries -> doc
+  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> doc
 
   loaded-values :: LoadedInterface -> List ImportedValue
-  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs entries -> values
+  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> values
 
   loaded-fixities :: LoadedInterface -> List (String, String, Nat)
-  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs entries -> fixes
+  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> fixes
 
   loaded-imports :: LoadedInterface -> List (String, String)
-  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs entries -> refs
+  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> refs
 
   -- Name, namespace category, defining identity. Contract-only class
   -- members are intentionally absent: only explicit export lists bind
-  -- names in the importing module.
+  -- names in the importing module. Read once, when the interface is
+  -- loaded: every name a consumer binds asks for these rows, so deriving
+  -- them per ask cost names x rows allocations per interface.
   loaded-exports :: LoadedInterface -> List (String, String, String)
-  loaded-exports i =
-    let exports = field "exports" (loaded-contract i) in
-    value-exports (field "values" exports) <> type-exports (field "types" exports)
-      <> signature-exports (field "signatures" exports)
+  loaded-exports i = case i of MkLoadedInterface name hash doc values fixes refs entries exports -> exports
+
+  -- The defining identities of one public name, document order, each once:
+  -- the probe `public-global` and `overloads` make per name, answered from
+  -- the name table the load built instead of a scan of every row.
+  loaded-identities :: LoadedInterface -> String -> List String
+  loaded-identities i name = case i of
+    MkLoadedInterface at hash doc values fixes refs entries exports ->
+      identity-list (hash-map-lookup name (name-entries entries))
+  identity-list :: Option (List (String, String, String)) -> List String
+  identity-list looked = case looked of
+    None -> Nil
+    Some rows -> identity-rows rows
+  identity-rows :: List (String, String, String) -> List String
+  identity-rows rows = case rows of
+    Nil -> Nil
+    Cons (name, kind, identity) rest -> Cons identity (identity-rows rest)
 
   value-exports :: Json -> List (String, String, String)
   value-exports rows = case rows of
@@ -180,7 +197,7 @@ module Bootstrap.Load where
   -- spellings are a scope concern; all aliases share this defining row.
   loaded-entry :: LoadedInterface -> String -> String -> Option Json
   loaded-entry i kind identity = case i of
-    MkLoadedInterface name hash doc values fixes refs entries ->
+    MkLoadedInterface name hash doc values fixes refs entries exports ->
       if same kind "value" then entry-in value-entries identity entries
       else if same kind "type" then entry-in type-entries identity entries
       else if same kind "signature" then entry-in signature-entries identity entries
@@ -189,24 +206,27 @@ module Bootstrap.Load where
       else if same kind "instance" then entry-in instance-entries identity entries
       else None
 
+  name-entries :: ExportEntries -> HashMap String (List (String, String, String))
+  name-entries entries = case entries of
+    MkExportEntries values types signatures constructors methods instances names -> names
   value-entries :: ExportEntries -> HashMap String Json
   value-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> values
+    MkExportEntries values types signatures constructors methods instances names -> values
   type-entries :: ExportEntries -> HashMap String Json
   type-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> types
+    MkExportEntries values types signatures constructors methods instances names -> types
   signature-entries :: ExportEntries -> HashMap String Json
   signature-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> signatures
+    MkExportEntries values types signatures constructors methods instances names -> signatures
   constructor-entries :: ExportEntries -> HashMap String Json
   constructor-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> constructors
+    MkExportEntries values types signatures constructors methods instances names -> constructors
   method-entries :: ExportEntries -> HashMap String Json
   method-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> methods
+    MkExportEntries values types signatures constructors methods instances names -> methods
   instance-entries :: ExportEntries -> HashMap String Json
   instance-entries entries = case entries of
-    MkExportEntries values types signatures constructors methods instances -> instances
+    MkExportEntries values types signatures constructors methods instances names -> instances
   entry-in :: (ExportEntries -> HashMap String Json) -> String -> ExportEntries -> Option Json
   entry-in table identity entries = hash-map-lookup identity (table entries)
 
@@ -222,6 +242,35 @@ module Bootstrap.Load where
     (constructor-table (field "types" exports))
     (method-table (field "signatures" exports))
     (row-table "id" (field "instances" exports))
+    (name-rows-table (export-rows exports))
+
+  -- Every exported name, its namespace category and its defining identity.
+  export-rows :: Json -> List (String, String, String)
+  export-rows exports =
+    value-exports (field "values" exports) <> type-exports (field "types" exports)
+      <> signature-exports (field "signatures" exports)
+
+  -- A name's rows exactly as the scan this replaces read them off the
+  -- export list: document order, the first row of each defining identity,
+  -- consed as it went, so the identity list a caller receives is the one
+  -- that scan returned. Binding a name probes this table instead of
+  -- rebuilding the list and walking every row of the interface.
+  name-rows-table :: List (String, String, String) -> HashMap String (List (String, String, String))
+  name-rows-table rows = name-rows-fold rows hash-map-empty
+
+  name-rows-fold :: List (String, String, String) -> HashMap String (List (String, String, String)) -> HashMap String (List (String, String, String))
+  name-rows-fold rows table = case rows of
+    Nil -> table
+    Cons row rest -> case row of
+      (name, kind, identity) -> case hash-map-lookup name table of
+        None -> name-rows-fold rest (hash-map-insert name (Cons row Nil) table)
+        Some prior -> if identity-held identity prior then name-rows-fold rest table
+          else name-rows-fold rest (hash-map-insert name (Cons row prior) table)
+
+  identity-held :: String -> List (String, String, String) -> Bool
+  identity-held identity rows = case rows of
+    Nil -> False
+    Cons (name, kind, sought) rest -> (same identity sought) || identity-held identity rest
 
   row-table :: String -> Json -> HashMap String Json
   row-table key rows = case rows of
@@ -663,7 +712,7 @@ module Bootstrap.Load where
     let exports = field "exports" doc in
     Ok (MkLoadedInterface name hash doc (read-values (field "values" exports))
       (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc))
-      (export-entries exports))
+      (export-entries exports) (export-rows exports))
 
   find-interface :: String -> List LoadedInterface -> Option LoadedInterface
   find-interface name loaded = case loaded of

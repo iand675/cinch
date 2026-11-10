@@ -24,15 +24,9 @@ module Bootstrap.Contracts where
   zero = Span 0 0 1 1
 
   public-global :: LoadedInterface -> String -> String
-  public-global i name = case identities name (loaded-exports i) Nil of
+  public-global i name = case loaded-identities i name of
     Cons identity Nil -> interface-global identity
     other -> pack (Cons 'o' (Cons '.' (encode-identity (unpack (loaded-module i)) (Cons '.' (encode-identity (unpack name) Nil)))))
-
-  identities :: String -> List (String, String, String) -> List String -> List String
-  identities name exports seen = case exports of
-    Nil -> seen
-    Cons (n, kind, identity) rest -> if same name n && not (has identity seen) then identities name rest (Cons identity seen)
-      else identities name rest seen
 
   entries :: LoadedInterface -> List (String, String, String) -> List Decl
   entries i names = case names of
@@ -72,9 +66,9 @@ module Bootstrap.Contracts where
   overloads i exports seen = case exports of
     Nil -> Nil
     Cons (name, kind, identity) rest -> if has name seen then overloads i rest seen
-      else (case identities name (loaded-exports i) Nil of
+      else (case loaded-identities i name of
         Cons first (Cons second more) -> Cons (DExternal zero (public-global i name) "overload" None
-          (candidate-json (identities name (loaded-exports i) Nil))) Nil
+          (candidate-json (loaded-identities i name))) Nil
         other -> Nil) <> overloads i rest (Cons name seen)
 
   candidate-json :: List String -> Json

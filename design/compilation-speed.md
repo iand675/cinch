@@ -134,11 +134,130 @@ again by `load-checked-interface-set`, once per elaborated module, because
 `total-interface-inputs` reads the JSON back out of the injected `DInterface`
 declarations. That round trip plus the JSON parse underneath it is about a
 tenth of the frontend, and it is a load-phase fix: pass the parsed contract
-through instead of its canonical bytes.
+through instead of its canonical bytes. Done, and measured, in section 2.2.
 
 Identity decoding (`export-global` / `decode-identity`) is about 4% on its
 own, because every candidate name in an export scan is decoded again. The
 nominal export's scans are the next thing to index (section 12, item 7).
+
+### 2.2 Allocation volume: where the fixed cost is (2026-11-10)
+
+`CINCH_ALLOC_STATS=1` says how much a program allocates. The runtime's
+`CINCH_ALLOC_KINDS=1` census (`compiler/runtime/src/alloc_kinds.rs`) says
+what: one line per block kind and one per size class, counted where every
+header block is already accounted and written by the same `atexit` handler.
+Unset, a block allocation pays one relaxed load and a branch that is never
+taken, and the stats line keeps its format. `tooling/alloc_sample.py` reads a
+macOS `sample` call graph and attributes its samples to phase frames and to
+the callers of the allocator.
+
+Stage3 checking a two-line program (`module Main where`, `main :: Int`,
+`main = 0`) and the 3,965-line toolkit bundle
+(`Text.{Lex,Scan,Parse,Json,Builder}` and a `Main`), before any change:
+
+| kind | two-line blocks | two-line bytes | toolkit blocks | toolkit bytes |
+| --- | --- | --- | --- | --- |
+| constructor | 56,643,277 | 1,336,451,360 | 347,856,188 | 7,587,090,856 |
+| closure | 8,786,140 | 352,791,592 | 35,689,690 | 1,440,429,760 |
+| dictionary | 5,108,438 | 146,613,408 | 46,863,965 | 1,268,306,584 |
+| bytes | 3,988,357 | 95,720,568 | 7,258,938 | 174,214,512 |
+| `Nat` box | 3,952,939 | 126,494,048 | 7,130,751 | 228,184,032 |
+| `Int` box | 0 | 0 | 7,941 | 317,640 |
+| all Cinch value blocks | 78,479,151 | 2,058,070,976 | 444,807,473 | 10,698,543,384 |
+
+| size class | two-line blocks | toolkit blocks |
+| --- | --- | --- |
+| 16 | 15,884,649 | 125,384,322 |
+| 24 | 40,255,703 | 253,896,187 |
+| 32 | 8,428,869 | 16,068,211 |
+| 40 | 12,672,439 | 39,666,722 |
+| 48 | 1,088,582 | 7,734,631 |
+| 64 | 145,788 | 1,731,858 |
+| 96 | 3,120 | 325,541 |
+| 128 | 1 | 1 |
+
+The traffic is not big blocks spread thin: it is 24-byte and 40-byte
+constructor cells, two and four words of payload, which is what a list spine,
+a tuple and a JSON node cost. Memo, knot, quote and raw blocks never appear
+on either input.
+
+The whole fixed cost is the interface set. The same two-line program checked
+against a manifest with an empty interface list allocates 22,498 blocks, so
+89,773,527 of its 89,796,025 are the 59 interface contracts (1.68 MB) being
+loaded, materialized and elaborated. A 1 kHz sample of the whole run, working
+threads only, before (`6,352` samples) and after (`3,469`):
+
+| frame, inclusive | before | after |
+| --- | --- | --- |
+| reading the manifest and the contract files | 767 (12%) | 812 (23%) |
+| loading the interface set (`load-interface-set`) | 1,680 (26%) | 1,208 (35%) |
+| - `parse-json` underneath it | 616 | 330 |
+| - contract identity (`canonical-bytes`, `fnv-step`) | 230 | 105 |
+| - export rows (`loaded-exports`, `public-global`) | 447 | 41 |
+| resolve (`check-source-phase`) | 913 (14%) | 268 (8%) |
+| elaborate | 1,131 (18%) | 495 (14%) |
+
+That is the round trip section 2.1 named, with a price: `total-interface-inputs`
+handed each contract's canonical bytes to `load-checked-interface-set`, so
+elaboration re-encoded 1.68 MB of JSON (sorting every object) and parsed it
+back on top of the load that had already done both. Two fixes landed.
+
+**Admit a contract from the declaration that carries it.** `load-interface`
+factors its envelope checks into `check-contract-envelope`, and beside it
+`load-interface-from-contract` re-admits the pair a `DInterface` states: the
+parsed contract and the identity the load that parsed it derived. The set
+loaders carry that pair (`load-interface-set-from-contracts`,
+`load-checked-interface-set-from-contracts`), so `total-interface-inputs`
+passes `Json` and no consumer re-encodes or re-parses an interface.
+
+**Read an interface's export rows once.** `loaded-exports` walked the whole
+contract and allocated a fresh triple and two strings per export row, and
+`public-global` asked for that list once per name it bound, so binding one
+interface's names cost names x rows allocations (2.07M row visits over the 59
+interfaces, twice each). The rows are now read at load, and `ExportEntries`
+carries a name-keyed table, so `loaded-identities` - the probe `public-global`
+and `overloads` make - is a lookup whose answer is exactly the list the old
+scan returned.
+
+| input | blocks before | blocks after | bytes before | bytes after | CPU before | CPU after |
+| --- | --- | --- | --- | --- | --- | --- |
+| two-line program | 89,796,025 | 54,095,275 | 2.172 GB | 1.326 GB | 2.79-2.92 s | 1.48-1.63 s |
+| toolkit bundle | 464,097,719 | 428,396,969 | 10.972 GB | 10.126 GB | 13.86-14.53 s | 12.83-13.87 s |
+
+That is -39.8% of the blocks and -38.9% of the bytes on the fixed cost, and
+-45% of the CPU time of checking a two-line program; the toolkit keeps -7.7%
+of its blocks and about -9% of its CPU, because its per-line checking
+dominates. By kind, the two-line program's constructor blocks fall from 56.6M
+to 30.9M and its `Nat` boxes from 3.95M to 2.37M.
+
+The allocation sites agree with that, from the pre-fix compiler linked at
+`-O0` so the frames are not inlined away (identical block counts; the toolkit
+run, samples under each entry point): `cinch_alloc_ctor` is entered most often
+from `Data.String.utf8-at` (126), `Data.Char.char-from-code` (72),
+`Data.List.reverse-into` (46), `Bootstrap.Type.read-carrier-tree` (43),
+`Data.String.unpack-from` (37), `Bootstrap.Load.value-exports` (36) and
+`Data.Core.Cons` (30) - string and identity decoding first, then the export
+rows; `cinch_alloc_shaped` from `Data.String.unpack-from` (41),
+`Data.Nat.nat-rem` (32), `Data.Core.Cons` (30), `Data.List.from-list` (28) and
+`Bootstrap.Nominal.code-digits` (23); `cinch_alloc_raw` is never entered,
+which is why no memo, knot or quote block appears in the census.
+
+Verified: Stage2 and Stage3 emit the same `compiler.ll` (md5
+`0fece696bbedb59fa950861294e60f32`) and agree on all 46 `.cinchif` files; a
+self-compile of the bundle by the pre-fix Stage3 and by the post-fix Stage3
+produces byte-identical `compiler.ll` and interfaces, so neither fix changes
+what the compiler emits; the fib, precedence and refusal smokes pass on
+Stage3; and the target set (integration, ownership, modules, bootstrap_infer,
+bootstrap_typing, bootstrap_pipeline, bootstrap_resolve, prim) fails exactly
+the tests it failed before the change, all of them the pinned seed's.
+
+The next levers in this path, in measured order: `validate-interface-set` is
+20% of the fixed cost and allocates almost nothing (`string-compare` over
+dependency names, so it is a hash-set problem), `interface-declarations`
+materializes every interface's `DExternal` declarations once per compile, and
+elaboration proper is the rest. Beyond the fixed cost the traffic is the
+checker's own constructor cells: the toolkit's 428M blocks for 3,965 lines are
+108,000 blocks per line, which is where the steepest lever now is.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
