@@ -102,7 +102,7 @@ fn idx_ground(t: &Ty) -> bool {
 fn subst_idx_names(t: &Ty, map: &HashMap<String, String>) -> Ty {
     let mut out = t.clone();
     for (from, to) in map {
-        out = out.subst_idx(from, &ITerm::Var(to.clone()));
+        out = out.subst_idx(from, &ITerm::Var(to.clone().into()));
     }
     out
 }
@@ -120,7 +120,7 @@ impl Checker {
         for (spelling, id, _) in env.locals.iter().rev() {
             if env.lookup(spelling).is_some_and(|(active, _)| active == *id)
                 && self.value_aliases.get(id).copied().unwrap_or(*id) == original
-            { return Ok(ITerm::Var(spelling.clone())); }
+            { return Ok(ITerm::Var(spelling.clone().into())); }
         }
         Ok(ITerm::LocalValue(original))
     }
@@ -215,7 +215,7 @@ impl Checker {
                 );
                 let want = ClassApp {
                     class: "Io".to_string(),
-                    args: vec![Ty::Region(r.clone())],
+                    args: vec![Ty::Region(r.clone().into())],
                 };
                 let hole = self.new_want(want, span, env);
                 let outer = self.active_regions.clone();
@@ -305,7 +305,7 @@ impl Checker {
                     self.oneshot_frames.push(OneshotFrame {
                         lam: self.lam_depth + 1,
                         task: true,
-                        scope: s.clone(),
+                        scope: s.clone().to_string(),
                         outer: outer.clone(),
                     });
                 }
@@ -1194,7 +1194,7 @@ impl Checker {
                 if let Some(b) = view.base {
                     args.push(b);
                 }
-                Ok((core, Ty::Adt("refined".to_string(), args)))
+                Ok((core, Ty::Adt("refined".to_string().into(), args)))
             }
             ast::Term::Narrow { value, target, witness, span } => {
                 // The checked strengthening cast (refinement types
@@ -1373,11 +1373,11 @@ impl Checker {
                         let (info, _) = self.find_record_field(&field.text, *span)?;
                         let fresh: Vec<Ty> =
                             (0..info.arity).map(|_| self.uni.fresh()).collect();
-                        let want = Ty::Adt(info.identity.clone(), fresh.clone());
+                        let want = Ty::Adt(info.identity.clone().into(), fresh.clone());
                         self.uni
                             .unify(&ty, &want)
                             .map_err(|m| Error::at(*span, m))?;
-                        (info.identity, fresh)
+                        (info.identity.as_str().into(), fresh)
                     }
                     other => {
                         return Err(Error::at(
@@ -1993,12 +1993,12 @@ impl Checker {
         // A separate proof binder retains write-log provenance. Storing
         // the refinement on the temporary itself would bypass staleness
         // checks when a later argument writes a location in its predicate.
-        let predicate = refinement.pred.subst(&refinement.binder, &ITerm::Var(name.clone()));
+        let predicate = refinement.pred.subst(&refinement.binder, &ITerm::Var(name.clone().into()));
         if let Some(fact) = self.mk_fact(env, predicate, self.ev_writes.len()) {
             self.bind_facts(env, &[fact], self.ev_writes.len(), argument.span())?;
         }
         binds.push((value, checked));
-        Ok((ECore::Var(value), Some(ITerm::Var(name))))
+        Ok((ECore::Var(value), Some(ITerm::Var(name.into()))))
     }
 
     /// The inferred type of a checked term meets its expected type. A
@@ -2772,7 +2772,7 @@ impl Checker {
         // the temporal contracts' post-step state (core specification
         // section 10).
         let v_idx = self.idx_of_term(&args[1], env).ok();
-        self.note_ev_write_loc(region, span, v_idx);
+        self.note_ev_write_loc(region.to_string(), span, v_idx);
         // Lower to a write through the borrow's cell that yields `Unit`.
         Ok((ECore::RefSet(m_local, Box::new(v_core), inner), Ty::Unit))
     }
@@ -3606,7 +3606,7 @@ impl Checker {
                 .map(|(n, _, _)| n.clone())
                 .collect();
             for n in bound {
-                let facts: Vec<Fact> = value_facts(&ITerm::Var(n.clone()), key)
+                let facts: Vec<Fact> = value_facts(&ITerm::Var(n.clone().into()), key)
                     .into_iter()
                     .map(|prop| Fact { prop, at: now, names: vec![(n.clone(), *l)], comparisons: Vec::new() })
                     .collect();
@@ -3706,7 +3706,7 @@ impl Checker {
                 else {
                     continue 'facts;
                 };
-                prop = prop.subst(v, &ITerm::Var(n.clone()));
+                prop = prop.subst(v, &ITerm::Var(n.clone().into()));
                 names.push((n, *l));
             }
             out.push(Fact { prop, at: now, names, comparisons: Vec::new() });
@@ -3728,7 +3728,7 @@ impl Checker {
         }
         let Ty::Adt(n, targs) = &exp else { return exp };
         let [Ty::Prp(p), base] = targs.as_slice() else { return exp };
-        let mut pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string()));
+        let mut pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string().into()));
         for (i, l) in self.result_params.iter().enumerate() {
             let name = env
                 .locals
@@ -3737,7 +3737,7 @@ impl Checker {
                 .map(|(n, _, _)| n)
                 .find(|n| env.lookup(n).is_some_and(|(x, _)| x == *l));
             if let Some(name) = name {
-                pred = pred.subst(&format!("$a{i}"), &ITerm::Var(name.clone()));
+                pred = pred.subst(&format!("$a{i}"), &ITerm::Var(name.clone().into()));
             }
         }
         Ty::Adt(n.clone(), vec![Ty::Prp(Box::new(pred)), base.clone()])
@@ -4089,7 +4089,7 @@ impl Checker {
                 ),
             ));
         }
-        Ok(ITerm::Fn(value_index_id(v)))
+        Ok(ITerm::Fn(value_index_id(v).into()))
     }
 
     /// Bridge an already checked source term into the shared type-position
@@ -4117,7 +4117,7 @@ impl Checker {
             ast::Term::Con(path) => ast::Type::Con(path.clone(), span),
             ast::Term::Int(digits, _) => ast::Type::Num(digits.clone(), span),
             ast::Term::Char(character, _) => ast::Type::IndexOperand(
-                Box::new(ITerm::Num(char_literal_word(character, span)?.to_string())),
+                Box::new(ITerm::Num(char_literal_word(character, span)?.to_string().into())),
                 Box::new(Ty::Prim(Scalar::Char)), span,
             ),
             ast::Term::Neg(inner, _) => match neg_fold(inner) {
@@ -4191,15 +4191,15 @@ impl Checker {
 
     fn idx_of_term(&self, t: &ast::Term, env: &Env) -> Result<ITerm> {
         Ok(match t {
-            ast::Term::Int(d, _) => ITerm::Num(d.clone()),
+            ast::Term::Int(d, _) => ITerm::Num(d.clone().into()),
             // A char literal in index position is its code point (the
             // `Char` scalar's word).
             ast::Term::Char(s, span) => {
-                ITerm::Num(char_literal_word(s, *span)?.to_string())
+                ITerm::Num(char_literal_word(s, *span)?.to_string().into())
             }
             ast::Term::Ann(..) => return self.checked_term_index(t, env, None),
             ast::Term::Neg(inner, span) => match neg_fold(inner) {
-                Some(v) => ITerm::Num(v),
+                Some(v) => ITerm::Num(v.into()),
                 None => {
                     return Err(Error::at(
                         *span,
@@ -4214,10 +4214,10 @@ impl Checker {
                         if p.name.local_binding().is_some() || self.quantified_value_locals.contains(&original) {
                             self.syntax_index_value(env, &p.name)?
                         } else {
-                            ITerm::Var(p.name.text.clone())
+                            ITerm::Var(p.name.text.clone().into())
                         }
                     } else if p.name.local_binding().is_none() && matches!(p.name.text.as_str(), "toNat" | "length") {
-                        ITerm::Fn(format!("<builtin>.{}", p.name.text))
+                        ITerm::Fn(format!("<builtin>.{}", p.name.text).into())
                     } else {
                         let v = self.resolve_var(p, p.span())?;
                         self.idx_ref(&v, p.span())?
@@ -4389,7 +4389,7 @@ impl Checker {
         }).collect();
         for (name, original) in &replacements { out = out.subst(name, &ITerm::LocalValue(*original)); }
         out.subst_local_values(&self.proof_pattern_equalities)
-            .subst_local_values(&visible.into_iter().map(|(local, name)| (local, ITerm::Var(name))).collect())
+            .subst_local_values(&visible.into_iter().map(|(local, name)| (local, ITerm::Var(name.into()))).collect())
     }
 
     fn check_constructor_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
@@ -4808,7 +4808,7 @@ impl Checker {
                 matches!(v.kind, ValueKind::BoolLit(found) if found == value))
                 .ok_or_else(|| Error::at(span, "missing checked Bool constructor"))?;
             self.refine_proof_rows(rows, column,
-                ITerm::Fn(fn_id(&constructor.module, &constructor.name).0), &[]);
+                ITerm::Fn(fn_id(&constructor.module, &constructor.name).0.into()), &[]);
         }
         Ok(())
     }
@@ -5047,16 +5047,16 @@ impl Checker {
             head => (head, Vec::new()),
         };
         let id = match head {
-            ITerm::Fn(id) => id,
+            ITerm::Fn(id) => id.as_str(),
             ITerm::Inst(instantiation) => match &instantiation.head {
-                IndexHead::Function(id) => id,
+                IndexHead::Function(id) => id.as_str(),
                 _ => return None,
             },
             _ => return None,
         };
         let (module, name) = id.rsplit_once('.')?;
         let value = self.qualified.get(&(module.to_string(), name.to_string()))?;
-        matches!(value.kind, ValueKind::Ctor { .. }).then(|| (id.clone(), arguments))
+        matches!(value.kind, ValueKind::Ctor { .. }).then(|| (id.to_string(), arguments))
     }
 
     /// Reduce selections over checked local identities. Returning a subterm
@@ -5118,23 +5118,23 @@ impl Checker {
             return None;
         }
         Some(match t {
-            ast::Term::Int(d, _) => ITerm::Num(d.clone()),
+            ast::Term::Int(d, _) => ITerm::Num(d.clone().into()),
             ast::Term::Ann(e, _, _) => return self.reduce_eq_body(e, bind, fuel - 1),
             ast::Term::Var(p) => {
                 match (p.quals.is_empty(), bind.get(&p.name.text)) {
                     (true, Some(it)) => it.clone(),
                     _ => {
                         if let Ok(v) = self.resolve_var(p, p.span()) {
-                            ITerm::Fn(fn_id(&v.module, &v.name).0)
+                            ITerm::Fn(fn_id(&v.module, &v.name).0.into())
                         } else {
-                            ITerm::Var(p.name.text.clone())
+                            ITerm::Var(p.name.text.clone().into())
                         }
                     }
                 }
             }
             ast::Term::Con(p) => {
                 let v = self.resolve_con(p, p.span()).ok()?;
-                ITerm::Fn(fn_id(&v.module, &v.name).0)
+                ITerm::Fn(fn_id(&v.module, &v.name).0.into())
             }
             ast::Term::Lam(pats, body, _) => {
                 let mut bind2 = bind.clone();
@@ -5143,14 +5143,14 @@ impl Checker {
                     match p {
                         ast::Pat::Var(n, _) => {
                             names.push(n.text.clone());
-                            bind2.insert(n.text.clone(), ITerm::Var(n.text.clone()));
+                            bind2.insert(n.text.clone(), ITerm::Var(n.text.clone().into()));
                         }
                         _ => return None,
                     }
                 }
                 let mut it = self.reduce_eq_body(body, &bind2, fuel - 1)?;
                 for n in names.into_iter().rev() {
-                    it = ITerm::Lam(n, Box::new(it));
+                    it = ITerm::Lam(n.into(), Box::new(it));
                 }
                 it
             }
@@ -6312,7 +6312,7 @@ impl Checker {
                 let nil = shapes.iter().any(|(_, ra)| *ra == 0);
                 let cons = shapes.iter().any(|(_, ra)| *ra == 2);
                 if nil && cons {
-                    Some(MeasureShape::List(name))
+                    Some(MeasureShape::List(name.to_string()))
                 } else {
                     None
                 }
@@ -6878,7 +6878,7 @@ impl Checker {
                 let inner = sigs.get(&name.text).cloned().unwrap_or_else(|| self.uni.fresh());
                 let cell_ty = Ty::Lazy {
                     eff: eff.clone(),
-                    region: g.region.clone(),
+                    region: g.region.clone().into(),
                     inner: Box::new(inner.clone()),
                 };
                 self.bind_syntax_local(env, &name, l, Scheme::mono(cell_ty), None, pat.span())?;
@@ -7335,7 +7335,7 @@ impl Checker {
                 let inner = self.uni.fresh();
                 let cell_ty = Ty::Lazy {
                     eff: eff.clone(),
-                    region: g.region.clone(),
+                    region: g.region.clone().into(),
                     inner: Box::new(inner.clone()),
                 };
                 m.cell = Some((eff, inner));
@@ -8214,7 +8214,7 @@ impl Checker {
                 for (i, (v, node)) in literals.into_iter().enumerate().rev() {
                     let mut branch = branch_lists[i].clone();
                     if numeric {
-                        self.refine_proof_rows(&mut branch, &col0, ITerm::Num(v.clone()), &[]);
+                        self.refine_proof_rows(&mut branch, &col0, ITerm::Num(v.clone().into()), &[]);
                     }
                     if numeric {
                         self.bind_column_facts(&mut branch, &col0, &BranchKey::Lit(v.clone()), ctx_span)?;
@@ -8673,7 +8673,7 @@ impl Checker {
                             checker.index_signature(&constructor.scheme, &args, &[], Some(&inner_ty), ctx_span))?
                             .ok_or_else(|| Error::at(ctx_span, "constructor branch has no checked index signature"))?;
                         let head = if signature.types.is_empty() && signature.dictionaries.is_empty() && signature.arguments.is_empty() {
-                            ITerm::Fn(value_index_id(&constructor))
+                            ITerm::Fn(value_index_id(&constructor).into())
                         } else {
                             ITerm::Inst(Box::new(IndexInstantiation {
                                 head: IndexHead::Function(value_index_id(&constructor)), types: signature.types,
@@ -8952,7 +8952,7 @@ impl Checker {
                             }
                             let nm = match &pats[0] {
                                 ast::Pat::Var(n, _) => n.text.clone(),
-                                ast::Pat::Wild(_) => var.clone(),
+                                ast::Pat::Wild(_) => var.clone().to_string(),
                                 other => {
                                     return Err(Error::at(
                                         other.span(),
@@ -8986,7 +8986,7 @@ impl Checker {
                         }
                     }
                 }
-                let name = binder.unwrap_or_else(|| var.clone());
+                let name = binder.unwrap_or_else(|| var.clone().to_string());
                 let fields: Vec<LocalId> = (0..2).map(|_| self.fresh_local()).collect();
                 if let ECore::Var(l) = &col0 {
                     for f in &fields {
@@ -9006,7 +9006,7 @@ impl Checker {
                 branch_cols.extend(cols[1..].iter().cloned());
                 let mut branch_tys: Vec<Ty> = vec![
                     wrap(&dom),
-                    wrap(&cod.subst_idx(&var, &ITerm::Var(name))),
+                    wrap(&cod.subst_idx(&var, &ITerm::Var(name.into()))),
                 ];
                 for (f, t) in fields.iter().zip(&branch_tys) {
                     self.note_local_ty(*f, t);
@@ -9460,7 +9460,7 @@ pub(crate) enum BranchKey {
 
 /// The statements a value branch makes about the column's value `it`.
 fn value_facts(it: &ITerm, key: &BranchKey) -> Vec<PTerm> {
-    let num = |k: &str| Box::new(ITerm::Num(k.to_string()));
+    let num = |k: &str| Box::new(ITerm::Num(k.to_string().into()));
     match key {
         BranchKey::Lit(k) => vec![PTerm::Cmp(IdxCmp::Eq, Box::new(it.clone()), num(k))],
         BranchKey::Default(lits) => lits
@@ -10348,7 +10348,7 @@ impl Checker {
                     && e.memo == self.memo_depth
                     && e.label.head == label.head
             })
-            .map(|(i, e)| (i, e.label.arg.clone()))
+            .map(|(i, e)| (i, e.label.arg.map(|a| a.to_string())))
             .collect();
         let mut found = None;
         for (i, arg) in candidates.into_iter().rev() {
@@ -10843,8 +10843,8 @@ impl Checker {
             _ => {}
         }
         let label = EffLabel {
-            head: head.clone(),
-            arg: h.region.as_ref().map(|n| n.text.clone()),
+            head: head.clone().into(),
+            arg: h.region.as_ref().map(|n| n.text.as_str().into()),
         };
         let input = self.uni.fresh();
         let output = self.uni.fresh();
@@ -10916,7 +10916,7 @@ impl Checker {
             for (name, actual) in op_scheme.params.iter().zip(op_params) {
                 let rigid = self.fresh_param(name);
                 self.uni
-                    .unify(&actual, &Ty::Param(rigid.clone()))
+                    .unify(&actual, &Ty::Param(rigid.clone().into()))
                     .map_err(|message| Error::at(slot_clause.span, message))?;
                 clause_rigids.insert(rigid, Ty::Unit);
             }
@@ -11316,7 +11316,7 @@ impl Checker {
                 InstCtx::Oblig(_) => return Err(Error::at(path.span(), "an explicit constrained factory needs checked refinement evidence")),
             }
         }
-        let ty = Ty::Adt(target.class, target.args);
+        let ty = Ty::Adt(target.class.into(), target.args);
         Ok(Some((ECore::InstDict(inst.base_id, args, actuals, true), ty)))
     }
 
@@ -11332,10 +11332,10 @@ impl Checker {
     ) -> Result<(LocalId, ECore, Option<String>)> {
         let z = self.uni.zonk(&ty);
         if let Ty::Adt(class, args) = &z {
-            if class != "Io" && self.class_sigs.get(class).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
+            if class != "Io" && self.class_sigs.get(class.as_str()).is_some_and(|sigs| sigs.iter().any(|sig| sig.params.len() == args.len())) {
                 let local = self.fresh_local();
                 self.bind_syntax_local(env, &name, local, Scheme::mono(z.clone()), Some(Mult::Many), span)?;
-                env.dicts.push((local, ClassApp { class: class.clone(), args: args.clone() }));
+                env.dicts.push((local, ClassApp { class: class.clone().to_string(), args: args.clone() }));
                 if let Some(binding) = name.local_binding() {
                     env.syntax_dictionaries.insert(binding.clone(), local);
                 }
@@ -11358,10 +11358,10 @@ impl Checker {
                 let r = self.fresh_region();
                 self.uni.note_flex_region(&r);
                 self.uni
-                    .unify(&ty, &Ty::Adt("Io".into(), vec![Ty::Region(r.clone())]))
+                    .unify(&ty, &Ty::Adt("Io".into(), vec![Ty::Region(r.clone().into())]))
                     .map_err(|m| Error::at(span, m))?;
                 r
-            }
+.into()            }
             other => {
                 return Err(Error::at(
                     span,
@@ -11386,7 +11386,7 @@ impl Checker {
         if let Some(binding) = name.local_binding() {
             env.syntax_dictionaries.insert(binding.clone(), l);
         }
-        Ok((l, core, Some(region)))
+        Ok((l, core, Some(region.to_string())))
     }
 
     /// A capability for a still-flex runtime identity must not leak that
@@ -11446,7 +11446,7 @@ impl Checker {
             let (n, c) = (&constraint.name, &constraint.class);
             if is_capability_class(&c.class) {
                 if let Some((_, term)) = supplies.iter().find(|(sn, _)| &sn.text == n) {
-                    let want = Ty::Adt(c.class.clone(), c.args.clone());
+                    let want = Ty::Adt(c.class.clone().into(), c.args.clone());
                     let checked = self.check(env, term, &want)?;
                     let local = match checked {
                         ECore::Var(local) => local,
@@ -12662,7 +12662,7 @@ impl Checker {
             let original = self.value_aliases.get(id).copied().unwrap_or(*id);
             let visible = current.locals.iter().rev().find(|(name, local, _)| current.lookup(name).is_some_and(|(active, _)| active == *local) && self.value_aliases.get(local).copied().unwrap_or(*local) == original).map(|(name, _, _)| name.clone());
             out = out.subst_idx(name, &ITerm::LocalValue(original));
-            if let Some(name) = visible { replacements.insert(original, ITerm::Var(name)); }
+            if let Some(name) = visible { replacements.insert(original, ITerm::Var(name.into())); }
         }
         out.subst_local_values(&replacements)
     }

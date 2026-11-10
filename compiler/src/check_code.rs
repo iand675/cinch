@@ -153,7 +153,7 @@ impl Checker {
             if let Some(actual) = call.arguments.types.get(formal) {
                 result
                     .types
-                    .insert(rigid.clone(), self.stage_resolve_type(cx, actual));
+                    .insert(rigid.clone().to_string(), self.stage_resolve_type(cx, actual));
             }
         }
         for formal in source
@@ -193,19 +193,19 @@ impl Checker {
                 };
                 let fresh = self.uni.fresh_row();
                 self.uni.unify_rows(&fresh, &actual).map_err(Error::plain)?;
-                result.rows.insert(rigid.clone(), fresh.tail);
+                result.rows.insert(rigid.clone().to_string(), fresh.tail);
             }
         }
         for (formal, rigid) in source.region_params.iter().zip(&native.region_params) {
             if let Some(actual) = call.arguments.regions.get(formal) {
                 let actual = self.uni.resolve_region(actual);
                 result.regions.insert(
-                    rigid.clone(),
+                    rigid.clone().to_string(),
                     cx.code_types
                         .regions
-                        .get(&actual)
+                        .get(actual.as_str())
                         .cloned()
-                        .unwrap_or(actual),
+                        .unwrap_or(actual.to_string()),
                 );
             }
         }
@@ -219,7 +219,7 @@ impl Checker {
         for name in &scope.params {
             types
                 .types
-                .entry(name.clone())
+                .entry(name.clone().to_string())
                 .or_insert_with(|| self.uni.fresh());
         }
         for parameter in &scope.idx_params {
@@ -237,14 +237,14 @@ impl Checker {
         for name in &scope.row_params {
             types
                 .rows
-                .entry(name.clone())
+                .entry(name.clone().to_string())
                 .or_insert_with(|| self.uni.fresh_row().tail);
         }
         for name in &scope.region_params {
             if !types.regions.contains_key(name) {
                 let fresh = self.fresh_param(name);
                 self.uni.note_flex_region(&fresh);
-                types.regions.insert(name.clone(), fresh);
+                types.regions.insert(name.clone().to_string(), fresh);
             }
         }
     }
@@ -362,12 +362,12 @@ impl Checker {
         let mut replacement = StageTypeBindings::default();
         for (name, original) in &bindings.types {
             if let Ty::Param(rigid) = original {
-                replacement.types.insert(rigid.clone(), instantiated.types[name].clone());
+                replacement.types.insert(rigid.clone().to_string(), instantiated.types[name].clone());
             }
         }
         for (name, original) in &bindings.rows {
             if let RowTail::Rigid(rigid) = original {
-                replacement.rows.insert(rigid.clone(), instantiated.rows[name].clone());
+                replacement.rows.insert(rigid.clone().to_string(), instantiated.rows[name].clone());
             }
         }
         for (name, rigid) in &bindings.regions {

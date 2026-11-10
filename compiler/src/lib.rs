@@ -16,6 +16,7 @@ pub mod highlight;
 pub mod core;
 pub mod driver;
 pub mod interface;
+pub mod intern;
 #[cfg(feature = "jit")]
 pub mod jit;
 pub mod layout;

@@ -28,8 +28,8 @@ fn prim_scheme(op: PrimOp) -> Scheme {
 /// - `bitAnd x m` with `m` non-negative lies in `[0, m]` (the and of a
 ///   non-negative word clears the sign bit and every bit `m` lacks).
 fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
-    let it = || Box::new(ITerm::Var("$it".to_string()));
-    let arg = |i: usize| Box::new(ITerm::Var(format!("$a{i}")));
+    let it = || Box::new(ITerm::Var("$it".to_string().into()));
+    let arg = |i: usize| Box::new(ITerm::Var(format!("$a{i}").into()));
     let num = |n: i128| Box::new(ITerm::num(n));
     let le = |a: Box<ITerm>, b: Box<ITerm>| PTerm::Cmp(IdxCmp::Le, a, b);
     let and = |a: PTerm, b: PTerm| PTerm::And(Box::new(a), Box::new(b));
@@ -55,7 +55,7 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         PrimOp::Bytes(BytesOp::New) => (
             PTerm::Cmp(
                 IdxCmp::Eq,
-                Box::new(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var("$it".to_string())])),
+                Box::new(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var("$it".to_string().into())])),
                 arg(0),
             ),
             None,
@@ -526,16 +526,16 @@ impl Checker {
         for (name, kind, runtime) in binders {
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match kind {
-                ParamKind::Type => scheme.params.push(name),
-                ParamKind::Con(arity) => { scheme.con_params.push((name.clone(), arity)); scheme.params.push(name); }
+                ParamKind::Type => scheme.params.push(name.into()),
+                ParamKind::Con(arity) => { scheme.con_params.push((name.clone().into(), arity)); scheme.params.push(name.into()); }
                 ParamKind::Val(carrier) => {
-                    kinds.insert(name.clone(), Ty::Idx(Box::new(ITerm::Var(name.clone()))));
-                    if runtime { scheme.val_params.push((name, carrier)); }
-                    else { scheme.idx_params.push(IxParam::Val(name, carrier)); }
+                    kinds.insert(name.clone(), Ty::Idx(Box::new(ITerm::Var(name.clone().into()))));
+                    if runtime { scheme.val_params.push((name.into(), carrier)); }
+                    else { scheme.idx_params.push(IxParam::Val(name.into(), carrier)); }
                 }
                 ParamKind::Prop => {
                     kinds.insert(name.clone(), Ty::Prp(Box::new(PTerm::Var(name.clone()))));
-                    if runtime { scheme.prop_params.push(name); } else { scheme.idx_params.push(IxParam::Prop(name)); }
+                    if runtime { scheme.prop_params.push(name.into()); } else { scheme.idx_params.push(IxParam::Prop(name.into())); }
                 }
             }
         }
@@ -684,13 +684,13 @@ impl Checker {
         let bool_ty = Ty::Bool;
         let nat = Ty::Nat;
         let bytes = Ty::Bytes;
-        let a = Ty::Param("a".to_string());
-        let x = Ty::Param("x".to_string());
-        let v = Ty::Param("v".to_string());
-        let w = Ty::Param("w".to_string());
+        let a = Ty::Param("a".to_string().into());
+        let x = Ty::Param("x".to_string().into());
+        let v = Ty::Param("v".to_string().into());
+        let w = Ty::Param("w".to_string().into());
         let open = |tail: &str| EffRow {
             labels: Vec::new(),
-            tail: RowTail::Rigid(tail.to_string()),
+            tail: RowTail::Rigid(tail.to_string().into()),
         };
         let closed = |labels: Vec<EffLabel>| EffRow { labels, tail: RowTail::Closed };
         let plain = EffLabel::plain;
@@ -700,7 +700,7 @@ impl Checker {
                 "io".to_string(),
                 ClassApp {
                     class: "Io".to_string(),
-                    args: vec![Ty::Region("r".to_string())],
+                    args: vec![Ty::Region("r".to_string().into())],
                 },
             )]
         };
@@ -725,12 +725,12 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["a".to_string()],
+                params: vec!["a".to_string().into()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
-                row_params: vec!["e".to_string()],
-                region_params: vec!["r".to_string(), "s".to_string()],
+                row_params: vec!["e".to_string().into()],
+                region_params: vec!["r".to_string().into(), "s".to_string()],
                 ctx: io_ctx(),
                 ty: Ty::fun_mult(
                     Ty::fun_mult(
@@ -742,7 +742,7 @@ impl Checker {
                     Mult::Many,
                     EffRow {
                         labels: vec![plain("Diverge")],
-                        tail: RowTail::Rigid("e".to_string()),
+                        tail: RowTail::Rigid("e".to_string().into()),
                     },
                     a.clone(),
                 ),
@@ -759,12 +759,12 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["x".to_string(), "a".to_string()],
+                params: vec!["x".to_string().into(), "a".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
-                row_params: vec!["eb".to_string()],
-                region_params: vec!["r".to_string(), "s".to_string()],
+                row_params: vec!["eb".to_string().into()],
+                region_params: vec!["r".to_string().into(), "s".to_string()],
                 ctx: Vec::new(),
                 ty: Ty::fun_mult(
                     crate::check::conc_scope_ty("r", "s"),
@@ -777,7 +777,7 @@ impl Checker {
                         Mult::Many,
                         EffRow {
                             labels: vec![arg("Async", "r")],
-                            tail: RowTail::Rigid("eb".to_string()),
+                            tail: RowTail::Rigid("eb".to_string().into()),
                         },
                         crate::check::conc_task_ty("s", &x, &a),
                     ),
@@ -796,12 +796,12 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
+                params: vec!["x".to_string().into(), "v".to_string(), "w".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["r".to_string(), "s".to_string()],
+                region_params: vec!["r".to_string().into(), "s".to_string()],
                 ctx: Vec::new(),
                 ty: Ty::fun_mult(
                     crate::check::conc_scope_ty("r", "s"),
@@ -839,7 +839,7 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["r".to_string()],
+                region_params: vec!["r".to_string().into()],
                 ctx: io_ctx(),
                 ty: Ty::fun_mult(
                     bytes.clone(),
@@ -862,13 +862,13 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["r".to_string()],
+                region_params: vec!["r".to_string().into()],
                 ctx: io_ctx(),
                 ty: Ty::fun_mult(
                     nat.clone(),
                     Mult::Many,
                     closed(vec![arg("IO", "r"), plain("Diverge")]),
-                    Ty::Adt("Option".to_string(), vec![bytes.clone()]),
+                    Ty::Adt("Option".to_string().into(), vec![bytes.clone()]),
                 ),
             },
             ConcOp::IoRead,
@@ -885,7 +885,7 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["r".to_string()],
+                region_params: vec!["r".to_string().into()],
                 ctx: io_ctx(),
                 ty: Ty::fun_mult(
                     nat,
@@ -908,7 +908,7 @@ impl Checker {
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["r".to_string()],
+                region_params: vec!["r".to_string().into()],
                 ctx: io_ctx(),
                 ty: Ty::fun_mult(
                     Ty::Unit,
@@ -933,7 +933,7 @@ impl Checker {
     /// positions, and a target profile may forbid runtime code
     /// generation entirely (`allow_eval`).
     fn install_eval_api(&mut self) {
-        let a = crate::types::Ty::Param("a".to_string());
+        let a = crate::types::Ty::Param("a".to_string().into());
         let info = ValueInfo {
             module: "<builtin>".to_string(),
             name: "eval".to_string(),
@@ -941,7 +941,7 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["a".to_string()],
+                params: vec!["a".to_string().into()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
@@ -949,7 +949,7 @@ impl Checker {
                 region_params: Vec::new(),
                 ctx: Vec::new(),
                 ty: crate::types::Ty::fun(
-                    crate::types::Ty::Adt("Code".to_string(), vec![a.clone()]),
+                    crate::types::Ty::Adt("Code".to_string().into(), vec![a.clone()]),
                     a,
                 ),
             },
@@ -984,14 +984,14 @@ impl Checker {
                                 return Ty::Prim(sc);
                             }
                         }
-                        Ty::Adt(other.to_string(), Vec::new())
+                        Ty::Adt(other.to_string().into(), Vec::new())
                     }
                 },
                 SurfaceTy::Borrow(t) => {
-                    Ty::Ref("region".to_string(), Box::new(surface_ty(t)))
+                    Ty::Ref("region".to_string().into(), Box::new(surface_ty(t)))
                 }
                 SurfaceTy::App(f, args) => {
-                    Ty::Adt(f.clone(), args.iter().map(surface_ty).collect())
+                    Ty::Adt(f.clone().into(), args.iter().map(surface_ty).collect())
                 }
                 SurfaceTy::Tuple(ts) => Ty::Tuple(ts.iter().map(surface_ty).collect()),
             }
@@ -1149,7 +1149,7 @@ impl Checker {
     fn install_stream_api(&mut self) -> Result<()> {
         use crate::core::{AbiClass, AbiParam, ForeignPlan};
         use crate::types::{EffLabel, EffRow, RowTail, Ty};
-        let a = Ty::Param("a".to_string());
+        let a = Ty::Param("a".to_string().into());
         let effects = EffRow {
             labels: vec![
                 EffLabel::with_arg("Foreign", "Component"),
@@ -1157,11 +1157,11 @@ impl Checker {
             ],
             tail: RowTail::Closed,
         };
-        let stream_a = Ty::Adt("WasiStream".to_string(), vec![a.clone()]);
-        let future_a = Ty::Adt("WasiFuture".to_string(), vec![a.clone()]);
-        let stream_err = Ty::Adt("StreamError".to_string(), Vec::new());
-        let opt_a = Ty::Adt("Option".to_string(), vec![a.clone()]);
-        let result_ty = |e: Ty, o: Ty| Ty::Adt("Result".to_string(), vec![e, o]);
+        let stream_a = Ty::Adt("WasiStream".to_string().into(), vec![a.clone()]);
+        let future_a = Ty::Adt("WasiFuture".to_string().into(), vec![a.clone()]);
+        let stream_err = Ty::Adt("StreamError".to_string().into(), Vec::new());
+        let opt_a = Ty::Adt("Option".to_string().into(), vec![a.clone()]);
+        let result_ty = |e: Ty, o: Ty| Ty::Adt("Result".to_string().into(), vec![e, o]);
         let entries: Vec<(&str, &str, Ty, usize)> = vec![
             (
                 "wasiStreamRead",
@@ -1191,14 +1191,14 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["a".to_string()],
+                params: vec!["a".to_string().into()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
                 // As in [`Checker::install_wit_api`]: the `Foreign`
                 // boundary name renames like a region per call.
-                region_params: vec!["Component".to_string()],
+                region_params: vec!["Component".to_string().into()],
                 ctx: Vec::new(),
                 ty,
             };
@@ -1292,7 +1292,7 @@ impl Checker {
                 field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
-        let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string(), args);
+        let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string().into(), args);
         let str_ty = adt("String", Vec::new());
         let secret_ty = adt("Secret", Vec::new());
         let decls_ty = adt("Declarations", Vec::new());
@@ -1302,14 +1302,14 @@ impl Checker {
         let pc_ty = adt("ProcCap", Vec::new());
         let unit = Ty::Unit;
         let nat = Ty::Nat;
-        let a = Ty::Param("a".to_string());
+        let a = Ty::Param("a".to_string().into());
         use crate::core::StageOp;
         use crate::types::{Mult, RowTail};
         // Capability refinements supply their token to a callback whose
         // effects flow through the result: `forall a e. String ->
         // (IoCap ->{e} a) ->{e} a` for the snapshot root, `forall a e.
         // IoCap -> (cap ->{e} a) ->{e} a` for each refinement.
-        let row_e = EffRow { labels: Vec::new(), tail: RowTail::Rigid("e".to_string()) };
+        let row_e = EffRow { labels: Vec::new(), tail: RowTail::Rigid("e".to_string().into()) };
         self.install_stage_value_row(
             "snapshot",
             StageOp::Snapshot,
@@ -1860,21 +1860,21 @@ impl Checker {
                     0,
                     Vec::new(),
                     Vec::new(),
-                    vec![Ty::Idx(Box::new(ITerm::num(0))), Ty::Param("a".to_string())],
+                    vec![Ty::Idx(Box::new(ITerm::num(0))), Ty::Param("a".to_string().into())],
                 ),
                 (
                     "Cons".to_string(),
                     1,
-                    vec![IxParam::Val("k".to_string(), Ty::Nat)],
+                    vec![IxParam::Val("k".to_string().into(), Ty::Nat)],
                     vec![
-                        ("$f0".to_string(), Ty::Param("a".to_string())),
+                        ("$f0".to_string(), Ty::Param("a".to_string().into())),
                         (
                             "$f1".to_string(),
                             Ty::Adt(
-                                "Vec".to_string(),
+                                "Vec".to_string().into(),
                                 vec![
-                                    Ty::Idx(Box::new(ITerm::Var("k".to_string()))),
-                                    Ty::Param("a".to_string()),
+                                    Ty::Idx(Box::new(ITerm::Var("k".to_string().into()))),
+                                    Ty::Param("a".to_string().into()),
                                 ],
                             ),
                         ),
@@ -1882,10 +1882,10 @@ impl Checker {
                     vec![
                         Ty::Idx(Box::new(ITerm::Bin(
                             IdxOp::Add,
-                            Box::new(ITerm::Var("k".to_string())),
+                            Box::new(ITerm::Var("k".to_string().into())),
                             Box::new(ITerm::num(1)),
                         ))),
-                        Ty::Param("a".to_string()),
+                        Ty::Param("a".to_string().into()),
                     ],
                 ),
             ],
@@ -1906,12 +1906,12 @@ impl Checker {
                         "bound".to_string(),
                         Ty::Prp(Box::new(PTerm::Cmp(
                             IdxCmp::Lt,
-                            Box::new(ITerm::Var("i".to_string())),
-                            Box::new(ITerm::Var("n".to_string())),
+                            Box::new(ITerm::Var("i".to_string().into())),
+                            Box::new(ITerm::Var("n".to_string().into())),
                         ))),
                     ),
                 ],
-                vec![Ty::Idx(Box::new(ITerm::Var("n".to_string())))],
+                vec![Ty::Idx(Box::new(ITerm::Var("n".to_string().into())))],
             )],
         );
         // `data Dec (p :: Prop) where Yes :: (h :: p) -> Dec p;
@@ -1968,8 +1968,8 @@ impl Checker {
                 }
                 match k {
                     ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
-                    ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone(), t.clone())),
-                    ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                    ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone().into(), t.clone())),
+                    ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                 }
             }
             idx_params.extend(local_idx.iter().cloned());
@@ -1979,7 +1979,7 @@ impl Checker {
                 .filter(|(_, erased)| !**erased)
                 .map(|(ty, _)| crate::repr::repr_of(ty, &type_params, self, &mut |_| {})).collect();
             let repr_tparams = type_params.len();
-            let mut ty = Ty::Adt(name.to_string(), res_args.clone());
+            let mut ty = Ty::Adt(name.to_string().into(), res_args.clone());
             for (b, t) in fields.iter().rev() {
                 let rest = ty;
                 ty = if rest.mentions_idx(b) {
@@ -2115,37 +2115,37 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["a".to_string()],
-                idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
+                params: vec!["a".to_string().into()],
+                idx_params: vec![IxParam::Val("n".to_string().into(), Ty::Nat)],
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["region".to_string()],
+                region_params: vec!["region".to_string().into()],
                 ctx: vec![(
-                    "copy".to_string(),
+                    "copy".to_string().into(),
                     ClassApp {
                         class: "Copy".to_string(),
-                        args: vec![Ty::Param("a".to_string())],
+                        args: vec![Ty::Param("a".to_string().into())],
                     },
                 )],
                 ty: Ty::funs(
                     &[
                         Ty::Ref(
-                            "region".to_string(),
+                            "region".to_string().into(),
                             Box::new(Ty::Adt(
-                                "Vec".to_string(),
+                                "Vec".to_string().into(),
                                 vec![
-                                    Ty::Idx(Box::new(ITerm::Var("n".to_string()))),
-                                    Ty::Param("a".to_string()),
+                                    Ty::Idx(Box::new(ITerm::Var("n".to_string().into()))),
+                                    Ty::Param("a".to_string().into()),
                                 ],
                             )),
                         ),
                         Ty::Adt(
-                            "Fin".to_string(),
-                            vec![Ty::Idx(Box::new(ITerm::Var("n".to_string())))],
+                            "Fin".to_string().into(),
+                            vec![Ty::Idx(Box::new(ITerm::Var("n".to_string().into())))],
                         ),
                     ],
-                    Ty::Param("a".to_string()),
+                    Ty::Param("a".to_string().into()),
                 ),
             },
             kind: ValueKind::TopFn,
@@ -2282,16 +2282,16 @@ impl Checker {
             ],
         };
         let vec_ty = Ty::Adt(
-            "Vec".to_string(),
+            "Vec".to_string().into(),
             vec![
-                Ty::Idx(Box::new(ITerm::Var("n".to_string()))),
-                Ty::Param("a".to_string()),
+                Ty::Idx(Box::new(ITerm::Var("n".to_string().into()))),
+                Ty::Param("a".to_string().into()),
             ],
         );
-        let ref_ty = Ty::Ref("region".to_string(), Box::new(vec_ty.clone()));
+        let ref_ty = Ty::Ref("region".to_string().into(), Box::new(vec_ty.clone()));
         let step_ty = Ty::Adt(
-            "Step".to_string(),
-            vec![ref_ty.clone(), Ty::Param("a".to_string())],
+            "Step".to_string().into(),
+            vec![ref_ty.clone(), Ty::Param("a".to_string().into())],
         );
         let step_value = ValueInfo {
             module: "<builtin>".to_string(),
@@ -2300,12 +2300,12 @@ impl Checker {
             evidence_params: Vec::new(),
             con_params: Vec::new(),
             obligs: Vec::new(),
-                params: vec!["a".to_string()],
-                idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
+                params: vec!["a".to_string().into()],
+                idx_params: vec![IxParam::Val("n".to_string().into(), Ty::Nat)],
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
-                region_params: vec!["region".to_string()],
+                region_params: vec!["region".to_string().into()],
                 ctx: Vec::new(),
                 ty: Ty::fun_mult(ref_ty, Mult::Many, EffRow::pure(), step_ty),
             },
@@ -2335,15 +2335,15 @@ impl Checker {
             con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
-                idx_params: vec![IxParam::Val("x".to_string(), Ty::Nat)],
+                idx_params: vec![IxParam::Val("x".to_string().into(), Ty::Nat)],
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
                 row_params: Vec::new(),
                 region_params: Vec::new(),
                 ctx: Vec::new(),
                 ty: Ty::Prp(Box::new(PTerm::Eq(
-                    Box::new(ITerm::Var("x".to_string())),
-                    Box::new(ITerm::Var("x".to_string())),
+                    Box::new(ITerm::Var("x".to_string().into())),
+                    Box::new(ITerm::Var("x".to_string().into())),
                 ))),
             },
             kind: ValueKind::ProofCtor,
@@ -2359,9 +2359,9 @@ impl Checker {
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: vec![
-                    IxParam::Val("f".to_string(), Ty::Nat),
-                    IxParam::Val("a".to_string(), Ty::Nat),
-                    IxParam::Val("b".to_string(), Ty::Nat),
+                    IxParam::Val("f".to_string().into(), Ty::Nat),
+                    IxParam::Val("a".to_string().into(), Ty::Nat),
+                    IxParam::Val("b".to_string().into(), Ty::Nat),
                 ],
                 val_params: Vec::new(),
                 prop_params: Vec::new(),
@@ -2370,17 +2370,17 @@ impl Checker {
                 ctx: Vec::new(),
                 ty: Ty::fun(
                     Ty::Prp(Box::new(PTerm::Eq(
-                        Box::new(ITerm::Var("a".to_string())),
-                        Box::new(ITerm::Var("b".to_string())),
+                        Box::new(ITerm::Var("a".to_string().into())),
+                        Box::new(ITerm::Var("b".to_string().into())),
                     ))),
                     Ty::Prp(Box::new(PTerm::Eq(
                         Box::new(ITerm::App(
-                            Box::new(ITerm::Var("f".to_string())),
-                            vec![ITerm::Var("a".to_string())],
+                            Box::new(ITerm::Var("f".to_string().into())),
+                            vec![ITerm::Var("a".to_string().into())],
                         )),
                         Box::new(ITerm::App(
-                            Box::new(ITerm::Var("f".to_string())),
-                            vec![ITerm::Var("b".to_string())],
+                            Box::new(ITerm::Var("f".to_string().into())),
+                            vec![ITerm::Var("b".to_string().into())],
                         )),
                     ))),
                 ),
@@ -3120,7 +3120,7 @@ impl Checker {
                         // the runtime keeps, never one it does not.
                         let (plain, promised) = self.split_result_refinement(&self.erase_param_refinements(&s.ty));
                         let rename: HashMap<String, Ty> = s.params.iter().cloned()
-                            .zip(expected.params.iter().cloned().map(Ty::Param)).collect();
+                            .zip(expected.params.iter().map(|p| Ty::Param(p.as_str().into()))).collect();
                         if Self::subst_ty(&plain, &rename) != expected.ty {
                             return Err(Error::at(
                                 f.span,
@@ -3487,10 +3487,10 @@ impl Checker {
                                         ))
                                     }
                                     ParamKind::Val(t) => {
-                                        local_idx.push(IxParam::Val(b.name.text.clone(), t))
+                                        local_idx.push(IxParam::Val(b.name.text.clone().into(), t))
                                     }
                                     ParamKind::Prop => {
-                                        local_idx.push(IxParam::Prop(b.name.text.clone()))
+                                        local_idx.push(IxParam::Prop(b.name.text.clone().into()))
                                     }
                                 }
                             }
@@ -3561,7 +3561,7 @@ impl Checker {
                                 for (i, (a, k)) in args.iter().zip(&param_kinds).enumerate() {
                                     let expected = match k {
                                         ParamKind::Type | ParamKind::Con(_) => {
-                                            Ty::Param(params[i].clone())
+                                            Ty::Param(params[i].clone().into())
                                         }
                                         ParamKind::Val(_) => continue,
                                         ParamKind::Prop => {
@@ -3618,16 +3618,16 @@ impl Checker {
                             match k {
                                 ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                                 ParamKind::Val(t) => {
-                                    idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                                    idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                                 }
                                 ParamKind::Prop => {
-                                    idx_params.push(IxParam::Prop(p.clone()))
+                                    idx_params.push(IxParam::Prop(p.clone().into()))
                                 }
                             }
                         }
                         idx_params.extend(local_idx.iter().cloned());
                         let mut scheme_ty =
-                            Ty::Adt(nominal_identity(&module, &data.name), res_args.clone());
+                            Ty::Adt(nominal_identity(&module, &data.name).into(), res_args.clone());
                         for (b, t, m) in fields.iter().rev() {
                             let rest = scheme_ty;
                             scheme_ty = if rest.mentions_idx(b) {
@@ -3789,7 +3789,7 @@ impl Checker {
                     // still the container, fixed at each instantiation,
                     // and the predicate's admissibility is checked there
                     // (`conv_kind`), where the carrier is known.
-                    let param_base = matches!(&self.uni.zonk(&base), Ty::Param(p) if params.contains(p));
+                    let param_base = matches!(&self.uni.zonk(&base), Ty::Param(p) if params.iter().any(|x| x.as_str() == p.as_str()));
                     if !param_base
                         && !matches!(
                             self.uni.zonk(&base),
@@ -3865,8 +3865,8 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
-                            _ => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            _ => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                         })
                         .collect();
                     let field_tys: Vec<Ty> = vec![
@@ -3886,13 +3886,13 @@ impl Checker {
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Val(t) => {
-                                idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                                idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
-                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                         }
                     }
                     let mut scheme_ty =
-                        Ty::Adt(nominal_identity(&module, &r.name), res_args.clone());
+                        Ty::Adt(nominal_identity(&module, &r.name).into(), res_args.clone());
                     for (i, (b, t)) in field_binders.iter().zip(&field_tys).enumerate().rev() {
                         let rest = scheme_ty;
                         let m = default_mult(t);
@@ -4086,8 +4086,8 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
-                            ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
                         .collect();
@@ -4102,12 +4102,12 @@ impl Checker {
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Val(t) => {
-                                idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                                idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
-                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                         }
                     }
-                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
+                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name).into(), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
                     let span = rec.name.span;
                     let mut source_ty = ast::Type::Con(ast::ConPath { segments: vec![rec.name.clone()] }, span);
@@ -4272,8 +4272,8 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
-                            ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
                         .collect();
@@ -4288,12 +4288,12 @@ impl Checker {
                         match k {
                             ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Val(t) => {
-                                idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                                idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
                             }
-                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
                         }
                     }
-                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name), res_args.clone());
+                    let res_ty = Ty::Adt(nominal_identity(&module, &rec.name).into(), res_args.clone());
                     let mut scheme_ty = res_ty.clone();
                     let span = rec.name.span;
                     let mut source_ty = ast::Type::Con(ast::ConPath { segments: vec![rec.name.clone()] }, span);
@@ -4445,7 +4445,7 @@ impl Checker {
                         let ty = self.conv_type(rest, &vars)?;
                         let mut ctx = vec![("dict".into(), ClassApp {
                             class: self.signature_key(&module, &sig.name.text),
-                            args: params.iter().cloned().map(Ty::Param).collect(),
+                            args: params.iter().map(|p| Ty::Param(p.as_str().into())).collect(),
                         })];
                         ctx.append(&mut own_ctx);
                         let notes = self.kind_constraints.borrow().clone();
@@ -4468,7 +4468,7 @@ impl Checker {
                             };
                             match self.resolve_binder_kind(&binder.name.text, hint.as_ref(), &notes, binder.name.span) {
                                 Ok(ParamKind::Con(arity)) => if let Some(contract) = &mut contract {
-                                    contract.con_params.push((binder.name.text.clone(), arity));
+                                    contract.con_params.push((binder.name.text.clone().into(), arity));
                                 },
                                 Ok(ParamKind::Type) => {},
                                 _ => { contract = None; break }
@@ -4538,7 +4538,7 @@ impl Checker {
                         let mut vars = params.clone();
                         vars.extend(extra.iter().cloned());
                         let law_context = methods.first().and_then(|(_, scheme)| scheme.ctx.first()).map(|(_, class)| class.clone())
-                            .unwrap_or_else(|| ClassApp { class: sig.name.text.clone(), args: params.iter().cloned().map(Ty::Param).collect() });
+                            .unwrap_or_else(|| ClassApp { class: sig.name.text.clone(), args: params.iter().map(|p| Ty::Param(p.as_str().into())).collect() });
                         self.index_header_context.borrow_mut().push(vec![("#class".into(), law_context.clone())]);
                         let previous_law_context = self.law_index_context.replace(Some(Vec::new()));
                         let ty = self.conv_type(rest, &vars);
@@ -4671,8 +4671,8 @@ impl Checker {
                         eff.params.iter().map(|p| p.text.clone()).collect();
                     // The effect's label: `L` or `L r`.
                     let label = EffLabel {
-                        head: head.clone(),
-                        arg: region_param.clone(),
+                        head: head.clone().into(),
+                        arg: region_param.clone().map(Into::into),
                     };
                     let mut ops: Vec<(String, Scheme)> = Vec::new();
                     for (mname, mty) in &eff.ops {
@@ -5145,7 +5145,7 @@ impl Checker {
                 let (ty, rendered) = match &class {
                     Some(app) => {
                         let r = app.to_string();
-                        (Ty::Adt(app.class.clone(), app.args.clone()), r)
+                        (Ty::Adt(app.class.clone().into(), app.args.clone()), r)
                     }
                     None => {
                         let t = self.conv_type(&p.ty, &[])?;
@@ -5472,8 +5472,8 @@ impl Checker {
                         map.insert(p.clone(), args[i].clone());
                     }
                     None => {
-                        map.insert(p.clone(), Ty::Param(self.fresh_param(p)));
-                        extra.push(p.clone());
+                        map.insert(p.clone(), Ty::Param(self.fresh_param(p).into()));
+                        extra.push(p.clone().to_string());
                     }
                 }
             }
@@ -5499,7 +5499,7 @@ impl Checker {
                             bmap.insert(p.clone(), base_args[i].clone());
                         }
                         None => {
-                            bmap.insert(p.clone(), Ty::Param(self.fresh_param(p)));
+                            bmap.insert(p.clone(), Ty::Param(self.fresh_param(p).into()));
                         }
                     }
                 }
@@ -5519,7 +5519,7 @@ impl Checker {
             let inst_ctx = InstCtx::dicts(&self.instance_list[self_idx].ctx);
             let mut ctx: Vec<(String, ClassApp)> = inst_ctx;
             for (n, c) in mscheme.ctx.iter().skip(1) {
-                ctx.push((n.clone(), Self::subst_class(c, &body_map)));
+                ctx.push((n.clone().to_string(), Self::subst_class(c, &body_map)));
             }
             let gid = GlobalId(format!("{module}.{}.{}", inst.name.text, mname));
             // A method signature in the instance states this method's
@@ -5597,7 +5597,7 @@ impl Checker {
                 .iter()
                 .filter(|p| !sig.params.contains(p))
                 .filter_map(|p| match body_map.get(p) {
-                    Some(Ty::Param(n)) => Some(n.clone()),
+                    Some(Ty::Param(n)) => Some(n.to_string()),
                     _ => None,
                 })
                 .collect();
@@ -5759,7 +5759,7 @@ impl Checker {
         let span = arg.span();
         match (&p.class, arg) {
             (Some(app), ast::ModuleArg::Name { quals, name }) => {
-                let wanted = Ty::Adt(app.class.clone(), app.args.clone());
+                let wanted = Ty::Adt(app.class.clone().into(), app.args.clone());
                 let (core, id) = self.named_instance_arg(quals, name, &wanted, span)?;
                 Ok((core, id))
             }
@@ -5888,7 +5888,7 @@ impl Checker {
             fresh.insert(p.clone(), self.uni.fresh());
         }
         let target = Self::subst_class(&target, &fresh);
-        let target_app = Ty::Adt(target.class.clone(), target.args.clone());
+        let target_app = Ty::Adt(target.class.clone().into(), target.args.clone());
         let trial = self.uni.snapshot();
         if self.uni.unify(&target_app, wanted).is_err() {
             self.uni.rollback_to(trial);
@@ -6910,14 +6910,14 @@ impl Checker {
                 .params
                 .iter()
                 .filter_map(|p| match map.types.get(p) {
-                    Some(Ty::Param(n)) => Some(n.clone()),
+                    Some(Ty::Param(n)) => Some(n.to_string()),
                     _ => None,
                 })
                 .collect(),
         };
         for parameter in &tparams {
-            if !self.code_quantifiers.params.contains(parameter) {
-                self.code_quantifiers.params.push(parameter.clone());
+            if !self.code_quantifiers.params.contains(parameter.into()) {
+                self.code_quantifiers.params.push(parameter.clone().into());
             }
         }
         self.reset_usage();
@@ -6978,7 +6978,7 @@ impl Checker {
             if is_capability_class(&c.class) {
                 // A capability binder is a term-level value too: `f @{io =
                 // io}` and `with (io = io) in ...` name it (decision D21).
-                let ty = Ty::Adt(c.class.clone(), c.args.clone());
+                let ty = Ty::Adt(c.class.clone().into(), c.args.clone());
                 let syntax_name = syntax_name.unwrap_or_else(|| ast::Name::new(n, eqs[0].span));
                 self.bind_syntax_local(&mut env, &syntax_name, l, Scheme::mono(ty), None, eqs[0].span)?;
             }
@@ -7003,7 +7003,7 @@ impl Checker {
                 &mut env,
                 n,
                 l,
-                Scheme::mono(Ty::Prp(Box::new(PTerm::Var(n.clone())))),
+                Scheme::mono(Ty::Prp(Box::new(PTerm::Var(n.clone().to_string())))),
                 None,
                 eqs[0].span,
             )?;
@@ -7011,7 +7011,7 @@ impl Checker {
                 l,
                 n,
                 Some(Mult::Zero),
-                Ty::Prp(Box::new(PTerm::Var(n.clone()))),
+                Ty::Prp(Box::new(PTerm::Var(n.clone().to_string()))),
                 eqs[0].span,
             );
         }
@@ -7062,12 +7062,12 @@ impl Checker {
                         ));
                     }
                     if self.compile_time && !self.code_quantifiers.idx_params.iter().any(|p| p.name() == pat_name) {
-                        self.code_quantifiers.idx_params.push(IxParam::Val(pat_name.clone(), (*dom).clone()));
+                        self.code_quantifiers.idx_params.push(IxParam::Val(pat_name.clone().into(), (*dom).clone()));
                     }
                     doms.push(*dom);
                     mults.push(mult);
                     effs.push(eff);
-                    rest = cod.subst_idx(&var, &ITerm::Var(pat_name));
+                    rest = cod.subst_idx(&var, &ITerm::Var(pat_name.into()));
                 }
                 other => {
                     return Err(Error::at(
@@ -8074,7 +8074,7 @@ impl Checker {
         loop {
             match cur {
                 Ty::Pi { var, cod, .. } => {
-                    vars.push(var);
+                    vars.push(var.to_string());
                     cur = self.uni.zonk(&cod);
                 }
                 Ty::Fun(_, _, _, c) => {
@@ -8104,11 +8104,11 @@ impl Checker {
             }
         };
         let expected = if arity == 0 {
-            ITerm::Fn(unit.to_string())
+            ITerm::Fn(unit.to_string().into())
         } else {
             ITerm::App(
-                Box::new(ITerm::Fn(unit.to_string())),
-                vars.iter().map(|v| ITerm::Var(v.clone())).collect(),
+                Box::new(ITerm::Fn(unit.to_string().into())),
+                vars.iter().map(|v| ITerm::Var(v.clone().into())).collect(),
             )
         };
         if *lhs != expected {
@@ -8185,7 +8185,7 @@ impl Checker {
         loop {
             match cur {
                 Ty::Pi { var, dom, cod, .. } => {
-                    binders.push((var, *dom));
+                    binders.push((var.to_string(), *dom));
                     cur = *cod;
                 }
                 Ty::Fun(_, _, _, c) => {
@@ -8442,9 +8442,9 @@ impl Checker {
             // The method applied to this sample assignment, evaluated
             // through the staging interpreter over the instance's real
             // method code.
-            let mut t = ITerm::Fn(head.clone());
+            let mut t = ITerm::Fn(head.clone().into());
             for i in 0..ob.arg_tys.len() {
-                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}"))]);
+                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}").into())]);
             }
             let value = match self.eval_law_idx(&mut cx, &t, frame, &methods) {
                 Ok(v) => v,
@@ -8691,9 +8691,9 @@ impl Checker {
         let conj = pred_conjuncts(&ob.pred);
         let mut checked = 0usize;
         for frame in &assignments {
-            let mut t = ITerm::Fn(head.clone());
+            let mut t = ITerm::Fn(head.clone().into());
             for i in 0..arg_tys.len() {
-                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}"))]);
+                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}").into())]);
             }
             let value = match self.eval_law_idx(&mut cx, &t, frame, &methods) {
                 Ok(v) => v,
@@ -8802,11 +8802,11 @@ impl Checker {
     fn transfer_witnesses(&self, pred: &PTerm, binder: &str, base: &Ty) -> Vec<Value> {
         let numeric = matches!(base, Ty::Nat | Ty::Int | Ty::Prim(_));
         let (lo, hi) = if numeric {
-            crate::types::pred_measure_bounds(pred, &ITerm::Var(binder.to_string()))
+            crate::types::pred_measure_bounds(pred, &ITerm::Var(binder.to_string().into()))
         } else {
             let len = ITerm::app_fn(
                 "<builtin>.length".to_string(),
-                vec![ITerm::Var(binder.to_string())],
+                vec![ITerm::Var(binder.to_string().into())],
             );
             crate::types::pred_measure_bounds(pred, &len)
         };
@@ -9203,8 +9203,8 @@ impl Checker {
             ITerm::Num(d) => match d.parse::<i64>() {
                 Ok(v) => Value::Word(v),
                 Err(_) => Value::Big {
-                    nat: !d.starts_with('-'),
-                    digits: d.clone(),
+                    nat: !d.starts_with("-"),
+                    digits: d.clone().to_string(),
                 },
             },
             ITerm::LocalValue(_) => return Err(Error::plain(
@@ -9213,7 +9213,7 @@ impl Checker {
             ITerm::Evidence(binding) => frame.dictionaries.get(binding).cloned().ok_or_else(|| {
                 Error::plain("a law's dictionary identity is outside its checked evidence scope")
             })?,
-            ITerm::Var(v) => frame.get(v).cloned().ok_or_else(|| {
+            ITerm::Var(v) => frame.get(v.as_str()).cloned().ok_or_else(|| {
                 Error::plain(format!("internal error: unbound law binder {v}"))
             })?,
             ITerm::Bin(op, a, b) => {
@@ -9250,7 +9250,7 @@ impl Checker {
                 }
             }
             ITerm::Fn(k) => {
-                if let Some((gid, subs)) = methods.get(k) {
+                if let Some((gid, subs)) = methods.get(k.as_str()) {
                     self.eval_fn(cx, gid, subs.clone())?
                 } else {
                     self.global_value(cx, k)?
@@ -9295,7 +9295,7 @@ impl Checker {
             Ty::Adt(name, args) if name != "refined" => {
                 let identity = match self.known_type(name) {
                     Some(kind) if kind.module != "<builtin>" => format!("{}.{}", kind.module, kind.name),
-                    _ => name.clone(),
+                    _ => name.clone().to_string(),
                 };
                 (identity, args)
             }
@@ -9544,10 +9544,10 @@ impl Checker {
                 // mapping, covering kept, added, removed and retyped
                 // fields alike.
                 let expected = Ty::fun_mult(
-                    Ty::Adt(self.lookup_type_path(&u.old)?.identity, old_res),
+                    Ty::Adt(self.lookup_type_path(&u.old)?.identity.into(), old_res),
                     Mult::One,
                     EffRow::pure(),
-                    Ty::Adt(self.lookup_type_path(&u.new)?.identity, new_res),
+                    Ty::Adt(self.lookup_type_path(&u.new)?.identity.into(), new_res),
                 );
                 let actual = self.component_ty(mig, u.span, "migrate")?;
                 if actual != expected {
@@ -9729,7 +9729,7 @@ impl Checker {
                 Some(ParamKind::Prop) => {
                     Ty::Prp(Box::new(PTerm::Var(name.clone())))
                 }
-                _ => Ty::Param(name.clone()),
+                _ => Ty::Param(name.clone().into()),
             };
             if matches!(kinds.get(name), Some(ParamKind::Val(_)) | Some(ParamKind::Prop)) {
                 self.bind_local(&mut env, name, l, Scheme::mono(ty), None, span)?;
@@ -9739,7 +9739,7 @@ impl Checker {
         let mut ctx_lids: Vec<(String, LocalId, ClassApp)> = Vec::new();
         for (n, app) in &ctx {
             let l = self.fresh_local();
-            let ty = Ty::Adt(app.class.clone(), app.args.clone());
+            let ty = Ty::Adt(app.class.clone().into(), app.args.clone());
             self.bind_local(&mut env, n, l, Scheme::mono(ty), None, span)?;
             env.dicts.push((l, app.clone()));
             lids.insert(n.clone(), l);
@@ -9816,7 +9816,7 @@ impl Checker {
         fn source_variables(checker: &Checker, term: &ITerm, binders: &HashMap<String, LocalId>,
             bound: &mut Vec<String>, out: &mut Vec<String>, span: ast::Span) -> Result<()> {
             match term {
-                ITerm::Var(name) if !bound.contains(name) => out.push(name.clone()),
+                ITerm::Var(name) if !bound.iter().any(|b| b.as_str() == name.as_str()) => out.push(name.to_string()),
                 ITerm::LocalValue(local) => {
                     let name = binders.iter().find(|(_, binder)|
                         checker.value_aliases.get(binder).copied().unwrap_or(**binder) == *local)
@@ -9825,7 +9825,7 @@ impl Checker {
                     out.push(name);
                 }
                 ITerm::Lam(name, body) => {
-                    bound.push(name.clone());
+                    bound.push(name.clone().to_string());
                     let result = source_variables(checker, body, binders, bound, out, span);
                     bound.pop(); result?;
                 }
@@ -10151,7 +10151,7 @@ impl Checker {
             let zt = self.uni.zonk(&ty);
             let (var, dom, cod) = match zt {
                 Ty::Fun(d, _, _, c) => (String::from("$"), *d, *c),
-                Ty::Pi { var, dom, cod, .. } => (var, *dom, *cod),
+                Ty::Pi { var, dom, cod, .. } => (var.to_string(), *dom, *cod),
                 other => {
                     return Err(Error::at(
                         a.span(),
@@ -13054,7 +13054,7 @@ fn ty_has_raw_ptr(t: &Ty, opaque: &HashSet<String>, out: &mut Option<String>) ->
             ty_has_raw_ptr(pointee, opaque, out)
         }
         Ty::Adt(name, args) => {
-            if opaque.contains(name) {
+            if opaque.iter().any(|t| t.as_str() == name.as_str()) {
                 if out.is_none() {
                     *out = Some(format!("the opaque type `{name}`"));
                 }
@@ -13109,7 +13109,7 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
                 for a in args {
                     if let Ty::Idx(ix) = a {
                         if let ITerm::Var(v) = &**ix {
-                            named.push(v.clone());
+                            named.push(v.clone().to_string());
                         }
                     }
                 }
@@ -13981,7 +13981,7 @@ impl Checker {
         let resolve = |rs: Vec<String>| {
             let mut out: Vec<String> = rs
                 .iter()
-                .map(|r| self.uni.resolve_region(r))
+                .map(|r| self.uni.resolve_region(r).to_string())
                 .collect::<Vec<_>>();
             out.sort();
             out.dedup();
@@ -15796,7 +15796,7 @@ fn render_scheme(s: &Scheme) -> String {
         .iter()
         .map(|name| match s.con_params.iter().find(|(n, _)| n == name) {
             Some((_, arity)) => format!("({name} :: {})", vec!["Type"; arity + 1].join(" -> ")),
-            None => name.clone(),
+            None => name.clone().to_string(),
         })
         .chain(s.idx_params.iter().map(|p| match p {
             IxParam::Val(n, t) => format!("({n} :: {t})"),
@@ -15858,7 +15858,7 @@ fn interface_arg_binders(s: &Scheme) -> (Ty, Vec<PropOblig>) {
         while !used.insert(name.clone()) {
             name.push('x');
         }
-        let value = ITerm::Var(name.clone());
+        let value = ITerm::Var(name.clone().into());
         let pos = format!("$a{i}");
         let mut cod = cod.subst_idx(&pos, &value);
         if let Some(old) = old {
@@ -15872,7 +15872,7 @@ fn interface_arg_binders(s: &Scheme) -> (Ty, Vec<PropOblig>) {
             }
         }
         Ty::Pi {
-            var: name,
+            var: name.into(),
             dom: dom.clone(),
             mult: *mult,
             eff: eff.clone(),
@@ -16602,8 +16602,8 @@ impl Checker {
                 let conflict = self
                     .uni
                     .unify(
-                        &Ty::Adt(ca.class.clone(), ca.args.clone()),
-                        &Ty::Adt(cb.class.clone(), cb.args.clone()),
+                        &Ty::Adt(ca.class.clone().into(), ca.args.clone()),
+                        &Ty::Adt(cb.class.clone().into(), cb.args.clone()),
                     )
                     .is_ok();
                 if conflict {
@@ -16817,7 +16817,7 @@ impl Checker {
                             }
                             let mut map = HashMap::new();
                             for p in ty_params {
-                                map.insert(p.clone(), Ty::Param(p.clone()));
+                                map.insert(p.clone(), Ty::Param(p.clone().into()));
                             }
                             let fields = field_tys
                                 .iter()

@@ -1402,7 +1402,7 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             let own = cx.ck.self_instance.and_then(|index| cx.ck.instance_list.get(index));
             let is_self = cx.runtime && !*explicit && own.is_some_and(|instance| {
                 instance.base_id == *g && tys.len() == instance.params.len()
-                    && tys.iter().enumerate().all(|(i, ty)| matches!(cx.ck.uni.zonk(ty), Ty::Param(ref n) if cx.tparams.get(i) == Some(n)))
+                    && tys.iter().enumerate().all(|(i, ty)| matches!(cx.ck.uni.zonk(ty), Ty::Param(ref n) if cx.tparams.get(i).is_some_and(|t| t.as_str() == n.as_str())))
                     && args.iter().enumerate().all(|(i, arg)| matches!(arg, ECore::Var(LocalId(j)) if *j == i) || matches!(arg, ECore::Unit))
             });
             let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
@@ -2502,11 +2502,11 @@ enum StructuralUsage {
 fn borrow_regions(ty: &Ty, out: &mut Vec<(String, bool)>) {
     match ty {
         Ty::Ref(r, inner) => {
-            out.push((r.clone(), false));
+            out.push((r.clone().to_string(), false));
             borrow_regions(inner, out);
         }
         Ty::Mut(r, inner) => {
-            out.push((r.clone(), true));
+            out.push((r.clone().to_string(), true));
             borrow_regions(inner, out);
         }
         Ty::Fun(a, _, _, b) => {
@@ -3648,11 +3648,11 @@ fn subst_row(
             .iter()
             .map(|l| EffLabel {
                 head: l.head.clone(),
-                arg: l.arg.as_ref().map(|a| regions.get(a).cloned().unwrap_or_else(|| a.clone())),
+                arg: l.arg.as_ref().map(|a| regions.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
             })
             .collect(),
         tail: match &r.tail {
-            RowTail::Rigid(t) => rows.get(t).cloned().unwrap_or_else(|| RowTail::Rigid(t.clone())),
+            RowTail::Rigid(t) => rows.get(t.as_str()).cloned().unwrap_or(RowTail::Rigid(*t)),
             other => other.clone(),
         },
     }
@@ -4033,8 +4033,8 @@ impl Checker {
     fn ev_footprint(&self, q: &PTerm, env: &Env) -> (Vec<String>, Vec<String>) {
         let mut vars = Vec::new();
         collect_prop_reads(q, &mut vars);
-        let mut muts = Vec::new();
-        let mut refs = Vec::new();
+        let mut muts: Vec<String> = Vec::new();
+        let mut refs: Vec<String> = Vec::new();
         let mut locals = Vec::new();
         q.local_values(&mut locals);
         let bindings = vars.iter().filter_map(|name| env.lookup(name))
@@ -4042,8 +4042,8 @@ impl Checker {
                 .map(|(_, local, scheme)| (*local, scheme.clone()))));
         for (_, scheme) in bindings {
             match self.uni.zonk(&scheme.ty) {
-                Ty::Mut(region, _) => { if !muts.contains(&region) { muts.push(region); } }
-                Ty::Ref(region, _) => { if !refs.contains(&region) { refs.push(region); } }
+                Ty::Mut(region, _) => { if !muts.iter().any(|r| r.as_str() == region.as_str()) { muts.push(region.to_string()); } }
+                Ty::Ref(region, _) => { if !refs.iter().any(|r| r.as_str() == region.as_str()) { refs.push(region.to_string()); } }
                 _ => {}
             }
         }
@@ -4120,7 +4120,7 @@ impl Checker {
         for (name, local, _) in &env.locals {
             if env.lookup(name).is_some_and(|(active, _)| active == *local) {
                 let original = self.value_aliases.get(local).copied().unwrap_or(*local);
-                out.visible_values.insert(original, ITerm::Var(name.clone()));
+                out.visible_values.insert(original, ITerm::Var(name.clone().into()));
             }
         }
         // Logical local identities remain scoped even if their source name
@@ -4174,7 +4174,7 @@ impl Checker {
                     if fv.iter().all(|v| {
                         *v == rv.binder || (!later.contains(v.as_str()) && env.lookup(v).is_some())
                     }) {
-                        let fact = rv.pred.subst(&rv.binder, &ITerm::Var(name.clone()));
+                        let fact = rv.pred.subst(&rv.binder, &ITerm::Var(name.clone().into()));
                         out.refined.push(fact.subst_local_values(&out.visible_values));
                     }
                 }
@@ -4540,7 +4540,7 @@ impl Checker {
         // The steps this call can perform, computed before any push.
         let mut targets: Vec<Option<String>> = Vec::new();
         if let Ty::Mut(r, _) = self.uni.zonk(dom) {
-            targets.push(Some(r));
+            targets.push(Some(r.to_string()));
         }
         let resolved = self.uni.resolve_row(eff);
         for l in &resolved.labels {
@@ -4552,7 +4552,7 @@ impl Checker {
                 // naming none may write anything (the effect-row reading
                 // of "can write", evidence invalidation over mutable
                 // state).
-                Some(a) => targets.push(Some(a.clone())),
+                Some(a) => targets.push(Some(a.clone().to_string())),
                 None => targets.push(None),
             }
         }
@@ -5079,7 +5079,7 @@ impl Checker {
     fn share_safe(&self, t: &Ty, dicts: &[(LocalId, ClassApp)]) -> bool {
         match t {
             Ty::Adt(name, args)
-                if self.class_sigs.contains_key(name)
+                if self.class_sigs.contains_key(name.as_str())
                     && (name.contains('.') || self.lookup_type(&[name]).is_err()) =>
             {
                 args.iter().all(|a| self.share_safe(a, dicts))
@@ -5251,7 +5251,7 @@ impl Checker {
                 if seen.iter().any(|(n, a)| n == name && a == args) {
                     return true;
                 }
-                seen.push((name.clone(), args.clone()));
+                seen.push((name.clone().to_string(), args.clone()));
                 let info = match self.lookup_known_type(name) {
                     Ok(i) => i,
                     Err(_) => return transferring,
@@ -5375,7 +5375,7 @@ impl Checker {
         let k = self.literal_const(&self.uni.zonk(&base), digits, span)?;
         let stmt = Checker::subst_pt(
             &pred,
-            &HashMap::from([(binder, Ty::Idx(Box::new(ITerm::Num(digits.to_string()))))]),
+            &HashMap::from([(binder, Ty::Idx(Box::new(ITerm::Num(digits.to_string().into()))))]),
         );
         match self.static_obligation(&stmt)? {
             ObligStatus::Checked => Ok(k),
@@ -5701,7 +5701,7 @@ impl Checker {
                 (IxParam::Prop(..), IndexArgument::Proposition(prop)) => Ty::Prp(Box::new(prop.clone())),
                 _ => return Err(Error::at(span, "index parameter kind does not match its checked telescope")),
             };
-            types.insert(parameter.name().to_string(), value);
+            types.insert(parameter.name().to_string().into(), value);
         }
         for (name, _) in &scheme.val_params {
             let IndexArgument::Value { value, runtime: true, .. } = arguments.next().expect("length checked") else {
@@ -5727,7 +5727,7 @@ impl Checker {
             let IndexArgument::Region(region) = arguments.next().expect("length checked") else {
                 return Err(Error::at(span, "region does not match its checked telescope"));
             };
-            regions.insert(name.clone(), region.clone());
+            regions.insert(name.clone(), region.to_string());
         }
         for parameter in &scheme.evidence_params {
             let IndexArgument::Evidence(value) = arguments.next().expect("length checked") else {
@@ -5801,7 +5801,7 @@ impl Checker {
         span: ast::Span,
     ) -> Result<ECore> {
         Ok(match self.uni.resolve_idx(it) {
-            ITerm::Num(d) => ECore::ConstBig { nat, digits: d },
+            ITerm::Num(d) => ECore::ConstBig { nat, digits: d .to_string()},
             ITerm::LocalValue(local) => {
                 if !names.locals.contains(&local) {
                     return Err(Error::at(span, "index value escaped its checked runtime scope"));
@@ -5822,7 +5822,7 @@ impl Checker {
                 ECore::Var(local)
             }
             ITerm::Evidence(IndexEvidence::Parameter(_)) => return Err(Error::at(span, "index dictionary parameter was not instantiated")),
-            ITerm::Var(n) => match names.values.get(&n) {
+            ITerm::Var(n) => match names.values.get(n.as_str()) {
                 Some(l) => self.read_index_local(*l),
                 None => {
                     return Err(Error::at(
@@ -5858,7 +5858,7 @@ impl Checker {
             ITerm::Fn(g) if g == BYTE_LENGTH_INDEX => ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
             ITerm::Fn(g) => {
                 self.check_executable(&g, span)?;
-                ECore::Global(GlobalId(g), Vec::new())
+                ECore::Global(GlobalId(g.to_string()), Vec::new())
             }
             ITerm::App(f, args) => {
                 let mut cores = vec![self.reify_idx(&f, names, nat, span)?];
@@ -5890,7 +5890,7 @@ impl Checker {
                 if nat && op == IdxOp::Sub {
                     let whole = ITerm::Bin(op, a.clone(), b.clone()).normalize();
                     return match whole {
-                        ITerm::Num(d) => Ok(ECore::ConstBig { nat, digits: d }),
+                        ITerm::Num(d) => Ok(ECore::ConstBig { nat, digits: d .to_string()}),
                         other => Err(Error::at(
                             span,
                             format!(
@@ -6982,11 +6982,11 @@ impl Checker {
                 if let Some(carrier) = expected {
                     self.check_numeric_index_carrier(carrier, span)?;
                 }
-                Ok(ITerm::Num(s.clone()))
+                Ok(ITerm::Num(s.clone().into()))
             }
             ast::Type::Var(n, _) => {
                 if let Some(binding) = self.index_lambda_binding(n) {
-                    let value = ITerm::Var(binding.variable);
+                    let value = ITerm::Var(binding.variable.into());
                     let (arguments, result) = self.index_arguments(binding.carrier, &args, vars, kind, span)?;
                     if let (Some(expected), Some(actual)) = (expected, result) {
                         self.check_captured_index_carrier("index lambda parameter", &actual, expected, span)?;
@@ -7030,7 +7030,7 @@ impl Checker {
                     let mut value = self.syntax_index_value(env, n)?;
                     // A type-level binder cannot capture a runtime value
                     // merely by having the same printed name.
-                    if matches!(&value, ITerm::Var(name) if vars.contains(name)) {
+                    if matches!(&value, ITerm::Var(name) if vars.iter().any(|v| v.as_str() == name.as_str())) {
                         let original = self.value_aliases.get(&local).copied().unwrap_or(local);
                         value = ITerm::LocalValue(original);
                     }
@@ -7061,7 +7061,7 @@ impl Checker {
                     if vars.contains(&n.text) {
                         self.note_kind(&n.text, ParamKind::Val(kind.clone()));
                     }
-                    return Ok(ITerm::Var(n.text.clone()));
+                    return Ok(ITerm::Var(n.text.clone().into()));
                 }
                 if header_variable {
                     if let Some(carrier) = header_carrier {
@@ -7069,7 +7069,7 @@ impl Checker {
                         if let (Some(expected), Some(actual)) = (expected, result) {
                             self.check_captured_index_carrier("index function parameter", &actual, expected, n.span)?;
                         }
-                        return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone())), arguments));
+                        return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone().into())), arguments));
                     }
                     // Unclassified header parameters still collect their kind
                     // constraints; checked carriers use the telescope above.
@@ -7077,7 +7077,7 @@ impl Checker {
                     for a in args {
                         out.push(self.conv_idx(a, vars, kind)?);
                     }
-                    return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone())), out));
+                    return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone().into())), out));
                 }
                 self.idx_app(&n.text, Some(n), &args, vars, expected, n.span)
             }
@@ -7100,12 +7100,12 @@ impl Checker {
                 let variable = self.fresh_index_lambda_variable();
                 let (domain, result) = match expected {
                     Some(Ty::Fun(domain, _, _, result)) => (Some((**domain).clone()), Some((**result).clone())),
-                    Some(Ty::Pi { var, dom, cod, .. }) => (Some((**dom).clone()), Some(cod.subst_idx(var, &ITerm::Var(variable.clone())))),
+                    Some(Ty::Pi { var, dom, cod, .. }) => (Some((**dom).clone()), Some(cod.subst_idx(var, &ITerm::Var(variable.clone().into())))),
                     _ => (None, None),
                 };
                 let b = self.with_index_lambda(IndexLambdaBinder { name: n.clone(), variable: variable.clone(), carrier: domain },
                     |checker| checker.conv_idx_expected(body, &inner, result.as_ref()))?;
-                let lam = ITerm::Lam(variable, Box::new(b));
+                let lam = ITerm::Lam(variable.into(), Box::new(b));
                 if args.is_empty() {
                     Ok(lam)
                 } else {
@@ -7316,7 +7316,7 @@ impl Checker {
                 IxParam::Val(..) => inference.uni.fresh_idx(),
                 IxParam::Prop(..) => inference.uni.fresh_prop(),
             };
-            substitutions.insert(parameter.name().to_string(), value);
+            substitutions.insert(parameter.name().to_string().into(), value);
         }
         for (name, _) in &scheme.val_params { substitutions.insert(name.clone(), inference.uni.fresh_idx()); }
         for name in &scheme.prop_params { substitutions.insert(name.clone(), inference.uni.fresh_prop()); }
@@ -7448,7 +7448,7 @@ impl Checker {
             arguments.push(IndexArgument::Proposition((**prop).clone()));
         }
         arguments.extend(scheme.row_params.iter().map(|name| IndexArgument::Row(EffRow { labels: Vec::new(), tail: rows[name].clone() })));
-        arguments.extend(scheme.region_params.iter().map(|name| IndexArgument::Region(regions[name].clone())));
+        arguments.extend(scheme.region_params.iter().map(|name| IndexArgument::Region(regions[name].clone().into())));
         arguments.extend(scheme.evidence_params.iter().map(|parameter| IndexArgument::Evidence(evidence[parameter].clone())));
         if !scheme.obligs.is_empty() {
             inference.proofs.push(PendingIndexProof {
@@ -7482,7 +7482,7 @@ impl Checker {
         }
         for proof in std::mem::take(&mut inference.proofs) {
             let substitutions = proof.substitutions.into_iter().map(|(name, ty)| (name, inference.uni.zonk(&ty))).collect();
-            let regions = proof.regions.into_iter().map(|(name, region)| (name, inference.uni.resolve_region(&region))).collect();
+            let regions = proof.regions.into_iter().map(|(name, region)| (name, inference.uni.resolve_region(&region).to_string())).collect();
             let signature = inference.uni.zonk(&proof.signature);
             if !self.uni.owns_all_metas(&signature) {
                 return Err(Error::at(proof.span, "index proof arguments have an unsolved carrier"));
@@ -7656,7 +7656,7 @@ impl Checker {
             let mut parameters = HashMap::new();
             for (parameter, actual) in res_args.iter().zip(arguments) {
                 let Ty::Param(parameter) = parameter else { return false };
-                if parameters.insert(parameter.clone(), actual.clone()).is_some() { return false; }
+                if parameters.insert(parameter.to_string(), actual.clone()).is_some() { return false; }
             }
             match runtime_arity {
                 0 if !empty => empty = true,
@@ -7702,7 +7702,7 @@ impl Checker {
             let variable = self.fresh_index_lambda_variable();
             let (domain, result) = match &expected {
                 Ty::Fun(domain, _, _, result) => ((**domain).clone(), (**result).clone()),
-                Ty::Pi { var, dom, cod, .. } => ((**dom).clone(), cod.subst_idx(var, &ITerm::Var(variable.clone()))),
+                Ty::Pi { var, dom, cod, .. } => ((**dom).clone(), cod.subst_idx(var, &ITerm::Var(variable.clone().into()))),
                 _ => return Err(Error::at(*span, "an index lambda needs a function carrier")),
             };
             let mut variables = vars.to_vec();
@@ -8470,14 +8470,14 @@ impl Checker {
             .filter(|name| !vars.contains(name) && !crate::types::is_positional_arg(name))
             .collect();
         let pred = match implicit.as_slice() {
-            [binder] => pred.subst(binder, &ITerm::Var("$it".to_string())),
+            [binder] => pred.subst(binder, &ITerm::Var("$it".to_string().into())),
             _ => pred,
         };
         let mut out = vec![Ty::Prp(Box::new(pred))];
         if let Some(t) = args.get(1) {
             out.push(self.conv_type(t, vars)?);
         }
-        Ok(Ty::Adt("refined".to_string(), out))
+        Ok(Ty::Adt("refined".to_string().into(), out))
     }
 
     /// The predicate former's grammar (the `refined` type former's `P`):
@@ -8502,7 +8502,7 @@ impl Checker {
             if let ast::Type::Con(p, span) = cur {
                 let name = p.parts().join(".");
                 if let Some(pf) = PredFn::lookup(&name) {
-                    return Ok(PTerm::Pred(pf, Box::new(ITerm::Var("$it".to_string()))));
+                    return Ok(PTerm::Pred(pf, Box::new(ITerm::Var("$it".to_string().into()))));
                 }
                 // A named refinement's predicate (`refined Sorted`):
                 // nominal names are named predicates for readability.
@@ -8515,7 +8515,7 @@ impl Checker {
                         &r.pred,
                         &HashMap::from([(
                             r.binder.clone(),
-                            Ty::Idx(Box::new(ITerm::Var("$it".to_string()))),
+                            Ty::Idx(Box::new(ITerm::Var("$it".to_string().into()))),
                         )]),
                     ));
                 }
@@ -8601,7 +8601,7 @@ impl Checker {
             if let Some((sort, view)) = self.int_view(d) {
                 vars.push((name.clone(), sort));
                 if let Some(v) = view {
-                    facts.push(v.pred.subst(&v.binder, &ITerm::Var(name.clone())));
+                    facts.push(v.pred.subst(&v.binder, &ITerm::Var(name.clone().into())));
                 }
             }
             cur = c;
@@ -8628,7 +8628,7 @@ impl Checker {
                 ));
             }
         }
-        let goal = rv.pred.subst(&rv.binder, &ITerm::Var("$it".to_string()));
+        let goal = rv.pred.subst(&rv.binder, &ITerm::Var("$it".to_string().into()));
         facts.push(promise.clone());
         if entails(&facts, &goal) {
             Ok(())
@@ -8700,7 +8700,7 @@ impl Checker {
         if let Ty::Adt(n, args) = t {
             if self.known_type(n).is_some_and(|tk| tk.refine.is_some())
             {
-                return Some(n.clone());
+                return Some(n.clone().to_string());
             }
             return args.iter().find_map(|a| self.ty_refine_mention(a));
         }
@@ -8779,7 +8779,7 @@ impl Checker {
                     ));
                 }
             };
-            labels.push(EffLabel { head, arg });
+            labels.push(EffLabel { head: head.into(), arg: arg.map(|a| a.as_str().into()) });
         }
         let tail = match &e.tail {
             None => RowTail::Closed,
@@ -8790,7 +8790,7 @@ impl Checker {
                         format!("unknown row variable {}", n.text),
                     ));
                 }
-                RowTail::Rigid(n.text.clone())
+                RowTail::Rigid(n.text.clone().into())
             }
         };
         Ok(EffRow { labels, tail })
@@ -8955,7 +8955,7 @@ impl Checker {
                     };
                     return Ok(Ty::Lazy {
                         eff: self.conv_row(e, vars)?,
-                        region,
+                        region: region.into(),
                         inner: Box::new(self.conv_type(a, vars)?),
                     });
                 }
@@ -8998,9 +8998,9 @@ impl Checker {
                     };
                     let inner = self.conv_type(a, vars)?;
                     return Ok(if is_ref {
-                        Ty::Ref(region, Box::new(inner))
+                        Ty::Ref(region.into(), Box::new(inner))
                     } else {
-                        Ty::Mut(region, Box::new(inner))
+                        Ty::Mut(region.into(), Box::new(inner))
                     });
                 }
                 (["Ref"] | ["Mut"], _) => {
@@ -9029,7 +9029,7 @@ impl Checker {
                             ));
                         }
                     };
-                    return Ok(Ty::Adt("Io".into(), vec![Ty::Region(region)]));
+                    return Ok(Ty::Adt("Io".into(), vec![Ty::Region(region.into())]));
                 }
                 (["Io"], _) => {
                     return Err(Error::at(head_span, "Io must be fully applied as `Io r`"));
@@ -9042,7 +9042,7 @@ impl Checker {
                     let s = self.region_arg(s, vars, "Scope's scope region")?;
                     return Ok(Ty::Adt(
                         "Scope".into(),
-                        vec![Ty::Region(r), Ty::Region(s)],
+                        vec![Ty::Region(r.into()), Ty::Region(s.into())],
                     ));
                 }
                 (["Scope"], _) => {
@@ -9058,7 +9058,7 @@ impl Checker {
                     let s = self.region_arg(s, vars, "Task's scope region")?;
                     return Ok(Ty::Adt(
                         "Task".into(),
-                        vec![Ty::Region(s), self.conv_type(x, vars)?, self.conv_type(v, vars)?],
+                        vec![Ty::Region(s.into()), self.conv_type(x, vars)?, self.conv_type(v, vars)?],
                     ));
                 }
                 (["Task"], _) => {
@@ -9149,7 +9149,7 @@ impl Checker {
                 &name,
                 ParamKind::Con(args.len() + expect.map(|k| k.arity()).unwrap_or(0)),
             );
-            let mut result = Ty::Param(name);
+            let mut result = Ty::Param(name.into());
             for a in args {
                 match a {
                     Arg::Ty(t) => {
@@ -9288,7 +9288,7 @@ impl Checker {
                             if let Some(k) = expect {
                                 self.note_kind(name, k.clone());
                             }
-                            return Ok(Ty::Param(name.to_string()));
+                            return Ok(Ty::Param(name.to_string().into()));
                         }
                         if let Some(s) = Scalar::parse(name) {
                             return Ok(Ty::Prim(s));
@@ -9301,7 +9301,7 @@ impl Checker {
                         })?;
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info), Vec::new()))
+                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
                     }
                     _ => {
                         let info = self.lookup_type_path(p).map_err(|_| {
@@ -9309,7 +9309,7 @@ impl Checker {
                         })?;
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info), Vec::new()))
+                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
                     }
                 }
             }
@@ -9328,7 +9328,7 @@ impl Checker {
                     if let Some(k) = expect {
                         self.note_kind(&n.text, k.clone());
                     }
-                    Ok(Ty::Param(n.text.clone()))
+                    Ok(Ty::Param(n.text.clone().into()))
                 } else {
                     Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
                 }
@@ -9730,8 +9730,8 @@ impl Checker {
                     for (_, c) in &ctx {
                         for a in &c.args {
                             if let Ty::Region(r) = a {
-                                if !region_params.contains(r) {
-                                    region_params.push(r.clone());
+                                if !region_params.iter().any(|p| p.as_str() == r.as_str()) {
+                                    region_params.push(r.clone().to_string());
                                 }
                             }
                         }
@@ -9802,7 +9802,7 @@ impl Checker {
                                 if b.is_empty() {
                                     continue;
                                 }
-                                *p = p.subst(b, &ITerm::Var(format!("$a{i}")));
+                                *p = p.subst(b, &ITerm::Var(format!("$a{i}").into()));
                             }
                         }
                     }
@@ -9832,7 +9832,7 @@ impl Checker {
     fn check_length_scheme(&self, scheme: &Scheme, span: ast::Span) -> Result<()> {
         let mut env: HashMap<String, Ty> = scheme.val_params.iter().cloned().collect();
         for p in &scheme.idx_params {
-            if let IxParam::Val(n, t) = p { env.insert(n.clone(), t.clone()); }
+            if let IxParam::Val(n, t) = p { env.insert(n.clone().to_string(), t.clone()); }
         }
         for (_, t) in &scheme.val_params { self.check_length_type(t, &env, 0, span)?; }
         self.check_length_type(&scheme.ty, &env, 0, span)?;
@@ -9843,7 +9843,7 @@ impl Checker {
             match cur {
                 Ty::Fun(d, _, _, c) => { env.insert(format!("$a{i}"), (**d).clone()); cur = c; }
                 Ty::Pi { var, dom, cod, .. } => {
-                    env.insert(var.clone(), (**dom).clone());
+                    env.insert(var.clone().to_string(), (**dom).clone());
                     env.insert(format!("$a{i}"), (**dom).clone()); cur = cod;
                 }
                 _ => break,
@@ -9866,12 +9866,12 @@ impl Checker {
                 self.check_length_type(d, env, 0, span)?;
                 let mut inner = env.clone();
                 inner.insert(format!("$a{pos}"), (**d).clone());
-                if let Ty::Pi { var, .. } = t { inner.insert(var.clone(), (**d).clone()); }
+                if let Ty::Pi { var, .. } = t { inner.insert(var.clone().to_string(), (**d).clone()); }
                 self.check_length_type(c, &inner, pos + 1, span)?;
             }
             Ty::Sigma { var, dom, cod } => {
                 self.check_length_type(dom, env, 0, span)?;
-                let mut inner = env.clone(); inner.insert(var.clone(), (**dom).clone());
+                let mut inner = env.clone(); inner.insert(var.clone().to_string(), (**dom).clone());
                 self.check_length_type(cod, &inner, 0, span)?;
             }
             Ty::Adt(name, args) => {
@@ -9961,10 +9961,10 @@ impl Checker {
 
     fn length_index_type(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, uni: &mut Unifier, span: ast::Span) -> Result<Ty> {
         match it {
-            ITerm::Var(n) => env.get(n).cloned().ok_or_else(|| Error::at(span, format!("byte-length index operand `{n}` has no checked carrier in scope"))),
+            ITerm::Var(n) => env.get(n.as_str()).cloned().ok_or_else(|| Error::at(span, format!("byte-length index operand `{n}` has no checked carrier in scope"))),
             ITerm::Num(n) => {
                 let t = expected.map(|t| uni.zonk(t)).filter(|t| matches!(t, Ty::Nat | Ty::Int | Ty::Prim(_))).unwrap_or(Ty::Nat);
-                if t == Ty::Nat && n.starts_with('-') { return Err(Error::at(span, "negative index literal cannot inhabit Nat")); }
+                if t == Ty::Nat && n.starts_with("-") { return Err(Error::at(span, "negative index literal cannot inhabit Nat")); }
                 Ok(t)
             }
             ITerm::Fn(n) if n == BYTE_LENGTH_INDEX => Ok(Ty::fun_mult(Ty::Bytes, Mult::Many, EffRow::pure(), Ty::Nat)),
@@ -10007,7 +10007,7 @@ impl Checker {
                 let Some(Ty::Fun(dom, mult, eff, cod)) = expected.map(|t| uni.zonk(t)) else {
                     return Err(Error::at(span, "byte-length index lambda needs a checked function carrier"));
                 };
-                let mut inner = env.clone(); inner.insert(n.clone(), (*dom).clone());
+                let mut inner = env.clone(); inner.insert(n.clone().to_string(), (*dom).clone());
                 let actual = self.length_index_type(body, Some(&cod), &inner, uni, span)?;
                 self.length_index_unify(&actual, &cod, uni, span)?;
                 Ok(Ty::fun_mult(*dom, mult, eff, *cod))
@@ -10063,7 +10063,7 @@ impl Checker {
                     _ => false,
                 };
                 if !elsewhere && only_in_pred {
-                    Ty::Fun(dom.clone(), *mult, eff.clone(), Box::new(cod.subst_idx(var, &ITerm::Var(format!("$a{i}")))))
+                    Ty::Fun(dom.clone(), *mult, eff.clone(), Box::new(cod.subst_idx(var, &ITerm::Var(format!("$a{i}").into()))))
                 } else {
                     Ty::Pi { var: var.clone(), dom: dom.clone(), mult: *mult, eff: eff.clone(), cod: Box::new(cod) }
                 }
@@ -10141,7 +10141,7 @@ impl Checker {
         let [Ty::Prp(p), base] = targs.as_slice() else { return t.clone() };
         // The refined binder moves to `$it` first, so an argument that
         // mentions a local of the binder's name is not captured.
-        let pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string()));
+        let pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string().into()));
         let mut kept: Option<PTerm> = None;
         'conj: for c in pred_conjuncts(&pred) {
             let mut fv = Vec::new();
@@ -10198,13 +10198,13 @@ impl Checker {
         evidence: &HashMap<IndexEvidence, ITerm>,
     ) -> Ty {
         match t {
-            Ty::Param(p) => types.get(p).cloned().unwrap_or_else(|| t.clone()),
+            Ty::Param(p) => types.get(p.as_str()).cloned().unwrap_or_else(|| t.clone()),
             Ty::Idx(it) => Ty::Idx(Box::new(Checker::subst_index_namespaces(it, types, rows, regions, evidence))),
             Ty::Prp(p) => Ty::Prp(Box::new(Checker::subst_prop_namespaces(p, types, rows, regions, evidence))),
             Ty::Pi { var, dom, mult, eff, cod } => {
                 let (var, cod) = Self::subst_bound_type(var, cod, types, rows, regions, evidence);
                 Ty::Pi {
-                    var,
+                    var: var.into(),
                     dom: Box::new(Checker::subst_namespaces(dom, types, rows, regions, evidence)),
                     mult: *mult,
                     eff: subst_row(eff, rows, regions),
@@ -10214,7 +10214,7 @@ impl Checker {
             Ty::Sigma { var, dom, cod } => {
                 let (var, cod) = Self::subst_bound_type(var, cod, types, rows, regions, evidence);
                 Ty::Sigma {
-                    var,
+                    var: var.into(),
                     dom: Box::new(Checker::subst_namespaces(dom, types, rows, regions, evidence)),
                     cod: Box::new(cod),
                 }
@@ -10245,25 +10245,25 @@ impl Checker {
             }
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: subst_row(eff, rows, regions),
-                region: regions.get(region).cloned().unwrap_or_else(|| region.clone()),
+                region: regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
             Ty::Ref(region, inner) => Ty::Ref(
-                regions.get(region).cloned().unwrap_or_else(|| region.clone()),
+                regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
             Ty::Mut(region, inner) => Ty::Mut(
-                regions.get(region).cloned().unwrap_or_else(|| region.clone()),
+                regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
-            Ty::Region(r) => Ty::Region(regions.get(r).cloned().unwrap_or_else(|| r.clone())),
+            Ty::Region(r) => Ty::Region(regions.get(r.as_str()).cloned().unwrap_or_else(|| r.to_string()).into()),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {
                     head: label.head.clone(),
                     arg: label
                         .arg
                         .as_ref()
-                        .map(|a| regions.get(a).cloned().unwrap_or_else(|| a.clone())),
+                        .map(|a| regions.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
                 },
                 input: Box::new(Checker::subst_namespaces(input, types, rows, regions, evidence)),
                 output: Box::new(Checker::subst_namespaces(output, types, rows, regions, evidence)),
@@ -10300,7 +10300,7 @@ impl Checker {
             while cod.mentions_idx(&binder) || inner.values().any(|ty| ty.mentions_idx(&binder)) || evidence.values().any(|value| value.mentions(&binder)) || inner.contains_key(&binder) {
                 binder.push('$');
             }
-            cod = cod.subst_idx(name, &ITerm::Var(binder.clone()));
+            cod = cod.subst_idx(name, &ITerm::Var(binder.clone().into()));
         }
         (binder, Self::subst_namespaces(&cod, &inner, rows, regions, evidence))
     }
@@ -10318,20 +10318,20 @@ impl Checker {
             ))),
             ITerm::Lam(name, body) => {
                 let mut inner = map.clone();
-                inner.remove(name);
-                let mut binder = name.clone();
+                inner.remove(name.as_str());
+                let mut binder = name.to_string();
                 let mut body = (**body).clone();
                 if inner.values().any(|ty| ty.mentions_idx(name)) || evidence.values().any(|value| value.mentions(name)) {
                     binder.push_str("$sub");
-                    while body.mentions(&binder) || inner.values().any(|ty| ty.mentions_idx(&binder)) || evidence.values().any(|value| value.mentions(&binder)) || inner.contains_key(&binder) {
+                    while body.mentions(&binder) || inner.values().any(|ty| ty.mentions_idx(&binder)) || evidence.values().any(|value| value.mentions(&binder)) || inner.contains_key(binder.as_str()) {
                         binder.push('$');
                     }
-                    body = body.subst(name, &ITerm::Var(binder.clone()));
+                    body = body.subst(name, &ITerm::Var(binder.as_str().into()));
                 }
-                ITerm::Lam(binder, Box::new(Self::subst_index_namespaces(&body, &inner, rows, regions, evidence)))
+                ITerm::Lam(binder.as_str().into(), Box::new(Self::subst_index_namespaces(&body, &inner, rows, regions, evidence)))
             }
             ITerm::Evidence(binding) => evidence.get(binding).cloned().unwrap_or_else(|| t.clone()),
-            ITerm::Var(n) => match map.get(n) {
+            ITerm::Var(n) => match map.get(n.as_str()) {
                 Some(Ty::Idx(it)) => (**it).clone(),
                 _ => t.clone(),
             },
@@ -10508,7 +10508,7 @@ impl Checker {
             call_rows.insert(original.clone(), rows);
             call_regions.insert(original.clone(), call.arguments.regions.iter().map(|(name, region)| {
                 let region = self.uni.resolve_region(region);
-                (name.clone(), scope.regions.get(&region).cloned().unwrap_or(region))
+                (name.clone(), scope.regions.get(region.as_str()).cloned().unwrap_or(region.to_string()))
             }).collect::<HashMap<_, _>>());
         }
         let (copy_type, out, copies, wants, indices, prop_calls, stage_calls, local_types) = {
@@ -10649,7 +10649,7 @@ impl Checker {
             .ctx
             .iter()
             .map(|(n, c)| InstantiatedConstraint {
-                name: n.clone(), class: Self::subst_class_namespaces(c, &types, &rows, &regions, &evidence),
+                name: n.clone().to_string(), class: Self::subst_class_namespaces(c, &types, &rows, &regions, &evidence),
                 witness: evidence[&dictionary_parameter(n)].clone(),
             })
             .collect();
@@ -10683,29 +10683,29 @@ impl Checker {
     fn rigidify_with_value_locals(&mut self, s: &Scheme, values: &[(String, LocalId)]) -> (Ty, Vec<(String, ClassApp, LocalId)>, StageTypeBindings) {
         let mut types = HashMap::new();
         for p in &s.params {
-            types.insert(p.clone(), Ty::Param(self.fresh_param(p)));
+            types.insert(p.clone(), Ty::Param(self.fresh_param(p).into()));
         }
         for p in &s.idx_params {
             match p {
                 IxParam::Val(n, _) => {
-                    types.insert(n.clone(), Ty::Idx(Box::new(ITerm::Var(n.clone()))));
+                    types.insert(n.clone(), Ty::Idx(Box::new(ITerm::Var(n.clone().into()))));
                 }
                 IxParam::Prop(n) => {
-                    types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone()))));
+                    types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone().to_string()))));
                 }
             }
         }
         for (n, _) in &s.val_params {
             let value = values.iter().find(|(name, _)| name == n)
-                .map(|(_, local)| ITerm::LocalValue(*local)).unwrap_or_else(|| ITerm::Var(n.clone()));
+                .map(|(_, local)| ITerm::LocalValue(*local)).unwrap_or_else(|| ITerm::Var(n.clone().into()));
             types.insert(n.clone(), Ty::Idx(Box::new(value)));
         }
         for n in &s.prop_params {
-            types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone()))));
+            types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone().to_string()))));
         }
         let mut rows = HashMap::new();
         for p in &s.row_params {
-            rows.insert(p.clone(), RowTail::Rigid(self.fresh_param(p)));
+            rows.insert(p.clone(), RowTail::Rigid(self.fresh_param(p).into()));
         }
         let mut regions = HashMap::new();
         for p in &s.region_params {
@@ -10720,13 +10720,13 @@ impl Checker {
             dictionary_locals.push(local);
         }
         let ctx: Vec<_> = s.ctx.iter().zip(dictionary_locals).map(|((name, class), local)|
-            (name.clone(), Self::subst_class_namespaces(class, &types, &rows, &regions, &evidence), local)).collect();
+            (name.clone(), Self::subst_class_namespaces(class, &types, &rows, &regions, &evidence), local)).collect::<Vec<(String, ClassApp, LocalId)>>();
         let mut scope = Scheme::mono(Ty::Unit);
-        scope.params = s.params.iter().filter_map(|p| match types.get(p) {
-            Some(Ty::Param(name)) => Some(name.clone()), _ => None,
+        scope.params = s.params.iter().filter_map(|p| match types.get(p.as_str()) {
+            Some(Ty::Param(name)) => Some(name.to_string()), _ => None,
         }).collect();
-        scope.con_params = s.con_params.iter().filter_map(|(p, arity)| match types.get(p) {
-            Some(Ty::Param(name)) => Some((name.clone(), *arity)), _ => None,
+        scope.con_params = s.con_params.iter().filter_map(|(p, arity)| match types.get(p.as_str()) {
+            Some(Ty::Param(name)) => Some((name.to_string(), *arity)), _ => None,
         }).collect();
         scope.idx_params = s.idx_params.iter().map(|p| match p {
             IxParam::Val(n, dom) => IxParam::Val(n.clone(), Self::subst_namespaces(dom, &types, &rows, &regions, &evidence)),
@@ -10736,7 +10736,7 @@ impl Checker {
             IxParam::Val(n.clone(), Self::subst_namespaces(dom, &types, &rows, &regions, &evidence))));
         scope.idx_params.extend(s.prop_params.iter().cloned().map(IxParam::Prop));
         scope.row_params = s.row_params.iter().filter_map(|p| match &rows[p] {
-            RowTail::Rigid(name) => Some(name.clone()), _ => None,
+            RowTail::Rigid(name) => Some(name.to_string()), _ => None,
         }).collect();
         scope.region_params = s.region_params.iter().map(|p| regions[p].clone()).collect();
         scope.ctx = ctx.iter().map(|(name, class, _)| (name.clone(), class.clone())).collect();
@@ -11231,7 +11231,7 @@ impl Checker {
         let mut out = p.clone();
         for v in &fv {
             if let Some(i) = v.strip_prefix("$a").and_then(|i| i.parse::<usize>().ok()) {
-                out = out.subst(v, &ITerm::Var(format!("arg{}", i + 1)));
+                out = out.subst(v, &ITerm::Var(format!("arg{}", i + 1).into()));
             }
         }
         out
@@ -11946,7 +11946,7 @@ mod index_lambda_identity_tests {
             assert!(checker.index_lambda_binding(&ast::Name::new("item", span)).is_none());
             assert!(checker.index_lambda_binding(&ast::Name::new(variable.clone(), span)).is_none());
             let term = ast::Type::Var(renamed.clone(), span);
-            assert_eq!(checker.conv_idx_expected(&term, &[], Some(&Ty::Nat))?, ITerm::Var(variable.clone()));
+            assert_eq!(checker.conv_idx_expected(&term, &[], Some(&Ty::Nat))?, ITerm::Var(variable.as_str().into()));
             let forged = ast::Type::Var(ast::Name::new(variable.clone(), span), span);
             assert!(checker.conv_idx_expected(&forged, &[], Some(&Ty::Nat)).is_err());
             Ok(())

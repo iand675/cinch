@@ -96,6 +96,7 @@ problem first, then the constant factor.
 | Export entries indexed when an interface is read | `bootstrap/Bootstrap.Load.cinch` | `loaded-entry` is a probe, not a walk of the contract document |
 | Environment projections cached at the module marker | `bootstrap/Bootstrap.Infer.cinch` | `env-instances`, `env-guarded-bindings` and `env-givens` stop at the marker instead of folding the whole module environment on every use |
 | One application-spine walk per expected-type check | `bootstrap/Bootstrap.Infer.cinch` | the ownership, projection, task and thunk head checks share one argument list |
+| Interned names in the seed's frontend | `compiler/src/intern.rs` | `Ty`/`ITerm`/`EffLabel`/`RowTail` names and the unifier's region substitution are pointer handles; -11.1% on the seed's check of the bundle (section 2.3) |
 
 ### 2.1 Frontend names and environment projections (2026-11-10)
 
@@ -259,6 +260,75 @@ materializes every interface's `DExternal` declarations once per compile, and
 elaboration proper is the rest. Beyond the fixed cost the traffic is the
 checker's own constructor cells: the toolkit's 428M blocks for 3,965 lines are
 108,000 blocks per line, which is where the steepest lever now is.
+
+### 2.3 Interned names (2026-11-10)
+
+The seed's profile, not its phase names, said where to start. Forty
+8-second samples of `cinch check` and `cinch emit-ir` on the 40,052-line
+compiler bundle put the fixed cost in three places: the allocator (16% of
+self samples in `malloc`/`free`), `Core::clone` plus its drop glue (11.6%
+inclusive in `check`, 15% in `emit-ir`), and name traffic (2.7% hashing
+strings, 1.5% cloning them, 1% byte-comparing them). `Ty::clone` and its
+drop glue are 3.4%, not the top of the list: the checker builds far more
+`Core` than `Ty`, because match compilation, let-lowering and the
+reference-count pass all run through it.
+
+`compiler/src/intern.rs` adds `Interned`: a two-word handle naming one
+canonical allocation per spelling. Equality and hashing are pointer
+operations, cloning copies two words, and ordering is the *spelling's*, so
+a `BTreeSet` or `BTreeMap` keyed by a name keeps the order its emitted
+bytes were written in. Interned: the name fields of `Ty`
+(`Adt`, `Param`, `Region`, `Ref`, `Mut`, `Lazy`, `Pi`, `Sigma`), of
+`ITerm` (`Var`, `Num`, `Fn`, `Lam`), `IndexArgument`, `EffLabel` (head and
+region argument), `RowTail::Rigid`, and the unifier's region substitution.
+`Unifier::resolve_region` returns a handle, so following a region chain
+allocates nothing.
+
+Measured on the seed, five interleaved pairs in both orders per workload
+(A then B, then B then A), child CPU from `/usr/bin/time`:
+
+| Step | check bundle | toolkit | emit-ir |
+| --- | --- | --- | --- |
+| `Ty`/`ITerm`/`IndexArgument` names | 6.84 s to 6.68 s (-2.3%) | 0.70 s to 0.65 s (-7%) | 16.47 s to 16.41 s (-0.4%) |
+| plus `EffLabel`, `RowTail`, region maps | 6.84 s to 6.08 s (-11.1%) | 0.65 s to 0.59 s (-9.2%) | 15.90 s to 15.09 s (-5.1%) |
+
+The second step is the one that paid, and the reason is worth recording:
+interning the *binder* names of `Ty` barely moved the needle, while
+interning effect labels and row tails did, because effect-row equality runs
+on every unification (`e1 == e2` over a `Vec<EffLabel>`) and region
+substitution is one `HashMap` probe per region occurrence during zonking.
+Names that are only printed are cheap already; names that are compared in a
+loop are the ones to intern.
+
+Emitted output is unchanged: the seed writes byte-identical IR
+(`compiler.ll` md5 `dc30feb2367cdd52f86281b64481b4a9`) and all 105
+`.cinchif` files match before and after.
+
+Gates: `cargo test --lib` passes 241 of 241; integration, refinements, hk,
+class_defaults, effects, ownership, codata, modules,
+interface_class_contracts, bootstrap_check, bootstrap_typing and
+core_output pass 188 of 188. `bootstrap_infer` fails its one test with the
+built runner exiting 102 instead of 0, and it fails identically at the
+commit before this change, so it is pre-existing rather than a regression
+(design/next-steps.md already records it as a retained failure).
+
+Two limits, measured rather than guessed, bound what interning can still
+reach in the seed:
+
+- `Core` is the hottest cloned structure and interning *it* is not a
+  representation change that can be made in place: the optimizer passes
+  mutate nodes through `core::child_slots(&mut Core)`, so an arena of
+  integer ids would have to be threaded through `simplify`, `rc`,
+  `specialize` and `codegen` together. The names inside `Core`'s payloads
+  (about 1% of the check run) are what interning can take today.
+- `codegen::build_unit` rebuilds `BTreeSet<String>` of every unit name once
+  per emitted unit (`reg.arity.keys().cloned().collect()`, `codegen.rs`).
+  That single line is 28% of the `emit-ir` run's samples: 3,439 of 12,282,
+  almost all of it in `quicksort<String>` and `memcmp`. It is an accidental
+  quadratic, not an interning problem, and it is the largest single win
+  visible in the seed's profile. `scan_body` only needs membership, so the
+  set should be built once per module, or replaced by a borrowed
+  `HashSet<&str>` of the registry's keys.
 
 ## 3. The query graph (rustc, Salsa, Shake)
 
@@ -961,8 +1031,11 @@ Metrics, reported per edit and per clean build:
    of 245.8 s in the single-threaded frontend, so per-declaration query
    reuse with fingerprints and early cutoff (section 3) and a parallel
    phase schedule (section 9) matter more than any backend work.
-7. **Interning `Ty` and names** in the Cinch compiler, and in the seed
-   where the profile still shows clone-heavy code.
+7. **Interning `Ty` and names.** Names are done in the seed (section 2.3,
+   -11.1% on its check). What is left on this item: `Ty` *nodes* (an arena
+   plus integer ids, which needs the mutation paths in `core.rs` to take
+   ids), and the same interning in the Cinch compiler, where identity
+   decoding and export scans still compare spellings.
 8. **Finish the GHC-style simplifier** on our Core: case-of-case with join
    points, call-arity and eta, loopification, CPR plus worker/wrapper for
    single-field constructors, spec-constr and liberate-case. The pass

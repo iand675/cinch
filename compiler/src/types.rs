@@ -13,6 +13,7 @@
 //!   with fresh metavariables, generalization quantifies the metavariables
 //!   that are not free in the environment.
 
+use crate::intern::Interned;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -296,16 +297,16 @@ impl fmt::Display for Mult {
 /// One effect label, e.g. `IO` or `Eval r` (a label with one region argument).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EffLabel {
-    pub head: String,
-    pub arg: Option<String>,
+    pub head: Interned,
+    pub arg: Option<Interned>,
 }
 
 impl EffLabel {
-    pub fn plain(head: impl Into<String>) -> EffLabel {
+    pub fn plain(head: impl Into<Interned>) -> EffLabel {
         EffLabel { head: head.into(), arg: None }
     }
 
-    pub fn with_arg(head: impl Into<String>, arg: impl Into<String>) -> EffLabel {
+    pub fn with_arg(head: impl Into<Interned>, arg: impl Into<Interned>) -> EffLabel {
         EffLabel { head: head.into(), arg: Some(arg.into()) }
     }
 }
@@ -327,7 +328,7 @@ pub enum RowTail {
     #[default]
     Closed,
     /// A rigid row variable named by a `forall` (`{|e}` in a signature).
-    Rigid(String),
+    Rigid(Interned),
     /// An inference variable.
     Meta(RowMetaId),
 }
@@ -364,12 +365,12 @@ impl EffRow {
                 .iter()
                 .map(|l| EffLabel {
                     head: l.head.clone(),
-                    arg: l.arg.as_ref().map(|a| map.get(a).cloned().unwrap_or_else(|| a.clone())),
+                    arg: l.arg.as_ref().map(|a| map.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
                 })
                 .collect(),
             tail: match &self.tail {
                 RowTail::Rigid(t) => {
-                    RowTail::Rigid(map.get(t).cloned().unwrap_or_else(|| t.clone()))
+                    RowTail::Rigid(map.get(t.as_str()).cloned().unwrap_or_else(|| t.to_string()).into())
                 }
                 other => other.clone(),
             },
@@ -484,17 +485,17 @@ pub(crate) const BYTE_LENGTH_INDEX: &str = "<intrinsic>.bytes-length";
 /// solving (design section 2: elaboration is insert-and-solve).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ITerm {
-    Var(String),
+    Var(Interned),
     /// A checked runtime value, independent of spelling and of the dictionary
     /// namespace. Only elaboration can introduce this local identity.
     LocalValue(crate::core::LocalId),
     /// Checked dictionary identity. Descriptive value names cannot construct
     /// this namespace or impersonate a dictionary binder.
     Evidence(IndexEvidence),
-    Num(String),
+    Num(Interned),
     /// A named total definition used as a function value (the head of an
     /// index-level application).
-    Fn(String),
+    Fn(Interned),
     /// A checked global instantiation. Type arguments and runtime evidence
     /// belong to the index's identity, even when the visible arguments agree.
     /// The visible source application remains an outer `App`, so dictionary
@@ -502,7 +503,7 @@ pub enum ITerm {
     Inst(Box<IndexInstantiation>),
     /// `\x -> body`, an index-level lambda (a lifting function like
     /// `congr`'s, or a type-position lambda).
-    Lam(String, Box<ITerm>),
+    Lam(Interned, Box<ITerm>),
     App(Box<ITerm>, Vec<ITerm>),
     Bin(IdxOp, Box<ITerm>, Box<ITerm>),
     MVar(usize),
@@ -571,7 +572,7 @@ pub enum IndexArgument {
     Value { value: ITerm, carrier: Ty, runtime: bool },
     Proposition(PTerm),
     Row(EffRow),
-    Region(String),
+    Region(Interned),
     Evidence(ITerm),
 }
 
@@ -699,7 +700,7 @@ impl ITerm {
     }
 
     pub fn num(n: i128) -> ITerm {
-        ITerm::Num(n.to_string())
+        ITerm::Num(n.to_string().into())
     }
 
     /// A named application: `f a b`.
@@ -709,9 +710,9 @@ impl ITerm {
         // method like `mempty` must unify with a term's plain
         // reference).
         if args.is_empty() {
-            ITerm::Fn(head.into())
+            ITerm::Fn(head.into().into())
         } else {
-            ITerm::App(Box::new(ITerm::Fn(head.into())), args)
+            ITerm::App(Box::new(ITerm::Fn(head.into().into())), args)
         }
     }
 
@@ -719,8 +720,8 @@ impl ITerm {
     pub fn free_vars(&self, out: &mut Vec<String>) {
         match self {
             ITerm::Var(n) => {
-                if !out.contains(n) {
-                    out.push(n.clone());
+                if !out.iter().any(|present| present.as_str() == n.as_str()) {
+                    out.push(n.to_string());
                 }
             }
             ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
@@ -826,8 +827,8 @@ impl ITerm {
                     while body.mentions(&fresh) || substitution.captures_value(&fresh) || substitution.shadows_value(&fresh) {
                         fresh.push('$');
                     }
-                    body = body.subst(name, &ITerm::Var(fresh.clone()));
-                    ITerm::Lam(fresh, Box::new(body.substitute(substitution)))
+                    body = body.subst(name, &ITerm::Var(fresh.clone().into()));
+                    ITerm::Lam(fresh.into(), Box::new(body.substitute(substitution)))
                 } else {
                     ITerm::Lam(name.clone(), Box::new(body.substitute(substitution)))
                 }
@@ -919,7 +920,7 @@ impl ITerm {
             (ITerm::Lam(x, b), ITerm::Lam(y, c)) => {
                 let mut name = "$alpha".to_string();
                 while b.mentions(&name) || c.mentions(&name) || name == x || name == y { name.push('$'); }
-                let fresh = ITerm::Var(name);
+                let fresh = ITerm::Var(name.into());
                 b.subst(&x, &fresh).eq(&c.subst(&y, &fresh))
             }
             (ITerm::App(f, xs), ITerm::App(g, ys)) => {
@@ -1093,7 +1094,7 @@ pub fn pred_canon(p: &PTerm) -> PTerm {
     p.free_vars(&mut order);
     let mut out = p.clone();
     for (i, v) in order.iter().enumerate() {
-        out = out.subst(v, &ITerm::Var(format!("$b{i}")));
+        out = out.subst(v, &ITerm::Var(format!("$b{i}").into()));
     }
     out
 }
@@ -2748,15 +2749,15 @@ pub enum Ty {
     /// A machine scalar primitive (`I32`, `U8`, `F64`, `Char`, ...).
     Prim(Scalar),
     /// Rigid type parameter bound by a `forall`.
-    Param(String),
+    Param(Interned),
     /// Runtime identity (a region-like name) in argument position, as in
     /// `Io r`: identities unify by the region rules (flexible names take a
     /// rigid identity; distinct rigid identities never merge).
-    Region(String),
+    Region(Interned),
     /// Unification variable.
     Meta(MetaId),
     /// `T a b ...`.
-    Adt(String, Vec<Ty>),
+    Adt(Interned, Vec<Ty>),
     /// `(T1, ..., Tn)`, n >= 2: a structural product.
     Tuple(Vec<Ty>),
     /// `a %m ->{|e} b`: the multiplicity is the parameter's usage class.
@@ -2770,11 +2771,11 @@ pub enum Ty {
     /// never interchangeable with `Thunk`.
     Later(Box<Ty>),
     /// `Lazy {e} r a`: a memo cell in region `r`.
-    Lazy { eff: EffRow, region: String, inner: Box<Ty> },
+    Lazy { eff: EffRow, region: Interned, inner: Box<Ty> },
     /// `Ref r a`: a shared borrow of `a` in region `r`.
-    Ref(String, Box<Ty>),
+    Ref(Interned, Box<Ty>),
     /// `Mut r a`: an exclusive borrow of `a` in region `r`.
-    Mut(String, Box<Ty>),
+    Mut(Interned, Box<Ty>),
     /// A handler value for one effect label: operation clauses plus a
     /// return clause. `input` is the handled computation's result, `output`
     /// the result of handling, `eff` the effects the clause bodies perform
@@ -2799,7 +2800,7 @@ pub enum Ty {
     Prp(Box<PTerm>),
     /// Dependent function `(x :: A) -> B`, where `B` may mention `x`.
     Pi {
-        var: String,
+        var: Interned,
         dom: Box<Ty>,
         mult: Mult,
         eff: EffRow,
@@ -2807,7 +2808,7 @@ pub enum Ty {
     },
     /// Dependent pair `Sigma (x :: A). B`, where `B` may mention `x`.
     Sigma {
-        var: String,
+        var: Interned,
         dom: Box<Ty>,
         cod: Box<Ty>,
     },
@@ -3011,7 +3012,7 @@ impl Ty {
     /// A dependent function type whose binder is `var`.
     pub fn pi(var: impl Into<String>, dom: Ty, mult: Mult, eff: EffRow, cod: Ty) -> Ty {
         Ty::Pi {
-            var: var.into(),
+            var: var.into().into(),
             dom: Box::new(dom),
             mult,
             eff,
@@ -3022,7 +3023,7 @@ impl Ty {
     /// A dependent pair type.
     pub fn sigma(var: impl Into<String>, dom: Ty, cod: Ty) -> Ty {
         Ty::Sigma {
-            var: var.into(),
+            var: var.into().into(),
             dom: Box::new(dom),
             cod: Box::new(cod),
         }
@@ -3033,7 +3034,7 @@ impl Ty {
     pub fn as_pi(&self) -> (String, &Ty, Mult, &EffRow, &Ty) {
         match self {
             Ty::Fun(a, m, e, b) => ("$".to_string(), a, *m, e, b),
-            Ty::Pi { var, dom, mult, eff, cod } => (var.clone(), dom, *mult, eff, cod),
+            Ty::Pi { var, dom, mult, eff, cod } => (var.clone().to_string(), dom, *mult, eff, cod),
             _ => unreachable!("as_pi on a non-function type"),
         }
     }
@@ -3054,7 +3055,7 @@ impl Ty {
         while dom.mentions_idx(&fresh) || cod.mentions_idx(&fresh) || substitution.captures_value(&fresh) || substitution.shadows_value(&fresh) {
             fresh.push('$');
         }
-        let renamed = cod.subst_idx(var, &ITerm::Var(fresh.clone()));
+        let renamed = cod.subst_idx(var, &ITerm::Var(fresh.clone().into()));
         (fresh, renamed.substitute_index(substitution))
     }
 
@@ -3117,7 +3118,7 @@ impl Ty {
             ),
             Ty::Pi { var, dom, mult, eff, cod } => {
                 let (var, cod) = Self::substituted_codomain(var, dom, cod, substitution);
-                Ty::Pi { var, dom: Box::new(dom.substitute_index(substitution)), mult: *mult, eff: eff.clone(), cod: Box::new(cod) }
+                Ty::Pi { var: var.into(), dom: Box::new(dom.substitute_index(substitution)), mult: *mult, eff: eff.clone(), cod: Box::new(cod) }
             }
             Ty::Ptr { role, pointee } => Ty::Ptr {
                 role: role.clone(),
@@ -3125,7 +3126,7 @@ impl Ty {
             },
             Ty::Sigma { var, dom, cod } => {
                 let (var, cod) = Self::substituted_codomain(var, dom, cod, substitution);
-                Ty::Sigma { var, dom: Box::new(dom.substitute_index(substitution)), cod: Box::new(cod) }
+                Ty::Sigma { var: var.into(), dom: Box::new(dom.substitute_index(substitution)), cod: Box::new(cod) }
             }
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: eff.clone(),
@@ -3377,7 +3378,7 @@ impl fmt::Display for Ty {
                     p.free_vars(&mut free);
                     let mut binder = "r".to_string();
                     while free.contains(&binder) { binder.push_str("-r"); }
-                    let p = p.subst("$it", &ITerm::Var(binder));
+                    let p = p.subst("$it", &ITerm::Var(binder.into()));
                     return if needs_parens_as_argument(base) {
                         write!(f, "refined ({p}) ({base})")
                     } else {
@@ -3491,11 +3492,11 @@ fn name_positional(t: &Ty, i: usize) -> Ty {
             let cod = name_positional(b, i + 1);
             if cod.mentions_idx(&pos) {
                 Ty::Pi {
-                    var: name.clone(),
+                    var: name.clone().into(),
                     dom: a.clone(),
                     mult: *m,
                     eff: e.clone(),
-                    cod: Box::new(cod.subst_idx(&pos, &ITerm::Var(name))),
+                    cod: Box::new(cod.subst_idx(&pos, &ITerm::Var(name.into()))),
                 }
             } else {
                 Ty::Fun(a.clone(), *m, e.clone(), Box::new(cod))
@@ -3623,7 +3624,7 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
     match t {
         Ty::Idx(term) => Ty::Idx(Box::new(term.map_types(&mut |ty| regionize(ty, regions)))),
         Ty::Prp(prop) => Ty::Prp(Box::new(prop.map_types(&mut |ty| regionize(ty, regions)))),
-        Ty::Param(p) if regions.contains(p) => Ty::Region(p.clone()),
+        Ty::Param(p) if regions.iter().any(|region| region.as_str() == p.as_str()) => Ty::Region(*p),
         Ty::Adt(n, args) => {
             Ty::Adt(n.clone(), args.iter().map(|a| regionize(a, regions)).collect())
         }
@@ -3686,14 +3687,14 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
     let note_row = |r: &EffRow, rows: &mut Vec<String>, regions: &mut Vec<String>| {
         for l in &r.labels {
             if let Some(a) = &l.arg {
-                if !regions.contains(a) {
-                    regions.push(a.clone());
+                if !regions.iter().any(|r| r.as_str() == a.as_str()) {
+                    regions.push(a.clone().to_string());
                 }
             }
         }
         if let RowTail::Rigid(t) = &r.tail {
-            if !rows.contains(t) {
-                rows.push(t.clone());
+            if !rows.iter().any(|r| r.as_str() == t.as_str()) {
+                rows.push(t.clone().to_string());
             }
         }
     };
@@ -3714,14 +3715,14 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
         }
         Ty::Lazy { eff, region, inner } => {
             note_row(eff, rows, regions);
-            if !regions.contains(region) {
-                regions.push(region.clone());
+            if !regions.iter().any(|present| present.as_str() == region.as_str()) {
+                regions.push(region.to_string());
             }
             collect_row_names(inner, rows, regions);
         }
         Ty::Ref(region, inner) | Ty::Mut(region, inner) => {
-            if !regions.contains(region) {
-                regions.push(region.clone());
+            if !regions.iter().any(|present| present.as_str() == region.as_str()) {
+                regions.push(region.to_string());
             }
             collect_row_names(inner, rows, regions);
         }
@@ -3734,14 +3735,14 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             }
         }
         Ty::Region(r) => {
-            if !regions.contains(r) {
-                regions.push(r.clone());
+            if !regions.iter().any(|present| present.as_str() == r.as_str()) {
+                regions.push(r.to_string());
             }
         }
         Ty::Handler { label, input, output, eff, .. } => {
             if let Some(a) = &label.arg {
-                if !regions.contains(a) {
-                    regions.push(a.clone());
+                if !regions.iter().any(|r| r.as_str() == a.as_str()) {
+                    regions.push(a.to_string());
                 }
             }
             note_row(eff, rows, regions);
@@ -3788,9 +3789,9 @@ pub struct Unifier {
     lacks: Vec<(RowMetaId, EffLabel)>,
     /// Region-name substitution: a flexible name (created when a scheme
     /// is instantiated) may be identified with one rigid region.
-    region_subst: HashMap<String, String>,
+    region_subst: HashMap<Interned, Interned>,
     /// Region names that may still be identified with another region.
-    flex_regions: Vec<String>,
+    flex_regions: Vec<Interned>,
     /// Inference variables for index values (implicit index arguments).
     idx_subst: ChunkVec<Option<ITerm>>,
     /// Inference variables for propositions (implicit evidence types).
@@ -3885,7 +3886,7 @@ enum Undo {
     BindProp(usize, Option<PTerm>),
     PushLacks,
     ReplaceLacks(Vec<(RowMetaId, EffLabel)>),
-    BindRegion(String, Option<String>),
+    BindRegion(Interned, Option<Interned>),
     NewFlexRegion,
 }
 
@@ -4043,39 +4044,41 @@ impl Unifier {
     /// Record a region name as flexible: the fresh name an instantiation
     /// gives a `forall`-bound region. Flexible names take the identity of
     /// the rigid region they are used at; rigid names never merge.
-    pub fn note_flex_region(&mut self, name: &str) {
-        if !self.flex_regions.iter().any(|x| x == name) {
-            self.flex_regions.push(name.to_string());
+    pub fn note_flex_region(&mut self, name: impl Into<Interned>) {
+        let name = name.into();
+        if !self.flex_regions.contains(&name) {
+            self.flex_regions.push(name);
             self.log(|| Undo::NewFlexRegion);
         }
     }
 
     /// Is this (resolved) region name still flexible: not yet pinned to a
     /// rigid identity?
-    pub fn is_flex_region(&self, name: &str) -> bool {
-        let r = self.resolve_region(name);
+    pub fn is_flex_region(&self, name: impl Into<Interned>) -> bool {
+        let r = self.resolve_region(name.into());
         self.flex_regions.contains(&r)
     }
 
     /// Follow the region-name substitution.
-    pub fn resolve_region(&self, r: &str) -> String {
-        match self.region_subst.get(r) {
-            Some(next) => self.resolve_region(next),
-            None => r.to_string(),
+    pub fn resolve_region(&self, r: impl Into<Interned>) -> Interned {
+        let r = r.into();
+        match self.region_subst.get(&r) {
+            Some(next) => self.resolve_region(*next),
+            None => r,
         }
     }
 
     /// Identify two region names. Equal names agree; a flexible name takes
     /// the other side's identity; two distinct rigid names (scope regions,
     /// memo groups, signature binders) never meet.
-    pub fn unify_regions(&mut self, a: &str, b: &str) -> std::result::Result<(), String> {
+    pub fn unify_regions(&mut self, a: impl Into<Interned>, b: impl Into<Interned>) -> std::result::Result<(), String> {
         let ra = self.resolve_region(a);
         let rb = self.resolve_region(b);
         if ra == rb {
             return Ok(());
         }
-        let a_flex = self.flex_regions.iter().any(|x| *x == ra);
-        let b_flex = self.flex_regions.iter().any(|x| *x == rb);
+        let a_flex = self.flex_regions.contains(&ra);
+        let b_flex = self.flex_regions.contains(&rb);
         if a_flex {
             self.bind_region(ra, rb);
             Ok(())
@@ -4087,9 +4090,9 @@ impl Unifier {
         }
     }
 
-    fn bind_region(&mut self, from: String, to: String) {
+    fn bind_region(&mut self, from: Interned, to: Interned) {
         if self.open_snapshots > 0 {
-            let old = self.region_subst.insert(from.clone(), to);
+            let old = self.region_subst.insert(from, to);
             self.undo.push(Undo::BindRegion(from, old));
         } else {
             self.region_subst.insert(from, to);
@@ -4549,13 +4552,13 @@ impl Unifier {
             Ty::Later(inner) => Ty::Later(Box::new(z(&inner))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.resolve_row(&eff),
-                region: self.resolve_region(&region),
+                region: self.resolve_region(*region),
                 inner: Box::new(z(&inner)),
             },
-            Ty::Ref(region, inner) => Ty::Ref(self.resolve_region(&region), Box::new(z(&inner))),
-            Ty::Mut(region, inner) => Ty::Mut(self.resolve_region(&region), Box::new(z(&inner))),
+            Ty::Ref(region, inner) => Ty::Ref(self.resolve_region(*region), Box::new(z(&inner))),
+            Ty::Mut(region, inner) => Ty::Mut(self.resolve_region(*region), Box::new(z(&inner))),
             Ty::Ptr { role, pointee } => Ty::Ptr { role: role.clone(), pointee: Box::new(z(&pointee)) },
-            Ty::Region(r) => Ty::Region(self.resolve_region(&r)),
+            Ty::Region(r) => Ty::Region(self.resolve_region(*r)),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {
                     head: label.head.clone(),
@@ -4636,7 +4639,7 @@ impl Unifier {
     fn gen_ty(&self, ty: &Ty, names: &HashMap<EitherMeta, String>) -> Ty {
         match self.shallow_ref(ty) {
             Ty::Meta(m) => match names.get(&EitherMeta::Type(*m)) {
-                Some(n) => Ty::Param(n.clone()),
+                Some(n) => Ty::Param(n.clone().into()),
                 None => Ty::Meta(*m),
             },
             Ty::Adt(n, args) => {
@@ -4706,7 +4709,7 @@ impl Unifier {
             labels: r.labels,
             tail: match r.tail {
                 RowTail::Meta(m) => match names.get(&EitherMeta::Row(m)) {
-                    Some(n) => RowTail::Rigid(n.clone()),
+                    Some(n) => RowTail::Rigid(n.clone().into()),
                     None => RowTail::Meta(m),
                 },
                 t => t,
@@ -5190,7 +5193,7 @@ impl Unifier {
                 self.unify(d1, d2)?;
                 let mut fresh = format!("$sigma{}", self.subst.len());
                 while self.zonk(c1).mentions_idx(&fresh) || self.zonk(c2).mentions_idx(&fresh) || fresh == *v1 || fresh == *v2 { fresh.push('$'); }
-                self.unify(&c1.subst_idx(v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(v2, &ITerm::Var(fresh)))
+                self.unify(&c1.subst_idx(v1, &ITerm::Var(fresh.clone().into())), &c2.subst_idx(v2, &ITerm::Var(fresh.into())))
             }
             // A boundary pointer role is never constructed from an
             // integer or any other non-pointer (foreign function
@@ -5240,8 +5243,8 @@ impl Unifier {
         let mut fresh = format!("$pi{}", self.subst.len());
         while self.zonk(c1).mentions_idx(&fresh) || self.zonk(c2).mentions_idx(&fresh) || fresh == v1 || fresh == v2 { fresh.push('$'); }
         self.unify(
-            &c1.subst_idx(v1, &ITerm::Var(fresh.clone())),
-            &c2.subst_idx(v2, &ITerm::Var(fresh)),
+            &c1.subst_idx(v1, &ITerm::Var(fresh.clone().into())),
+            &c2.subst_idx(v2, &ITerm::Var(fresh.into())),
         )
     }
 
@@ -5374,7 +5377,7 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
             }
             let mut fresh = "$conv".to_string();
             while c1.mentions_idx(&fresh) || c2.mentions_idx(&fresh) || fresh == v1 || fresh == v2 { fresh.push('$'); }
-            ty_eq(&c1.subst_idx(&v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(&v2, &ITerm::Var(fresh)))
+            ty_eq(&c1.subst_idx(&v1, &ITerm::Var(fresh.clone().into())), &c2.subst_idx(&v2, &ITerm::Var(fresh.into())))
         }
         (Ty::Sigma { var: v1, dom: d1, cod: c1 }, Ty::Sigma { var: v2, dom: d2, cod: c2 }) => {
             if !ty_eq(d1, d2) {
@@ -5382,7 +5385,7 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
             }
             let mut fresh = "$conv".to_string();
             while c1.mentions_idx(&fresh) || c2.mentions_idx(&fresh) || fresh == *v1 || fresh == *v2 { fresh.push('$'); }
-            ty_eq(&c1.subst_idx(v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(v2, &ITerm::Var(fresh)))
+            ty_eq(&c1.subst_idx(v1, &ITerm::Var(fresh.clone().into())), &c2.subst_idx(v2, &ITerm::Var(fresh.into())))
         }
         (
             Ty::Thunk { eff: e1, inner: i1 },
@@ -5903,7 +5906,7 @@ mod local_value_identity_tests {
             (IndexEvidence::Local(7), ITerm::num(42)),
         ])), value);
         let mut uni = Unifier::new();
-        assert!(uni.unify_idx(&value, &ITerm::Var(spelling)).is_err());
+        assert!(uni.unify_idx(&value, &ITerm::Var(spelling.as_str().into())).is_err());
         assert!(uni.unify_idx(&value, &ITerm::Evidence(IndexEvidence::Local(7))).is_err());
         assert!(uni.unify_idx(&value, &ITerm::LocalValue(LocalId(8))).is_err());
         uni.unify_idx(&value, &value).unwrap();

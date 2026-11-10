@@ -270,7 +270,7 @@ impl Checker {
         Some(match body {
             ECore::Var(id) => locals.get(id)?.clone(),
             ECore::Int(value) => R::Word(*value),
-            ECore::ConstBig { nat, digits } => R::Arithmetic(if *nat { Ty::Nat } else { Ty::Int }, ITerm::Num(digits.clone())),
+            ECore::ConstBig { nat, digits } => R::Arithmetic(if *nat { Ty::Nat } else { Ty::Int }, ITerm::Num(digits.clone().into())),
             ECore::Bool(value) => R::Bool(*value),
             ECore::Prim(op) => R::Primitive(*op),
             ECore::Global(id, actuals) if actuals.is_empty() => {
@@ -371,7 +371,7 @@ fn comparison_primitive(op: PrimOp, arguments: &[ComparisonReading]) -> Option<C
         CmpOp::Le => IdxCmp::Le, CmpOp::Gt => IdxCmp::Gt, CmpOp::Ge => IdxCmp::Ge,
     };
     let numeric = |value: &R, carrier: &Ty| match value {
-        R::Argument(slot, ty) if ty == carrier => Some(ITerm::Var(format!("$arithmetic:{slot}"))),
+        R::Argument(slot, ty) if ty == carrier => Some(ITerm::Var(format!("$arithmetic:{slot}").into())),
         R::Arithmetic(ty, expression) if ty == carrier => Some(expression.clone()),
         _ => None,
     };
@@ -637,8 +637,8 @@ impl Checker {
         let scheme = &value.scheme;
         let [input, key] = scheme.params.as_slice() else { return None };
         let [(_, order)] = scheme.ctx.as_slice() else { return None };
-        let input = Ty::Param(input.clone());
-        let key = Ty::Param(key.clone());
+        let input = Ty::Param(input.clone().into());
+        let key = Ty::Param(key.clone().into());
         if order.class != self.signature_key("Relation.Ord", "Ord") || order.args.as_slice() != std::slice::from_ref(&key)
             || !scheme.con_params.is_empty() || !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
             || !scheme.prop_params.is_empty() || !scheme.evidence_params.is_empty() || !scheme.region_params.is_empty()
@@ -818,7 +818,7 @@ impl Checker {
         let value = self.checked_nat_reading(env, core, 0)?;
         let mut names = self.term_names(env, &value)?;
         names.push((name.to_owned(), local));
-        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned())), Box::new(value)), at: self.ev_writes.len(), names, comparisons: Vec::new() })
+        Some(Fact { prop: PTerm::Cmp(IdxCmp::Eq, Box::new(ITerm::Var(name.to_owned().into())), Box::new(value)), at: self.ev_writes.len(), names, comparisons: Vec::new() })
     }
     fn checked_nat_reading(&self, env: &Env, core: &ECore, depth: usize) -> Option<ITerm> {
         if depth > 64 { return None }
@@ -828,13 +828,13 @@ impl Checker {
                 let ty = self.uni.zonk(&scheme.ty);
                 let carrier = self.refine_view(&ty).and_then(|r| r.base).unwrap_or(ty);
                 if carrier != Ty::Nat || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
-                Some(ITerm::Var(name.clone()))
+                Some(ITerm::Var(name.clone().into()))
             }
-            ECore::ConstBig { nat: true, digits } => Some(ITerm::Num(digits.clone())),
+            ECore::ConstBig { nat: true, digits } => Some(ITerm::Num(digits.clone().into())),
             ECore::Lit(id) => {
                 let literal = self.literal_pends.get(*id)?;
                 if self.uni.zonk(&literal.ty) != Ty::Nat { return None }
-                Some(ITerm::Num(literal.value.clone()))
+                Some(ITerm::Num(literal.value.clone().into()))
             }
             ECore::App(function, arguments) => {
                 let mut groups = vec![arguments.as_slice()]; let mut head = &**function;
@@ -851,7 +851,7 @@ impl Checker {
                     let ty = self.uni.zonk(&scheme.ty);
                     let carrier = self.refine_view(&ty).and_then(|r| r.base).unwrap_or(ty);
                     if carrier != Ty::Bytes || !scheme.params.is_empty() || env.lookup(name)?.0 != *local { return None }
-                    return Some(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var(name.clone())]))
+                    return Some(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var(name.clone().into())]))
                 }
                 let values = arguments.into_iter().map(|argument| self.checked_nat_reading(env, argument, depth + 1)).collect::<Option<Vec<_>>>()?;
                 if let Some(operation) = primitive { return Self::checked_nat_primitive_reading(operation, &values) }
@@ -922,7 +922,7 @@ impl Checker {
         if depth > 64 { return None }
         Some(match body {
             P::Local(slot) => values.get(*slot)?.clone(),
-            P::Number(Sort::Nat, number) => ITerm::Num(number.clone()),
+            P::Number(Sort::Nat, number) => ITerm::Num(number.clone().into()),
             P::Primitive(operation, arguments) => {
                 let operation = match operation { Op::NatAdd => PrimOp::Nat(NatOp::Add), Op::NatMul => PrimOp::Nat(NatOp::Mul), _ => return None };
                 let arguments = arguments.iter().map(|argument| self.checked_nat_pending_reading(argument, values, depth + 1)).collect::<Option<Vec<_>>>()?;

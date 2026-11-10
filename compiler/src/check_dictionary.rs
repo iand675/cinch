@@ -35,8 +35,8 @@ impl DictionaryResolver<'_> {
             if binder_z.class == wanted_z.class {
                 let trial = self.uni.snapshot();
                 let ok = self.uni.unify(
-                    &Ty::Adt(binder_z.class.clone(), binder_z.args.clone()),
-                    &Ty::Adt(wanted_z.class.clone(), wanted_z.args.clone()),
+                    &Ty::Adt(binder_z.class.clone().into(), binder_z.args.clone()),
+                    &Ty::Adt(wanted_z.class.clone().into(), wanted_z.args.clone()),
                 );
                 if ok.is_ok() {
                     self.uni.commit(trial);
@@ -122,7 +122,7 @@ impl DictionaryResolver<'_> {
             }
         }
         let wanted_z = self.uni.zonk_class(wanted);
-        let wanted_app = Ty::Adt(class.clone(), wanted_z.args.clone());
+        let wanted_app = Ty::Adt(class.clone().into(), wanted_z.args.clone());
         let mut matches: Vec<MatchCand> = Vec::new();
         // Candidate trials run inside `outer`. Every trial is rolled back
         // after its candidate is measured, so between trials the store only
@@ -174,7 +174,7 @@ impl DictionaryResolver<'_> {
                 }
                 let target = Checker::subst_class(&inst.target, &fresh);
                 let trial = self.uni.snapshot();
-                let target_app = Ty::Adt(class.clone(), target.args.clone());
+                let target_app = Ty::Adt(class.clone().into(), target.args.clone());
                 // Structural matching first (the ordinary case), then the
                 // refinement lattice: a head at `refined h` serves every
                 // want whose predicate implies `h` (the value weakens to
@@ -363,7 +363,7 @@ impl DictionaryResolver<'_> {
                 debug_assert!(meta == cand.fresh[p], "replayed instance parameter ids match the trial's");
             }
             let target = Checker::subst_class(&inst.target, &cand.fresh);
-            let target_app = Ty::Adt(class.clone(), target.args.clone());
+            let target_app = Ty::Adt(class.clone().into(), target.args.clone());
             let matched = self.uni.unify(&target_app, &wanted_app).is_ok()
                 || self.checker.lattice_match(&target.args, &wanted_z.args, &mut self.uni);
             debug_assert!(matched, "replaying the winning candidate's match succeeds");

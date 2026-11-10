@@ -1298,14 +1298,14 @@ impl PrimOp {
     pub fn sig(self) -> (Vec<Ty>, Ty) {
         use PrimOp::*;
         let prim = |s: Scalar| Ty::Prim(s);
-        let opt = |t: Ty| Ty::Adt("Option".to_string(), vec![t]);
+        let opt = |t: Ty| Ty::Adt("Option".to_string().into(), vec![t]);
         let u32t = prim(Scalar::U32);
         let i64t = prim(Scalar::I64);
         // The net and piped-child units present their boundary word as
         // the prelude `Result`: `Err` (tag 0) over the POSITIVE named
         // error code when that word is negative, `Ok` (tag 1) over the
         // success payload otherwise.
-        let res = |t: Ty| Ty::Adt("Result".to_string(), vec![i64t.clone(), t]);
+        let res = |t: Ty| Ty::Adt("Result".to_string().into(), vec![i64t.clone(), t]);
         match self {
             Array { op, packed, .. } => op.sig(packed),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
@@ -1420,7 +1420,7 @@ impl PrimOp {
             FClass { ty, .. } => (vec![prim(ty)], Ty::Bool),
             TotalOrder { ty } => (
                 vec![prim(ty), prim(ty)],
-                Ty::Adt("Ordering".to_string(), vec![]),
+                Ty::Adt("Ordering".to_string().into(), vec![]),
             ),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),

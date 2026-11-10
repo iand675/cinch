@@ -83,7 +83,7 @@ impl Checker {
         use InterfaceIndexSort::*;
         Some(match term {
             ITerm::Var(n) => {
-                let sort = *scope.locals.get(n)?;
+                let sort = *scope.locals.get(n.as_str())?;
                 if sort == Bytes { return None }
                 (term.clone(), sort)
             }
@@ -96,8 +96,8 @@ impl Checker {
             }
             ITerm::App(f, args) if matches!(&**f, ITerm::Fn(n) if n == BYTE_LENGTH_INDEX) => {
                 let [ITerm::Var(n)] = args.as_slice() else { return None };
-                if scope.locals.get(n) != Some(&Bytes) { return None }
-                (ITerm::app_fn("b.bytesLen", vec![ITerm::Var(n.clone())]), Mathematical)
+                if scope.locals.get(n.as_str()) != Some(&Bytes) { return None }
+                (ITerm::app_fn("b.bytesLen", vec![ITerm::Var(*n)]), Mathematical)
             }
             ITerm::App(f, args) if scope.allow_measures => {
                 let ITerm::Fn(identity) = &**f else { return None };
@@ -109,7 +109,7 @@ impl Checker {
                     if actual != expected { return None }
                     arguments.push(value);
                 }
-                scope.measure_calls.borrow_mut().insert(identity.clone());
+                scope.measure_calls.borrow_mut().insert(identity.clone().to_string());
                 (ITerm::app_fn(identity.clone(), arguments), result)
             }
             _ => return None,
@@ -177,19 +177,19 @@ impl Checker {
         // Conditional method preconditions and module arguments must not
         // disappear when an instance is imported as a dictionary factory.
         if !info.base && info.params.is_empty() && info.ctx.is_empty() && !info.method_contracts.is_empty() {
-            let head = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
+            let head = Scheme::mono(Ty::Adt(info.target.class.clone().into(), info.target.args.clone()));
             self.remember_source_scheme(&info.module, &format!("@conditional-head:{}", info.name),
                 &source.target, &head, &[], None, true);
         }
         if info.base || !info.method_obligs.is_empty()
             || info.ctx.iter().any(|c| matches!(c, InstCtx::Oblig(_))) { return }
-        let mut scheme = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
+        let mut scheme = Scheme::mono(Ty::Adt(info.target.class.clone().into(), info.target.args.clone()));
         scheme.params = info.params.clone();
         scheme.ctx = InstCtx::dicts(&info.ctx);
         for parameter in &source.params {
             match self.resolve_binder_kind(&parameter.text, None, notes, parameter.span) {
                 Ok(ParamKind::Type) => {},
-                Ok(ParamKind::Con(arity)) => scheme.con_params.push((parameter.text.clone(), arity)),
+                Ok(ParamKind::Con(arity)) => scheme.con_params.push((parameter.text.clone().into(), arity)),
                 _ => return,
             }
         }
@@ -242,7 +242,7 @@ impl Checker {
         for region in &scheme.region_params {
             if !explicit.contains(region) {
                 prefix.push(format!("{{{region} :: Region}}"));
-                vars.push(region.clone());
+                vars.push(region.clone().to_string());
             }
         }
         let mut context = Vec::new();
@@ -361,11 +361,11 @@ impl Checker {
             if vars.contains(name) { return None }
             // Explicit annotations were checked by the source checker;
             // inferred kinds come from its resulting scheme.
-            let kind = if scheme.region_params.contains(name) { "Region".to_string() }
-                else if scheme.prop_params.contains(name) { "Prop".to_string() }
+            let kind = if scheme.region_params.contains(name.into()) { "Region".to_string() }
+                else if scheme.prop_params.contains(name.into()) { "Prop".to_string() }
                 else if let Some((_, carrier)) = scheme.val_params.iter().find(|(n, _)| n == name) {
                     match carrier { Ty::Nat | Ty::Int | Ty::Bytes => carrier.to_string(), _ => return None }
-                } else if scheme.params.contains(name) {
+                } else if scheme.params.contains(name.into()) {
                     let arity = scheme.con_params.iter().find(|(n, _)| n == name).map(|(_, n)| *n).unwrap_or(0);
                     vec!["Type"; arity + 1].join(" -> ")
                 } else { return None };
@@ -490,7 +490,7 @@ impl Checker {
             let mut predicate = (**original).clone();
             for (position, (name, carrier)) in arguments.iter().enumerate() {
                 if let Some(name) = name {
-                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
+                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone().into()));
                     self.bind_interface_index(&mut scope, name, carrier);
                 }
             }
@@ -514,7 +514,7 @@ impl Checker {
                 || arguments.iter().any(|(name, _)| name.as_ref() == Some(&result)) {
                 result.push_str("-r");
             }
-            let mut predicate = original.subst(&binder, &ITerm::Var(result.clone()));
+            let mut predicate = original.subst(&binder, &ITerm::Var(result.clone().into()));
             // A refined argument retains its contract at the boundary,
             // while its checked projection may still be mathematical.
             // Follow actual definition-site views, never a printed name,
@@ -523,7 +523,7 @@ impl Checker {
             self.bind_interface_index(&mut scope, &result, carrier);
             for (position, (name, ty)) in arguments.iter().enumerate() {
                 if let Some(name) = name {
-                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
+                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone().into()));
                     self.bind_interface_index(&mut scope, name, ty);
                 }
             }
@@ -596,7 +596,7 @@ impl Checker {
             let mut rebound = original.clone();
             for (position, name) in names.iter().enumerate() {
                 if let Some(name) = name {
-                    rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
+                    rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone().into()));
                 }
             }
             out.push(self.portable_predicate(&rebound, &scope, false)?.to_string());
@@ -631,7 +631,7 @@ impl Checker {
         let r = info.refine.as_ref()?;
         let carrier = match &r.base {
             Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => r.base.to_string(),
-            Ty::Param(name) if r.params.contains(name) => name.clone(),
+            Ty::Param(name) if r.params.iter().any(|p| p.as_str() == name.as_str()) => name.to_string(),
             _ => return None,
         };
         let mut scope = InterfaceIndexScope::default();
@@ -643,7 +643,7 @@ impl Checker {
         // A generic numeric template retains its historical parameter
         // carrier. It may not use that abstract carrier as a byte buffer.
         self.bind_interface_index(&mut scope, &r.binder, &r.base);
-        if matches!(&r.base, Ty::Param(n) if r.params.contains(n)) {
+        if matches!(&r.base, Ty::Param(n) if r.params.iter().any(|p| p.as_str() == n.as_str())) {
             scope.locals.insert(r.binder.clone(), InterfaceIndexSort::Mathematical);
         }
         Some(crate::interface::RefinementExport {
@@ -661,8 +661,8 @@ impl Checker {
         }
         let [element] = arguments.as_slice() else { return None };
         let element = match element {
-            Ty::Param(name) if refinement.params.contains(name) => name.clone(),
-            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => element.to_string(),
+            Ty::Param(name) if refinement.params.iter().any(|p| p.as_str() == name.as_str()) => name.to_string(),
+            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => element.to_string().into(),
             _ => return None,
         };
         let PTerm::Pred(PredFn::NotNull, value) = &refinement.pred else { return None };
