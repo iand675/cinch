@@ -245,6 +245,11 @@ grammar is section 10, and the editor support implemented here is section
   extension is still recognised by content
 - two-space indentation, one s-expression node per line
 
+`comment` is a named node in the Core grammar, unlike the surface grammar
+where comments are scanner trivia, so the Core highlight queries colour
+comments directly and `cinch-core` needs no `semantic_tokens` setting in
+Zed.
+
 The highlighter categories are the format's own (section 8.3): unit names,
 dictionary bindings (`$d.*`, `$static`), ownership classes (`owned`,
 `borrowed`, `lent`, `uncounted`, `immortal`), annotation names (`@span`,
@@ -269,8 +274,10 @@ What each check proves, and what it cannot:
 
 - vim: `editors/vim/test/run.sh` runs `vim -Nu NONE -es -S test/check.vim`
   and asserts the filetype (by extension and by the `core 1` signature)
-  and the syntax group at a known token for every category, 32 checks. It
-  takes the binary as its argument, so `run.sh /usr/bin/vim` and
+  and the syntax group at a known token for every category, 33 checks
+  (`:filetype detect` only re-runs the `filetypedetect` group, so the
+  signature check fires the detection autocmds with `doautocmd BufRead`).
+  It takes the binary as its argument, so `run.sh /usr/bin/vim` and
   `run.sh $(command -v nvim)` both pass.
 - emacs: `editors/emacs/test/run.sh` runs `emacs -Q --batch` with
   `test/check.el` and asserts the `auto-mode-alist` entry, `prog-mode`
@@ -295,17 +302,28 @@ What each check proves, and what it cannot:
 - zed: `check.py` parses both TOML files, requires every language
   referenced by `extension.toml` to exist on disk, requires both grammar
   entries, and validates every query file (balanced, and every node name
-  and anonymous token present in the grammar contract below). The query
-  files were also compiled with `tree-sitter query` against the generated
-  parser by the grammar slice (grammar commit `054aae12`): all five compile
-  with no invalid node type, field or predicate, `(unit "end" @outdent)
-  @indent` matches two captures per unit, and the bracket pairs were
-  corrected to one top-level pattern per pair after the grouped form was
-  measured to match nothing. Zed's own query compiler is the remaining
-  check on install. `tooling/tree-sitter-cinch-core/` is that slice's
-  deliverable and is not in this workspace, so
-  `editors/zed/sync-grammar.sh` exits 1 naming that directory until it
-  lands.
+  and anonymous token present in the grammar contract below).
+
+The query files are also compiled against the real parser. After
+`editors/zed/sync-grammar.sh` has built `grammar-repo-core`:
+
+```sh
+cd tooling/editors/zed/grammar-repo-core
+for q in ../languages/cinch-core/{highlights,outline,brackets,indents}.scm \
+         ../../vim/queries/cinch-core/highlights.scm; do
+  tree-sitter query "$q" ../../../tree-sitter-cinch-core/samples/forms.core
+done
+```
+
+All five compile with no invalid node type, field or predicate, and match on
+`samples/forms.core` (316 captures for each highlights query, 10 for the
+outline, 148 for the brackets, 51 for the indents; the sample parses with
+zero ERROR nodes). Two findings from that run are already applied: the
+bracket pairs are one top-level pattern each, because a single grouped
+pattern asks for a `(...)` pair and a `{...}` pair as consecutive siblings of
+one parent and matches nothing, and `(unit "end" @outdent) @indent` is
+confirmed to give one indent and one outdent per unit. Zed's own query
+compiler is the remaining check on install.
 
 `editors/zed/test/check.py` needs `tomllib`, so Python 3.11 or newer. The
 macOS system `python3` is 3.9, so on this machine it runs as

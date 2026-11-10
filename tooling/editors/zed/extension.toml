@@ -20,16 +20,16 @@ version = "0.7.0"
 # machine-local: run `tooling/editors/zed/sync-grammar.sh` before installing
 # the extension.
 [grammars.cinch]
-repository = "file:///Users/ian/Code/personal/designing-a-safe-language/tooling/editors/zed/grammar-repo"
-rev = "3f5bf829a283d8310d8f5d1c457f8d9f1d8df149"
+repository = "file:///Users/ian/Code/personal/dasl-core-editors/tooling/editors/zed/grammar-repo"
+rev = "f842bbf35e22a586a71472eb609e2944fdb02559"
 
 # The Core grammar (design/core-output.md section 8.2). Until
 # sync-grammar.sh runs, `rev` is the placeholder below and the repository
 # directory does not exist, so installing the extension fails with Zed's
 # fetch error. That is deliberate: the pin is machine-local.
 [grammars.cinch-core]
-repository = "file:///Users/ian/Code/personal/designing-a-safe-language/tooling/editors/zed/grammar-repo-core"
-rev = "0000000000000000000000000000000000000000"
+repository = "file:///Users/ian/Code/personal/dasl-core-editors/tooling/editors/zed/grammar-repo-core"
+rev = "b0f79415995ce0d0a63060b4a6c6e414a064dce1"
 
 [language_servers.cinch-lsp]
 name = "Cinch Language Server"

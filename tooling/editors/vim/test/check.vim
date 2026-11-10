@@ -92,17 +92,19 @@ call s:CheckGroup('type arrow', '^unit Main\.map', '->', 'cinchCoreOperator')
 call s:CheckGroup('paren', '(case (local', '(', 'cinchCoreParen')
 call s:CheckGroup('comment', '^-- Core', '--', 'cinchCoreComment')
 
+" The signature path: a file with the `core 1` first line and no `.core`
+" extension still gets the filetype. `:filetype detect` only re-runs the
+" `filetypedetect` group, and ftdetect files define their own groups, so the
+" detection autocmds are fired directly.
+enew
+call setline(1, ['core 1', 'module Sniffed'])
+doautocmd BufRead
+call s:Check('signature sniff', &filetype, 'cinch-core')
+
 call writefile(s:out, s:test . '/check.out')
 for s:line in s:out
   echo s:line
 endfor
-
-" The signature path: a file with the `core 1` first line and no `.core`
-" extension still gets the filetype.
-enew
-call setline(1, ['core 1', 'module Sniffed'])
-filetype detect
-call s:Check('signature sniff', &filetype, 'cinch-core')
 
 if s:failed
   cquit
