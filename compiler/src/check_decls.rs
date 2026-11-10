@@ -10290,6 +10290,7 @@ impl Checker {
             foreigns,
             prims: self.prims,
             laws: self.law_rows,
+            lent: Default::default(),
         };
         crate::dictionary_values::lower(&mut program)?;
         Ok(program)
@@ -21017,7 +21018,7 @@ impl Checker {
             }
             // Reference counting is inserted after this evaluator's
             // programs are built; it never sees a count operation.
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) => self.eval_core(cx, body, frame)?,
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => self.eval_core(cx, body, frame)?,
         })
     }
 

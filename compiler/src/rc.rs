@@ -77,23 +77,42 @@ fn concrete(c: Class) -> Class {
 }
 
 /// Insert the count operations into every unit with a `Core` body, when
-/// the profile reclaims ([`crate::core::TargetProfile::reclaim`]).
+/// the profile reclaims ([`crate::core::TargetProfile::reclaim`]), with
+/// every parameter owned. This is the form for an artifact whose units
+/// other artifacts call (library objects, package objects, incremental
+/// unit objects): owned parameters are the convention every separately
+/// compiled caller assumes.
 /// Repeated subterms move into shared units first
 /// ([`crate::core::share_repeated_subterms`]): that needs the final
 /// specialized program and must precede counting, which balances each
 /// unit separately.
-pub fn insert(mut program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
+pub fn insert(program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
+    insert_with(program, profile, false)
+}
+
+/// [`insert`] for a closed program, one whose every caller of every unit
+/// is in `program` (an executable emitted whole): parameters that are only
+/// read are inferred borrowed ([`borrow_modes`]), so neither the caller's
+/// dup nor the callee's drop is emitted for them.
+pub fn insert_closed(program: Program, profile: &crate::core::TargetProfile) -> crate::Result<Program> {
+    insert_with(program, profile, true)
+}
+
+fn insert_with(mut program: Program, profile: &crate::core::TargetProfile, closed: bool) -> crate::Result<Program> {
     crate::core::share_repeated_subterms(&mut program);
     if !profile.reclaim {
         return Ok(program);
     }
+    let (modes, prims) = if closed { borrow_modes(&program) } else { Default::default() };
+    program.lent = modes.iter().filter(|(k, _)| prims.contains(*k)).map(|(k, m)| (k.clone(), m.clone())).collect();
     for f in &mut program.fns {
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body {
             continue;
         }
-        let body = transform(f);
+        let borrowed = borrowed_params(&modes, f);
+        let body = transform(f, &modes, &borrowed);
         if cfg!(debug_assertions) {
-            verify(f, &body).map_err(|m| {
+            verify(f, &body, &modes, &borrowed).map_err(|m| {
                 if std::env::var_os("CINCH_RC_TRACE").is_some() {
                     eprintln!("cinch-rc: {}\n  input: {:?}\n  output: {:?}", f.id, f.body, body);
                 }
@@ -103,6 +122,383 @@ pub fn insert(mut program: Program, profile: &crate::core::TargetProfile) -> cra
         f.body = body;
     }
     Ok(program)
+}
+
+/// Borrowed parameter modes by unit name (`true` borrowed), for the units
+/// that have at least one borrowed parameter.
+type Modes = HashMap<String, Vec<bool>>;
+
+fn borrowed_params(modes: &Modes, f: &FnDef) -> Set {
+    modes.get(&f.id.0).map_or_else(Set::new, |m| (0..m.len()).filter(|i| m[*i]).collect())
+}
+
+/// Borrowed parameter inference (design/reclamation.md section 4, Lean 4
+/// and Perceus). Only a unit every one of whose callers is a saturated
+/// direct call in this program takes part: not the entry, not a `foreign
+/// export` target, not an instance method, and not a unit used as a value
+/// (a closure, a hoisted lambda, a quotation's reference), because those
+/// callers pass owned arguments. Every counted parameter of such a unit
+/// starts borrowed, and becomes owned until a fixed point when:
+///
+/// - the unit uses it anywhere but a borrowed position: a `case`
+///   scrutinee, a projection's container, or a borrowed parameter of a
+///   direct call;
+/// - a call passes it a computed counted value (which the caller would
+///   have to bind and drop after the call);
+/// - a call in tail position passes it anything but a borrowed parameter
+///   of the caller or an uncounted value, since nothing may follow a tail
+///   call (the constant-stack rule) and a drop after it would be needed.
+///
+/// A primitive unit (a `prim`-bodied definition or a `Core::Prim`
+/// symbol) takes part the same way, starting from the parameters its
+/// runtime operation only reads: its wrapper releases the others on
+/// return. Returns the modes and the primitive units among them.
+fn borrow_modes(program: &Program) -> (Modes, std::collections::HashSet<String>) {
+    let arity: HashMap<&str, usize> = program.fns.iter().map(|f| (f.id.0.as_str(), f.arity())).collect();
+    let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(main) = &program.main {
+        excluded.insert(main.0.clone());
+    }
+    for plan in program.foreigns.values() {
+        if plan.export {
+            excluded.insert(plan.unit.clone());
+        }
+    }
+    for inst in &program.instances {
+        excluded.extend(inst.methods.iter().map(|m| m.0.clone()));
+    }
+    let mut prim_ops: HashMap<String, crate::core::PrimOp> = HashMap::new();
+    for f in &program.fns {
+        value_uses(&f.body, &arity, false, &mut excluded, &mut prim_ops);
+    }
+    let mut modes: Modes = HashMap::new();
+    let mut prims: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for f in &program.fns {
+        if f.ctor.is_some() || f.meta.prim_body || excluded.contains(&f.id.0) {
+            continue;
+        }
+        let m: Vec<bool> = param_classes(f)
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| counted(c) && f.prim.is_none_or(|op| !crate::codegen::prim_consumes(op, i)))
+            .collect();
+        if m.iter().any(|b| *b) {
+            modes.insert(f.id.0.clone(), m);
+            if f.prim.is_some() {
+                prims.insert(f.id.0.clone());
+            }
+        }
+    }
+    for (symbol, op) in prim_ops {
+        if excluded.contains(&symbol) {
+            continue;
+        }
+        let m: Vec<bool> = (0..op.arity()).map(|i| !crate::codegen::prim_consumes(op, i)).collect();
+        if m.iter().any(|b| *b) {
+            modes.insert(symbol.clone(), m);
+            prims.insert(symbol);
+        }
+    }
+    let units: Vec<(&FnDef, UnitFacts)> = program
+        .fns
+        .iter()
+        .filter(|f| f.prim.is_none() && f.ctor.is_none() && !f.meta.prim_body)
+        .map(|f| (f, UnitFacts::of(&param_classes(f), &f.body)))
+        .collect();
+    let index: HashMap<&str, usize> = units.iter().enumerate().map(|(i, (f, _))| (f.id.0.as_str(), i)).collect();
+    // Who calls each unit directly: a change to a unit's modes revisits
+    // its callers (their parameters may now flow into an owned position)
+    // and the unit itself (its tail calls see its own parameters).
+    let mut callers: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, (f, _)) in units.iter().enumerate() {
+        direct_callees(&f.body, &mut |k| {
+            let list = callers.entry(k).or_default();
+            if list.last() != Some(&i) {
+                list.push(i);
+            }
+        });
+    }
+    let mut queue: Vec<usize> = (0..units.len()).rev().collect();
+    let mut queued = vec![true; units.len()];
+    let mut killed: Vec<String> = Vec::new();
+    while let Some(u) = queue.pop() {
+        queued[u] = false;
+        let (f, cx) = &units[u];
+        let mut mine = borrowed_params(&modes, f);
+        // The unit's own parameters.
+        if !mine.is_empty() {
+            let names: HashMap<usize, usize> = mine.iter().map(|p| (*p, *p)).collect();
+            let mut owned = Set::new();
+            owned_uses(&f.body, &names, &modes, cx, &mut owned);
+            if !owned.is_empty() {
+                let m = modes.get_mut(&f.id.0).expect("a unit with borrowed parameters");
+                for p in &owned {
+                    m[*p] = false;
+                    mine.remove(p);
+                }
+                killed.push(f.id.0.clone());
+            }
+        }
+        // What its calls pass to borrowed parameters.
+        call_sites(&f.body, true, &mut mine, cx, &mut modes, &mut killed);
+        for k in killed.drain(..) {
+            for &c in callers.get(&k).into_iter().flatten().chain(index.get(k.as_str())) {
+                if !queued[c] {
+                    queued[c] = true;
+                    queue.push(c);
+                }
+            }
+        }
+    }
+    modes.retain(|_, m| m.iter().any(|b| *b));
+    prims.retain(|p| modes.contains_key(p));
+    (modes, prims)
+}
+
+/// The modes of a saturated call's head, when it is a unit that has
+/// borrowed parameters.
+fn callee_modes<'m>(modes: &'m Modes, head: &Core, args: usize) -> Option<&'m Vec<bool>> {
+    match head {
+        Core::Global(g, _) => modes.get(&g.0),
+        Core::Prim(op) => modes.get(&op.symbol()),
+        _ => None,
+    }
+    .filter(|m| m.len() == args)
+}
+
+/// Mark every unit `e` uses other than as the head of a saturated direct
+/// call, and record the primitive operations `e` calls saturated by
+/// symbol. Inside a quotation body (`quoted`) every reference counts: the
+/// runtime evaluator calls units through their closures.
+fn value_uses(
+    e: &Core,
+    arity: &HashMap<&str, usize>,
+    quoted: bool,
+    out: &mut std::collections::HashSet<String>,
+    prims: &mut HashMap<String, crate::core::PrimOp>,
+) {
+    match e {
+        Core::Global(g, _) => {
+            out.insert(g.0.clone());
+        }
+        Core::Prim(op) => {
+            out.insert(op.symbol());
+        }
+        Core::Lam { fn_id, .. } => {
+            out.insert(fn_id.0.clone());
+        }
+        Core::App(h, args) => match &**h {
+            Core::Global(g, _) => {
+                if quoted || arity.get(g.0.as_str()) != Some(&args.len()) {
+                    out.insert(g.0.clone());
+                }
+            }
+            Core::Prim(op) => {
+                if quoted || op.arity() != args.len() {
+                    out.insert(op.symbol());
+                } else {
+                    prims.insert(op.symbol(), *op);
+                }
+            }
+            other => value_uses(other, arity, quoted, out, prims),
+        },
+        Core::Quote { body: Some(b), .. } => value_uses(b, arity, true, out, prims),
+        _ => {}
+    }
+    for k in crate::core::child_slots_imm(e) {
+        value_uses(k, arity, quoted, out, prims);
+    }
+}
+
+/// Every direct call head of `e` that may carry modes: a unit or a
+/// primitive symbol.
+fn direct_callees(e: &Core, out: &mut impl FnMut(String)) {
+    if let Core::App(h, _) = e {
+        match &**h {
+            Core::Global(g, _) => out(g.0.clone()),
+            Core::Prim(op) => out(op.symbol()),
+            other => direct_callees(other, out),
+        }
+    }
+    for k in crate::core::child_slots_imm(e) {
+        direct_callees(k, out);
+    }
+}
+
+/// Add to `out` the parameters that `e` uses other than in a borrowed
+/// position, for the parameters `names` maps from their names (the
+/// parameter and its [`let_alias`] renamings).
+fn owned_uses(e: &Core, names: &HashMap<usize, usize>, modes: &Modes, cx: &UnitFacts, out: &mut Set) {
+    let named = |c: &Core| match c {
+        Core::Var(x) => names.get(&x.0).copied(),
+        _ => None,
+    };
+    match e {
+        Core::Var(x) => {
+            if let Some(p) = names.get(&x.0) {
+                out.insert(*p);
+            }
+        }
+        Core::Let(x, c, v, b) if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| names.contains_key(&y)) => {
+            let p = named(v).expect("an alias of a tracked name");
+            let mut names = names.clone();
+            names.insert(x.0, p);
+            owned_uses(b, &names, modes, cx, out);
+        }
+        Core::Case { scrut, alts } if named(scrut).is_some() => {
+            for a in alts {
+                owned_uses(&a.body, names, modes, cx, out);
+            }
+        }
+        Core::Proj(d, _) | Core::DictProj(d, ..) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _)
+            if named(d).is_some() => {}
+        Core::LazyInit(l, v) | Core::BoxInit(l, v, _) | Core::RefSet(l, v, _) if names.contains_key(&l.0) => {
+            out.insert(names[&l.0]);
+            owned_uses(v, names, modes, cx, out);
+        }
+        Core::App(h, args) => {
+            let callee = callee_modes(modes, h, args.len());
+            if callee.is_none() {
+                owned_uses(h, names, modes, cx, out);
+            }
+            for (i, a) in args.iter().enumerate() {
+                if !(callee.is_some_and(|m| m[i]) && named(a).is_some()) {
+                    owned_uses(a, names, modes, cx, out);
+                }
+            }
+        }
+        other => {
+            for k in crate::core::child_slots_imm(other) {
+                owned_uses(k, names, modes, cx, out);
+            }
+        }
+    }
+}
+
+/// Apply the call-site rules of [`borrow_modes`] to the calls in `e`
+/// (`tail` when `e` is in tail position), for a caller whose borrowed
+/// names are `mine`: its borrowed parameters, their [`let_alias`]
+/// renamings and the fields of a `case` on any of them. Each callee
+/// whose modes change is pushed to `killed`.
+fn call_sites(e: &Core, tail: bool, mine: &mut Set, cx: &UnitFacts, modes: &mut Modes, killed: &mut Vec<String>) {
+    match e {
+        Core::App(h, args) => {
+            let key = match &**h {
+                Core::Global(g, _) => Some(g.0.as_str().into()),
+                Core::Prim(op) => Some(std::borrow::Cow::Owned(op.symbol())),
+                other => {
+                    call_sites(other, false, mine, cx, modes, killed);
+                    None
+                }
+            };
+            if let Some(k) = key {
+                if let Some(m) = modes.get_mut(k.as_ref()).filter(|m| m.len() == args.len()) {
+                    let mut changed = false;
+                    for (i, a) in args.iter().enumerate() {
+                        let fine = !m[i]
+                            || match a {
+                                Core::Var(x) => !tail || mine.contains(&x.0) || !cx.classes.get(&x.0).copied().is_some_and(counted),
+                                other => expr_class_in(other, &cx.classes).is_some_and(|c| !counted(c)),
+                            };
+                        if !fine {
+                            m[i] = false;
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        killed.push(k.into_owned());
+                    }
+                }
+            }
+            for a in args {
+                call_sites(a, false, mine, cx, modes, killed);
+            }
+        }
+        Core::Let(x, c, v, b) => {
+            if let_alias(*x, *c, v, &cx.classes, &cx.written).is_some_and(|y| mine.contains(&y)) {
+                mine.insert(x.0);
+                call_sites(b, tail, mine, cx, modes, killed);
+                mine.remove(&x.0);
+                return;
+            }
+            call_sites(v, false, mine, cx, modes, killed);
+            call_sites(b, tail, mine, cx, modes, killed);
+        }
+        Core::If(c, t, f) => {
+            call_sites(c, false, mine, cx, modes, killed);
+            call_sites(&t.body, tail, mine, cx, modes, killed);
+            call_sites(&f.body, tail, mine, cx, modes, killed);
+        }
+        Core::Case { scrut, alts } => {
+            call_sites(scrut, false, mine, cx, modes, killed);
+            let lent = matches!(&**scrut, Core::Var(s) if mine.contains(&s.0));
+            for a in alts {
+                match &a.pat {
+                    // The fields of a borrowed scrutinee are borrowed too.
+                    CPat::Con { fields, .. } if lent => {
+                        let added: Vec<usize> = fields
+                            .iter()
+                            .map(|x| x.0)
+                            .filter(|x| cx.classes.get(x).copied().is_some_and(counted) && mine.insert(*x))
+                            .collect();
+                        call_sites(&a.body, tail, mine, cx, modes, killed);
+                        for x in added {
+                            mine.remove(&x);
+                        }
+                    }
+                    _ => call_sites(&a.body, tail, mine, cx, modes, killed),
+                }
+            }
+        }
+        // A quotation body's calls are the evaluator's (no unit there is
+        // a candidate, see `value_uses`).
+        other => {
+            for k in crate::core::child_slots_imm(other) {
+                call_sites(k, false, mine, cx, modes, killed);
+            }
+        }
+    }
+}
+
+/// A unit's binder classes and the binders it writes through
+/// (`LazyInit`, `BoxInit`, `RefSet` targets).
+struct UnitFacts {
+    classes: HashMap<usize, Class>,
+    written: Set,
+}
+
+impl UnitFacts {
+    fn of(params: &[Class], body: &Core) -> UnitFacts {
+        fn walk(e: &Core, out: &mut Set) {
+            if let Core::LazyInit(l, _) | Core::BoxInit(l, ..) | Core::RefSet(l, ..) = e {
+                out.insert(l.0);
+            }
+            for k in crate::core::child_slots_imm(e) {
+                walk(k, out);
+            }
+        }
+        let mut written = Set::new();
+        walk(body, &mut written);
+        UnitFacts { classes: binder_classes(params, body), written }
+    }
+}
+
+/// The variable a `let x = y` renames: the pass binds no new reference
+/// for `x` but reads `y` wherever `x` is used, so a borrowed `y` stays
+/// borrowed through it. Only for a counted binder of `y`'s class that is
+/// never written through (a `RefSet` replaces its binder's own value).
+fn let_alias(x: LocalId, c: Class, v: &Core, classes: &HashMap<usize, Class>, written: &Set) -> Option<usize> {
+    match v {
+        Core::Var(y)
+            if counted(c)
+                && classes.get(&y.0) == Some(&c)
+                && classes.get(&x.0) == Some(&c)
+                && !written.contains(&x.0) =>
+        {
+            Some(y.0)
+        }
+        _ => None,
+    }
 }
 
 fn param_classes(f: &FnDef) -> Vec<Class> {
@@ -157,27 +553,29 @@ fn binder_classes(params: &[Class], body: &Core) -> HashMap<usize, Class> {
     out
 }
 
-fn transform(f: &FnDef) -> Core {
-    transform_body(&param_classes(f), &f.body)
+fn transform(f: &FnDef, modes: &Modes, borrowed: &Set) -> Core {
+    transform_body(&param_classes(f), &f.body, true, modes, borrowed)
 }
 
-/// The count operations of a body whose parameters (all owned) have the
-/// classes `params`. A quotation body is a closed body with none: the
+/// The count operations of a body whose parameters have the classes
+/// `params`; those in `borrowed` are lent by the caller for the whole
+/// call, the rest owned. A quotation body is a closed body with none: the
 /// runtime evaluator runs the operations the pass places there exactly
-/// as code generation runs them in a unit.
-fn transform_body(params: &[Class], body: &Core) -> Core {
-    let class = binder_classes(params, body);
+/// as code generation runs them in a unit, and it has no form for drop
+/// specialisation, so `specialize` is off there.
+fn transform_body(params: &[Class], body: &Core, specialize: bool, modes: &Modes, borrowed: &Set) -> Core {
+    let UnitFacts { classes: class, written } = UnitFacts::of(params, body);
     let mut next = params.len();
     crate::core::walk_locals(body, &mut |l| next = next.max(l.0 + 1));
     for k in class.keys() {
         next = next.max(k + 1);
     }
-    let mut pass = Pass { class, fv: HashMap::new(), alias: HashMap::new(), next };
-    let owned: Set = (0..params.len()).filter(|i| pass.counted(*i)).collect();
+    let mut pass = Pass { class, written, fv: HashMap::new(), alias: HashMap::new(), next, specialize, modes };
+    let owned: Set = (0..params.len()).filter(|i| pass.counted(*i) && !borrowed.contains(i)).collect();
     pass.go(body, &owned, &Set::new())
 }
 
-struct Pass {
+struct Pass<'m> {
     class: HashMap<usize, Class>,
     /// Free counted binders of the original body's nodes, by address.
     /// Only nodes of the input body (alive for the whole pass) are keyed.
@@ -186,9 +584,16 @@ struct Pass {
     /// reference: their uses are the scrutinee's.
     alias: HashMap<usize, usize>,
     next: usize,
+    /// Place `Release` (drop specialisation) where an alternative keeps
+    /// fields of a scrutinee it leaves dead.
+    specialize: bool,
+    /// The callees' borrowed parameters ([`borrow_modes`]).
+    modes: &'m Modes,
+    /// Binders written through ([`UnitFacts`]).
+    written: Set,
 }
 
-impl Pass {
+impl Pass<'_> {
     fn class_of(&self, x: usize) -> Class {
         self.class.get(&x).copied().unwrap_or(Class::Raw)
     }
@@ -334,6 +739,9 @@ impl Pass {
                 }
             }
             Core::App(f, args) => {
+                if let Some(m) = callee_modes(self.modes, f, args.len()) {
+                    return self.borrowing_call(f, args, &m.clone(), owned, live);
+                }
                 let mut es: Vec<&Core> = vec![&**f];
                 es.extend(args.iter());
                 let mut v = self.seq(&es, owned, live);
@@ -353,8 +761,15 @@ impl Pass {
                 Core::Quote {
                     template: template.clone(),
                     holes: self.seq(&es, owned, live),
-                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b))),
+                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b, false, self.modes, &Set::new()))),
                 }
+            }
+            Core::Let(x, c, v, b) if let_alias(*x, *c, v, &self.class, &self.written).is_some() => {
+                // A renaming binds nothing: `x`'s uses are `y`'s.
+                let Core::Var(y) = &**v else { unreachable!("a let alias binds a variable") };
+                let y = self.resolve(y.0);
+                self.alias.insert(x.0, y);
+                self.go(b, owned, live)
             }
             Core::Let(x, c, v, b) => {
                 let mut fb = self.need(b);
@@ -471,18 +886,50 @@ impl Pass {
         match e {
             Core::Var(x) => Some(self.class_of(self.resolve(x.0))),
             Core::Let(_, _, _, b) => self.expr_class(b),
-            Core::ConstBig { .. } => Some(Class::TObj),
-            Core::ConstBytes(_) | Core::ConstString { .. } | Core::Lam { .. } | Core::InstDict(..)
-            | Core::LazyAlloc | Core::BoxAlloc => Some(Class::Obj),
-            Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_) | Core::LazyInit(..)
-            | Core::RefSet(..) | Core::BoxClear(..) => Some(Class::Raw),
-            Core::Proj(_, f) => Some(concrete(f.class)),
-            Core::DictProj(_, _, _, c) | Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) => {
-                Some(concrete(*c))
-            }
-            Core::App(f, _) if matches!(**f, Core::Ctor(..)) => Some(Class::Obj),
-            _ => None,
+            other => expr_class_in(other, &self.class),
         }
+    }
+
+    /// A saturated direct call of a unit with borrowed parameters `modes`
+    /// ([`borrow_modes`]). A variable passed to a borrowed parameter is
+    /// only read: it stays owned (or lent) across the evaluation of the
+    /// other arguments and the call, and one the caller owns and needs no
+    /// more is dropped after the call returns. A borrowed parameter's
+    /// computed argument is uncounted by the inference's call-site rule,
+    /// so it is evaluated as any other argument.
+    fn borrowing_call(&mut self, head: &Core, args: &[Core], modes: &[bool], owned: &Set, live: &Set) -> Core {
+        let lent = |i: usize| modes[i] && matches!(args[i], Core::Var(_));
+        let reads: Set = (0..args.len())
+            .filter(|i| lent(*i))
+            .filter_map(|i| match &args[i] {
+                Core::Var(x) => Some(self.resolve(x.0)),
+                _ => None,
+            })
+            .filter(|x| self.counted(*x))
+            .collect();
+        let mut keep = live.clone();
+        keep.extend(reads.iter().copied());
+        let mut es: Vec<&Core> = vec![head];
+        es.extend((0..args.len()).filter(|i| !lent(*i)).map(|i| &args[i]));
+        let mut vals = self.seq(&es, owned, &keep).into_iter();
+        let head = vals.next().expect("the call's head");
+        let args: Vec<Core> = (0..args.len())
+            .map(|i| match &args[i] {
+                Core::Var(x) if lent(i) => Core::Var(LocalId(self.resolve(x.0))),
+                _ => vals.next().expect("an owned argument"),
+            })
+            .collect();
+        let mut call = Core::App(Box::new(head), args);
+        let drops: Vec<usize> = reads.iter().copied().filter(|x| owned.contains(x) && !live.contains(x)).collect();
+        if !drops.is_empty() {
+            let r = self.fresh(Class::Raw);
+            let mut after = Core::Var(LocalId(r));
+            for x in drops.into_iter().rev() {
+                after = self.rc(true, x, after);
+            }
+            call = Core::Let(LocalId(r), Class::Raw, Box::new(call), Box::new(after));
+        }
+        call
     }
 
     /// The alternatives of a `case` on the owned-or-raw binder `s`.
@@ -494,15 +941,46 @@ impl Pass {
                     let nb = self.need(&a.body);
                     let used: Vec<usize> =
                         fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && nb.contains(x)).collect();
-                    let mut o = owned.clone();
-                    o.extend(used.iter().copied());
-                    // The scrutinee's drop (when the body leaves it dead)
-                    // sits inside, after the field dups.
-                    let mut body = self.go(&a.body, &o, live);
-                    for x in used.into_iter().rev() {
-                        body = self.rc(false, x, body);
+                    if self.specialize
+                        && !used.is_empty()
+                        && self.class_of(s) == Class::Obj
+                        && owned.contains(&s)
+                        && !live.contains(&s)
+                        && !nb.contains(&s)
+                    {
+                        // The alternative keeps fields and leaves the
+                        // scrutinee dead: a uniquely held scrutinee hands
+                        // its fields over instead of dupping them and
+                        // dropping itself (design/reclamation.md section 4).
+                        let mut o = owned.clone();
+                        o.remove(&s);
+                        o.extend(used.iter().copied());
+                        let body = self.go(&a.body, &o, live);
+                        let with_class = |x: usize| (LocalId(x), self.class_of(x));
+                        let moved = used.iter().map(|x| with_class(*x)).collect();
+                        let rest = fields
+                            .iter()
+                            .map(|x| x.0)
+                            .filter(|x| self.counted(*x) && !used.contains(x))
+                            .map(with_class)
+                            .collect();
+                        Core::Release { block: LocalId(s), moved, rest, body: Box::new(body) }
+                    } else if self.counted(s) && !owned.contains(&s) {
+                        // A borrowed scrutinee (a borrowed parameter, or a
+                        // field of one) lives for the whole call, so its
+                        // fields stay borrowed: an owned use dups one there.
+                        self.go(&a.body, owned, live)
+                    } else {
+                        let mut o = owned.clone();
+                        o.extend(used.iter().copied());
+                        // The scrutinee's drop (when the body leaves it dead)
+                        // sits inside, after the field dups.
+                        let mut body = self.go(&a.body, &o, live);
+                        for x in used.into_iter().rev() {
+                            body = self.rc(false, x, body);
+                        }
+                        body
                     }
-                    body
                 }
                 CPat::Var(x, _) => {
                     let x = x.0;
@@ -623,19 +1101,22 @@ fn pat_binders(p: &CPat) -> Vec<usize> {
 /// its live scrutinee until a `Dup`), an owned use or `Drop` takes one, a
 /// `Dup` adds one, a borrowed read needs one, and every path that returns
 /// ends with none held.
-pub fn verify(f: &FnDef, body: &Core) -> Result<(), String> {
-    verify_body(&param_classes(f), body)
+pub fn verify(f: &FnDef, body: &Core, modes: &Modes, borrowed: &Set) -> Result<(), String> {
+    verify_body(&param_classes(f), body, modes, borrowed)
 }
 
-fn verify_body(params: &[Class], body: &Core) -> Result<(), String> {
+/// [`verify`] for a body whose parameters have the classes `params`, of
+/// which those in `lent` are borrowed: alive throughout, holding no
+/// reference of their own.
+fn verify_body(params: &[Class], body: &Core, modes: &Modes, lent: &Set) -> Result<(), String> {
     let class = binder_classes(params, body);
     let mut st = State { cnt: HashMap::new(), parent: HashMap::new() };
     for i in 0..params.len() {
-        if class.get(&i).copied().is_some_and(counted) {
+        if class.get(&i).copied().is_some_and(counted) && !lent.contains(&i) {
             st.cnt.insert(i, 1);
         }
     }
-    let mut v = Verifier { class };
+    let mut v = Verifier { class, modes, lent: lent.clone() };
     if v.value(body, &mut st)? {
         v.ended(&st)?;
     }
@@ -649,17 +1130,20 @@ struct State {
     parent: HashMap<usize, usize>,
 }
 
-struct Verifier {
+struct Verifier<'m> {
     class: HashMap<usize, Class>,
+    modes: &'m Modes,
+    /// Borrowed parameters.
+    lent: Set,
 }
 
-impl Verifier {
+impl Verifier<'_> {
     fn counted(&self, x: usize) -> bool {
         self.class.get(&x).copied().is_some_and(counted)
     }
 
     fn alive(&self, st: &State, x: usize) -> bool {
-        if st.cnt.get(&x).copied().unwrap_or(0) > 0 {
+        if self.lent.contains(&x) || st.cnt.get(&x).copied().unwrap_or(0) > 0 {
             return true;
         }
         match st.parent.get(&x) {
@@ -740,6 +1224,22 @@ impl Verifier {
                 self.take(st, x.0, "drop")?;
                 self.value(b, st)
             }
+            Core::Release { block, moved, body, .. } => {
+                // The moved fields are read through the block before it
+                // is released, and each ends with its own reference.
+                for (m, _) in moved {
+                    if self.counted(m.0) && !self.alive(st, m.0) {
+                        return Err(format!("release moves v{}, which is not alive here", m.0));
+                    }
+                }
+                self.take(st, block.0, "release")?;
+                for (m, _) in moved {
+                    if self.counted(m.0) {
+                        *st.cnt.entry(m.0).or_insert(0) += 1;
+                    }
+                }
+                self.value(body, st)
+            }
             Core::Let(x, _, v, b) => {
                 if !self.value(v, st)? {
                     return Ok(false);
@@ -754,12 +1254,32 @@ impl Verifier {
                 if !self.value(f, st)? {
                     return Ok(false);
                 }
-                self.all(args, st)
+                let modes = callee_modes(self.modes, f, args.len());
+                let Some(modes) = modes else {
+                    return self.all(args, st);
+                };
+                // A variable passed to a borrowed parameter is read when
+                // the call is made, after every argument.
+                let mut reads = Vec::new();
+                for (i, a) in args.iter().enumerate() {
+                    match a {
+                        Core::Var(x) if modes[i] => reads.push(x.0),
+                        _ => {
+                            if !self.value(a, st)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+                for x in reads {
+                    self.read(st, x)?;
+                }
+                Ok(true)
             }
             Core::Lam { env: args, .. } | Core::InstDict(_, args, _) => self.all(args, st),
             Core::Quote { holes, body, .. } => {
                 if let Some(b) = body {
-                    verify_body(&[], b).map_err(|m| format!("in a quotation body: {m}"))?;
+                    verify_body(&[], b, self.modes, &Set::new()).map_err(|m| format!("in a quotation body: {m}"))?;
                 }
                 self.all(holes, st)
             }
@@ -838,4 +1358,23 @@ impl Verifier {
 fn short(e: &Core) -> String {
     let s = format!("{e:?}");
     s.chars().take(80).collect()
+}
+
+/// The class of `e`'s value when its form fixes it, binders by `classes`.
+fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
+    match e {
+        Core::Var(x) => Some(classes.get(&x.0).copied().unwrap_or(Class::Raw)),
+        Core::Let(_, _, _, b) => expr_class_in(b, classes),
+        Core::ConstBig { .. } => Some(Class::TObj),
+        Core::ConstBytes(_) | Core::ConstString { .. } | Core::Lam { .. } | Core::InstDict(..)
+        | Core::LazyAlloc | Core::BoxAlloc => Some(Class::Obj),
+        Core::Int(_) | Core::Bool(_) | Core::Unit | Core::ConstSym(_) | Core::LazyInit(..)
+        | Core::RefSet(..) | Core::BoxClear(..) => Some(Class::Raw),
+        Core::Proj(_, f) => Some(concrete(f.class)),
+        Core::DictProj(_, _, _, c) | Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) => {
+            Some(concrete(*c))
+        }
+        Core::App(f, _) if matches!(**f, Core::Ctor(..)) => Some(Class::Obj),
+        _ => None,
+    }
 }

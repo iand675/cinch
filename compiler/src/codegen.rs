@@ -214,6 +214,8 @@ fn emit_module(
     let mut reg = Registry::build(program)?;
     reg.rc_debug = profile.rc_debug;
     reg.reclaim = profile.reclaim;
+    reg.emit_modules = emit_modules.to_vec();
+    reg.lent = program.lent.clone();
     let reg = reg;
     // A program with `foreign export` entries may be linked as a library
     // with the C side supplying `main` (foreign function interface
@@ -260,9 +262,9 @@ fn emit_module(
     // sections 4 and 8): the slow paths of an inline dup or drop (the
     // zero crossing, and the atomic counts of blocks shared across tasks),
     // the out-of-line forms a `rc_debug` build calls, the raw release an
-    // apply stub uses to move the saved words out of a uniquely held
-    // closure, and the registration that tells the runtime the program
-    // counts references.
+    // apply stub and a drop specialisation (`Core::Release`) use to move
+    // the fields out of a uniquely held block, and the registration that
+    // tells the runtime the program counts references.
     out.push_str("declare void @cinch_dup(i64)\n");
     out.push_str("declare void @cinch_drop(i64)\n");
     out.push_str("declare void @cinch_drop_slow(i64)\n");
@@ -825,9 +827,27 @@ struct Registry {
     /// ([`crate::core::TargetProfile::reclaim`]); otherwise no unit emits
     /// an ownership operation and every block leaks.
     reclaim: bool,
+    /// The modules this module defines (empty: every module), as
+    /// [`emitted_symbol`] reads them.
+    emit_modules: Vec<String>,
+    /// The primitive units' borrowed parameters ([`Program::lent`]): their
+    /// wrappers leave them to the caller.
+    lent: std::collections::BTreeMap<String, Vec<bool>>,
 }
 
 impl Registry {
+    /// Whether instance `id`'s dictionary is one immortal static block
+    /// `@"<id>.dict"`: it has no subdictionaries and no eagerly computed
+    /// value slots, so every method word is the method's own static
+    /// closure and every `.mk` call would build the same constant block.
+    fn static_dict(&self, id: &str) -> bool {
+        self.insts.get(id).is_some_and(|info| {
+            info.subdict_count == 0
+                && info.values.iter().all(Vec::is_empty)
+                && info.methods.iter().all(|(_, arity)| *arity > 0)
+        })
+    }
+
     /// Physical facts about the units just emitted. This is deliberately
     /// separate from source exports: a private layout does not make its
     /// constructor available to an importing source module.
@@ -1501,7 +1521,7 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
 /// it reaches shared, and the thread's apply stub consumes it). Results
 /// are fresh, owned words; a `Some`/`Ok` payload is a fresh word the
 /// block takes over.
-fn prim_consumes(op: PrimOp, i: usize) -> bool {
+pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
@@ -2035,6 +2055,12 @@ fn static_shaped_block(sym: &str, kind: u8, desc: u64, words: &[String]) -> Stri
     )
 }
 
+/// The immortal static dictionary of an instance whose `.mk` builds a
+/// constant block ([`Registry::static_dict`]).
+fn static_dict_name(id: &str) -> String {
+    format!("{id}.dict")
+}
+
 /// The worker symbol of a widened unit. `#` appears in no source
 /// identifier, so the name cannot meet another unit's.
 fn tail_worker(unit: &str) -> String {
@@ -2193,8 +2219,9 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
     match sym {
         "cinch_alloc_raw" | "cinch_alloc_ctor" | "cinch_alloc_shaped" => Callee::Alloc,
         "memcpy" => Callee::Copy,
-        // A dup writes a header (design/reclamation.md section 11, item 9).
-        "cinch_dup" | "cinch_dup_mt" | "cinch.rc.dup.obj" | "cinch.rc.dup.tobj" => Callee::Copy,
+        // A dup writes a header (design/reclamation.md section 11, item 9);
+        // the uniqueness test reads one, and its unit also frees.
+        "cinch_dup" | "cinch_dup_mt" | "cinch.rc.dup.obj" | "cinch.rc.dup.tobj" | RC_UNIQUE => Callee::Copy,
         // A drop may free what the caller passed or allocated before the
         // call, and so does the raw release of a unique closure.
         "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" | "cinch.rc.drop.obj" | "cinch.rc.drop.tobj" => {
@@ -2501,7 +2528,8 @@ fn build_unit(
                     .map(|t| matches!(t, crate::types::Ty::Prim(_) | crate::types::Ty::Bool))
                     .collect();
             }
-            b.ret_drops = borrowed(&|i| prim_consumes(*op, i));
+            let lent = reg.lent.get(name);
+            b.ret_drops = borrowed(&|i| prim_consumes(*op, i) || lent.is_some_and(|m| m.get(i).copied().unwrap_or(false)));
             prim_body(&mut b, cx, reg, name, *op);
         }
         UnitBody::Ctor(fields) => {
@@ -2511,7 +2539,19 @@ fn build_unit(
             }
             ctor_body(&mut b, reg, name, desc, *fields, reg.plan_of(name));
         }
-        UnitBody::Mk(info) => mk_body(&mut b, reg, info),
+        UnitBody::Mk(info) => {
+            let id = name.strip_suffix(".mk").expect("a dictionary factory's name ends in .mk");
+            if reg.static_dict(id) {
+                // The factory keeps its symbol and signature for separately
+                // compiled consumers; it hands out the one static block.
+                let mut words = vec![info.method_count.to_string()];
+                words.extend(info.methods.iter().map(|(method, _)| format!("ptrtoint (ptr @{} to i64)", quote(&format!("{method}.clo")))));
+                globals.push_str(&static_shaped_block(&static_dict_name(id), block::KIND_DICT, reg.dict_desc(info), &words));
+                b.line(&format!("ret i64 ptrtoint (ptr @{} to i64)", quote(&static_dict_name(id))));
+            } else {
+                mk_body(&mut b, reg, info)
+            }
+        }
         UnitBody::Foreign(plan) => {
             b.ret_drops = borrowed(&|_| false);
             foreign_import_body(&mut b, cx, reg, plan)?
@@ -3468,8 +3508,27 @@ fn rc_helpers() -> String {
             out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", rc_helper_name(drop, class), b.code));
         }
     }
+    // A drop specialisation's test (`Core::Release`): a nonzero word whose
+    // block's thread-local count is exactly one.
+    let mut b = Builder::new();
+    let (lblock, lno) = (b.label(), b.label());
+    b.line("%z = icmp eq i64 %w, 0");
+    b.line(&format!("br i1 %z, label %{lno}, label %{lblock}"));
+    b.start(&lblock);
+    b.line("%p = inttoptr i64 %w to ptr");
+    b.line("%hp = getelementptr inbounds i8, ptr %p, i64 -8");
+    let h = header_load(&mut b, "%hp");
+    b.line(&format!("%top = shl i64 {h}, {RC_TOP_SHIFT}"));
+    b.line(&format!("%u = icmp eq i64 %top, {}", 1i64 << RC_TOP_SHIFT));
+    b.line("ret i1 %u");
+    b.start(&lno);
+    b.line("ret i1 false");
+    out.push_str(&format!("define internal i1 @{RC_UNIQUE}(i64 %w) {{\n{}}}\n", b.code));
     out
 }
+
+/// The helper [`rc_helpers`] defines for a drop specialisation's test.
+const RC_UNIQUE: &str = "cinch.rc.unique";
 
 /// The fast path of one count operation. An `Obj` word may be 0 (the
 /// `Copy` marker dictionary is the unit word), and a `TObj` word tests its
@@ -5845,7 +5904,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
             out.insert(*op);
         }
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => collect_prims(d, out),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => collect_prims(body, out),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => collect_prims(body, out),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             if let Core::App(f, _) = e {
                 collect_prims(f, out);
@@ -5910,7 +5969,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             }
         }
         Core::Demand(d, _) => collect_binders(d, out),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => collect_binders(body, out),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => collect_binders(body, out),
         Core::LazyAlloc => {}
         Core::LazyInit(_, t) => collect_binders(t, out),
         Core::BoxAlloc => {}
@@ -6247,11 +6306,17 @@ impl CoreEmitter<'_, '_> {
                     args.push(format!("i64 {v}"));
                 }
                 let r = self.b.reg();
-                self.b.line(&format!(
-                    "{r} = call i64 @{}({})",
-                    quote(&format!("{id}.mk")),
-                    args.join(", ")
-                ));
+                if self.reg.static_dict(&id.0) && emitted_symbol(&format!("{id}.mk"), &self.reg.emit_modules) {
+                    // The factory is defined here, so its static block is
+                    // too: no call, no allocation.
+                    self.b.line(&format!("{r} = ptrtoint ptr @{} to i64", quote(&static_dict_name(&id.0))));
+                } else {
+                    self.b.line(&format!(
+                        "{r} = call i64 @{}({})",
+                        quote(&format!("{id}.mk")),
+                        args.join(", ")
+                    ));
+                }
                 Ok(r)
             }
             Core::App(f, args) => self.emit_app(f, args),
@@ -6440,6 +6505,10 @@ impl CoreEmitter<'_, '_> {
                 self.emit_count(e, *x, *class)?;
                 self.emit_expr(body)
             }
+            Core::Release { block, moved, rest, body } => {
+                self.emit_release(*block, moved, rest)?;
+                self.emit_expr(body)
+            }
             Core::Case { scrut, alts } => match self.emit_case(scrut, alts, false)? {
                 Some(v) => Ok(v),
                 None => err("internal error: a value-position case emitted no result"),
@@ -6463,6 +6532,54 @@ impl CoreEmitter<'_, '_> {
             class,
         );
         Ok(())
+    }
+
+    /// A `Release` (drop specialisation, design/reclamation.md section 4):
+    /// a uniquely held block hands its moved fields over, drops the rest
+    /// and is freed without visiting its fields; any other block dups the
+    /// moved fields and is dropped.
+    fn emit_release(&mut self, block: LocalId, moved: &[(LocalId, Class)], rest: &[(LocalId, Class)]) -> Result<()> {
+        for x in std::iter::once(&block).chain(moved.iter().chain(rest).map(|(l, _)| l)) {
+            if !self.bound.contains(x) {
+                return err(format!("count operation on unknown local {}", x.0));
+            }
+        }
+        let w = self.load_local(block);
+        let shared = |this: &mut Self, w: &str| {
+            for (m, c) in moved {
+                let v = this.load_local(*m);
+                rc_op(this.b, this.reg.rc_debug, false, &v, *c);
+            }
+            rc_op(this.b, this.reg.rc_debug, true, w, Class::Obj);
+        };
+        if !self.b.reclaim || self.reg.rc_debug {
+            shared(self, &w);
+            return Ok(());
+        }
+        let (lunique, lshared, ljoin) = (self.b.label(), self.b.label(), self.b.label());
+        let unique = self.b.reg();
+        self.b.line(&format!("{unique} = call i1 @{RC_UNIQUE}(i64 {w})"));
+        self.b.line(&format!("br i1 {unique}, label %{lunique}, label %{lshared}"));
+        self.b.start(&lunique);
+        for (r, c) in rest {
+            let v = self.load_local(*r);
+            rc_op(self.b, false, true, &v, *c);
+        }
+        self.b.line(&format!("call void @cinch_free(i64 {w})"));
+        self.b.line(&format!("br label %{ljoin}"));
+        self.b.start(&lshared);
+        shared(self, &w);
+        self.b.line(&format!("br label %{ljoin}"));
+        self.b.start(&ljoin);
+        Ok(())
+    }
+
+    /// The current word of a bound local.
+    fn load_local(&mut self, x: LocalId) -> String {
+        let slot = self.slot(x);
+        let w = self.b.reg();
+        self.b.line(&format!("{w} = load i64, ptr {slot}"));
+        w
     }
 
     /// Emit an application: a saturated call of a known unit is a direct
@@ -6545,6 +6662,10 @@ impl CoreEmitter<'_, '_> {
             // after them stays the last instruction before `ret`.
             Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
                 self.emit_count(e, *x, *class)?;
+                self.emit_tail(body)
+            }
+            Core::Release { block, moved, rest, body } => {
+                self.emit_release(*block, moved, rest)?;
                 self.emit_tail(body)
             }
             Core::If(c, t, f) => {
@@ -6975,6 +7096,7 @@ mod tests {
             foreigns: Default::default(),
             prims: Vec::new(),
             laws: Vec::new(),
+            lent: Default::default(),
         }
     }
 
@@ -8686,6 +8808,9 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, x.0 as u64);
             reify(out, body, reg)?;
         }
+        // A quotation body's operations are placed without drop
+        // specialisation (`crate::rc`), so the evaluator has no form for it.
+        Core::Release { .. } => return err("internal error: a quotation body holds a drop specialisation"),
         Core::Global(g, _) => {
             let arity = reg.arity_of(&g.0)?;
             reify_unit_value(out, &g.0, arity);

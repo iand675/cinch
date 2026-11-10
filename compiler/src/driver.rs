@@ -4474,7 +4474,15 @@ pub fn driver_with_profile_opts(
     // Reference counting goes in after specialization (design/reclamation.md
     // section 4): driving duplicates and discards subterms, which would
     // unbalance inserted count operations.
-    let program = crate::rc::insert(program, profile)?;
+    // An executable emitted whole calls its units only from itself, so
+    // parameters may be inferred borrowed; an object, a module subset or
+    // a link against package objects keeps every parameter owned.
+    let closed = mode != Mode::EmitObject && emit_modules.is_empty() && opts.package_objects.is_empty();
+    let program = if closed {
+        crate::rc::insert_closed(program, profile)?
+    } else {
+        crate::rc::insert(program, profile)?
+    };
     if mode == Mode::EmitObject {
         return write_object(
             profile,
@@ -4699,7 +4707,7 @@ pub fn run_program_objects(
     objects: &[&str],
 ) -> Result<i32> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
-    let program = crate::rc::insert(program, profile)?;
+    let program = crate::rc::insert_closed(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");
@@ -4781,7 +4789,7 @@ pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<(
     let profile = crate::core::TargetProfile::native();
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
     let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
-    let program = crate::rc::insert(program, &profile)?;
+    let program = crate::rc::insert_closed(program, &profile)?;
     let ir = codegen::emit_for(&profile, &program)?;
     let ir_path = out.with_extension("ll");
     std::fs::write(&ir_path, &ir)
@@ -4804,7 +4812,7 @@ pub fn run_program_io(
     input: &[u8],
 ) -> Result<(i32, String)> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
-    let program = crate::rc::insert(program, profile)?;
+    let program = crate::rc::insert_closed(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test")?;
     let ir_path = tmp.join("program.ll");

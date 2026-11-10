@@ -1575,6 +1575,7 @@ impl Session {
                     foreigns: run.foreigns,
                     prims: run.prims,
                     laws: run.laws,
+                    lent: Default::default(),
                 });
             }
         }
@@ -1624,6 +1625,7 @@ impl Session {
             foreigns,
             prims,
             laws,
+            lent: Default::default(),
         })
     }
 

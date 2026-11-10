@@ -260,10 +260,11 @@ fn building_and_dropping_a_list_repeatedly_peaks_near_one_list() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let peak = field(&out, "cinch-alloc:", "peak");
     let bytes = field(&out, "cinch-alloc:", "bytes");
-    // One list of 1000 cells is 32 KB with headers; a thousand of them
-    // would be 32 MB.
+    // One list of 1000 cells is 24 KB with headers; a thousand of them
+    // would be 24 MB. (The dictionaries the loop uses are static blocks,
+    // so the cells are all it allocates.)
     assert!(peak < 1_000_000, "peak {peak} of {bytes} allocated: {out:?}");
-    assert!(bytes > 30_000_000, "{out:?}");
+    assert!(bytes >= 24_000_000, "{out:?}");
     assert_eq!(field(&out, "cinch-leak:", "leaked"), 0, "{out:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }

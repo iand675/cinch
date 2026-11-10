@@ -686,12 +686,61 @@ default to owned. Dictionary and capability parameters (`FnMeta.dicts`,
 asserts that each owned binder is consumed exactly once on each path
 (Lean's IR checker). It runs under `debug_assertions` in tests.
 
-**As built (S6a).** `compiler/src/rc.rs` inserts `Dup`/`Drop` with every
-parameter owned (borrow inference is S6b) and a debug verifier refuses
-any path that does not consume an owned binder exactly once. Reclamation
-is on by default; `CINCH_RECLAIM=0` in the compiler's environment builds
-the leak-everything baseline for measurements and A/B debugging.
+**As built (S6a, S6b).** `compiler/src/rc.rs` inserts `Dup`/`Drop`, and a
+debug verifier refuses any path that does not consume an owned binder
+exactly once. Reclamation is on by default; `CINCH_RECLAIM=0` in the
+compiler's environment builds the leak-everything baseline for
+measurements and A/B debugging.
 
+- Borrowed parameters are inferred only for a closed program: an
+  executable emitted whole (`rc::insert_closed`). An object, a module
+  subset, a link against package objects and the incremental unit cache
+  keep every parameter owned (`rc::insert`), the convention every
+  separately compiled caller assumes, so modes never reach an interface.
+  A unit takes part only if every caller is a saturated direct call in
+  the program: the entry, `foreign export` targets, instance methods and
+  every unit used as a value (a closure, a hoisted lambda, anything a
+  quotation body names) stay owned, because `__apply`, the entry glue,
+  the export entries and the evaluator pass owned arguments. Each counted
+  parameter starts borrowed and becomes owned, to a fixed point, when the
+  unit uses it outside a `case` scrutinee, a projection's container or a
+  borrowed argument; when a call passes it a computed counted value; or
+  when a call in tail position passes it anything but the caller's own
+  borrowed parameter or an uncounted value. The last rule is Lean's
+  tail-call preservation rule: nothing is dropped after a tail call. A
+  variable passed to a borrowed parameter stays alive across the other
+  arguments, and if the caller owns it and needs it no more it is dropped
+  after the call returns. The fields of a borrowed scrutinee are borrowed
+  as well, since the scrutinee outlives the call: an owned use dups one
+  where it happens, and nothing dups them at the alternative's entry.
+  The verifier treats a borrowed parameter as alive throughout and
+  holding no reference.
+- A `let x = y` of a counted, never written-through binder of `y`'s
+  class is a renaming: the pass binds no reference for `x` and counts
+  `y` wherever `x` is used, so it does not turn a borrowed `y` owned.
+- Primitive units take part with the parameters their runtime operation
+  only reads (all but `prim_consumes`). The modes of those that stay
+  borrowed travel in `Program::lent`, and the primitive's wrapper releases
+  only its other counted parameters on return.
+- Measured on the bootstrap compiler's sources: of 15,134 candidate
+  parameters 2,672 end borrowed. Most of the rest are stored in a
+  constructor or are passed on in tail position by a caller that owns
+  the argument, which the tail-call rule forbids.
+- Drop specialisation is the `Core::Release { block, moved, rest }` node,
+  placed where a `Case` alternative on an owned, dead `Obj` scrutinee uses
+  at least one field. Codegen tests the block's thread-local count with
+  the module-private helper `cinch.rc.unique`: at one, the `rest` fields
+  are dropped and the cell freed with `cinch_free` without visiting its
+  fields, so the `moved` fields change owner without count traffic;
+  otherwise the moved fields are dupped and the block dropped. Quotation
+  bodies are not specialised: the evaluator has no form for it. An
+  `rc_debug` build (`TargetProfile::rc_debug`) takes the shared path
+  always, so every count operation reaches the checked runtime calls.
+- A dictionary instance with no subdictionaries, no value slots and no
+  strict methods (every word is a method's static closure) is one static
+  immortal block, `@"<inst>.dict"`. Its `.mk` keeps its symbol and ABI and
+  returns the static, so separately compiled consumers still link, and an
+  `InstDict` in the module that emits the `.mk` uses the static directly.
 - Binder classes are exact or the build fails. Every binder the
   elaboration creates records its type or class where it is created
   (the memo thunk's and codata observation's unit parameters, a `let`

@@ -1823,6 +1823,17 @@ pub enum Core {
     /// class), then evaluate the body. The binder is not used again on
     /// this path unless a `Dup` of it preceded.
     Drop(LocalId, Class, Box<Core>),
+    /// Drop specialisation of a `case` alternative (inserted by `crate::rc`,
+    /// design/reclamation.md section 4): the alternative keeps the pattern
+    /// fields `moved` and no longer needs its scrutinee `block`. Afterwards
+    /// each moved field owns one reference and `block` has given up its
+    /// own, then the body runs. When this was the block's only reference
+    /// (a thread-local count of one), the moved fields take over the
+    /// block's references, the other counted fields (`rest`) are dropped
+    /// and the block is freed without visiting its fields; otherwise each
+    /// moved field is dupped and the block dropped, which is exactly
+    /// `Dup` of every moved field followed by `Drop` of the block.
+    Release { block: LocalId, moved: Vec<(LocalId, Class)>, rest: Vec<(LocalId, Class)>, body: Box<Core> },
     /// A typed quotation template under construction (staging): the
     /// template carrying `SpliceHole` placeholders plus the elaborated
     /// splice expressions, evaluated when the quote is constructed
@@ -3032,6 +3043,12 @@ pub struct Program {
     /// inline target IR specification section 5), for the manifest's
     /// honest reporting.
     pub laws: Vec<LawRow>,
+    /// Borrowed parameters of the primitive units by unit symbol, `true`
+    /// where the caller lends the argument (`crate::rc::insert_closed`).
+    /// A primitive wrapper releases only its other counted parameters.
+    /// Empty until reference counting, and for every artifact whose units
+    /// other artifacts call.
+    pub lent: std::collections::BTreeMap<String, Vec<bool>>,
 }
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
@@ -3360,7 +3377,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
             Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::RefSet(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) => all_calls(body, fns, insts, foreigns, out),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => all_calls(body, fns, insts, foreigns, out),
             Core::If(c, t, fe) => {
                 all_calls(c, fns, insts, foreigns, out);
                 all_calls(&t.body, fns, insts, foreigns, out);
@@ -3652,7 +3669,7 @@ fn calls_walk(
         Core::BoxInit(_, v, _) | Core::LazyInit(_, v) | Core::RefSet(_, v, _) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out)
         }
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => {
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => {
             calls_walk(body, tail, fns, insts, foreigns, callees, out)
         }
         Core::If(c, t, fe) => {
@@ -4523,6 +4540,11 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(body, f);
         }
+        Core::Release { block, moved, rest, body } => {
+            f(*block);
+            moved.iter().chain(rest).for_each(|(l, _)| f(*l));
+            walk_locals(body, f);
+        }
         Core::If(c, t, fe) => {
             walk_locals(c, f);
             walk_locals(&t.body, f);
@@ -4617,7 +4639,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::BoxGet(v, _) | Core::BoxClear(v, _) => use_range(v, l),
-        Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+        Core::Dup(x, _, body) | Core::Drop(x, _, body) | Core::Release { block: x, body, .. } => {
             let (bmin, bmax) = use_range(body, l);
             let k = usize::from(*x == l);
             (bmin + k, bmax + k)
@@ -4722,6 +4744,11 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(body, map, next);
             }
+            Core::Release { block, moved, rest, body } => {
+                note(*block, map, next);
+                moved.iter().chain(rest).for_each(|(l, _)| note(*l, map, next));
+                assign(body, map, next);
+            }
             Core::If(c, t, fe) => {
                 assign(c, map, next);
                 assign(&t.body, map, next);
@@ -4807,6 +4834,10 @@ pub(crate) fn rename_core_locals(e: &Core, map: &HashMap<LocalId, LocalId>) -> C
         Core::BoxClear(v, c) => Core::BoxClear(Box::new(rw(v)), *c),
         Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
         Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+        Core::Release { block, moved, rest, body } => {
+            let m = |fields: &[(LocalId, Class)]| fields.iter().map(|(l, c)| (*map.get(l).unwrap_or(l), *c)).collect();
+            Core::Release { block: *map.get(block).unwrap_or(block), moved: m(moved), rest: m(rest), body: Box::new(rw(body)) }
+        }
         Core::If(c, t, fe) => Core::If(
             Box::new(rw(c)),
             CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
@@ -4959,6 +4990,11 @@ fn instantiate(
             }
             Core::Drop(l, c, body) => {
                 Core::Drop(*ren.get(l).unwrap_or(l), *c, Box::new(go(body, holes, binds, ren, next)))
+            }
+            Core::Release { block, moved, rest, body } => {
+                let m = |fields: &[(LocalId, Class)]| fields.iter().map(|(l, c)| (*ren.get(l).unwrap_or(l), *c)).collect();
+                let (moved, rest) = (m(moved), m(rest));
+                Core::Release { block: *ren.get(block).unwrap_or(block), moved, rest, body: Box::new(go(body, holes, binds, ren, next)) }
             }
             Core::If(c, t, fe) => Core::If(
                 Box::new(go(c, holes, binds, ren, next)),
@@ -5606,7 +5642,7 @@ fn has_alloc(e: &Core) -> bool {
             }
             Core::LazyInit(_, t) => go(t, found),
             Core::BoxInit(_, v, _) => go(v, found),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, found),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => go(body, found),
             Core::If(c, t, fe) => {
                 go(c, found);
                 go(&t.body, found);
@@ -5665,7 +5701,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
             scan_calls(v, f);
             scan_calls(body, f);
         }
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_calls(body, f),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => scan_calls(body, f),
         Core::LazyInit(_, t) => scan_calls(t, f),
         Core::BoxInit(_, v, _) => scan_calls(v, f),
         Core::RefSet(_, v, _) => scan_calls(v, f),
@@ -5707,7 +5743,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         | Core::Fault | Core::SyntaxLit(..) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_memo(body, n),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => scan_memo(body, n),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 scan_memo(a, n);
@@ -5769,7 +5805,7 @@ fn weights_ok(e: &Core) -> bool {
                 go(d, ok)
             }
             Core::BoxInit(_, v, _) => go(v, ok),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, ok),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => go(body, ok),
             Core::RefSet(_, v, _) => go(v, ok),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
@@ -5811,6 +5847,9 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 ok
             }
             Core::Dup(l, _, body) | Core::Drop(l, _, body) => bound.contains(l) && go(body, bound),
+            Core::Release { block, moved, rest, body } => {
+                bound.contains(block) && moved.iter().chain(rest).all(|(l, _)| bound.contains(l)) && go(body, bound)
+            }
             Core::RefSet(l, v, _) => bound.contains(l) && go(v, bound),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 args.iter().all(|a| go(a, bound))
@@ -5934,7 +5973,7 @@ fn body_impure(e: &Core) -> bool {
                 go(d, bad)
             }
             Core::BoxInit(_, v, _) => go(v, bad),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, bad),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => go(body, bad),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, bad);
@@ -6789,7 +6828,7 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
             out.push(&mut **d)
         }
         Core::BoxInit(_, v, _) => out.push(&mut **v),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&mut **body),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => out.push(&mut **body),
         Core::RefSet(_, v, _) => out.push(&mut **v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
@@ -7394,7 +7433,7 @@ fn each_child<'a>(e: &'a Core, visit: &mut impl FnMut(&'a Core)) {
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => visit(d),
         Core::BoxInit(_, v, _) => visit(v),
-        Core::Dup(_, _, body) | Core::Drop(_, _, body) => visit(body),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => visit(body),
         Core::RefSet(_, v, _) => visit(v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
@@ -7637,6 +7676,10 @@ fn share_head(e: &Core, h: &mut impl std::hash::Hasher) {
         Core::Lam { fn_id, env, classes } => (fn_id, env.len(), classes).hash(h),
         Core::Let(_, c, ..) | Core::Demand(_, c) | Core::BoxInit(_, _, c) | Core::BoxGet(_, c) | Core::BoxClear(_, c)
         | Core::RefSet(_, _, c) | Core::Dup(_, c, _) | Core::Drop(_, c, _) => c.hash(h),
+        Core::Release { moved, rest, .. } => {
+            moved.iter().map(|(_, c)| c).collect::<Vec<_>>().hash(h);
+            rest.iter().map(|(_, c)| c).collect::<Vec<_>>().hash(h);
+        }
         Core::If(_, t, f) => (t.weight, f.weight).hash(h),
         Core::Case { alts, .. } => {
             alts.len().hash(h);
@@ -7896,7 +7939,7 @@ mod tests {
             total_bodies: crate::total::CheckedGraph::empty(),
             fns, instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
-            prims: vec![], laws: vec![],
+            prims: vec![], laws: vec![], lent: Default::default(),
         };
         for reverse in [false, true] {
             if reverse { program.fns.reverse(); }
@@ -7947,7 +7990,7 @@ mod tests {
             total_bodies: crate::total::CheckedGraph::empty(),
             fns: vec![unit], instances: vec![], main: None, rewrites: vec![],
             plans: Default::default(), foreigns: Default::default(),
-            prims: vec![], laws: vec![],
+            prims: vec![], laws: vec![], lent: Default::default(),
         };
         share_repeated_subterms(&mut program);
         assert_eq!(program.fns.len(), 2);
