@@ -256,7 +256,7 @@ header (`core`, `module`, `target`, `source`, `opt-level`), and `end`.
 | --- | --- | --- |
 | vim | `editors/vim/ftdetect/cinch-core.vim`, `editors/vim/syntax/cinch-core.vim`, `editors/vim/queries/cinch-core/highlights.scm` (the nvim-treesitter path) | `editors/vim/test/run.sh` |
 | emacs | `editors/emacs/cinch-core-mode.el` | `editors/emacs/test/run.sh` |
-| sublime | `editors/sublime/CinchCore.sublime-syntax` | `python3 editors/sublime/test/check.py` |
+| sublime | `editors/sublime/CinchCore.sublime-syntax`, `editors/sublime/Comments.tmPreferences` | `python3 editors/sublime/test/check.py` |
 | vscode | `editors/vscode/package.json`, `editors/vscode/language-configuration-core.json`, `editors/vscode/syntaxes/cinch-core.tmLanguage.json`, `editors/vscode/extension.js` | `node editors/vscode/test/check.mjs` |
 | zed | `editors/zed/languages/cinch-core/{config.toml,highlights.scm,outline.scm,brackets.scm,indents.scm}`, `editors/zed/extension.toml`, `editors/zed/sync-grammar.sh` | `python3.11 editors/zed/test/check.py` |
 
@@ -282,7 +282,11 @@ What each check proves, and what it cannot:
   definition as data: the YAML parses, every `include` resolves, every
   section 8.3 category has a scope, unit names carry
   `entity.name.function` (the Goto Symbol list, which is this editor's
-  imenu), and all 33 form names appear. Rendering is unverified.
+  imenu), and all 33 form names appear. Rendering is unverified. A
+  `.sublime-syntax` file has no line-comment key, so the `--` marker is
+  declared the TextMate way in `Comments.tmPreferences` (`TM_COMMENT_START`
+  scoped to `source.cinch-core`), which is what Toggle Comment reads; the
+  check parses that plist and asserts both values.
 - vscode: `check.mjs` validates every JSON file, that both languages and
   both grammars are contributed with distinct configurations, that every
   `include` resolves and every regex compiles, that the section 8.3 scopes
@@ -291,12 +295,17 @@ What each check proves, and what it cannot:
 - zed: `check.py` parses both TOML files, requires every language
   referenced by `extension.toml` to exist on disk, requires both grammar
   entries, and validates every query file (balanced, and every node name
-  and anonymous token present in the grammar contract below). The queries
-  are not compiled against the grammar here, because
-  `tooling/tree-sitter-cinch-core/` belongs to the grammar slice and is
-  not in this workspace: `editors/zed/sync-grammar.sh` exits 1 naming that
-  directory until it lands, and Zed's own query compiler is the real check
-  once it does.
+  and anonymous token present in the grammar contract below). The query
+  files were also compiled with `tree-sitter query` against the generated
+  parser by the grammar slice (grammar commit `054aae12`): all five compile
+  with no invalid node type, field or predicate, `(unit "end" @outdent)
+  @indent` matches two captures per unit, and the bracket pairs were
+  corrected to one top-level pattern per pair after the grouped form was
+  measured to match nothing. Zed's own query compiler is the remaining
+  check on install. `tooling/tree-sitter-cinch-core/` is that slice's
+  deliverable and is not in this workspace, so
+  `editors/zed/sync-grammar.sh` exits 1 naming that directory until it
+  lands.
 
 `editors/zed/test/check.py` needs `tomllib`, so Python 3.11 or newer. The
 macOS system `python3` is 3.9, so on this machine it runs as

@@ -15,6 +15,7 @@ Exits nonzero on the first failing group of checks.
 """
 
 import pathlib
+import plistlib
 import re
 import sys
 
@@ -94,6 +95,21 @@ def main():
         ("comment", r"^comment\.line\.double-dash"),
     ]:
         check(category, bool(re.search(scope, joined, re.M)), True)
+
+    # Comment toggling: a `.sublime-syntax` file has no line-comment key, so
+    # the `--` marker is declared the TextMate way, in a tmPreferences file
+    # scoped to the grammar (this is what Toggle Comment reads).
+    prefs = HERE.parent / "Comments.tmPreferences"
+    check("tmPreferences exists", prefs.is_file(), True)
+    if prefs.is_file():
+        with prefs.open("rb") as handle:
+            plist = plistlib.load(handle)
+        check("tmPreferences scope", plist.get("scope"), "source.cinch-core")
+        variables = {
+            entry["name"]: entry["value"]
+            for entry in plist["settings"]["shellVariables"]
+        }
+        check("TM_COMMENT_START", variables.get("TM_COMMENT_START"), "-- ")
 
     # Every node form in section 8.2 is matched by the forms context.
     forms = " ".join(
