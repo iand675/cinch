@@ -1,9 +1,9 @@
 {
-  "description": "Published85f00ca ABI6 Native seed with quantified value identity and checked method/primitive bodies; empty patch. Explicitly separate from the library-only producer.",
+  "description": "ABI 7 Native seed at the performance-tuned compiler (undo-log unification, shared match fallthrough); empty patch. Explicitly separate from the library-only producer.",
   "patch": "bootstrap/seed/stage0.patch",
   "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "revision": "85f00ca880f0d9882c03c65031424a05c81b11bc",
-  "runtime_abi": 6,
+  "revision": "03ebe3b4dde4aaf2f7319b7f21068afc34239050",
+  "runtime_abi": 7,
   "schema": 1,
-  "source_sha256": "22c91cf6c1855b049207612e9d94630850e880d5a49ea3e2c57c92aff7fdbe88"
+  "source_sha256": "394a8619ab72d643c592142e4f08e28078b4eb030a81db5abe7513e531e1ef7d"
 }

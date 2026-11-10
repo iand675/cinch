@@ -17,7 +17,9 @@ import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build" / "bootstrap"
+# CINCH_BOOTSTRAP_BUILD lets a second chain (another pin or source set) build
+# beside an existing one without overwriting its stages.
+BUILD = Path(os.environ["CINCH_BOOTSTRAP_BUILD"]).resolve() if os.environ.get("CINCH_BOOTSTRAP_BUILD") else ROOT / "build" / "bootstrap"
 TOOLKIT = ("Lex", "Scan", "Parse", "Json", "Builder")
 PROTOCOL = 4
 HOST = {"system": platform.system(), "machine": platform.machine()}
@@ -351,7 +353,9 @@ def build_stage(stage: int) -> Path:
     for name, data in files.items():
         (sources / name).write_bytes(data)
     (directory / "compiler.cinch").write_bytes(bundle(files))
-    code = run([builder, "build", sources / "Main.cinch", "-o", compiler], sources, log)
+    # Stage1 does the largest compile of the chain (it builds Stage2), so the
+    # seed links it optimized.
+    code = run([builder, "build", sources / "Main.cinch", "-o", compiler, "--opt-level", "2"], sources, log)
     record_build(directory, inputs, code, log)
     seed_ir.unlink(missing_ok=True)
     return compiler
