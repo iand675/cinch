@@ -17,7 +17,7 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program, MkProgram, Module, program-modules, program-span, module-name)
-  import Bootstrap.Check (CheckedProgram, check-and-retain)
+  import Bootstrap.Check (CheckedProgram, check-and-retain, checked-surface)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-with-object, runtime-library-default-roots, emit-runtime-library-object-with-object)
@@ -27,7 +27,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set)
   import Bootstrap.Inputs (read-interfaces, embedded-library-home, read-interface-references, load-interface-references)
   import Bootstrap.Contracts (interface-headers)
-  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with)
+  import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages)
   import Bootstrap.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
   import Bootstrap.Export (export-interfaces, interface-hash, build-manifest)
@@ -193,26 +193,42 @@ module Bootstrap.Pipeline where
 
   build-manifest-path :: Path -> Path
   build-manifest-path ir = path-from-string (path-to-string ir <> ".manifest.json")
-  emit-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r} Int
+  emit-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> String -> Path ->{IO r, Diverge} Int
   emit-object-client metadata interfaces provider source ir = case fs-read (path-from-string source) of
     Err error -> write-failure ir "bootstrap.object: cannot read source" pipeline-read-failed
     Ok src -> case parse-program-with source src (interface-headers interfaces) of
       Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-      Parsed program Nil -> (case check-object-client src program interfaces of
+      Parsed program Nil -> case check-object-client src program interfaces of
         Err message -> write-failure ir message pipeline-check-refused
-        Ok checked -> case metadata of
-          None -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
-          Some document -> case export-interfaces checked interfaces src of
-            Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
-            Ok rows -> case write-interface-output ir (Ok rows) of
-              0 -> case write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)) of
-                0 -> (case fs-write (build-manifest-path ir)
-                    (canonical-bytes (build-manifest (path-stem (path-from-string source)) document interfaces rows)) of
-                  Ok written -> pipeline-ok
-                  Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
-                code -> code
-              code -> code)
+        Ok checked -> let admitted = unshadowed-interfaces (program-modules program) interfaces in
+          let entry = path-stem (path-from-string source) in
+          case emit-client-artifacts entry src checked admitted of
+            done -> after-object-client metadata admitted provider checked entry src ir
       Parsed program errors -> write-failure ir (render-bundle (Bundle source src errors)) pipeline-parse-failed
+
+  -- The client compile path also leaves the driver's artifact set in the
+  -- working directory's `build/`. Emission has already checked the program,
+  -- so a client whose interfaces cannot be exported still emits.
+  emit-client-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface ->{IO r, Diverge} Unit
+  emit-client-artifacts entry src checked admitted = case write-source-artifacts entry src checked admitted Nil of
+    Err message -> ()
+    Ok done -> ()
+
+  -- A published interface client writes its interfaces beside the IR path
+  -- and its build manifest beside them; a plain client build only emits.
+  after-object-client :: forall r. using (io :: Io r) => Option Json -> List LoadedInterface -> RuntimeObject -> CheckedProgram -> String -> Bytes -> Path ->{IO r, Diverge} Int
+  after-object-client metadata admitted provider checked entry src ir = case metadata of
+    None -> write-runtime-module ir (emit-runtime-program-with-object checked (Some provider))
+    Some document -> case export-interfaces checked admitted src of
+      Err message -> write-failure ir ("bootstrap.export: " <> message) pipeline-emit-refused
+      Ok rows -> case write-interface-output ir (Ok rows) of
+        0 -> case write-runtime-module ir (emit-runtime-program-with-object checked (Some provider)) of
+          0 -> (case fs-write (build-manifest-path ir)
+              (canonical-bytes (build-manifest entry document admitted rows)) of
+            Ok written -> pipeline-ok
+            Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
+          code -> code
+        code -> code
 
   run-source-with-object :: forall r. using (io :: Io r) => String -> String -> String -> String -> String -> List String ->{IO r, Diverge} Int
   run-source-with-object manifest config runtime prefix source words =
@@ -321,11 +337,17 @@ module Bootstrap.Pipeline where
                 Ok (fresh, doc) -> recheck-source-overlays source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
       else recheck-source-overlays source program rest interfaces written
 
+  -- A base-package home the client declares itself is the client's version of
+  -- that module: the object's copy stays internal and unused, so the source
+  -- may shadow it. Any other name the object supplies is closed, and a
+  -- source module of that name would silently disagree with the object it
+  -- links against.
   object-source-conflict :: List Module -> List LoadedInterface -> Option String
   object-source-conflict modules interfaces = case modules of
     Nil -> None
     Cons first rest -> let name = module-name first in
-      (case overlay-interface name interfaces of
+      if embedded-library-home name then object-source-conflict rest interfaces
+      else (case overlay-interface name interfaces of
         Some prior -> Some name
         None -> object-source-conflict rest interfaces)
 
@@ -385,9 +407,54 @@ module Bootstrap.Pipeline where
         Err message -> write-failure ir message pipeline-check-refused
         Ok (remaining, effective, replaced) -> case (program-modules remaining, replaced) of
           (Nil, Cons first rest) -> write-interface-output ir (Ok Nil)
-          other -> after-check mode src (checked-source remaining effective) ir exe report
-      other -> after-check mode src (checked-source prog interfaces) ir exe report)
+          other -> after-check-artifacts mode name src effective replaced (checked-source remaining effective) ir exe report
+      other -> after-check-artifacts mode name src interfaces Nil (checked-source prog interfaces) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+
+  -- A checked check, build or run leaves the driver's artifacts in the
+  -- working directory's `build/`: one `<Module>.cinchif` per admitted and
+  -- per checked source interface, and `<entry>.manifest.json` naming the
+  -- checked module identities. Source rows are written last, so a checked
+  -- source module replaces an admitted interface of the same name.
+  after-check-artifacts :: forall r. using (io :: Io r) => PipelineMode -> String -> Bytes -> List LoadedInterface -> List (String, Json) -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check-artifacts mode name src interfaces replaced result ir exe report = case (mode, result) of
+    (InterfacesOnly, other) -> after-check mode src result ir exe report
+    (ObjectOnly, other) -> after-check mode src result ir exe report
+    (other, Err found) -> after-check mode src result ir exe report
+    (other, Ok checked) -> let admitted = unshadowed-interfaces (program-modules (checked-surface checked)) interfaces in
+      case write-source-artifacts name src checked admitted replaced of
+        Err message -> after-check mode src result ir exe report
+        Ok done -> after-check mode src result ir exe report
+
+  -- The artifact set is best effort: the frontend's own refusal codes stay
+  -- the ones a caller reads, and an interface the checker admits but cannot
+  -- project does not turn a passing check into an emission failure.
+
+  write-source-artifacts :: forall r. using (io :: Io r) => String -> Bytes -> CheckedProgram -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
+  write-source-artifacts name src checked admitted replaced = case export-interfaces checked admitted src of
+    Err message -> Err message
+    Ok rows -> write-build-artifacts (path-stem (path-from-string name)) admitted (replaced <> rows)
+
+  write-build-artifacts :: forall r. using (io :: Io r) => String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
+  write-build-artifacts entry interfaces rows =
+    case process-run (command (path-from-string "mkdir") ["-p", "build"]) "" of
+      Ok (0, output) -> (case write-build-interfaces (admitted-rows interfaces <> rows) of
+        Err message -> Err message
+        Ok done -> case fs-write (path-from-string (string-concat "build/" (string-concat entry ".manifest.json")))
+            (canonical-bytes (build-manifest entry JObjEnd interfaces rows)) of
+          Ok written -> Ok ()
+          Err error -> Err "cannot write build manifest")
+      other -> Err "cannot create the build directory"
+
+  admitted-rows :: List LoadedInterface -> List (String, Json)
+  admitted-rows interfaces = map (\entry -> (loaded-module entry, loaded-contract entry)) interfaces
+
+  write-build-interfaces :: forall r. using (io :: Io r) => List (String, Json) ->{IO r} Result String Unit
+  write-build-interfaces rows = case rows of
+    Nil -> Ok ()
+    Cons (name, doc) rest -> case fs-write (path-from-string (string-concat "build/" (string-concat name ".cinchif"))) (canonical-bytes doc) of
+      Err error -> Err "cannot write checked interface"
+      Ok done -> write-build-interfaces rest
 
   after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-resolve mode src prog ir exe report = after-check mode src (check-source-phase resolve-program prog) ir exe report

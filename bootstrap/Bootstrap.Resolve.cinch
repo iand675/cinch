@@ -9,13 +9,14 @@ module Bootstrap.Resolve where
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
+  import Bootstrap.Inputs (embedded-library-home)
   import Bootstrap.Contracts (public-global, interface-headers, interface-declarations, materialize-externals, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Data.Json
   import Algebra.Semigroup
 
-  export resolve-program, resolve-program-with, resolve-overlay-with
+  export resolve-program, resolve-program-with, resolve-overlay-with, unshadowed-interfaces
 
   -- Visible spelling, defining module, internal global spelling.
   data Binding where
@@ -294,6 +295,7 @@ module Bootstrap.Resolve where
     let prelude-bindings = case lookup-scoped "Prelude" done of None -> base; Some (MkScoped n surface body) -> surface in
     let visible = declared <> qualify home declared <> bare <> qualified <> prelude-bindings <> kernel-bindings builtin-bindings in
     (declared, visible, views, errors <> clashes <> qualified-duplicates (module-span m) qualified Nil)
+
   build-scope :: Module -> List Scoped -> List Binding -> (Scoped, List Diagnostic)
   build-scope m done base =
     let home = module-name m in
@@ -984,7 +986,21 @@ module Bootstrap.Resolve where
   resolve-program-with :: Program -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-program-with p interfaces = case validate-interface-set interfaces of
     Err message -> (p, fail (program-span p) message)
-    Ok ordered -> resolve-context p (interface-scopes ordered) (interface-headers ordered) Nil
+    Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
+      resolve-context p (interface-scopes available) (interface-headers available) Nil
+
+  -- A source module beside the entry shadows the base-package copy of the
+  -- same name: the explicit source is the program's version of that module,
+  -- so the admitted interface leaves the scope the program resolves
+  -- against. A collision outside the base package keeps its interface and
+  -- is reported by `validate-modules`.
+  unshadowed-interfaces :: List Module -> List LoadedInterface -> List LoadedInterface
+  unshadowed-interfaces modules interfaces = case interfaces of
+    Nil -> Nil
+    Cons i rest ->
+      if embedded-library-home (loaded-module i) && has-module (loaded-module i) modules
+        then unshadowed-interfaces modules rest
+        else Cons i (unshadowed-interfaces modules rest)
 
   -- A library home may precede the Prelude facade that re-exports it.
   -- Only project facade names whose defining interface is already in the
@@ -993,8 +1009,9 @@ module Bootstrap.Resolve where
   resolve-overlay-with :: Program -> List LoadedInterface -> LoadedInterface -> (Program, List Diagnostic)
   resolve-overlay-with p dependencies facade = case validate-interface-set dependencies of
     Err message -> (p, fail (program-span p) message)
-    Ok ordered -> let base = overlay-base-bindings facade (loaded-exports facade) ordered Nil in
-      resolve-context p (interface-scopes ordered) (interface-headers ordered) base
+    Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
+      let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
+      resolve-context p (interface-scopes available) (interface-headers available) base
 
   overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
   overlay-base-bindings facade exports dependencies found = case exports of
