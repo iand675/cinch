@@ -2,37 +2,47 @@
 
 ## Current development checkpoint (2026-11-10)
 
-The seed and the library producer are now pinned to the same recent
-compiler (`03ebe3b4`, runtime ABI 7, interface schema 10). A full chain on
-those pins converges: Stage2 and Stage3 agree byte for byte on the
-executable, the LLVM IR and all 46 compiler interfaces, and the Stage3
-smoke tests pass.
+The seed and the library producer are pinned to the same recent compiler
+(`03ebe3b4`, runtime ABI 7, interface schema 10). A full chain on those
+pins converges: Stage2 and Stage3 agree byte for byte on the executable,
+the LLVM IR and all 46 compiler interfaces, and the Stage3 smoke tests pass.
 
-Build speed changed by an order of magnitude:
+Build speed changed by more than an order of magnitude, in three rounds:
 
-| Step | Before | After |
+| Step | Start of day | Now |
 | --- | --- | --- |
-| Rust seed builds Stage1 | about 1,690 s | about 40 s (`--opt-level 0`), about 110 s at `-O2` |
-| Seed IR for the compiler | 1.3 GB | 218 MB |
-| Stage2 compiles the compiler | 1,500 s | 195 s (measured on the current sources) |
-| Stage2 checks the 4K-line toolkit | 49 s | 11 to 17 s |
+| Rust seed builds Stage1 | about 1,690 s | 124 s (seed 129 s once, then cached) |
+| Seed IR for the compiler | 1.3 GB | 224 MB |
+| Stage2 builds Stage3 | 1,500 s | 310 s |
+| Full chain, Stage0 to Stage3 | about 1,690 s plus | 965 s cold, 640 s with the seed and producer cached |
+| Stage2 checks the 4K-line toolkit | 49 s | 15 s |
+| Stage2 checks the 55-module compiler bundle | 585 s | 156 s |
 
-The causes were quadratic trial unification in the seed (now an undo log),
-match compilation copying fallthrough rows into every constructor branch,
-per-name linear scans and quadratic identity encoding in the Cinch
-compiler, unoptimized links, a malloc-based runtime heap (now per-thread
-size classes), per-call literal and dictionary construction, and redundant
-reference counting. Stage compilers are linked at `-O2`.
+The causes, in the order they were removed: quadratic trial unification in
+the seed (now an undo log, 1690 s to 146 s on a self-build); match
+compilation copying fallthrough rows into every constructor branch
+(IR 1.3 GB to 221 MB); quadratic identity encoding and per-name linear
+scans in the Cinch compiler (self-compile 585 s to 195 s); unoptimized
+links; a malloc-based runtime heap (now per-thread size classes, 29%
+faster and 42% less peak memory); per-call literal and dictionary
+construction; redundant reference counting (static dictionaries, drop
+specialisation, borrowed parameters); and a single-threaded clang link
+(now deterministic IR shards compiled in parallel, 129 s to 20 s at K=8,
+plus profile-guided stage compilers for about 10% more). The phase
+timings, techniques and remaining backlog are in
+[compilation speed](compilation-speed.md).
 
-Acceptance 5 progress: the test targets that check, build or run source now
-go through the selected frontend (`compiler/tests/common`), and
-`tooling/run_stage_targets.py` runs them through any stage. Of 200 such
-targets run through Stage3, 130 pass completely and 70 fail (742 tests
-pass, 350 fail). The failures cluster into foreign and effect elaboration,
-refinement and precondition proofs, module and namespace elaboration,
-staging and quotations, and a few stale self-tests; they are being repaired
-in parallel lanes. Parallel compilation is designed in
-[parallel evaluation](parallel-evaluation.md); its runtime pool is in.
+Acceptance 5 progress: test targets that check, build or run source go
+through the selected frontend (`compiler/tests/common`), and
+`tooling/run_stage_targets.py` runs any subset through any stage. The
+current failure map, by first diagnostic and target list, is in that
+runner's output; the largest remaining groups are foreign and intrinsic
+elaboration, refinement and precondition discharge, namespace and module
+elaboration, staging and quotations, and unmodelled declarations
+(`upgrade`, attribute annotations, module parameters). Those groups
+together are what stands between the current state and Acceptance 5.
+Parallel compilation is designed in [parallel evaluation](parallel-evaluation.md);
+its runtime pool (phase 1) is in.
 
 ## Development checkpoint (2026-11-07)
 
