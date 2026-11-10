@@ -11,7 +11,7 @@ unit Main.main.exit :: -
   body (app (prim cinch.runtime.intToI64) (global Main.main))
 end
 unit Main.project :: Code Int -> Int
-  @params v4341 :: Code Int @owned
+  @params t0 :: Code Int @owned
   @stage(lowered)
   body (int 7)
 end

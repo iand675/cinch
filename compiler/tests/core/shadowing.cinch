@@ -1,0 +1,10 @@
+module Main where
+  apply :: (Int -> Int) -> Int -> Int
+  apply f x = f x
+
+  shadow :: Int -> Int
+  shadow x = let x = x + 1 in case x of
+    n -> let n = n + 1 in apply (\y -> y + n) n
+
+  main :: Int
+  main = shadow 1

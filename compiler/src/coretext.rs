@@ -330,7 +330,13 @@ struct Printer<'a> {
     program: &'a Program,
     ctx: &'a Context<'a>,
     fns: BTreeMap<String, &'a FnDef>,
-    params: BTreeMap<usize, String>,
+    /// The printed name of every binder in the unit being printed: its
+    /// parameters' own names where the artifact records one, and `t<n>` for
+    /// every other binder, numbered in first-appearance order.
+    names: BTreeMap<usize, String>,
+    /// The names already taken in this unit, so a number is never reused.
+    used: BTreeSet<String>,
+    next_name: usize,
 }
 
 /// One record of the module body: a function, a dictionary, or a foreign
@@ -347,7 +353,14 @@ impl<'a> Printer<'a> {
         for f in &program.fns {
             fns.entry(f.id.0.clone()).or_insert(f);
         }
-        Printer { program, ctx, fns, params: BTreeMap::new() }
+        Printer {
+            program,
+            ctx,
+            fns,
+            names: BTreeMap::new(),
+            used: BTreeSet::new(),
+            next_name: 0,
+        }
     }
 
     fn run(&mut self) -> String {
@@ -416,7 +429,6 @@ impl<'a> Printer<'a> {
         for (_, record) in records {
             match record {
                 Record::Fn(f) => {
-                    self.params = param_names(f);
                     walk_units(&f.body, &mut |name| {
                         referenced.insert(name.to_string());
                     });
@@ -434,7 +446,7 @@ impl<'a> Printer<'a> {
     }
 
     fn fn_unit(&mut self, f: &FnDef, out: &mut String) {
-        self.params = param_names(f);
+        self.reset_names(f);
         let ty = self.ctx.signatures.get(&f.id.0).unwrap_or("-").to_string();
         out.push_str(&format!("unit {} :: {}\n", ident(&f.id.0), ty));
         let mut lines = self.fn_annotations(f);
@@ -512,10 +524,11 @@ impl<'a> Printer<'a> {
         anns
     }
 
-    fn params_line(&self, f: &FnDef) -> String {
+    fn params_line(&mut self, f: &FnDef) -> String {
         let types = self.param_types(f);
         let mut parts = Vec::new();
-        for (index, name) in f.params.iter().enumerate() {
+        for index in 0..f.params.len() {
+            let name = self.local(LocalId(index));
             let class = match f.repr.params.get(index) {
                 Some(class) => class_text(*class),
                 None => "-".to_string(),
@@ -591,7 +604,7 @@ impl<'a> Printer<'a> {
         out.push_str("end\n");
     }
 
-    fn expr(&self, e: &Core) -> Node {
+    fn expr(&mut self, e: &Core) -> Node {
         match e {
             Core::Int(value) => Node::list("int").child(Node::atom(value.to_string())),
             Core::ConstBig { nat: true, digits } => {
@@ -653,10 +666,15 @@ impl<'a> Printer<'a> {
                 node
             }
             Core::Lam { fn_id, env, classes } => {
-                let own: Vec<String> = match self.fns.get(&fn_id.0) {
-                    Some(f) => f.params.iter().skip(env.len()).cloned().collect(),
-                    None => Vec::new(),
+                // The binder list sits in this unit, so its formals take this
+                // unit's next `t<n>`: a closure's parameter can never share a
+                // name with a binder of the unit that builds it. The hoisted
+                // unit's own `@params` line numbers its formals within itself.
+                let arity = match self.fns.get(&fn_id.0) {
+                    Some(f) => f.params.len().saturating_sub(env.len()),
+                    None => 0,
                 };
+                let own: Vec<String> = (0..arity).map(|_| self.fresh_name()).collect();
                 let mut params = Node::list("");
                 for name in own {
                     params = params.child(Node::atom(name));
@@ -769,7 +787,7 @@ impl<'a> Printer<'a> {
         }
     }
 
-    fn pattern(&self, pat: &CPat) -> Node {
+    fn pattern(&mut self, pat: &CPat) -> Node {
         match pat {
             CPat::Wild => Node::atom("_"),
             CPat::Var(id, class) => Node::list(self.local(*id)).mark(format!("@class({})", class_text(*class))),
@@ -787,16 +805,93 @@ impl<'a> Printer<'a> {
         }
     }
 
-    fn local(&self, id: LocalId) -> String {
-        match self.params.get(&id.0) {
-            Some(name) => name.clone(),
-            None => format!("$v{}", id.0),
+    /// Start a unit's naming: its parameters keep their recorded names where
+    /// the artifact has one, and every other binder draws from `t<n>` in
+    /// first-appearance order. Two binders of one unit never share a name, so
+    /// a shadowed source binder prints as two distinct `t<n>`.
+    fn reset_names(&mut self, f: &FnDef) {
+        self.names.clear();
+        self.used.clear();
+        let naming = parameter_naming(f);
+        for (index, name) in naming.names.into_iter().enumerate() {
+            self.used.insert(name.clone());
+            self.names.insert(index, name);
+        }
+        self.next_name = naming.next;
+    }
+
+    /// The printed name of a binder. Assigning here, at first use, is what
+    /// makes the numbering first-appearance order and independent of `LocalId`
+    /// values, which are per-unit counters that carry no meaning in the text.
+    fn local(&mut self, id: LocalId) -> String {
+        if let Some(name) = self.names.get(&id.0) {
+            return name.clone();
+        }
+        let name = self.fresh_name();
+        self.names.insert(id.0, name.clone());
+        name
+    }
+
+    /// The next `t<n>` this unit has not used: a binder with no `LocalId` of
+    /// this unit (a closure's formals) takes one too.
+    fn fresh_name(&mut self) -> String {
+        loop {
+            let candidate = format!("t{}", self.next_name);
+            self.next_name += 1;
+            if !self.used.contains(&candidate) {
+                self.used.insert(candidate.clone());
+                return candidate;
+            }
         }
     }
 }
 
-fn param_names(f: &FnDef) -> BTreeMap<usize, String> {
-    f.params.iter().enumerate().map(|(index, name)| (index, name.clone())).collect()
+/// A unit's parameter names in order, and the next `t<n>` number: a
+/// recorded name is kept, and every placeholder takes the next free `t<n>`.
+/// This is one function, not two, so a `lam` node names its formals exactly as
+/// the hoisted unit's own `@params` line does.
+struct Naming {
+    names: Vec<String>,
+    next: usize,
+}
+
+fn parameter_naming(f: &FnDef) -> Naming {
+    let mut used: BTreeSet<String> = BTreeSet::new();
+    let mut names: Vec<Option<String>> = Vec::with_capacity(f.params.len());
+    for name in &f.params {
+        if synthesized_name(name) {
+            names.push(None);
+        } else {
+            used.insert(name.clone());
+            names.push(Some(name.clone()));
+        }
+    }
+    let mut next = 0;
+    for slot in names.iter_mut() {
+        if slot.is_some() {
+            continue;
+        }
+        loop {
+            let candidate = format!("t{next}");
+            next += 1;
+            if !used.contains(&candidate) {
+                *slot = Some(candidate);
+                break;
+            }
+        }
+    }
+    Naming { names: names.into_iter().flatten().collect(), next }
+}
+
+/// Whether a recorded parameter name is the checker's placeholder
+/// (`v4343`) rather than a name worth printing. Constructors record `f0`,
+/// primitives `p0` and generated units record their own words, and those
+/// print as they are.
+fn synthesized_name(name: &str) -> bool {
+    match name.strip_prefix('v') {
+        Some(digits) => !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()),
+        None => false,
+    }
 }
 
 fn alt_node(pattern: &Node, body: Node, weight: Option<u32>) -> Node {
@@ -1052,7 +1147,7 @@ impl Node {
     /// The node on one line. A mark prints after the node's first child
     /// (after the head when it has none), so a form's name and its `@`
     /// annotations never trade places: `(global Data.List.map @classes(TT))`,
-    /// `(let $v1 @class(owned) value body)`.
+    /// `(let n1 @class(owned) value body)`.
     fn flat(&self) -> String {
         match self {
             Node::Atom(text) => text.clone(),
@@ -2454,7 +2549,7 @@ mod tests {
     fn identifiers_quote_when_they_leave_the_plain_set() {
         assert_eq!(ident("Data.Core.Nil"), "Data.Core.Nil");
         assert_eq!(ident("Main.main.lam22"), "Main.main.lam22");
-        assert_eq!(ident("$v1"), "$v1");
+        assert_eq!(ident("n1"), "n1");
         assert_eq!(ident("+"), "'+'");
         // A quote inside doubles: the output is open quote, `x`, two quotes,
         // close quote.
@@ -2510,30 +2605,77 @@ mod tests {
     }
 
     #[test]
+    fn parameter_names_keep_meaningful_names_and_number_the_rest() {
+        let unit = |params: &[&str]| FnDef {
+            id: crate::core::GlobalId("Main.f".to_string()),
+            params: params.iter().map(|name| name.to_string()).collect(),
+            body: Core::Unit,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr::default(),
+        };
+        // The checker's `v<n>` placeholders are not names: they number in
+        // parameter order from zero.
+        let naming = parameter_naming(&unit(&["v4341", "v4342", "v4343"]));
+        assert_eq!(naming.names, vec!["t0", "t1", "t2"]);
+        assert_eq!(naming.next, 3);
+        // A constructor's field and a primitive's parameter keep their names.
+        assert_eq!(parameter_naming(&unit(&["f0", "f1"])).names, vec!["f0", "f1"]);
+        assert_eq!(parameter_naming(&unit(&["p0"])).names, vec!["p0"]);
+        // A kept name is never handed out twice: `t0` is taken, so the
+        // placeholder becomes `t1`.
+        let naming = parameter_naming(&unit(&["t0", "v4342"]));
+        assert_eq!(naming.names, vec!["t0", "t1"]);
+        assert_eq!(naming.next, 2);
+    }
+
+    #[test]
+    fn shadowed_binders_print_as_distinct_dense_names() {
+        let (text, _) = checked_dump(
+            "module Main where\n  shadow :: Int -> Int\n  shadow x = let x = x + 1 in case x of\n    n -> let n = n + 1 in n\n  main :: Int\n  main = shadow 1\n",
+        );
+        // The parameter is `t0`, and the two shadowing binders are `t1` and
+        // `t2`: one name per binder, numbered by first appearance.
+        assert!(text.contains("@params t0 :: Int @owned"), "{text}");
+        assert!(text.contains("(let t1 @class(owned)"), "{text}");
+        assert!(text.contains("(let t2 @class(owned)"), "{text}");
+        // No placeholder or `LocalId` reaches the text.
+        assert!(!text.contains("$v"), "{text}");
+        let placeholder = text
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|word| synthesized_name(word));
+        assert!(!placeholder, "a `v<n>` placeholder survived: {text}");
+        let report = verify(&text).expect("the dump verifies");
+        assert!(report.expressions > 3);
+    }
+
+    #[test]
     fn nodes_print_marks_after_their_first_child() {
         let node = Node::list("global")
             .child(Node::atom("Data.List.map"))
             .mark("@classes(TT)");
         assert_eq!(node.flat(), "(global Data.List.map @classes(TT))");
         let let_node = Node::list("let")
-            .child(Node::atom("$v1"))
+            .child(Node::atom("n1"))
             .mark("@class(owned)")
             .child(Node::atom("(int 1)"))
-            .child(Node::atom("(local $v1)"));
+            .child(Node::atom("(local n1)"));
         assert_eq!(
             let_node.flat(),
-            "(let $v1 @class(owned) (int 1) (local $v1))"
+            "(let n1 @class(owned) (int 1) (local n1))"
         );
         assert_eq!(Node::list("unit").flat(), "(unit)");
-        let params = Node::list("").child(Node::atom("v0"));
-        assert_eq!(params.flat(), "(v0)", "an empty head takes no space");
+        let params = Node::list("").child(Node::atom("t0"));
+        assert_eq!(params.flat(), "(t0)", "an empty head takes no space");
     }
 
     #[test]
     fn long_nodes_break_one_child_per_line_under_the_width() {
         let mut node = Node::list("app").child(Node::atom("(global Main.f)"));
         for index in 0..12 {
-            node = node.child(Node::atom(format!("(local $v{index})")));
+            node = node.child(Node::atom(format!("(local t{index})")));
         }
         let mut out = String::new();
         render(&node, 1, &mut out);
@@ -2639,14 +2781,14 @@ unit Main.dict :: Main.Class
   static {0 = Main.method, 1 = Main.method}
 end
 unit Main.method :: Int -> Int
-  @params v0 :: Int @owned
+  @params t0 :: Int @owned
   @stage(checked)
-  body (local v0)
+  body (local t0)
 end
 unit Main.use :: Int -> Int
-  @params v0 :: Int @owned
+  @params t0 :: Int @owned
   @stage(checked)
-  body (app (dictproj (instdict Main.dict) 1 Main.Class) (local v0))
+  body (app (dictproj (instdict Main.dict) 1 Main.Class) (local t0))
 end
 ";
         let report = verify(text).expect("the dictionary use resolves");
@@ -2664,16 +2806,16 @@ end
         // A local bound by a `case` alternative's pattern is in scope in that
         // alternative only.
         let scoped = text.replace(
-            "  body (local v0)\nend\nunit Main.use",
-            "  body (case (local v0) ((con 0 ($v1)) (local $v1)))\nend\nunit Main.use",
+            "  body (local t0)\nend\nunit Main.use",
+            "  body (case (local t0) ((con 0 (n1)) (local n1)))\nend\nunit Main.use",
         );
         verify(&scoped).expect("a pattern binder is in scope in its alternative");
         let leak = scoped.replace(
-            "body (app (dictproj (instdict Main.dict) 1 Main.Class) (local v0))",
-            "body (local $v1)",
+            "body (app (dictproj (instdict Main.dict) 1 Main.Class) (local t0))",
+            "body (local n1)",
         );
         let errors = verify(&leak).expect_err("a pattern binder is not in scope after the case");
-        assert!(errors.iter().any(|error| error.message.contains("$v1")), "{errors:?}");
+        assert!(errors.iter().any(|error| error.message.contains("n1")), "{errors:?}");
     }
 
     #[test]

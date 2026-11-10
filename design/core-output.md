@@ -211,12 +211,27 @@ unit $d.Ord.Nat :: Ord Nat @immortal
 end
 ```
 
-Rules:
+Rules (the sample above is illustrative and writes source names for
+readability; the naming rule below is what a printer emits):
 
 - One unit or binding per record, terminated by `end`; indentation is
   two spaces per level; no tabs.
 - Identifiers are the compiler's canonical names, quoted with `'...'` when
   they contain anything but `A-Za-z0-9_.-$`.
+- Binders print as names, never as ids. A parameter keeps the name the
+  artifact records for it when that name means something (`f0` for a
+  constructor's field, `p0` for a primitive's), and every other parameter
+  and every other binder prints `t<n>`: numbered from zero in
+  first-appearance order within the unit, unique within the unit, and stable
+  across runs because the order is the print order. `LocalId` is a per-unit
+  compiler counter and appears nowhere in the text. Two binders of one unit
+  never share a name, so a source binder shadowed in an inner scope prints as
+  two distinct `t<n>`. A closure literal's formals take the enclosing unit's
+  next numbers, because the binder list sits in that unit's scope; the
+  hoisted unit's own `@params` line numbers its formals within itself. The
+  seed's checker records `v<n>` placeholders for an ordinary definition's
+  parameters, and a placeholder is not a name, so it takes the same `t<n>`
+  numbering.
 - Annotations start a line with `@` and are sorted by name. Span is the
   source location of the unit's defining occurrence.
 - Literals print exactly: numbers as decimals, strings as escaped UTF-8

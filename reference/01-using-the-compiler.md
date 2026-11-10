@@ -261,13 +261,15 @@ global Data.Core.Nil
 
 unit Main.main :: Int
   @stage(lowered)
-  body (let $v0 @class(owned)
+  body (let t0 @class(owned)
     (ctor Data.Core.Nil @classes(T) 0 0)
-    (drop $v0 @class(owned) (int 0)))
+    (drop t0 @class(owned) (int 0)))
 end
 ```
 
 The header is fixed and ordered: `core 1`, one `module` line per dumped module, the `target` line only at `lowered`, `source sha256:<64 hex>` over the checked sources of those modules, then any `global` declarations. Units print sorted by canonical name; annotations print in one documented order; ownership classes, instantiation vectors and alternative weights print as `@` marks on the node they belong to; a node whose children fit in 100 columns prints on one line, and everything else indents two spaces per level.
+
+Binders print as names, not as ids. A parameter keeps the name the artifact records when that name means something (`f0` for a constructor's field, `p0` for a primitive's); every other binder prints `t<n>`, numbered from zero in first-appearance order within the unit, so the text is dense, stable across runs, and never uses the compiler's `LocalId`. Two binders of one unit never share a name, so a source binder shadowed in an inner scope prints as two distinct `t<n>`, and a closure literal's formals take the enclosing unit's next numbers because that is where its binder list sits. The checker records `v<n>` placeholders for an ordinary definition's parameters, and a placeholder is not a name, so it takes the same numbering; this is why `@params` prints `t0`, not `v4343`.
 
 ## Reading it back
 

@@ -265,9 +265,9 @@ core 1
 module Main
 source sha256:0000000000000000000000000000000000000000000000000000000000000000
 unit Main.small :: Nat -> Nat
-  @params v0 :: Nat @owned
+  @params t0 :: Nat @owned
   @stage(checked)
-  body (local v0)
+  body (local t0)
 end
 ";
 
@@ -286,12 +286,12 @@ fn verify_accepts_the_hand_written_file() {
 
 #[test]
 fn verify_rejects_an_out_of_scope_local() {
-    let text = BASE.replace("body (local v0)", "body (local v7)");
+    let text = BASE.replace("body (local t0)", "body (local t7)");
     let errors = coretext::verify(&text).expect_err("an unbound local is refused");
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].unit, "Main.small");
     assert_eq!(errors[0].path, "body");
-    assert!(errors[0].message.contains("v7"), "{}", errors[0].message);
+    assert!(errors[0].message.contains("t7"), "{}", errors[0].message);
 }
 
 #[test]
@@ -344,14 +344,14 @@ unit Main.EchoInt :: Main.Echo
   static {0 = Main.EchoInt.echo}
 end
 unit Main.EchoInt.echo :: Int -> Int
-  @params v0 :: Int @owned
+  @params t0 :: Int @owned
   @stage(checked)
-  body (local v0)
+  body (local t0)
 end
 unit Main.use :: Int -> Int
-  @params v0 :: Int @owned
+  @params t0 :: Int @owned
   @stage(checked)
-  body (app (dictproj (instdict Main.EchoInt) 3 Main.Echo) (local v0))
+  body (app (dictproj (instdict Main.EchoInt) 3 Main.Echo) (local t0))
 end
 ",
     );
@@ -390,7 +390,7 @@ end
 
 #[test]
 fn verify_rejects_an_unresolved_global() {
-    let text = BASE.replace("body (local v0)", "body (global Main.missing)");
+    let text = BASE.replace("body (local t0)", "body (global Main.missing)");
     let errors = coretext::verify(&text).expect_err("an undefined unit is refused");
     assert_eq!(errors[0].path, "body");
     assert!(errors[0].message.contains("Main.missing"), "{}", errors[0].message);
@@ -416,8 +416,8 @@ fn diff_reports_the_documented_path() {
     // The documented shape: `Main.map:body:alt 2:field 1: left (int 1) right
     // (int 2)`. The second alternative's first field differs.
     let left = BASE.replace(
-        "  body (local v0)",
-        "  body (case (local v0)\n    ((con 0) (int 1))\n    ((int 1) (int 0)))",
+        "  body (local t0)",
+        "  body (case (local t0)\n    ((con 0) (int 1))\n    ((int 1) (int 0)))",
     );
     let right = left.replace("((int 1) (int 0))", "((int 2) (int 0))");
     let divergence = coretext::diff(&left, &right).expect("the files differ");

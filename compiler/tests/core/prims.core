@@ -4,11 +4,11 @@ target aarch64-apple-darwin opt-level 0
 source sha256:70fe8f7127382b8daccf825dc0a6e0dd0219a33632ff47f28e050dd42ac005f0
 unit Main.main :: Int
   @stage(lowered)
-  body (let $v0 @class(owned)
+  body (let t0 @class(owned)
     (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-    (let $v1 @class(owned)
+    (let t1 @class(owned)
       (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (int 0)))
-      (app (prim cinch.runtime.intAdd) (local $v0) (local $v1))))
+      (app (prim cinch.runtime.intAdd) (local t0) (local t1))))
 end
 unit Main.main.exit :: -
   @stage(lowered)
@@ -23,11 +23,11 @@ unit Main.peek-word :: I64 -> I64
     "\n      %p = inttoptr i64 %0 to ptr\n      %v = load i64, ptr %p, align 8\n      ret i64 %v\n    ")
 end
 unit Main.readTwice :: I64 -> Int
-  @params v4341 :: I64 @uncounted
+  @params t0 :: I64 @uncounted
   @stage(lowered)
-  body (let $v1 @class(owned)
-    (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local v4341)))
-    (let $v2 @class(owned)
-      (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local v4341)))
-      (app (prim cinch.runtime.intAdd) (local $v1) (local $v2))))
+  body (let t1 @class(owned)
+    (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local t0)))
+    (let t2 @class(owned)
+      (app (prim cinch.runtime.intFromI64) (app (global Main.peek-word) (local t0)))
+      (app (prim cinch.runtime.intAdd) (local t1) (local t2))))
 end

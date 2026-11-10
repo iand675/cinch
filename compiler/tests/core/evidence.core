@@ -4,9 +4,9 @@ source sha256:d7f065f7574b1a8b44fc87fa2b3d4a05d91462131dac3baa1279e708d2b106f6
 global '<builtin>.Yes'
 unit Main.main :: Int
   @stage(checked)
-  body (let $v0 @class(owned)
+  body (let t0 @class(owned)
     (ctor '<builtin>.Yes' 0 0)
-    (case (local $v0) ((con 0) (global Main.take)) ((con 1) (int 1))))
+    (case (local t0) ((con 0) (global Main.take)) ((con 1) (int 1))))
 end
 unit Main.main.exit :: -
   @stage(checked)
