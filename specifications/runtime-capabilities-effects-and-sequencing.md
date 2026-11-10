@@ -7,6 +7,9 @@ Exported: 2026-10-22T18:59:36Z
 
 Draft 0.2 design decision: ordinary function definitions, effect-polymorphic suspension, lexical runtime evidence, and unqualified typeclass/module-driven `do`. The grammar and examples use a strict Haskell-like surface.
 
+For the proposed revision to entry-point IO, handler dispatch across calls,
+and abortive effects, see [Effect boundaries and interposition](../design/effect-boundaries-and-interposition.md).
+
 # Three independent choices
 
 | Choice | Representation | What it controls |
