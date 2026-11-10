@@ -10,7 +10,7 @@ module Bootstrap.Infer where
   import Bootstrap.Total
   import Bootstrap.BodyContract
   import Bootstrap.Guarded
-  import Bootstrap.Proof (Proposition, PNegate)
+  import Bootstrap.Proof (Proposition, PNegate, disproved)
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
   import Text.Scan (string-words)
@@ -514,6 +514,9 @@ module Bootstrap.Infer where
     TIndex sp text -> True
     TNegate sp body -> refinement-predicate-scope kinds names body
     TInfix sp op first second -> has op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] && refinement-predicate-scope kinds names first && refinement-predicate-scope kinds names second
+    -- The prefix `Eq a b` former is the comparison the elaborator reads as
+    -- index equality, so both of its operands are in predicate scope.
+    TApp sp (TName at name) (TArg s1 x (TArg s2 y (TArgsEnd end))) -> same name "Eq" && refinement-predicate-scope kinds names x && refinement-predicate-scope kinds names y
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> (has name ["NonZero", "NotNull"] || byte-length-binding name kinds || (case context-identity-observation name kinds of Some sc -> True; None -> False)) && refinement-predicate-scope kinds names input
     other -> False
   validate-refinement :: TypeContext -> Decl -> Store -> Store
@@ -643,7 +646,7 @@ module Bootstrap.Infer where
       (case normalize st carrier of
         UMeta id KType -> (CInt sp carrier digits, pending-number sp carrier value st)
         known -> if number-literal-valid known value then (CInt sp carrier digits, st)
-          else term-error sp (number-literal-error known "literal is outside its integer carrier") st)
+          else term-error sp (number-literal-error known value "literal is outside its integer carrier") st)
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
   math-carrier :: UType -> Bool
   math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
@@ -3070,7 +3073,39 @@ module Bootstrap.Infer where
   subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
   subsume-term sp term expected st = case refinement-view (normalize st expected) of
     URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
-    other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
+    other -> case forget-function-result sp term expected st of
+      Some (value, opened) -> (value, unify sp (core-type value) expected opened)
+      None -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
+  -- A function value whose result is a comparison refinement flows into an
+  -- arrow expecting its plain numbers (a plain result or an unsolved one):
+  -- eta-expand once, applying the same value and forgetting the result's
+  -- refinement. Only value references expand, so no computation is
+  -- duplicated or reordered.
+  forget-function-result :: Span -> CoreTerm -> UType -> Store -> Option (CoreTerm, Store)
+  forget-function-result sp term expected st = if not (function-value-reference term) then None else
+    case (normalize st (core-type term), normalize st expected) of
+      (UFun domain result, UFun wanted-domain wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
+      (UFunEff domain row result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain row result wanted st
+      (UFun domain result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
+      other -> None
+  function-value-reference :: CoreTerm -> Bool
+  function-value-reference term = case term of
+    CUse s ty name role actuals -> True
+    CQualifiedUse s ty name role actuals evidence -> True
+    CLocal s ty id name Nil -> True
+    other -> False
+  forgotten-arrow :: Span -> CoreTerm -> UType -> UType -> UType -> UType -> Store -> Option (CoreTerm, Store)
+  forgotten-arrow sp term domain row result wanted st =
+    if not (comparison-refinement result) || is-refined-type wanted then None
+    else case refinement-view result of
+      URefine id name carrier predicate -> (case fresh-id st of
+        (local, fresh) ->
+          let argument = CLocal sp domain local "#forget-argument" Nil in
+          let ty = case row of URow UEnd -> UFun domain carrier; other -> UFunEff domain row carrier in
+          Some (CLambda sp ty (CPVar sp domain local "#forget-argument") (CForget sp carrier (applied-core sp result row term argument)), fresh))
+      other -> None
+  is-refined-type :: UType -> Bool
+  is-refined-type ty = case refinement-view ty of URefine id name carrier predicate -> True; other -> False
   check-refined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
   check-refined classes kinds families env locals expr expected carrier st = case expr of
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
@@ -3110,7 +3145,22 @@ module Bootstrap.Infer where
       URefine id name domain predicate -> let direct = unify sp (core-type term) expected st in
         if list-length (store-errors direct) == list-length (store-errors st) then (term, direct)
         else materialize-refinement env sp expected carrier term st
-      other -> introduce-refinement env sp expected term (unify sp (core-type term) carrier st)
+      other -> let unified = unify sp (core-type term) carrier st in
+        case introduce-refinement env sp expected term unified of
+          (result, done) -> if list-length (store-errors done) == list-length (store-errors unified) || not (certified-arithmetic-operand term) then (result, done)
+            -- Arithmetic over a certified Nat subtraction has no type-level
+            -- index (truncating subtraction is not one), but bound once its
+            -- value has the checked let equation that states it exactly.
+            else materialize-refinement env sp expected carrier term st
+  certified-arithmetic-operand :: CoreTerm -> Bool
+  certified-arithmetic-operand term = case term of
+    CProved s ty evidence body -> True
+    -- A discharged source subtraction carries the checked `b <= a`
+    -- obligation, so its value is arithmetic the let equation states.
+    CDischarge s ty evidence body -> True
+    CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) -> certified-arithmetic-operand first || certified-arithmetic-operand second
+    CApply s ty (CApply partial function method first) second -> certified-arithmetic-operand first || certified-arithmetic-operand second
+    other -> False
   -- A call's result is a value, not a stable symbolic call. Bind that
   -- result once before weakening its checked refinement. The ordinary
   -- CLet/CLocal/CForget/CRefine rules recheck the certificate under the
@@ -3154,10 +3204,13 @@ module Bootstrap.Infer where
     UPropNotNull body -> "NotNull " <> obligation-text body
     UIndexForget value -> obligation-text value
     UIndexPromote value -> obligation-text value
-    other -> type-text ty
+    UIndexByteLength value -> string-concat-all ["(Data.Bytes.bytes-len ", obligation-text value, ")"]
+    UIndexMath op left right -> string-concat-all ["(", obligation-text left, " ", op, " ", obligation-text right, ")"]
+    other -> display-type-text ty
   missing-obligation :: String -> UType -> String
   missing-obligation message predicate = let shown = obligation-text predicate in
-    string-concat-all [message, " because the obligation `", shown, "` needs evidence and the checker found no evidence for `", shown, "`"]
+    string-concat-all [message, " because the obligation `", shown, "` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (", shown,
+      ") of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `", shown, "` is in scope here"]
   wrong-named-evidence :: List CheckedBinding -> List CheckedBinding -> UType -> Store -> Option String
   wrong-named-evidence remaining env wanted st = case remaining of
     Nil -> None
@@ -6425,7 +6478,7 @@ module Bootstrap.Infer where
           (case convert-predicate-index external kinds locals carrier input st of
             (value, checked) -> let predicate = UPropNonZeroPending value in
               (predicate, if valid-type predicate then checked else add-error sp "ill-sorted abstract NonZero predicate" checked))
-        else bad sp "NonZero needs a checked mathematical carrier" st
+        else bad sp (string-concat-all ["`NonZero` decides numeric values (`Nat`, `Int`, machine integers), not `", display-type-text carrier, "` (a wrong predicate for this refinement's container is refused naming the predicate)"]) st
     TInfix s op a b -> if same op "&&" || same op "||" then
       (case convert-predicate external kinds locals a st of
         (left, sa) -> case convert-predicate external kinds locals b sa of
@@ -6504,16 +6557,35 @@ module Bootstrap.Infer where
               case scoped-prove-predicates gamma prior ty of Some evidence -> True; None -> False) of
                 Some message -> term-error sp message st
                 None -> let message = "function precondition is not established at this call" in
-                  (case (predicates, result) of
-                    (UArg predicate UEnd, URequire more body) -> term-error sp message st
-                    (UArg predicate UEnd, other) ->
-                      let missing = missing-obligation message predicate in
+                  (case first-unproved-predicate gamma (proof-facts evaluated) ty of
+                    None -> term-error sp message st
+                    Some predicate -> if disproved-predicate gamma predicate then
+                      term-error sp (string-concat-all [message, " because the obligation `", obligation-text predicate, "` of this call is false: its arguments are known here and do not satisfy it"]) st
+                      else let missing = missing-obligation message predicate in
                       (case wrong-named-evidence evaluated evaluated predicate st of
                         Some detail -> term-error sp (missing <> ". " <> detail) st
-                        None -> term-error sp missing st)
-                    other -> term-error sp message st))
+                        None -> term-error sp missing st)))
         other -> (term, st)
       other -> (term, st)
+  -- The first stated predicate of a required spine, outermost first, that
+  -- the facts in scope do not prove on its own.
+  first-unproved-predicate :: ProofScope -> List Proposition -> UType -> Option UType
+  first-unproved-predicate gamma facts ty = case ty of
+    URequire predicates body -> case unproved-in-spine gamma facts predicates of
+      Some predicate -> Some predicate
+      None -> first-unproved-predicate gamma facts body
+    other -> None
+  unproved-in-spine :: ProofScope -> List Proposition -> UType -> Option UType
+  unproved-in-spine gamma facts predicates = case predicates of
+    UArg predicate rest -> case scoped-prove-predicates gamma facts (URequire (UArg predicate UEnd) UEnd) of
+      Some evidence -> unproved-in-spine gamma facts rest
+      None -> Some predicate
+    other -> None
+  -- A closed predicate over numerals only whose negation is proved.
+  disproved-predicate :: ProofScope -> UType -> Bool
+  disproved-predicate gamma predicate = case scoped-core-predicates gamma (UArg predicate UEnd) of
+    Some (Cons p Nil) -> disproved p
+    other -> False
 
   apply-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   apply-dependent classes sp env fun value st = case reify-argument sp env value st of

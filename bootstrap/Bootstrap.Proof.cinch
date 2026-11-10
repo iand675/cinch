@@ -21,7 +21,7 @@ module Bootstrap.Proof where
   export Citation, Hypothesis, NegatedGoal, Alternative
   export Certificate, Farkas, Split
   export Proof, Refutation, Conjunction, Trivial
-  export prove, check-proof, arithmetic-equal, proposition-equal
+  export prove, check-proof, arithmetic-equal, proposition-equal, disproved
 
   data Arithmetic where
     AInteger :: Int -> Arithmetic
@@ -389,3 +389,21 @@ module Bootstrap.Proof where
   prove hypotheses goal = if not (valid-hypotheses hypotheses && valid-proposition goal) then None else case search hypotheses goal of
     Some evidence -> if check-proof hypotheses goal evidence then Some evidence else None
     None -> None
+  -- A closed proposition (numerals only, no variable or call) whose
+  -- negation has a checked proof from no hypotheses is false outright.
+  closed-arithmetic :: Arithmetic -> Bool
+  closed-arithmetic a = case a of
+    AInteger n -> True
+    APlus x y -> closed-arithmetic x && closed-arithmetic y
+    AMinus x y -> closed-arithmetic x && closed-arithmetic y
+    ATimes x y -> closed-arithmetic x && closed-arithmetic y
+    other -> False
+  closed-proposition :: Proposition -> Bool
+  closed-proposition p = case p of
+    PCompare op a b -> closed-arithmetic a && closed-arithmetic b
+    PBoth a b -> closed-proposition a && closed-proposition b
+    PEither a b -> closed-proposition a && closed-proposition b
+    PNegate a -> closed-proposition a
+    other -> True
+  disproved :: Proposition -> Bool
+  disproved p = closed-proposition p && (case prove Nil (PNegate p) of Some evidence -> True; None -> False)

@@ -639,6 +639,26 @@
       "symbol": "Relation.Ord.comparing"
     },
     {
+      "classes": "R",
+      "symbol": "Data.List.is-empty"
+    },
+    {
+      "classes": "RT",
+      "symbol": "Data.List.map"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.replicate"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.take"
+    },
+    {
       "classes": "TT",
       "symbol": "Relation.Ord.comparing"
     },

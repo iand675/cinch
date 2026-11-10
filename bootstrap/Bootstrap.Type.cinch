@@ -11,6 +11,7 @@ module Bootstrap.Type where
   import Bootstrap.Nominal (interface-global)
   import Bootstrap.Total (TotalFunction, read-total-function, total-identity, total-parameters, total-result, total-function-document, total-function-equal)
   import Text.Show (int-to-string)
+  import Data.Char (char-from-code)
   import Algebra.Semigroup
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
@@ -35,7 +36,7 @@ module Bootstrap.Type where
   export store-law-scope, with-law-scope
   export store-let-depth, with-let-depth
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
-  export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
+  export type-kind, type-text, display-type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
@@ -971,7 +972,50 @@ module Bootstrap.Type where
   mismatch :: Span -> UType -> UType -> Store -> Store
   mismatch sp a b st = add-error sp (mismatch-message a b) st
   mismatch-message :: UType -> UType -> String
-  mismatch-message a b = string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]
+  mismatch-message a b = string-concat-all ["type mismatch: expected ", display-type-text b, ", found ", display-type-text a]
+  -- Diagnostic text only: every encoded nominal identity `i.<code>_...`
+  -- reads as the unqualified source name it encodes. type-text itself,
+  -- and so every interface and IR spelling, keeps the encoded identity.
+  display-type-text :: UType -> String
+  display-type-text ty = readable-identities (type-text ty)
+  readable-identities :: String -> String
+  readable-identities text = pack (readable-chars True (unpack text))
+  readable-chars :: Bool -> List Char -> List Char
+  readable-chars boundary chars = case chars of
+    Nil -> Nil
+    Cons c rest -> if boundary && char-code c == 105 then
+      (case rest of
+        Cons dot more -> if char-code dot == 46 then
+          (case decode-identity more Nil 0 False of
+            Some (name, after) -> unqualified name Nil <> readable-chars False after
+            None -> Cons c (readable-chars False rest))
+          else Cons c (readable-chars False rest)
+        Nil -> [c])
+      else Cons c (readable-chars (not (identifier-char c)) rest)
+  identifier-char :: Char -> Bool
+  identifier-char c = let code = char-code c in
+    (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 45 || code == 95 || code == 46
+  -- Decimal scalar codes, each closed by `_`; at least one scalar.
+  decode-identity :: List Char -> List Char -> Nat -> Bool -> Option (List Char, List Char)
+  decode-identity chars decoded code digits = case chars of
+    Cons c rest -> let n = char-code c in
+      if n >= 48 && n <= 57 then decode-identity rest decoded (code * 10 + (n - 48)) True
+      else if n == 95 && digits then
+        (case char-from-code code of
+          Some scalar -> decode-identity rest (Cons scalar decoded) 0 False
+          None -> None)
+      else finish-identity chars decoded digits
+    Nil -> finish-identity chars decoded digits
+  finish-identity :: List Char -> List Char -> Bool -> Option (List Char, List Char)
+  finish-identity chars decoded digits = if digits then None else case decoded of
+    Nil -> None
+    other -> Some (reverse decoded, chars)
+  -- The last dotted segment, so `Data.String.String` reads `String`.
+  unqualified :: List Char -> List Char -> List Char
+  unqualified chars segment = case chars of
+    Nil -> reverse segment
+    Cons c rest -> if char-code c == 46 && list-length rest > 0 && list-length segment > 0 then unqualified rest Nil
+      else unqualified rest (Cons c segment)
   -- The partial (->) constructor can represent an ordinary arrow only.
   -- An inferred row may be solved to empty before matching its application.
   unify-pure-arrow-application :: Span -> UType -> UType -> UType -> Store -> Store
@@ -1413,10 +1457,12 @@ module Bootstrap.Type where
   number-literal-valid :: UType -> Int -> Bool
   number-literal-valid carrier value = integer-literal-valid carrier value
     || (case float-literal-bits carrier value False of Some word -> True; None -> False)
-  number-literal-error :: UType -> String -> String
-  number-literal-error carrier fallback = case float-literal-format carrier of
+  number-literal-error :: UType -> Int -> String -> String
+  number-literal-error carrier value fallback = case float-literal-format carrier of
     Some format -> string-concat "integer literal is not exactly representable in " (type-text carrier)
-    None -> fallback
+    None -> if natural-carrier carrier || (case integer-bounds carrier of Some bounds -> True; None -> False) then
+      string-concat-all ["integer literal ", int-to-string value, " is out of range for ", type-text carrier]
+      else fallback
   float-odd-part :: Int -> Int -> Int -> Option (Int, Int)
   float-odd-part magnitude shift limit = if shift > limit then None
     else if int-rem magnitude 2 == 0 then float-odd-part (int-div magnitude 2) (shift + 1) limit
@@ -2053,7 +2099,7 @@ module Bootstrap.Type where
       let valid = case normalize st ty of UCon name KType -> comparison-name name allowed; other -> False in
       check-number-checks rest (if valid then st else add-error sp "equality needs an Eq dictionary for this type" st)
     Cons (PendingNumber sp ty value) rest -> let carrier = number-carrier (normalize st ty) in
-      check-number-checks rest (if number-literal-valid carrier value then st else add-error sp (number-literal-error carrier "literal is outside its resolved integer carrier") st)
+      check-number-checks rest (if number-literal-valid carrier value then st else add-error sp (number-literal-error carrier value "literal is outside its resolved integer carrier") st)
   comparison-name :: String -> List String -> Bool
   comparison-name name allowed = case allowed of Nil -> False; Cons first rest -> same-tag name first || comparison-name name rest
   finish-numbers :: Store -> Store

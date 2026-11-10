@@ -1758,6 +1758,10 @@ module Bootstrap.Core where
     CPrimitive sp ty operation (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       (string-compare operation "+" == 0 || string-compare operation "-" == 0 || string-compare operation "*" == 0) && stable-index-source first && stable-index-source second
     CPrimitive sp ty operation (CArgument a input (CArgumentsEnd end)) -> string-compare operation "negate" == 0 && stable-index-source input
+    -- A numeric method application is a primitive operation on its
+    -- operands; the arithmetic reading still decides whether it has an
+    -- index, so an arbitrary method supplies nothing here.
+    CApply sp ty (CApply partial function method first) second -> stable-index-source first && stable-index-source second
     CApply sp ty (CUse at function symbol role Nil) input -> byte-length-function ty function symbol role && stable-index-source input
     other -> False
   scoped-recursive-functions :: List Nat -> List Nat -> List Nat -> CoreTerm -> Bool
