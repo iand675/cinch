@@ -826,6 +826,45 @@ impl When {
         }
         Ok(true)
     }
+
+    /// The condition as its author wrote it, for a refusal that has to say
+    /// which condition would make a module available: one space-separated
+    /// conjunction, a list in parentheses, `always` when it selects
+    /// unconditionally.
+    pub fn describe(&self) -> String {
+        let list = |values: &[String]| -> Option<String> {
+            match values {
+                [] => None,
+                [one] => Some(one.clone()),
+                many => Some(format!("({})", many.join(", "))),
+            }
+        };
+        let mut parts: Vec<String> = Vec::new();
+        for (key, value) in [
+            ("os", list(&self.os)),
+            ("arch", list(&self.arch)),
+            ("libc", list(&self.libc)),
+            ("target", list(&self.target)),
+        ] {
+            if let Some(value) = value {
+                parts.push(format!("{key} {value}"));
+            }
+        }
+        for (key, value) in [
+            ("os_version", &self.os_version),
+            ("compiler", &self.compiler),
+            ("runtime_abi", &self.runtime_abi),
+        ] {
+            if let Some(value) = value {
+                parts.push(format!("{key} {value}"));
+            }
+        }
+        if parts.is_empty() {
+            "always".to_string()
+        } else {
+            parts.join(" ")
+        }
+    }
 }
 
 /// `darwin` is the manifest's spelling; a caller may write `macos`.
@@ -1023,6 +1062,158 @@ impl ResolvedPackage {
     /// Whether a module is part of the resolution at all.
     pub fn owns(&self, module: &str) -> bool {
         self.modules.iter().any(|m| m.name == module)
+    }
+}
+
+/// Which modules one project resolves for each profile of a build
+/// (design/base-as-a-package.md, "Host and target are different
+/// questions"): availability is a per-profile fact, and one build computes
+/// both answers from the same manifests. A module no manifest declares (a
+/// source file beside the entry, a prelude family member) is available for
+/// both profiles, because no condition governs it.
+#[derive(Clone, Debug, Default)]
+pub struct ModuleAvailability {
+    host: std::collections::BTreeSet<String>,
+    target: std::collections::BTreeSet<String>,
+    /// Every module a manifest declares, with the package that declares
+    /// it and the `select` conditions that name it. A module two
+    /// conditions select keeps both, so the refusal can show the one that
+    /// would apply.
+    declared: std::collections::BTreeMap<String, (String, Vec<String>)>,
+    /// Why the host resolution could not be computed. Absent normally;
+    /// when present, the host side is not evidence for a refusal, and the
+    /// artifact manifest records the reason instead of pretending.
+    pub host_unresolved: Option<String>,
+    /// Whether the host resolution used the target's stated platform
+    /// version, because the compiler cannot ask the host for its own. The
+    /// artifact manifest records it: a module selected only by that
+    /// version is then a fact about the target, not about the host.
+    pub host_os_version_from_target: bool,
+}
+
+impl ModuleAvailability {
+    /// The availability facts of a compile that resolves no package and
+    /// reads no host: the incremental session and the single-source check
+    /// entries. Nothing is declared, so no module's availability is a
+    /// separate fact, and the artifact manifest says so rather than
+    /// claiming a resolution that never ran.
+    pub fn untracked(reason: &str) -> ModuleAvailability {
+        ModuleAvailability {
+            host_unresolved: Some(reason.to_string()),
+            ..ModuleAvailability::default()
+        }
+    }
+    /// Build the availability facts from the two resolutions of a
+    /// project's manifests. `declared` is every manifest the project
+    /// contains, for the packages a resolution may leave a module out of.
+    fn from_resolutions(
+        host: &[(PathBuf, Package, ResolvedPackage)],
+        target: &[(PathBuf, Package, ResolvedPackage)],
+        declared: &[(PathBuf, Package)],
+    ) -> ModuleAvailability {
+        let mut facts = ModuleAvailability::default();
+        for (_, _, package) in target {
+            for m in &package.modules {
+                facts.target.insert(m.name.clone());
+            }
+        }
+        for (_, _, package) in host {
+            for m in &package.modules {
+                facts.host.insert(m.name.clone());
+            }
+        }
+        for (_, package) in declared {
+            for m in &package.modules {
+                facts
+                    .declared
+                    .entry(m.name.clone())
+                    .or_insert_with(|| (package.name.clone(), Vec::new()));
+            }
+            for entry in &package.select {
+                for m in &entry.modules {
+                    let (_, conditions) = facts
+                        .declared
+                        .entry(m.name.clone())
+                        .or_insert_with(|| (package.name.clone(), Vec::new()));
+                    let condition = entry.when.describe();
+                    if !conditions.contains(&condition) {
+                        conditions.push(condition);
+                    }
+                }
+            }
+        }
+        facts
+    }
+
+    /// Every module this project resolves for `context`'s profile.
+    pub fn modules(&self, context: crate::core::BuildContext) -> &std::collections::BTreeSet<String> {
+        match context {
+            crate::core::BuildContext::Emitted => &self.target,
+            crate::core::BuildContext::CompileTime => &self.host,
+        }
+    }
+
+    /// Is this module part of the resolution for `context`'s profile?
+    /// `None` when the host resolution could not be computed, which is the
+    /// one answer the compiler does not have and does not invent.
+    pub fn available_for(&self, context: crate::core::BuildContext, module: &str) -> Option<bool> {
+        if context == crate::core::BuildContext::CompileTime && self.host_unresolved.is_some() {
+            return None;
+        }
+        Some(self.modules(context).contains(module))
+    }
+
+    /// The package whose manifest declares this module, if one does.
+    pub fn owner(&self, module: &str) -> Option<&str> {
+        self.declared.get(module).map(|(package, _)| package.as_str())
+    }
+
+    /// The `select` conditions that name this module, in manifest order.
+    /// Empty when its manifest lists it unconditionally.
+    pub fn conditions(&self, module: &str) -> Vec<String> {
+        self.declared
+            .get(module)
+            .map(|(_, conditions)| conditions.clone())
+            .unwrap_or_default()
+    }
+
+    /// Every module a manifest in this project declares, sorted, for the
+    /// artifact manifest's availability rows.
+    pub fn declared_modules(&self) -> Vec<String> {
+        self.declared.keys().cloned().collect()
+    }
+
+    /// One module's availability for one profile, spelled for the artifact
+    /// manifest. `undecided` is the honest answer when the compiler has no
+    /// host resolution to read.
+    pub fn availability_spelling(
+        &self,
+        context: crate::core::BuildContext,
+        module: &str,
+    ) -> &'static str {
+        match self.available_for(context, module) {
+            Some(true) => "available",
+            Some(false) => "unavailable",
+            None => "undecided",
+        }
+    }
+
+    /// The condition sentence a refusal quotes, phrased so it reads after
+    /// the package name: "selects it `when os darwin`".
+    fn condition_account(&self, module: &str) -> String {
+        let conditions = self.conditions(module);
+        match conditions.as_slice() {
+            [] => "lists it unconditionally, so the resolution left it out for another reason"
+                .to_string(),
+            [one] => format!("selects it `when {one}`"),
+            many => format!(
+                "selects it `when {}`",
+                many.iter()
+                    .map(|c| format!("({c})"))
+                    .collect::<Vec<_>>()
+                    .join(" or `when ")
+            ),
+        }
     }
 }
 
@@ -1351,6 +1542,30 @@ struct Project {
     entry_modules: Vec<String>,
     /// Module names in dependency order.
     order: Vec<String>,
+    /// What each profile of the build resolves for this project
+    /// (design/base-as-a-package.md, "Host and target are different
+    /// questions"). The compilation uses the target's answer; the host's
+    /// is the fact a compile-time reachability refusal quotes.
+    availability: ModuleAvailability,
+    /// Imports that resolve for the host and not for the target, with the
+    /// module that wrote them. The load drops them from the target's
+    /// module graph, so which refusal they deserve is decided once the
+    /// build knows which modules are compile-time code.
+    host_only: Vec<HostOnlyImport>,
+}
+
+/// An `import M` that names a module the host resolution contains and the
+/// target's does not (design/base-as-a-package.md, "Host and target are
+/// different questions"). It has no place in the target's module graph,
+/// and the context that reached it decides what the refusal says: code that
+/// runs during the build on the host, or code emitted for the target.
+struct HostOnlyImport {
+    /// The module that wrote the import.
+    importer: String,
+    /// The module it named.
+    module: String,
+    /// `import stage M`: compile-time visibility, wherever it is written.
+    stage: bool,
 }
 
 /// Every `module X` declaration beside `dir`, for import resolution when
@@ -1724,18 +1939,29 @@ fn discover_manifests(dir: &Path) -> Result<Vec<(PathBuf, String)>> {
     Ok(found)
 }
 
-/// Resolve every package in a project for one target, and refuse two
-/// packages that claim one module name (the duplicate-module rule the
-/// registry also enforces).
-fn resolve_project_packages(
-    dir: &Path,
-    facts: &TargetFacts,
-) -> Result<Vec<(PathBuf, Package, ResolvedPackage)>> {
-    let mut resolved: Vec<(PathBuf, Package, ResolvedPackage)> = Vec::new();
+/// Every manifest a project contains, parsed once. Both profiles of the
+/// build resolve these, and a refusal reads the declarations they carry,
+/// so the discovery and the parse happen here rather than per profile.
+fn project_manifests(dir: &Path) -> Result<Vec<(PathBuf, Package)>> {
+    let mut out: Vec<(PathBuf, Package)> = Vec::new();
     for (package_dir, text) in discover_manifests(dir)? {
         let pkg = Package::parse(&text).map_err(|e| {
             Error::plain(format!("{}: {e}", package_dir.join(".cinchpkg").display()))
         })?;
+        out.push((package_dir, pkg));
+    }
+    Ok(out)
+}
+
+/// Resolve every package in a project for one profile, and refuse two
+/// packages that claim one module name (the duplicate-module rule the
+/// registry also enforces).
+fn resolve_project_packages(
+    manifests: &[(PathBuf, Package)],
+    facts: &TargetFacts,
+) -> Result<Vec<(PathBuf, Package, ResolvedPackage)>> {
+    let mut resolved: Vec<(PathBuf, Package, ResolvedPackage)> = Vec::new();
+    for (package_dir, pkg) in manifests {
         let package = pkg.resolve(facts).map_err(|e| {
             Error::plain(format!("{}: {e}", package_dir.join(".cinchpkg").display()))
         })?;
@@ -1754,9 +1980,27 @@ fn resolve_project_packages(
                 )));
             }
         }
-        resolved.push((package_dir, pkg, package));
+        resolved.push((package_dir.clone(), pkg.clone(), package));
     }
     Ok(resolved)
+}
+
+/// The facts the host side of a build resolves against: the machine's own
+/// os, arch and libc. The compiler cannot ask a host for its platform
+/// version, so a manifest condition on `os_version` uses the target's
+/// stated version when the host states none, and the artifact manifest
+/// records that substitution, because a module selected only by that
+/// version is then a fact about the target rather than about the host.
+fn host_facts(build: &crate::core::BuildProfiles) -> (TargetFacts, bool) {
+    let mut facts = TargetFacts::of(&build.host);
+    let mut borrowed = false;
+    if facts.os_version.is_none() {
+        if let Some(version) = &build.target.os_version {
+            facts.os_version = Some(version.clone());
+            borrowed = true;
+        }
+    }
+    (facts, borrowed)
 }
 
 /// Load the entry file and every module it imports, transitively. A source
@@ -1765,22 +2009,22 @@ fn resolve_project_packages(
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
-    load_project_for(entry_path, &crate::core::TargetProfile::native())
+    load_project_for(entry_path, &crate::core::BuildProfiles::native())
 }
 
-/// [`load_project`] for one compile target: a package's `select`
-/// conditions resolve against the target being built rather than the host,
-/// and so does every import's `when` clause, so a conditional import loads
-/// no module and adds no dependency where its condition does not hold
-/// (design/base-as-a-package.md sections 4.1 and 4.2; modules
-/// specification section 11).
-fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> Result<Project> {
-    let facts = TargetFacts::of(profile);
-    let facts = &facts;
-    // The context this project's conditional imports resolve in: one
-    // decision, in one place, so a host context can join the target
-    // context without moving the evaluation.
-    let resolve_profile = crate::core::condition_context(profile);
+/// [`load_project`] for one build: the target's profile decides which
+/// modules the artifact compiles (a package's `select` conditions and
+/// every import's `when` clause resolve against it), and the host's
+/// profile decides which modules the build *could* compile, so a module
+/// available for one profile and not the other is a fact the build knows
+/// rather than a failure the resolver invents (design/base-as-a-package.md,
+/// "Host and target are different questions"; modules specification
+/// section 11).
+fn load_project_for(entry_path: &Path, build: &crate::core::BuildProfiles) -> Result<Project> {
+    // Emitted code and its modules are the target: the compilation this
+    // project describes is the target's.
+    let profile = crate::core::condition_context(build, crate::core::BuildContext::Emitted);
+    let target_facts = TargetFacts::of(profile);
     let dir = entry_path
         .parent()
         .map(|p| p.to_path_buf())
@@ -1789,13 +2033,28 @@ fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> 
     let mut module_file: HashMap<String, PathBuf> = HashMap::new();
     let mut imports: HashMap<String, Vec<String>> = HashMap::new();
     let mut entry_modules: Vec<String> = Vec::new();
+    let mut host_only: Vec<HostOnlyImport> = Vec::new();
     let mut queue: Vec<PathBuf> = vec![entry_path.to_path_buf()];
     let dir_index = index_dir_modules(&dir)?;
     // Packages: the root project's manifest plus every vendored
-    // dependency, resolved for this target (design/base-as-a-package.md
-    // sections 2 and 4). A project with no manifest resolves none, which
-    // keeps single-file programs and the test fixtures unchanged.
-    let packages = resolve_project_packages(&dir, facts)?;
+    // dependency, resolved for this target, and resolved once more for
+    // the host so availability is a per-profile fact rather than a guess
+    // (design/base-as-a-package.md sections 2, 4.1 and 4.2). A project
+    // with no manifest resolves none, which keeps single-file programs
+    // and the test fixtures unchanged.
+    let manifests = project_manifests(&dir)?;
+    let packages = resolve_project_packages(&manifests, &target_facts)?;
+    let (host, host_os_version_from_target) = host_facts(build);
+    let (host_packages, host_unresolved) = match resolve_project_packages(&manifests, &host) {
+        Ok(packages) => (packages, None),
+        // The host's resolution is a fact used for diagnostics, never the
+        // compilation, so its failure cannot fail a build: the build
+        // records that it had no host evidence instead.
+        Err(e) => (Vec::new(), Some(e.to_string())),
+    };
+    let mut availability = ModuleAvailability::from_resolutions(&host_packages, &packages, &manifests);
+    availability.host_unresolved = host_unresolved;
+    availability.host_os_version_from_target = host_os_version_from_target;
     let mut owner: HashMap<String, String> = HashMap::new();
     let mut exposed: HashMap<String, bool> = HashMap::new();
     let mut module_preludes: HashMap<String, String> = HashMap::new();
@@ -1851,7 +2110,7 @@ fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> 
         }
         let src = std::fs::read_to_string(&path)
             .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-        let scanned = scan_file_for(&src, &key, resolve_profile)?;
+        let scanned = scan_file_for(&src, &key, profile)?;
         if scanned.modules.is_empty() {
             return Err(Error::plain(format!("{key}: no `module` declaration")));
         }
@@ -1876,7 +2135,7 @@ fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> 
         sources.insert(key, src);
         let prelude_names = prelude_module_names();
         for (owner_module, imps) in &scanned.modules {
-            for (imp, _stage) in imps {
+            for (imp, stage) in imps {
                 // A module another package owns is importable only when
                 // that package exposed it (section 4.2): an internal
                 // module is compiled as part of its package and is not
@@ -1895,6 +2154,48 @@ fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> 
                 }
                 if module_file.contains_key(imp) {
                     continue;
+                }
+                // Availability is a per-profile fact (design/base-as-a-package.md,
+                // "Host and target are different questions"): a module a
+                // manifest declares but this profile's resolution leaves
+                // out is not importable here, whatever file the directory
+                // happens to hold for it.
+                if let Some(declarer) = availability.owner(imp) {
+                    let emittable = availability
+                        .modules(crate::core::BuildContext::Emitted)
+                        .contains(imp);
+                    if !emittable {
+                        let host_answer = availability
+                            .available_for(crate::core::BuildContext::CompileTime, imp);
+                        if host_answer == Some(true) {
+                            // It resolves for the host only. The target's
+                            // module graph has no place for it, so the edge
+                            // is recorded and the context that reached it
+                            // decides the refusal.
+                            host_only.push(HostOnlyImport {
+                                importer: owner_module.clone(),
+                                module: imp.clone(),
+                                stage: *stage,
+                            });
+                            continue;
+                        }
+                        let host_note = match host_answer {
+                            Some(false) => format!(
+                                " nor for the build host {} ({})",
+                                build.host.triple, build.host.os
+                            ),
+                            _ => String::new(),
+                        };
+                        return Err(Error::plain(format!(
+                            "module {imp} is not available for target {} ({}){host_note}: \
+                             package {declarer} {}; either build for a target the condition \
+                             selects, or widen the package's conditions so {imp} resolves for {}",
+                            build.target.triple,
+                            build.target.os,
+                            availability.condition_account(imp),
+                            build.target.triple
+                        )));
+                    }
                 }
                 // A source module beside the entry shadows the embedded
                 // prelude copy of the same name (the implicit base layer
@@ -1982,7 +2283,217 @@ fn load_project_for(entry_path: &Path, profile: &crate::core::TargetProfile) -> 
         owner,
         exposed,
         module_preludes,
+        availability,
+        host_only,
     })
+}
+
+/// The modules whose definitions run during the build: a `stage` or
+/// `macro` declaration is compile-time code, and so is every module such a
+/// module imports (design/base-as-a-package.md, "Host and target are
+/// different questions"). A conditional definition counts where its
+/// condition holds for the target, because that is the program the build
+/// actually compiles; the `when` clause is read against the emitted
+/// context, the same decision the scanner and the checker make.
+fn compile_time_roots(
+    modules: &[crate::ast::Module],
+    imports: &HashMap<String, Vec<String>>,
+    build: &crate::core::BuildProfiles,
+) -> Vec<String> {
+    let profile = crate::core::condition_context(build, crate::core::BuildContext::Emitted);
+    // A `stage` or `macro` definition, wherever conditions wrap it. A
+    // conditional definition counts where its condition holds for the
+    // target, because that is the program this build compiles.
+    fn staged(d: &crate::ast::Decl, profile: &crate::core::TargetProfile) -> bool {
+        match d {
+            crate::ast::Decl::Conditional { when, inner } => {
+                crate::core::WhenCond::lower(when)
+                    .map(|c| c.holds(profile))
+                    .unwrap_or(false)
+                    && staged(inner, profile)
+            }
+            crate::ast::Decl::Attributed { inner, .. }
+            | crate::ast::Decl::NameSpliced { inner, .. } => staged(inner, profile),
+            crate::ast::Decl::ValueSig { modifier: Some(m), .. }
+            | crate::ast::Decl::Equation { modifier: Some(m), .. } => {
+                matches!(m.text.as_str(), "stage" | "macro")
+            }
+            _ => false,
+        }
+    }
+    let mut roots: Vec<String> = Vec::new();
+    for m in modules {
+        let name = m.name.text.clone();
+        if m.decls.iter().any(|d| staged(d, profile)) {
+            roots.push(name);
+            continue;
+        }
+        // `import stage M` puts the importing module in the compile-time
+        // path, because only a staged definition can see such a name.
+        if let Some(imported) = imports.get(&name) {
+            if m.imports.iter().any(|i| {
+                i.stage && imported.iter().any(|n| *n == i.path.parts().join("."))
+            }) {
+                roots.push(name);
+            }
+        }
+    }
+    roots
+}
+
+/// Refuse a module the compile-time path reaches that the build cannot
+/// compile (design/base-as-a-package.md, "Host and target are different
+/// questions"). Two shapes exist, and the refusal says which: a module the
+/// host resolves and the target does not (the build writes the target's
+/// module set, so there is nothing to compile), and a module the target
+/// resolves and the host does not (compile-time code runs on the host).
+///
+/// Ordinary code reaching a host-only module is the same fact without the
+/// compile-time context, and it is refused as unavailable for the target,
+/// naming the condition that would select it.
+fn refuse_unavailable_modules(
+    project: &Project,
+    modules: &[crate::ast::Module],
+    build: &crate::core::BuildProfiles,
+) -> Result<()> {
+    let availability = &project.availability;
+    if availability.host_unresolved.is_some() {
+        // The host resolution could not be computed, so claiming a module
+        // is unavailable for the host would be a refusal on no evidence.
+        // The manifest records the reason instead.
+        return Ok(());
+    }
+    let roots = compile_time_roots(modules, &project.imports, build);
+    // The compile-time closure: every module a staged module reaches
+    // through the target's import graph, with the staged module that
+    // reaches it.
+    let mut closure: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut queue: std::collections::VecDeque<(String, String)> = std::collections::VecDeque::new();
+    for root in &roots {
+        if closure.insert(root.clone(), root.clone()).is_none() {
+            queue.push_back((root.clone(), root.clone()));
+        }
+    }
+    // A host-only import written with `import stage` is compile-time code
+    // wherever it lives, so its importer joins the closure too.
+    for edge in &project.host_only {
+        if edge.stage && closure.insert(edge.importer.clone(), edge.importer.clone()).is_none() {
+            queue.push_back((edge.importer.clone(), edge.importer.clone()));
+        }
+    }
+    while let Some((module, root)) = queue.pop_front() {
+        for next in project.imports.get(&module).into_iter().flatten() {
+            if closure.contains_key(next) {
+                continue;
+            }
+            closure.insert(next.clone(), root.clone());
+            queue.push_back((next.clone(), root.clone()));
+        }
+    }
+    let emittable = |module: &str| -> bool {
+        availability
+            .modules(crate::core::BuildContext::Emitted)
+            .contains(module)
+    };
+    let host_answer = |module: &str| -> Option<bool> {
+        availability.available_for(crate::core::BuildContext::CompileTime, module)
+    };
+    // A module reached only from ordinary code that the target cannot
+    // compile: refused as unavailable for the target.
+    for edge in &project.host_only {
+        if edge.stage || closure.contains_key(&edge.importer) {
+            continue;
+        }
+        return Err(Error::plain(format!(
+            "module {} is not available for target {} ({}): package {} {}; the build host \
+             {} ({}) resolves it, so the import works for a host build and not for this \
+             target. Either build for a target the condition selects, or widen the \
+             package's conditions so {} resolves for {}. Ordinary code is compiled for the \
+             target, so it cannot import a module the target's resolution leaves out \
+             (design/base-as-a-package.md section 4.2)",
+            edge.module,
+            build.target.triple,
+            build.target.os,
+            availability.owner(&edge.module).unwrap_or("(no manifest)"),
+            availability.condition_account(&edge.module),
+            build.host.triple,
+            build.host.os,
+            edge.module,
+            build.target.triple
+        )));
+    }
+    // The compile-time path: a module it reaches must resolve for the
+    // host, because that is where the code runs, and must resolve for the
+    // target, because the build compiles the target's module set.
+    let compile_time_refusal = |module: &str, reached_by: &str| -> String {
+        let owner = availability.owner(module).unwrap_or("(no manifest)");
+        let condition = availability.condition_account(module);
+        if host_answer(module) == Some(true) && !emittable(module) {
+            format!(
+                "module {module} is reached from compile-time code ({reached_by}) and is not \
+                 available for both profiles of this build: it resolves for the host {} ({}) \
+                 and not for the target {} ({}). Package {owner} {condition}, and the build \
+                 compiles the target's module set, so compile-time code can only reach a \
+                 module that resolves for both. Fix it one of two ways: move the code that \
+                 needs {module} out of the build-time path, or widen {owner}'s conditions so \
+                 {module} also resolves for the target {} \
+                 (design/base-as-a-package.md, host and target are different questions)",
+                build.host.triple,
+                build.host.os,
+                build.target.triple,
+                build.target.os,
+                build.target.triple
+            )
+        } else {
+            format!(
+                "module {module} is reached from compile-time code ({reached_by}) and is not \
+                 available for both profiles of this build: it resolves for the target {} ({}) \
+                 and not for the host {} ({}). Compile-time code runs during the build, on the \
+                 host, so a module it reaches must be host-available. Package {owner} \
+                 {condition}. Fix it one of two ways: move the code that needs {module} out of \
+                 the build-time path, or widen {owner}'s conditions so {module} also resolves \
+                 for the host {} (design/base-as-a-package.md, host and target are different \
+                 questions)",
+                build.target.triple,
+                build.target.os,
+                build.host.triple,
+                build.host.os,
+                build.host.triple
+            )
+        }
+    };
+    for edge in &project.host_only {
+        if !(edge.stage || closure.contains_key(&edge.importer)) {
+            continue;
+        }
+        let root = closure.get(&edge.importer).cloned().unwrap_or_default();
+        let reached_by = if edge.stage {
+            format!("{} imports it `stage`", edge.importer)
+        } else if root != edge.importer {
+            format!(
+                "{} reaches it through the module graph from the compile-time code in {}",
+                edge.importer, root
+            )
+        } else {
+            edge.importer.clone()
+        };
+        return Err(Error::plain(compile_time_refusal(&edge.module, &reached_by)));
+    }
+    for (module, root) in &closure {
+        if host_answer(module) == Some(true) {
+            continue;
+        }
+        if !emittable(module) {
+            continue;
+        }
+        let reached_by = if root == module {
+            format!("{root} holds the definition that uses it")
+        } else {
+            format!("{root}'s compile-time code reaches it through the module graph")
+        };
+        return Err(Error::plain(compile_time_refusal(module, &reached_by)));
+    }
+    Ok(())
 }
 
 /// One escaped snapshot line: `kind \t snapshot \t name \t hash \t live \t
@@ -2062,6 +2573,8 @@ fn write_artifacts(
     program: &crate::core::Program,
     opt: &crate::core::OptReport,
     profile: &crate::core::TargetProfile,
+    build: &crate::core::BuildProfiles,
+    availability: &ModuleAvailability,
     wit: &[crate::interface::WitAdapter],
     opts: &DriverOptions,
     link_plan: &LinkPlan,
@@ -2222,6 +2735,96 @@ fn write_artifacts(
             "the deployment contract must satisfy the recorded feature assumptions".into(),
         ),
         ("conditions", conditions),
+    ]);
+    // The build's two profiles (design/base-as-a-package.md, "Host and
+    // target are different questions"). The host is where compile-time
+    // code runs and the target is what the artifact answers for, so a
+    // reader has to be able to tell a cross build from a native one and to
+    // see which modules the split separated. The availability rows record
+    // each declared module against both profiles, because that is the fact
+    // a compile-time reachability refusal quotes.
+    let module_rows = availability.declared_modules();
+    let host_record = J::obj([
+        ("profile", (&build.host.name).into()),
+        ("triple", build.host.triple.as_str().into()),
+        ("os", build.host.os.as_str().into()),
+        ("arch", build.host.arch.as_str().into()),
+        ("libc", build.host.libc.as_str().into()),
+        (
+            "os_version",
+            build.host.os_version.as_deref().map(J::from).unwrap_or(J::Null),
+        ),
+        (
+            "os_version_from",
+            if availability.host_os_version_from_target {
+                "target: the compiler cannot ask the host for its platform version"
+            } else if build.host.os_version.is_some() {
+                "the host profile"
+            } else {
+                "none stated"
+            }
+            .into(),
+        ),
+        (
+            "resolution",
+            match &availability.host_unresolved {
+                None => "resolved".into(),
+                Some(reason) => J::obj([
+                    ("state", "unresolved".into()),
+                    ("reason", reason.into()),
+                    (
+                        "consequence",
+                        "no module is reported unavailable for the host on this evidence: \
+                         its availability for the host is `undecided`, and a refusal needs \
+                         evidence"
+                            .into(),
+                    ),
+                ]),
+            },
+        ),
+    ]);
+    let profiles = J::obj([
+        ("cross", build.cross().into()),
+        ("host", host_record),
+        (
+            "target",
+            build.target.triple.as_str().into(),
+        ),
+        (
+            "condition_context",
+            "emitted code and its modules resolve against the target; compile-time code \
+             (staged units, macros, and the modules they import) resolves against the host. A \
+             `prim` body is emitted code and resolves against the target wherever it is reached"
+                .into(),
+        ),
+        (
+            "interface_cache",
+            "keyed by the profile that selected the entry: an interface compiled for the \
+             target is keyed by the target profile (crate::store::package_key_for folds \
+             profile_identity(target) into the key), and the host resolution writes no \
+             interface and no cache entry, because it compiles nothing"
+                .into(),
+        ),
+        (
+            "modules",
+            J::arr(&module_rows, |module| {
+                J::obj([
+                    ("module", module.as_str().into()),
+                    (
+                        "host",
+                        availability
+                            .availability_spelling(crate::core::BuildContext::CompileTime, module)
+                            .into(),
+                    ),
+                    (
+                        "target",
+                        availability
+                            .availability_spelling(crate::core::BuildContext::Emitted, module)
+                            .into(),
+                    ),
+                ])
+            }),
+        ),
     ]);
     // The Wasm and components record (WebAssembly and WASI
     // specification sections 2, 4 and 8): the artifact shape, the
@@ -2512,6 +3115,7 @@ fn write_artifacts(
         ("prims", prims_rows),
         ("laws", law_rows),
         ("target", target),
+        ("profiles", profiles),
         ("wasm", wasm),
         ("specialization", specialization),
         ("tail_calls", tail_calls),
@@ -3649,7 +4253,13 @@ pub fn driver_with_profile_opts(
         )));
     }
     let mut emit_modules = opts.emit_modules.clone();
-    let project = load_project_for(path, profile)?;
+    // One build, two profiles (design/base-as-a-package.md, "Host and
+    // target are different questions"): the host is this machine, and the
+    // target is that machine unless the caller named a triple. Nothing
+    // derives one from the other.
+    let build = crate::core::BuildProfiles::of_target(profile);
+    let profile = &build.target;
+    let project = load_project_for(path, &build)?;
     // The final link is built from the closure, not from a string: every
     // contribution is tagged with the package that asked for it, raw
     // words need the root project's consent, and machine-local overrides
@@ -3761,6 +4371,15 @@ pub fn driver_with_profile_opts(
             .ok_or_else(|| Error::plain(format!("{file:?}: no module {name}")))?;
         modules.push(m);
     }
+    // Compile-time reachability (design/base-as-a-package.md, "Host and
+    // target are different questions"): a module the build-time path
+    // reaches has to resolve for the host, and the build compiles the
+    // target's module set, so it has to resolve for the target too.
+    // Ordinary code that reaches a module only the host resolves is
+    // refused as unavailable for the target. Both decisions need the
+    // parsed declarations, which is why they run here rather than in the
+    // loader.
+    refuse_unavailable_modules(&project, &modules, &build)?;
     let mut hashes: HashMap<String, String> = HashMap::new();
     let mut files: HashMap<String, String> = HashMap::new();
     for name in &project.order {
@@ -3826,6 +4445,8 @@ pub fn driver_with_profile_opts(
         &program,
         &opt,
         profile,
+        &build,
+        &project.availability,
         &adapters,
         opts,
         &link_plan,

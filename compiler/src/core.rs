@@ -3745,8 +3745,11 @@ pub struct TargetProfile {
     /// section 4.1).
     pub triple: String,
     /// The triple's operating-system component: `darwin`, `linux`, or
-    /// `windows`. Evaluated against the compile TARGET, never the build
-    /// host, so a cross compile cannot pick up the laptop's conditions.
+    /// `windows`. Read by a condition through the profile the position
+    /// resolves in ([`condition_context`]): the compile target for emitted
+    /// code, this machine for compile-time code, so a cross compile cannot
+    /// pick up the laptop's conditions in the artifact and an availability
+    /// question cannot borrow the target's answer.
     pub os: String,
     /// The triple's architecture component: `aarch64`, `x86_64`, `wasm32`.
     pub arch: String,
@@ -4330,20 +4333,74 @@ impl WhenCond {
     }
 }
 
+/// The two profiles one build carries (design/base-as-a-package.md, "Host
+/// and target are different questions"): the host, where anything that
+/// runs during the build executes (staged units, macros, `eval`), and the
+/// target, which the artifact is emitted for. Nothing derives one from the
+/// other. The host is always the machine running the compiler, and the
+/// target is that machine's own profile unless `--target` names another
+/// triple, which is the only case where the two differ.
+#[derive(Clone, Debug)]
+pub struct BuildProfiles {
+    pub host: TargetProfile,
+    pub target: TargetProfile,
+}
+
+impl BuildProfiles {
+    /// The build this compiler runs by default: host and target are the
+    /// machine's own profile.
+    pub fn native() -> Self {
+        let host = TargetProfile::native();
+        BuildProfiles { target: host.clone(), host }
+    }
+
+    /// The build for one target profile. The host stays this machine,
+    /// because the compiler runs on it whatever `--target` asked for.
+    pub fn of_target(target: &TargetProfile) -> Self {
+        BuildProfiles { host: TargetProfile::native(), target: target.clone() }
+    }
+
+    /// Whether the artifact is emitted for a machine other than this one.
+    pub fn cross(&self) -> bool {
+        self.host.triple != self.target.triple
+    }
+}
+
+/// Where a conditional position sits in the build. Emitted code belongs to
+/// the target; anything that runs during the build belongs to the host
+/// (modules specification section 11; design/base-as-a-package.md, "Host
+/// and target are different questions").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuildContext {
+    /// Code and modules that become part of the artifact.
+    Emitted,
+    /// Code and modules that run while the build is happening: a `stage`
+    /// or `macro` definition and the modules it imports.
+    CompileTime,
+}
+
+impl BuildContext {
+    /// The profile this context's conditions resolve against.
+    pub fn profile<'a>(self, build: &'a BuildProfiles) -> &'a TargetProfile {
+        match self {
+            BuildContext::Emitted => &build.target,
+            BuildContext::CompileTime => &build.host,
+        }
+    }
+}
+
 /// The profile a conditional import or declaration resolves against
-/// (modules specification section 11).
+/// (modules specification section 11; design/base-as-a-package.md, "Host
+/// and target are different questions").
 ///
-/// A build has two contexts: the artifact's target, which emitted code
-/// belongs to, and the build host, which is where anything that runs
-/// during the build runs. This slice has exactly one profile per build, so
-/// every conditional position resolves against it, and this function is
-/// the one place that decision lives: nothing else invents a profile or
-/// recovers a host, and the host/target split replaces this body with the
-/// choice per position (a staged module resolves against the host, an
-/// emitted one against the target) without touching a `when` atom. The
-/// label a diagnostic uses for the context belongs here with it.
-pub(crate) fn condition_context(target: &TargetProfile) -> &TargetProfile {
-    target
+/// This is the one place that decision lives: nothing else invents a
+/// profile or recovers a host. A module's availability is a per-profile
+/// fact, and the rule reads "emitted code and its modules are the target;
+/// anything that runs during the build is the host". A `prim` body is
+/// emitted code and stays target even when the `prim` is reached from a
+/// staged definition, because the body becomes part of the artifact.
+pub fn condition_context(build: &BuildProfiles, context: BuildContext) -> &TargetProfile {
+    context.profile(build)
 }
 
 // ------------------------------------------------------------- core utilities

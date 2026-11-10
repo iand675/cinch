@@ -17,11 +17,21 @@
 //!                        Darwin-built interface names no Linux module;
 //!   the facade           `Prim.Sys`'s surface is exactly the selected
 //!                        backend's surface, and `Effect.Fs` reaches the
-//!                        platform layer through it with one import line.
+//!                        platform layer through it with one import line;
+//!   the host and target  a build carries both profiles: a module gated on
+//!                        the host's operating system is refused when
+//!                        compile-time code reaches it (naming both
+//!                        profiles and both contexts) and when ordinary
+//!                        code does (naming the target's condition), and
+//!                        one build selects a different module for each
+//!                        profile while the interface records the target's
+//!                        selection only.
 //!
 //! Every probe compiles through the same driver the CLI uses, at an
 //! explicit target profile, so the answer never depends on the machine
-//! running the tests.
+//! running the tests. The host and target probes gate their fixtures on
+//! the profile of whatever machine runs them, so they assert the same
+//! split on a Darwin or a Linux host.
 
 use cinch::driver::{
     check_sources_profile, check_sources_profile_ifaces, target_profile, DriverOptions,
@@ -493,4 +503,351 @@ fn the_filesystem_home_reaches_the_platform_layer_through_the_facade() {
             );
         }
     }
+}
+
+// ----------------------------------------------------------------
+// The host and the target
+// ----------------------------------------------------------------
+//
+// A build carries two profiles (design/base-as-a-package.md, "Host and
+// target are different questions"): the host, where compile-time code
+// runs, and the target, which the artifact is emitted for. Module
+// availability is therefore a per-profile fact, and the fixtures below
+// gate a module on the HOST's operating system, so the same project
+// resolves it for the host and not for a cross target on any machine
+// running the suite.
+
+/// One scratch project: `files` are `(relative path, text)`, written
+/// under a fresh directory named after `tag`.
+fn project(tag: &str, files: &[(&str, &str)]) -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "cinch-host-target-{}-{tag}-{n}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("scratch project");
+    for (name, text) in files {
+        let path = dir.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("parent directory");
+        }
+        std::fs::write(&path, text).expect("write fixture");
+    }
+    dir
+}
+
+/// Check `dir/entry` for `triple` (the host's own target when `None`).
+/// The driver writes the manifest and interfaces beside the entry, so a
+/// caller can read what the build recorded.
+fn check_project(
+    dir: &std::path::Path,
+    entry: &str,
+    triple: Option<&str>,
+) -> Result<(), String> {
+    let opts = DriverOptions {
+        target: triple.map(str::to_string),
+        ..DriverOptions::default()
+    };
+    cinch::driver::driver_opts(cinch::driver::Mode::Check, &dir.join(entry), None, &opts)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// The profile of the machine running this test: the build host.
+fn host() -> cinch::core::TargetProfile {
+    cinch::core::TargetProfile::native()
+}
+
+/// The supported triple for the operating system the host is NOT, so the
+/// two profiles differ and the fixture's condition separates them.
+fn other_os_triple() -> String {
+    let other = if host().os == "darwin" { "linux" } else { "darwin" };
+    cinch::driver::SUPPORTED_TARGETS
+        .iter()
+        .find(|t| profile(t).os == other)
+        .map(|t| (*t).to_string())
+        .unwrap_or_else(|| panic!("a supported triple for {other}"))
+}
+
+/// The `apple-darwin` triple whose architecture is not the host's, so a
+/// module gated on `arch <that>` is available for the target and not for
+/// the host. Both Apple triples are supported, so this always exists.
+fn other_arch_triple() -> String {
+    let other = if host().arch == "aarch64" { "x86_64" } else { "aarch64" };
+    cinch::driver::SUPPORTED_TARGETS
+        .iter()
+        .find(|t| {
+            let p = profile(t);
+            p.os == "darwin" && p.arch == other
+        })
+        .map(|t| (*t).to_string())
+        .unwrap_or_else(|| panic!("a Darwin triple for {other}"))
+}
+
+/// A project whose manifest gates one module on the host's operating
+/// system, plus the entry source that imports it.
+fn host_gated_project(tag: &str, main: &str) -> std::path::PathBuf {
+    let os = host().os;
+    let manifest = format!(
+        r#"{{
+  "schema": 2,
+  "name": "acme/app",
+  "version": "0.1.0",
+  "modules": [ {{ "name": "Main", "path": "Main.cinch" }} ],
+  "order": ["Main"],
+  "select": [
+    {{ "when": {{ "os": ["{os}"] }},
+      "modules": [ {{ "name": "Host.Only", "path": "host/Host.cinch" }} ] }}
+  ]
+}}"#
+    );
+    project(
+        tag,
+        &[
+            (".cinchpkg", manifest.as_str()),
+            (
+                "host/Host.cinch",
+                "module Host.Only where\n  export host-flavour\n\n  host-flavour :: Int\n  host-flavour = 3\n",
+            ),
+            ("Main.cinch", main),
+        ],
+    )
+}
+
+#[test]
+fn compile_time_code_that_reaches_a_host_only_module_is_refused_naming_both_profiles() {
+    // The staged definition runs during the build, on the host, and the
+    // module it imports resolves for the host and not for the target: the
+    // refusal has to name both profiles and both contexts, because the
+    // fix differs (move the code out of the build-time path, or widen the
+    // package's conditions).
+    let main = "module Main where\n  import Host.Only\n\n  stage flavour :: Int\n  stage flavour = host-flavour\n\n  main :: Int\n  main = 0\n";
+    let dir = host_gated_project("compile-time", main);
+    let triple = other_os_triple();
+    let err = check_project(&dir, "Main.cinch", Some(&triple))
+        .expect_err("a compile-time reach of a host-only module is refused");
+    let target = profile(&triple);
+    let host = host();
+    for needle in [
+        "Host.Only",
+        "compile-time code",
+        host.triple.as_str(),
+        host.os.as_str(),
+        target.triple.as_str(),
+        target.os.as_str(),
+        "acme/app",
+        "move the code",
+        "widen",
+    ] {
+        assert!(err.contains(needle), "the refusal names {needle:?}: {err}");
+    }
+    // Both profiles, so a reader sees which way round the split is.
+    assert!(
+        err.contains(&format!("host {}", host.triple))
+            && err.contains(&format!("target {}", target.triple)),
+        "the refusal names the host and the target: {err}"
+    );
+}
+
+#[test]
+fn emitted_code_that_reaches_a_host_only_module_is_refused_as_unavailable_for_the_target() {
+    // The same import from ordinary code is the target's question only:
+    // no stage, so the refusal states that the module is unavailable for
+    // the target and names the condition that would select it.
+    let main = "module Main where\n  import Host.Only\n\n  main :: Int\n  main = host-flavour\n";
+    let dir = host_gated_project("emitted", main);
+    let triple = other_os_triple();
+    let err = check_project(&dir, "Main.cinch", Some(&triple))
+        .expect_err("ordinary code cannot import a module the target does not resolve");
+    let target = profile(&triple);
+    for needle in [
+        "Host.Only",
+        target.triple.as_str(),
+        target.os.as_str(),
+        "not available for target",
+        "when os",
+    ] {
+        assert!(err.contains(needle), "the refusal names {needle:?}: {err}");
+    }
+    assert!(
+        !err.contains("compile-time code"),
+        "ordinary code is not a compile-time context: {err}"
+    );
+}
+
+#[test]
+fn the_same_staged_source_builds_for_the_hosts_own_target() {
+    // Nothing about the split changes the host-equals-target path: the
+    // module resolves for both profiles, so the same source checks.
+    let main = "module Main where\n  import Host.Only\n\n  stage flavour :: Int\n  stage flavour = host-flavour\n\n  main :: Int\n  main = 0\n";
+    let dir = host_gated_project("native", main);
+    let host_triple = host().triple;
+    check_project(&dir, "Main.cinch", Some(&host_triple))
+        .unwrap_or_else(|e| panic!("the host's own target builds: {e}"));
+    // The manifest records the host next to the target, and says the two
+    // are the same machine's profile.
+    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
+        .expect("the artifact manifest");
+    assert!(manifest.contains("\"cross\":false"), "{manifest}");
+    assert!(
+        manifest.contains(&format!("\"triple\":\"{host_triple}\"")),
+        "the host is recorded: {manifest}"
+    );
+    assert!(
+        manifest.contains(
+            "{\"host\":\"available\",\"module\":\"Host.Only\",\"target\":\"available\"}"
+        ),
+        "the module resolves for both profiles: {manifest}"
+    );
+}
+
+#[test]
+fn compile_time_code_that_reaches_a_target_only_module_names_the_host_context() {
+    // The mirror direction: a module the target resolves and the host does
+    // not. Compile-time code runs on the host, so it cannot reach it, and
+    // the refusal says so rather than reporting an unknown name.
+    let other_arch = if host().arch == "aarch64" { "x86_64" } else { "aarch64" };
+    let manifest = format!(
+        r#"{{
+  "schema": 2,
+  "name": "acme/app",
+  "version": "0.1.0",
+  "modules": [ {{ "name": "Main", "path": "Main.cinch" }} ],
+  "order": ["Main"],
+  "select": [
+    {{ "when": {{ "arch": ["{other_arch}"] }},
+      "modules": [ {{ "name": "Target.Only", "path": "platform/Target.cinch" }} ] }}
+  ]
+}}"#
+    );
+    let main = "module Main where\n  import Target.Only\n\n  stage flavour :: Int\n  stage flavour = target-flavour\n\n  main :: Int\n  main = 0\n";
+    let dir = project(
+        "target-only",
+        &[
+            (".cinchpkg", manifest.as_str()),
+            (
+                "platform/Target.cinch",
+                "module Target.Only where\n  export target-flavour\n\n  target-flavour :: Int\n  target-flavour = 4\n",
+            ),
+            ("Main.cinch", main),
+        ],
+    );
+    let triple = other_arch_triple();
+    let err = check_project(&dir, "Main.cinch", Some(&triple))
+        .expect_err("compile-time code cannot reach a target-only module");
+    let target = profile(&triple);
+    for needle in [
+        "Target.Only",
+        "compile-time code",
+        "resolves for the target",
+        "not for the host",
+        host().triple.as_str(),
+        target.triple.as_str(),
+    ] {
+        assert!(err.contains(needle), "the refusal names {needle:?}: {err}");
+    }
+}
+
+#[test]
+fn one_build_selects_different_modules_for_the_host_and_the_target() {
+    // One build, two resolutions: the manifest's `select` plus an
+    // in-source `when` choose a different implementation for each profile,
+    // and the artifact records the split. The interface records the
+    // target's selection only, because interfaces describe the artifact.
+    let os = host().os;
+    let other = if os == "darwin" { "linux" } else { "darwin" };
+    let manifest = format!(
+        r#"{{
+  "schema": 2,
+  "name": "acme/frames",
+  "version": "0.1.0",
+  "modules": [ {{ "name": "Main", "path": "Main.cinch" }} ],
+  "order": [],
+  "select": [
+    {{ "when": {{ "os": ["{os}"] }},
+      "modules": [ {{ "name": "Frame.Host", "path": "host/Frame.cinch" }} ] }},
+    {{ "when": {{ "os": ["{other}"] }},
+      "modules": [ {{ "name": "Frame.Cross", "path": "cross/Frame.cinch" }} ] }}
+  ]
+}}"#
+    );
+    let main = format!(
+        "module Main where\n  import Frame.Host when os {os}\n  import Frame.Cross when os {other}\n\n  when os {os} main :: Int\n  when os {os} main = frame-name\n\n  when os {other} main :: Int\n  when os {other} main = frame-name\n"
+    );
+    let dir = project(
+        "split",
+        &[
+            (".cinchpkg", manifest.as_str()),
+            (
+                "host/Frame.cinch",
+                "module Frame.Host where\n  export frame-name\n\n  frame-name :: Int\n  frame-name = 1\n",
+            ),
+            (
+                "cross/Frame.cinch",
+                "module Frame.Cross where\n  export frame-name\n\n  frame-name :: Int\n  frame-name = 2\n",
+            ),
+            ("Main.cinch", main.as_str()),
+        ],
+    );
+    let triple = other_os_triple();
+    check_project(&dir, "Main.cinch", Some(&triple))
+        .unwrap_or_else(|e| panic!("both profiles resolve in one build: {e}"));
+    let manifest_text = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
+        .expect("the artifact manifest");
+    assert!(manifest_text.contains("\"cross\":true"), "{manifest_text}");
+    assert!(
+        manifest_text
+            .contains("{\"host\":\"available\",\"module\":\"Frame.Host\",\"target\":\"unavailable\"}"),
+        "the host selects its implementation and the target does not: {manifest_text}"
+    );
+    assert!(
+        manifest_text
+            .contains("{\"host\":\"unavailable\",\"module\":\"Frame.Cross\",\"target\":\"available\"}"),
+        "the target selects the other implementation: {manifest_text}"
+    );
+    // The interface records the target's selection only: the host's
+    // module is not a dependency of the artifact.
+    let text = std::fs::read_to_string(dir.join("build/Main.cinchif"))
+        .expect("the module's interface");
+    let iface = Iface::from_json(&text).expect("the interface parses");
+    let imports = iface_imports(&iface);
+    assert!(
+        imports.contains("Frame.Cross"),
+        "the target's selection is recorded: {imports:?}"
+    );
+    assert!(
+        !imports.contains("Frame.Host"),
+        "the host's selection is not: {imports:?}"
+    );
+}
+
+#[test]
+fn the_condition_context_is_the_one_place_a_position_picks_its_profile() {
+    use cinch::core::{BuildContext, BuildProfiles};
+    let target = profile(LINUX);
+    let build = BuildProfiles::of_target(&target);
+    assert_eq!(
+        cinch::core::condition_context(&build, BuildContext::Emitted).triple,
+        LINUX,
+        "emitted code and its modules resolve against the target"
+    );
+    assert_eq!(
+        cinch::core::condition_context(&build, BuildContext::CompileTime).triple,
+        cinch::core::TargetProfile::native().triple,
+        "compile-time code resolves against this machine, whatever the target is"
+    );
+    assert_eq!(
+        build.cross(),
+        build.host.triple != build.target.triple,
+        "a build is a cross build exactly when the two profiles differ"
+    );
+
+    // Without `--target` the machine's own profile answers both ways, which
+    // is the coincidence the split exists to make explicit.
+    let native = BuildProfiles::native();
+    assert_eq!(native.host.triple, native.target.triple);
+    assert!(!native.cross());
 }

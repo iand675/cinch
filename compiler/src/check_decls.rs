@@ -7836,13 +7836,20 @@ impl Checker {
             // fallback when no condition matches (the canonical portable
             // baseline beside specific bodies). Two bodies with
             // overlapping conditions in one family are the first-match
-            // ambiguity and an error. Selection is fixed at compile time
-            // per artifact, against the compile target and never the build
-            // host.
-            let Some(target) = self.target.as_ref() else {
-                return Err(Error::plain(
-                    "internal error: `prim` body selection needs the target profile, and this checker carries none",
-                ));
+            // ambiguity and an error. A `prim` body is emitted code, so its
+            // context is the target even when a staged definition reaches
+            // the `prim` (design/base-as-a-package.md, "Host and target are
+            // different questions").
+            let target = match (&self.build, &self.target) {
+                (Some(build), _) => {
+                    crate::core::condition_context(build, crate::core::BuildContext::Emitted)
+                }
+                (None, Some(target)) => target,
+                (None, None) => {
+                    return Err(Error::plain(
+                        "internal error: `prim` body selection needs the target profile, and this checker carries none",
+                    ))
+                }
             };
             let mut family_units: Vec<(String, usize)> = Vec::new();
             let mut picks: Vec<(&str, Option<usize>, Option<usize>)> = Vec::new();
@@ -17542,11 +17549,19 @@ fn check_program_multi_full_prepared_impl(
     // profile is gone before anything reads the syntax, so no scope, no
     // export list, no interface and no code generation can see it. A
     // program with no conditions keeps its own syntax.
+    //
+    // The checker's positions are emitted code and its modules, so they
+    // resolve against the target of the build whose target this profile
+    // is; the host is this machine, because the compiler runs on it
+    // (design/base-as-a-package.md, "Host and target are different
+    // questions").
+    let build = crate::core::BuildProfiles::of_target(profile);
     let mut views: Option<(Vec<ast::Module>, Vec<ast::Module>)> = None;
     if prelude.iter().chain(modules.iter()).any(module_has_conditions) {
         // The same single context decision the module scanner uses, so a
         // load-time view and a check-time view cannot diverge.
-        let resolve_profile = crate::core::condition_context(profile);
+        let resolve_profile =
+            crate::core::condition_context(&build, crate::core::BuildContext::Emitted);
         views = Some((
             target_views(prelude, resolve_profile)?,
             target_views(modules, resolve_profile)?,
@@ -17600,6 +17615,11 @@ fn check_program_multi_full_prepared_impl(
         // from here, so a cross compile selects by its own target and
         // never by the machine doing the build.
         c.target = Some(profile.clone());
+        // Both profiles, so a conditional position's context is read from
+        // the build instead of assumed (design/base-as-a-package.md, "Host
+        // and target are different questions"). The host is this machine:
+        // the compiler runs on it whatever the target is.
+        c.build = Some(build.clone());
         // P20: the `jpl` target profile makes the safety assertion set
         // mandatory for the user's program (decision D114); the prelude
         // family is the standard library, not flight code.

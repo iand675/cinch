@@ -3336,6 +3336,12 @@ struct Checker {
     /// the `Available` evidence). `None` before a driver sets one, and
     /// body selection then refuses rather than guessing a target.
     target: Option<crate::core::TargetProfile>,
+    /// The build's two profiles (design/base-as-a-package.md, "Host and
+    /// target are different questions"). The checker holds both so that a
+    /// conditional position's context is a stated fact rather than an
+    /// assumption: [`crate::core::condition_context`] is the one place
+    /// that decision lives. `None` before a driver sets one.
+    build: Option<crate::core::BuildProfiles>,
     /// Class law obligations collected per instance, checked sample-wise
     /// after every module's bodies (primitive operations and inline
     /// target IR specification section 5).
@@ -3821,6 +3827,7 @@ impl Checker {
             pending_prims: Vec::new(),
             prims: Vec::new(),
             target: None,
+            build: None,
             law_obligations: Vec::new(),
             pres_obligations: Vec::new(),
             law_rows: Vec::new(),

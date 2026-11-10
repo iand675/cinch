@@ -1096,6 +1096,10 @@ impl Session {
             &opt_program,
             &opt,
             &self.profile,
+            &crate::core::BuildProfiles::of_target(&self.profile),
+            &crate::driver::ModuleAvailability::untracked(
+                "the incremental session resolves no package manifest, so it compiles one module set",
+            ),
             &self.wit,
             // The session has no `--rebuild` flag of its own: the CLI
             // flag is the driver's. A store entry that disagrees with the
