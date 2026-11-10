@@ -84,6 +84,7 @@ problem first, then the constant factor.
 | Drop specialisation (`Core::Release`) | `compiler/src/rc.rs` | 104K count calls removed |
 | Borrowed parameters for closed programs | `compiler/src/rc.rs` | 2,672 parameters borrowed |
 | Per-thread size-class heap | `compiler/runtime/src/small.rs` | 29% faster, 42% less peak RSS |
+| Core simplifier with a tick budget, case-merge, known-constructor case, direct static-dictionary calls | `compiler/src/simplify.rs` | fires 597 direct-call and 17 known-constructor rewrites on the toolkit; IR down 2.2% |
 | Core text output, verifier, diff, server, grammar, editors | `compiler/src/coretext.rs`, `compiler/src/lsp.rs`, `tooling/tree-sitter-cinch-core`, `tooling/editors/*` | makes each stage's codegen input inspectable and comparable |
 | `--opt-level` and `-O2` library objects and stage links | `compiler/src/driver.rs`, `tooling/bootstrap.py` | 28% on the toolkit check |
 | Core simplifier: case-merge, known-constructor, direct dictionary calls | `compiler/src/simplify.rs` | removes `Option`/`Result` scaffolding and static-dictionary `__apply` calls; reports ticks (section 10) |
@@ -259,6 +260,30 @@ The empirical fact that shapes this section: for our compiler, clang at
 that until either the module shrinks further or the backend gets cheaper.
 Both are in the backlog: shrinking IR (section 10) and the development
 codegen tier (section 6).
+
+## 8a. Tried and measured: PGO, LTO, and the compiler's own build
+
+Profile-guided optimization of a stage compiler works and is cheap to wire:
+link the compiler IR with `-fprofile-generate`, train it on a real workload
+(a 4K-line bundle check is enough), merge with `llvm-profdata`, and relink
+with `-fprofile-use`. On the toolkit check the same IR ran in a median of
+13.7 s against 15.3 s plain `-O2`, about 10%, with identical output. The
+profile is keyed to the compiler source, so it must be regenerated when the
+sources change; and because every stage is the same program, one trained
+profile serves all of them (functions whose IR differs are simply skipped,
+with the profile-use warnings suppressed). Link cost is one extra
+instrumented build per source revision.
+
+ThinLTO across the compiler module and the library object links and halves
+the binary (15.9 MB to 11.9 MB) but the result faults at run time in the
+stack probe (`ldr xzr, [sp]`) inside an inlined caller. That is the same
+AArch64 `probe-stack` interaction with dynamic allocas found earlier: our IR
+rounds every dynamic alloca to 16 bytes and marks it `align 16`, so the
+fault is either an LLVM defect on a path we have not isolated or a site that
+still bypasses the rounding. It is worth one investigation because LTO also
+removes the cross-module call cost to the library's string and `Nat`
+routines, which the profiles put at 14% of the compiler's time. Until then,
+LTO stays off.
 
 ## 9. Scheduling `-j N` (Make jobserver, Ninja pools, Bazel workers)
 
@@ -473,13 +498,17 @@ Metrics, reported per edit and per clean build:
 
 ## 12. Backlog, in evidence order
 
-1. **Profile harness.** A `tooling/profile_build.py` that runs a stage
+1. **PGO for the stage compilers.** Wire the measured 10% into
+   `tooling/bootstrap.py`: instrument, train on the bundle, merge, relink,
+   key the profile by the compiler source digest. Do this after the shard
+   work lands so both changes touch the link path once.
+2. **Profile harness.** A `tooling/profile_build.py` that runs a stage
    chain and emits phase timings, clang `-ftime-trace` summaries, sample
    profiles of the running compiler, and per-target test times, as one JSON
    file. Everything below is measured through it. Also add a `-j` sweep
    (1, 2, 4, 8) over four workloads: many small modules, a wide dependency
    graph, a deep import chain, one huge generated module.
-2. **Shard the module for parallel code generation.** One 218 MB
+3. **Shard the module for parallel code generation.** One 218 MB
    translation unit runs on one thread; the time trace above says 54 s of
    the 55 s `-O2` cost is backend work that shards in parallel. Emit one
    `.ll` per shard (grouped by module prefix, fixed order), compile shards
@@ -488,19 +517,19 @@ Metrics, reported per edit and per clean build:
    Stage2/Stage3 binaries still match byte for byte. Measure shard counts
    1, 2, 4, 8 for wall time, total CPU and the resulting compiler's own
    speed (cross-shard inlining is what we give up; measure it).
-3. **Shrink clang's input further.** Re-measure the IR after the
+4. **Shrink clang's input further.** Re-measure the IR after the
    reference-count and match changes, then target the largest remaining
    constructs: functions above 20K IR lines, repeated `case` spines, and
    every remaining out-of-line helper call.
-4. **Interface format.** Sectioned or indexed `.cinchif` decoding, plus an
+5. **Interface format.** Sectioned or indexed `.cinchif` decoding, plus an
    optimization section (size, arity, inline guidance). Needs a schema
    version bump and a producer rebuild.
-5. **Per-declaration query reuse inside one build**, with fingerprints and
+6. **Per-declaration query reuse inside one build**, with fingerprints and
    early cutoff. Start with `signature` and `elaboratedBody` because they
    dominate a self-build.
-6. **Interning `Ty` and names** in the Cinch compiler, and in the seed
+7. **Interning `Ty` and names** in the Cinch compiler, and in the seed
    where the profile still shows clone-heavy code.
-7. **GHC-style Core simplifier** on our Core, in this order: case-merge,
+8. **Finish the GHC-style simplifier** on our Core, in this order: case-merge,
    case-of-case with join points, call-arity and eta, loopification,
    CPR plus worker/wrapper for single-field constructors, spec-constr and
    liberate-case. Gate every step on the fixed point and on Core output
@@ -509,12 +538,14 @@ Metrics, reported per edit and per clean build:
    rewrites (case-merge, known-constructor, direct dictionary calls) are in
    the tree (section 10.1); case-of-case and join points are the next
    slice, and they need the join node in Core first.
-8. **Direct-call dictionaries**: resolve a projection from a known static
-   dictionary to a direct call, removing the `__apply` stub.
-9. **Parallel phases** using the runtime pool, once section 11's corpus
+9. **LTO across the library boundary**: finish the investigation in section
+   8a. It is worth one focused pass because it halves the binary and removes
+   the call cost to the library's string and `Nat` routines (14% of the
+   compiler's profile), but only if the stack-probe fault is understood.
+10. **Parallel phases** using the runtime pool, once section 11's corpus
    says which phases have enough independent work: RuntimeIr emission per
    unit, then inference per definition, then interface export per module.
-10. **Development codegen tier** (Cranelift or a direct emitter) once the
+11. **Development codegen tier** (Cranelift or a direct emitter) once the
    backend is the measured bottleneck for edit-compile-run rather than for
    clean builds.
 
