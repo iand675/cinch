@@ -376,6 +376,28 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
     }
 }
 
+/// [`cinch_mark_mt`] of an array block in time linear in its length:
+/// claim the array, then mark each counted element as its own root. The
+/// general walk would pay for every return to the array by rescanning its
+/// slots from the top (module docs, Marking), which is quadratic in the
+/// element count. The marked set ends the same.
+///
+/// # Safety
+///
+/// As for [`cinch_mark_mt`]; `word` is 0 or an array block word.
+pub(crate) unsafe fn mark_mt_array(word: i64) {
+    if !is_block_word(word) || !unsafe { claim(word) } {
+        return;
+    }
+    let p = word as usize as *const u8;
+    let scan = unsafe { Scan::of(p, block::read_header(p)) };
+    let mut at = scan.words();
+    while let Some((slot, _)) = scan.counted_below(at) {
+        at = slot;
+        unsafe { cinch_mark_mt(p.cast::<i64>().add(slot).read()) };
+    }
+}
+
 /// Mark the block behind the block word `word` when it is mortal and not
 /// marked yet: negate its count. Returns whether it was marked now, so
 /// that its children still need visiting.

@@ -525,6 +525,20 @@ pub extern "C" fn cinch_argv_get(i: i64) -> i64 {
 /// unset: 1 GiB.
 pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
 
+/// The stack reserved for every thread that runs program code as deep as
+/// the program's own thread may (that thread and the parallel pool's
+/// workers): `CINCH_STACK_SIZE=<n>[K|M|G]`, else
+/// [`DEFAULT_STACK_SIZE`]. An unparsable or zero value keeps the default;
+/// a size below [`crate::stack::MIN_STACK_BYTES`] is raised to it.
+pub(crate) fn program_stack_bytes() -> usize {
+    crate::heap::env_bytes(c"CINCH_STACK_SIZE")
+        .and_then(crate::heap::parse_limit)
+        .filter(|&n| n > 0)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(DEFAULT_STACK_SIZE)
+        .max(crate::stack::MIN_STACK_BYTES)
+}
+
 /// Run the program's entry unit `entry` on a thread with a large reserved
 /// stack and answer its result word; the generated native `@main` calls
 /// this right after [`cinch_argv_init`].
@@ -549,12 +563,7 @@ pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
 /// are unchanged.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
-    let size = crate::heap::env_bytes(c"CINCH_STACK_SIZE")
-        .and_then(crate::heap::parse_limit)
-        .filter(|&n| n > 0)
-        .and_then(|n| usize::try_from(n).ok())
-        .unwrap_or(DEFAULT_STACK_SIZE)
-        .max(crate::stack::MIN_STACK_BYTES);
+    let size = program_stack_bytes();
     let spawned = std::thread::Builder::new()
         .stack_size(size)
         .spawn(move || {

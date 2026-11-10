@@ -30,7 +30,7 @@ fn width(format: i64) -> usize {
         (format & 0x7f) as usize
     }
 }
-fn counted(format: i64) -> bool {
+pub(crate) fn counted(format: i64) -> bool {
     format == 1 || format == 2
 }
 
@@ -41,7 +41,7 @@ unsafe fn keep(word: i64, format: i64) -> i64 {
     word
 }
 
-unsafe fn array(len: i64, format: i64) -> i64 {
+pub(crate) unsafe fn array(len: i64, format: i64) -> i64 {
     if len < 0
         || !(0..=2).contains(&format)
             && !(format & 0x100 != 0 && matches!(width(format), 1 | 2 | 4 | 8))
@@ -61,7 +61,7 @@ unsafe fn array(len: i64, format: i64) -> i64 {
     p as usize as i64
 }
 
-unsafe fn format(a: i64) -> i64 {
+pub(crate) unsafe fn format(a: i64) -> i64 {
     unsafe { field(a, block::KIND_ARRAY, 0) }
 }
 
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn cinch_array_len(a: i64) -> i64 {
     unsafe { field(a, block::KIND_ARRAY, 1) }
 }
 
-unsafe fn read(a: i64, i: i64) -> i64 {
+pub(crate) unsafe fn read(a: i64, i: i64) -> i64 {
     let f = unsafe { format(a) };
     let p = unsafe {
         payload(a, block::KIND_ARRAY)
@@ -93,8 +93,10 @@ unsafe fn read(a: i64, i: i64) -> i64 {
     }
 }
 
-// The destination owns this word. Only unpublished fresh arrays are written.
-unsafe fn write(a: i64, i: i64, value: i64) {
+// The destination owns this word. Only unpublished fresh arrays are
+// written; the parallel entries write distinct slots of one such array
+// from several participants before their join publishes it.
+pub(crate) unsafe fn write(a: i64, i: i64, value: i64) {
     let f = unsafe { format(a) };
     let p = unsafe {
         payload(a, block::KIND_ARRAY)

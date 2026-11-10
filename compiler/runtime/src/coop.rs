@@ -529,3 +529,54 @@ pub extern "C" fn cinch_coop_task_poll_cancel() -> i64 {
 pub extern "C" fn cinch_coop_io_sleep(millis: i64) -> i64 {
     io_sleep(millis)
 }
+
+// -------------------------------------------- deterministic parallelism, sequentially
+//
+// The cooperative backend evaluates the parallel entries of `crate::par`
+// by their defining equations, in index order on the scheduler's thread
+// (design/parallel-evaluation.md section 3.4): the same words, the same
+// ownership (closures and the input array borrowed, results owned), and
+// no marking, since nothing crosses a thread. A parallel callback cannot
+// reach a suspension point (its row admits no `IO r`, `Async r` or
+// `Cancel r`), so the loops never yield.
+
+/// `parBoth f g`: `out[0] = f ()`, `out[1] = g ()`; returns 0.
+///
+/// # Safety
+///
+/// As for [`crate::par::cinch_par_both`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_coop_par_both(f: i64, g: i64, out: i64) -> i64 {
+    unsafe { crate::par::both_sequential(f, g, out) };
+    0
+}
+
+/// `parTabulate n f` as `array-tabulate n f`.
+///
+/// # Safety
+///
+/// As for [`crate::par::cinch_par_tabulate`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_coop_par_tabulate(n: i64, f: i64, class: i64) -> i64 {
+    unsafe { crate::par::tabulate_sequential(n, f, class) }
+}
+
+/// `parMapArray f arr` as a map in index order.
+///
+/// # Safety
+///
+/// As for [`crate::par::cinch_par_map_array`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_coop_par_map_array(f: i64, arr: i64, class: i64) -> i64 {
+    unsafe { crate::par::map_sequential(f, arr, class) }
+}
+
+/// `parSetWorkers n`: this backend has one participant whatever `n` is.
+/// Returns 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_coop_par_set_workers(n: i64) -> i64 {
+    if n < 0 {
+        crate::abi::raise(crate::error::Error::CorruptValue);
+    }
+    0
+}

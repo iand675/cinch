@@ -296,9 +296,14 @@
 //! not yet freed; default 8 GiB, `0` disables) and takes the `Exhausted`
 //! exit 73 with `cinch: exhausted: heap (<n> bytes)` past it;
 //! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
-//! stack (default 1 GiB, at least 256 KiB, [`platform::cinch_run_main`];
-//! overflowing it is the `Exhausted` exit with `cinch: exhausted: stack`,
-//! [`stack`]);
+//! stack and each parallel worker's (default 1 GiB, at least 256 KiB,
+//! [`platform::cinch_run_main`]; overflowing it is the `Exhausted` exit
+//! with `cinch: exhausted: stack`, [`stack`]);
+//! `CINCH_THREADS=<n>` sets the parallel pool's participant budget when
+//! the program did not call `cinch_par_set_workers` (a positive decimal
+//! count, at most [`par::MAX_PARTICIPANTS`]; default the available
+//! parallelism; `1` runs every parallel entry sequentially, with no
+//! thread, [`par`]);
 //! `CINCH_LEAK_CHECK=1` makes `cinch_exit_check` print `cinch-leak:
 //! live=<n> immortal=<n> leaked=<n>` and exit 74 when `leaked` (live
 //! header blocks that are not immortal) is not 0, an opt-in diagnostic of
@@ -464,6 +469,28 @@
 //!   through `cinch_nat_to_len` and grows its buffer with what arrives.
 //! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
 //!
+//! Deterministic pure parallelism (runtime ABI 8, design/parallel-evaluation.md
+//! section 3; [`par`]). Each entry computes its defining equation whatever
+//! the participant budget and schedule; closures and the input array are
+//! borrowed (the caller drops them after the call) and result words are
+//! owned by the caller. A reclaiming program's closure (and `parMap`'s
+//! input array) is marked (`cinch_mark_mt`) only when a job reaching it is
+//! first published:
+//!
+//! * `cinch_par_both(f: i64, g: i64, out: i64) -> i64`: `out[0]` is `f`
+//!   applied to the Unit word and `out[1]` is `g` applied to it; returns 0.
+//! * `cinch_par_tabulate(n: i64, f: i64, class: i64) -> i64`: a fresh array
+//!   of element format `class` (the array constructors' format) whose
+//!   element `i` is `f` applied to the `Nat` word of `i`; `n` comes through
+//!   `cinch_nat_to_len`.
+//! * `cinch_par_map_array(f: i64, arr: i64, class: i64) -> i64`: a fresh
+//!   array of format `class` whose element `i` is `f` applied to element
+//!   `i` of `arr` (passed owned: a counted element is dupped for the call).
+//! * `cinch_par_set_workers(n: i64) -> i64`: the participant budget (`n`
+//!   through `cinch_nat_to_len`; 0 restores the default); returns 0.
+//! * `cinch_coop_par_*`: the same four on the cooperative backend, as
+//!   sequential loops in index order.
+//!
 //! The platform layer (P34; `compiler/runtime/src/platform.rs`), the
 //! `cinch_buf_*`/`cinch_clock_*`/`cinch_fs_*`/`cinch_proc_*` externs
 //! behind the prelude's `Effect.Clock`/`Effect.Fs`/`Effect.Process`
@@ -520,6 +547,7 @@ mod int;
 mod limbs;
 mod nat;
 pub mod net;
+pub mod par;
 pub mod platform;
 pub mod pty;
 pub mod rc;
