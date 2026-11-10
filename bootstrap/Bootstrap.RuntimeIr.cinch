@@ -67,8 +67,14 @@ module Bootstrap.RuntimeIr where
     MethodVersion :: String -> Nat -> List Nat -> MethodVersion
   data MethodSlot where
     MethodSlot :: Nat -> Nat -> List Nat -> MethodSlot
+  -- The checked bindings with their foreign plans indexed once: every word
+  -- classification asks whether a foreign ABI passes the type opaquely,
+  -- and every call asks whether its target is foreign. The map keeps the
+  -- first binding of each name, as a scan in binding order would.
+  data BindingIndex where
+    BindingIndex :: List CheckedBinding -> List ForeignPlan -> HashMap String (Option ForeignPlan) -> BindingIndex
   data ProgramInfo where
-    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> List CheckedBinding -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
+    ProgramInfo :: List CoreData -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> ProgramInfo
   data RuntimeContext where
     RuntimeContext :: ProgramInfo -> List (Nat, Nat) -> List (Nat, Nat) -> List Demand -> List Demand -> RuntimeContext
   data Writer where
@@ -113,7 +119,23 @@ module Bootstrap.RuntimeIr where
   program-instances :: ProgramInfo -> List CoreInstance
   program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> instances
   program-bindings :: ProgramInfo -> List CheckedBinding
-  program-bindings info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> bindings
+  program-bindings info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> bindings
+  program-foreign-plans :: ProgramInfo -> List ForeignPlan
+  program-foreign-plans info = case info of ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> plans
+  -- The foreign plan of the first binding named `name`, if that binding is foreign.
+  program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
+  program-foreign-binding name info = case info of
+    ProgramInfo datas descriptions instances (BindingIndex bindings plans names) versions provider exposed effects tail-groups -> case hash-map-lookup name names of
+      Some plan -> plan
+      None -> None
+  index-bindings :: List CheckedBinding -> BindingIndex
+  index-bindings bindings = case foreign-index bindings of (plans, names) -> BindingIndex bindings plans names
+  foreign-index :: List CheckedBinding -> (List ForeignPlan, HashMap String (Option ForeignPlan))
+  foreign-index bindings = case bindings of
+    Nil -> (Nil, hash-map-empty)
+    Cons binding rest -> case foreign-index rest of
+      (plans, names) -> let plan = checked-foreign-plan binding in
+        ((case plan of Some found -> Cons found plans; None -> plans), hash-map-insert (checked-name binding) plan names)
   program-versions :: ProgramInfo -> List MethodVersion
   program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
@@ -246,12 +268,10 @@ module Bootstrap.RuntimeIr where
   foreign-parameter-matches ty parameter = same (foreign-class parameter) "ptr" && foreign-type-equal ty (foreign-parameter-type parameter)
   opaque-foreign-params :: UType -> List ForeignParameter -> Bool
   opaque-foreign-params ty params = case params of Nil -> False; Cons first rest -> foreign-parameter-matches ty first || opaque-foreign-params ty rest
-  opaque-foreign-word :: UType -> List CheckedBinding -> Bool
-  opaque-foreign-word ty bindings = case bindings of
+  opaque-foreign-word :: UType -> List ForeignPlan -> Bool
+  opaque-foreign-word ty plans = case plans of
     Nil -> False
-    Cons binding rest -> (case checked-foreign-plan binding of
-      Some plan -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan)
-      None -> False) || opaque-foreign-word ty rest
+    Cons plan rest -> opaque-foreign-params ty (foreign-parameters plan) || foreign-parameter-matches ty (foreign-result plan) || opaque-foreign-word ty rest
   checked-string-word :: String -> ProgramInfo -> Bool
   checked-string-word name info = case program-object info of
     Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
@@ -268,7 +288,7 @@ module Bootstrap.RuntimeIr where
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
-  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-bindings (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (program-foreign-plans (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids pending done -> case base ty of
       UBound id name KType -> representation id bounds
       URigid id name level KType -> representation id rigids
@@ -1372,7 +1392,7 @@ module Bootstrap.RuntimeIr where
   direct-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List CoreTerm -> (Writer, String)
   direct-call definitions locals w sp name actuals args = call-name definitions locals w sp name actuals Nil args
   call-name :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
-  call-name definitions locals w sp name actuals givens args = if (case foreign-binding name (program-bindings (writer-program w)) of Some plan -> True; None -> False) then foreign-call definitions locals w sp name givens args else if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
+  call-name definitions locals w sp name actuals givens args = if (case program-foreign-binding name (writer-program w) of Some plan -> True; None -> False) then foreign-call definitions locals w sp name givens args else if (case array-plan name of Some plan -> True; None -> False) then array-call definitions locals w sp name actuals givens args else if builtin-known name then builtin-call definitions locals w sp name actuals givens args else
     case instance-named name (program-instances (writer-program w)) of
       Some factory -> case scheme-classes (writer-context w) (scheme-params (instance-scheme factory)) actuals of
         Some classes -> if (case args of Nil -> True; other -> False) && list-length givens == list-length (scheme-requirements (instance-scheme factory)) then
@@ -1400,10 +1420,6 @@ module Bootstrap.RuntimeIr where
             Some classes -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
           None -> external-call definitions locals w sp name actuals givens args
-  foreign-binding :: String -> List CheckedBinding -> Option ForeignPlan
-  foreign-binding name bindings = case bindings of
-    Nil -> None
-    Cons binding rest -> if same name (checked-name binding) then checked-foreign-plan binding else foreign-binding name rest
   foreign-parameter-types :: List ForeignParameter -> List String
   foreign-parameter-types params = case params of
     Nil -> Nil
@@ -1459,12 +1475,10 @@ module Bootstrap.RuntimeIr where
   foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
   foreign-abi-compatible first second = same (foreign-llvm-type (foreign-result first)) (foreign-llvm-type (foreign-result second))
     && same (join (foreign-parameter-types (foreign-parameters first))) (join (foreign-parameter-types (foreign-parameters second)))
-  foreign-abi-coherent :: ForeignPlan -> List CheckedBinding -> Bool
-  foreign-abi-coherent plan bindings = case bindings of
+  foreign-abi-coherent :: ForeignPlan -> List ForeignPlan -> Bool
+  foreign-abi-coherent plan plans = case plans of
     Nil -> True
-    Cons first rest -> (case checked-foreign-plan first of
-      Some other -> not (same (foreign-symbol plan) (foreign-symbol other)) || foreign-abi-compatible plan other
-      None -> True) && foreign-abi-coherent plan rest
+    Cons other rest -> (not (same (foreign-symbol plan) (foreign-symbol other)) || foreign-abi-compatible plan other) && foreign-abi-coherent plan rest
   foreign-argument-types :: List ForeignParameter -> List CoreTerm -> Bool
   foreign-argument-types params args = case (params, args) of
     (Nil, Nil) -> True
@@ -1505,10 +1519,10 @@ module Bootstrap.RuntimeIr where
     else let (next, result) = fresh w "%foreign" in
       (line next (cat ["  ", result, " = ", if foreign-signed parameter then "sext " else "zext ", ty, " ", value, " to i64"]), result)
   foreign-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List String -> List CoreTerm -> (Writer, String)
-  foreign-call definitions locals w sp name givens args = case foreign-binding name (program-bindings (writer-program w)) of
+  foreign-call definitions locals w sp name givens args = case program-foreign-binding name (writer-program w) of
     None -> unsupported w sp "foreign call has no checked ABI plan"
     Some plan -> if list-length givens /= 0 || not (foreign-argument-types (foreign-parameters plan) args) then unsupported w sp "foreign call must supply every checked ABI argument"
-      else if not (foreign-abi-coherent plan (program-bindings (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
+      else if not (foreign-abi-coherent plan (program-foreign-plans (writer-program w))) then unsupported w sp "foreign symbol has conflicting ABI contracts"
       else if not (primitive-immediate-arguments (foreign-inline plan) args) then unsupported w sp "an immarg primitive operand must be an immediate literal"
       else case expressions definitions locals (request-demand (ForeignDemand plan) w) args of
         (evaluated, values) -> case foreign-marshal evaluated (foreign-parameters plan) values of
@@ -3124,8 +3138,17 @@ module Bootstrap.RuntimeIr where
   -- Reached method vectors grow monotonically in a finite Raw/Obj/TObj
   -- space. Plan to a fixed point before emitting dictionary layouts, so
   -- every instance and every indirect projection uses one class slot table.
-  plan-method-versions :: List CoreDefinition -> ProgramInfo -> ProgramInfo
-  plan-method-versions definitions info = plan-root-method-versions definitions [("main", Nil)] info
+  -- The emission of `roots`: tail groups, then worker passes until the
+  -- method versions settle. A pass that adds no version ran with exactly
+  -- the versions a further pass would start from, so its writer is the
+  -- emission itself.
+  settled-workers :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
+  settled-workers definitions roots info = settle-method-versions definitions roots (plan-tail-groups definitions info)
+  settle-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> Writer
+  settle-method-versions definitions roots info =
+    let emitted = workers definitions (demand-roots roots (empty-writer info)) in
+    if list-length (program-versions (writer-program emitted)) == list-length (program-versions info) then emitted
+    else settle-method-versions definitions roots (writer-program emitted)
   root-symbols :: List (String, List Nat) -> List String
   root-symbols roots = case roots of Nil -> Nil; Cons (name, classes) rest -> Cons (specialized-name name classes) (root-symbols rest)
   demand-roots :: List (String, List Nat) -> Writer -> Writer
@@ -3237,12 +3260,6 @@ module Bootstrap.RuntimeIr where
       (graph, reversed, vertices) -> case tail-finish-order graph vertices hash-map-empty Nil of
         (seen, order) -> with-tail-groups (source-tail-groups arities graph reversed order hash-map-empty 0 hash-map-empty) info
 
-  plan-root-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
-  plan-root-method-versions definitions roots info = iterate-method-versions definitions roots (plan-tail-groups definitions info)
-  iterate-method-versions :: List CoreDefinition -> List (String, List Nat) -> ProgramInfo -> ProgramInfo
-  iterate-method-versions definitions roots info =
-    let planned = writer-program (workers definitions (demand-roots roots (empty-writer info))) in
-    if list-length (program-versions planned) == list-length (program-versions info) then planned else iterate-method-versions definitions roots planned
   -- The caller selects checked definitions and explicit Raw/Obj/TObj
   -- specializations. Every root and reached helper uses the same checked
   -- worker/layout planner as an executable, without an entry requirement.
@@ -3253,9 +3270,8 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
-    let initial = empty-writer (plan-root-method-versions definitions roots info) in
-    case workers definitions (demand-roots roots initial) of
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty in
+    case settled-workers definitions roots info of
       Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry-with-linkage "internal ", builder-run code])
       Writer next globals code errors layouts datas -> Err errors
   -- Public ABI bridges and their metadata share this checked physical plan.
@@ -3362,7 +3378,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked =
     let typed = checked-elaboration checked in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty in
     case (library-default-definitions (elaboration-core typed), library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok definitions, Ok constructors) -> Ok (definitions <> constructors)
       (Err message, other) -> Err message
@@ -3484,9 +3500,8 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
-    let initial = empty-writer (plan-root-method-versions definitions selected info) in
-    case library-bridges definitions roots Nil (workers definitions (demand-roots selected initial)) of
+    let info = ProgramInfo (elaboration-data typed) (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty in
+    case library-bridges definitions roots Nil (settled-workers definitions selected info) of
       (bridged, units) -> case workers definitions bridged of
         Writer next globals code Nil layouts context ->
           let ir = cat [declarations, builder-run globals, if register then layout-table layouts else "", apply-entry-with-linkage "internal ", builder-run code] in
@@ -3499,12 +3514,14 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (elaboration-bindings typed) Nil provider None (elaboration-effects typed) hash-map-empty in
+    let info = ProgramInfo datas (elaboration-classes typed) (elaboration-instances typed) (index-bindings (elaboration-bindings typed)) Nil provider None (elaboration-effects typed) hash-map-empty in
     case definition "main" definitions of
       None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry has no main definition"]
       Some d -> case entry-mode d of
         None -> Err [MkDiagnostic "bootstrap.runtime-ir" (Span 0 0 1 1) "runtime entry must be main :: Int or Unit -> Int, optionally effectful, without external evidence"]
-        Some mode -> let initial = empty-writer (plan-method-versions definitions info) in
-          case workers definitions (demand-worker "main" Nil initial) of
+        -- The planning roots demand `main` as a worker unless a constructor
+        -- shares the name; only then does the entry need its own pass.
+        Some mode -> let settled = settled-workers definitions [("main", Nil)] info in
+          case (case constructor "main" datas of Some found -> workers definitions (demand-worker "main" Nil (empty-writer (writer-program settled))); None -> settled) of
             Writer next globals code Nil layouts datas -> Ok (cat [declarations, builder-run globals, layout-table layouts, apply-entry, builder-run code, entry mode])
             Writer next globals code errors layouts datas -> Err errors

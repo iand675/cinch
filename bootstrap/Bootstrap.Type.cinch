@@ -1282,24 +1282,36 @@ module Bootstrap.Type where
         else generalized current level blocked rest next st
       other -> generalized current level blocked rest next st
   generalize :: Nat -> List Nat -> UType -> Store -> Scheme
-  generalize level blocked ty st = case generalize-with level blocked ty st of (sc, pairs) -> sc
-  generalize-with :: Nat -> List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize level blocked ty st = case generalize-with level (\u -> blocked) ty st of (sc, pairs) -> sc
+  -- `blocked` lists the metas the environment still mentions. Computing it
+  -- walks every binding's scheme, so it is asked for only when some free
+  -- meta of the type is young enough to generalize: the blocked list is
+  -- consulted for no other meta.
+  generalize-with :: Nat -> (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
   generalize-with level blocked ty st = generalize-at False level blocked ty st
   -- A strict application can bind its function before opening an
   -- argument's private witnesses. Retain independent instantiation
   -- variables at this level; environment and Pi-escaping metas stay fixed.
-  generalize-application-with :: List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize-application-with :: (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
   generalize-application-with blocked ty st = generalize-at True (store-level st) blocked ty st
-  generalize-at :: Bool -> Nat -> List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize-at :: Bool -> Nat -> (Unit -> List Nat) -> UType -> Store -> (Scheme, List (Nat, UType))
   generalize-at current level blocked ty st = case ordered-metas (free-metas st ty) st of
     None -> (mono UError, Nil)
     Some ids -> let local = pi-escaping-metas (type-pi-ids (normalize st ty)) ids st Nil in
       -- A strict let shares each unresolved literal carrier with its uses.
       -- Default and validate the carrier when the enclosing definition closes.
       let monomorphic = merge-ids local (number-meta-ids (pending-numbers st) st) in
-      case generalized current level (merge-ids blocked monomorphic) ids 0 st of
+      let environment = if generalizable-any current level ids st then blocked () else Nil in
+      case generalized current level (merge-ids environment monomorphic) ids 0 st of
         (qs, pairs) -> let closed = close-pairs Nil pairs in
           (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed (normalize st ty)), closed)
+  -- Whether `generalized` would test any of `ids` against the blocked list.
+  generalizable-any :: Bool -> Nat -> List Nat -> Store -> Bool
+  generalizable-any current level ids st = case ids of
+    Nil -> False
+    Cons id rest -> (case find-cell id st of
+      Some (MkCell n lev k None) -> lev > level || (current && lev == level)
+      other -> False) || generalizable-any current level rest st
   -- Generalize kind dependencies first. A value parameter's carrier may
   -- itself contain type or value inference variables; no raw meta is
   -- smuggled into a supposedly generalized binder's annotation.

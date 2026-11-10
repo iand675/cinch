@@ -8,6 +8,7 @@ module Bootstrap.Global where
   import Bootstrap.Guarded
   import Bootstrap.Core
   import Bootstrap.Total (total-function-equal)
+  import Bootstrap.ExportType (export-global)
   import Bootstrap.Instance (scheme-equivalent)
   import Text.Lex (Span)
   import Algebra.Semigroup
@@ -157,13 +158,18 @@ module Bootstrap.Global where
   -- A complete graph claim is checked against the retained source closure.
   -- Rechecking a changed dependency also rechecks every graph that uses it.
   source-bodies-match :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Option String -> Bool
-  source-bodies-match all bindings definitions datas changed = case bindings of
+  source-bodies-match all bindings definitions datas changed =
+    bodies-match all bindings definitions datas (case changed of Some name -> Some (export-global name); None -> None)
+  -- `changed` is the changed definition's decoded identity, decoded once
+  -- rather than once per retained binding.
+  bodies-match :: List BodyBinding -> List BodyBinding -> List CoreDefinition -> List CoreData -> Option (Result String String) -> Bool
+  bodies-match all bindings definitions datas changed = case bindings of
     Nil -> True
-    Cons binding rest -> (if not (same (binding-role binding) "value") || (case changed of Some name -> not (core-total-function-uses (binding-function binding) name); None -> False) then True else
+    Cons binding rest -> (if not (same (binding-role binding) "value") || (case changed of Some native -> not (core-total-function-uses-native (binding-function binding) native); None -> False) then True else
       case source-definition (binding-name binding) definitions of
         Some definition -> scheme-equivalent (binding-scheme binding) (core-scheme definition)
           && (case core-source-function all definitions datas (binding-native binding) of Some actual -> total-function-equal actual (binding-function binding); None -> False)
-        None -> False) && source-bodies-match all rest definitions datas changed
+        None -> False) && bodies-match all rest definitions datas changed
   source-definition :: String -> List CoreDefinition -> Option CoreDefinition
   source-definition name definitions = case definitions of
     Nil -> None

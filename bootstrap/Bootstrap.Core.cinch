@@ -55,7 +55,7 @@ module Bootstrap.Core where
   export term-children, runtime-term-children
   export core-total-function
   export with-checked-body-bindings, core-definition-checked-contracts-closed, seal-definition-with-checked-contracts
-  export core-source-body, core-source-function, core-total-function-uses, core-method-total-function
+  export core-source-body, core-source-function, core-total-function-uses-native, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
   export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CEInstance
   export CEArgument, CEArgumentsEnd
@@ -1034,13 +1034,26 @@ module Bootstrap.Core where
     other -> Nil
   opaque-symbol-writes :: Span -> String -> String -> List (Span, Option UType)
   opaque-symbol-writes sp name role =
-    if string-compare name (interface-global "Data.Bytes.bytes-len") == 0 || string-compare name (interface-global "Data.Bytes.bytes-get") == 0 then Nil
+    if string-compare name bytes-len-global == 0 || string-compare name bytes-get-global == 0 then Nil
     else if string-compare role "foreign" == 0 || string-compare name "b.eval" == 0
       || (string-compare role "intrinsic" == 0 && (string-compare name "cinch.runtime.bytesSet" == 0
         || string-compare name "cinch.runtime.bytesCopy" == 0 || string-compare name "cinch.runtime.bytesNew" == 0))
-      || string-compare name (interface-global "Data.Bytes.bytes-set") == 0
-      || string-compare name (interface-global "Data.Bytes.bytes-copy-range") == 0
-      || string-compare name (interface-global "Data.Bytes.bytes-new") == 0 then [(sp, None)] else Nil
+      || string-compare name bytes-set-global == 0
+      || string-compare name bytes-copy-range-global == 0
+      || string-compare name bytes-new-global == 0 then [(sp, None)] else Nil
+  -- The Data.Bytes operations as interface-global spells them, written out:
+  -- every call is checked against these, and a literal is one static
+  -- constant where interface-global would encode the identity again.
+  bytes-len-global :: String
+  bytes-len-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_108_101_110_"
+  bytes-get-global :: String
+  bytes-get-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_103_101_116_"
+  bytes-set-global :: String
+  bytes-set-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_115_101_116_"
+  bytes-copy-range-global :: String
+  bytes-copy-range-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_99_111_112_121_45_114_97_110_103_101_"
+  bytes-new-global :: String
+  bytes-new-global = "i.68_97_116_97_46_66_121_116_101_115_46_98_121_116_101_115_45_110_101_119_"
 
   map-types :: (UType -> UType) -> List UType -> List UType
   map-types f types = case types of Nil -> Nil; Cons ty rest -> Cons (f ty) (map-types f rest)
@@ -3548,8 +3561,10 @@ module Bootstrap.Core where
   core-method-total-function bindings definitions dictionary owner factory members slot = case total-method-member slot members of
     Some (selector, native, definition) -> core-total-function bindings (total-method-definitions bindings dictionary owner factory members members <> definitions) native
     None -> None
-  core-total-function-uses :: TotalFunction -> String -> Bool
-  core-total-function-uses function name = case export-global name of
+  -- Whether a total function's graph uses the definition whose identity
+  -- export-global decoded as `decoded`.
+  core-total-function-uses-native :: TotalFunction -> Result String String -> Bool
+  core-total-function-uses-native function decoded = case decoded of
     Ok native -> if total-source-projection function then string-compare native (total-identity function) == 0
       else total-core-has-row native (total-core-members (total-core-field "definitions" (total-function-document function)))
     Err error -> False

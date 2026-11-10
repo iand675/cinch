@@ -5,7 +5,7 @@
 module Bootstrap.Resolve where
 
   import Bootstrap.Ast
-  import Bootstrap.Nominal (interface-global, kernel-type-name)
+  import Bootstrap.Nominal (interface-global, kernel-type-name, encode-identity)
   import Bootstrap.Builtin (builtin-bindings, builtin-declarations, finite-index-declaration)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, validate-interface-set)
@@ -76,17 +76,13 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons m rest -> same name (module-name m) || has-module name rest
 
-  -- Decimal scalar codes separated by underscores are injective. The dot
-  -- keeps these internal globals distinct from every lexical identifier.
-  -- All resulting characters are legal in an unquoted LLVM name.
-  encode-chars :: List Char -> String
-  encode-chars chars = case chars of
-    Nil -> ""
-    Cons c rest -> cat [nat-to-string (char-code c), "_", encode-chars rest]
-
+  -- Decimal scalar codes separated by underscores are injective
+  -- (Bootstrap.Nominal.encode-identity). The dot keeps these internal
+  -- globals distinct from every lexical identifier. All resulting
+  -- characters are legal in an unquoted LLVM name.
   global-name :: String -> String -> String
   global-name home name = if same home "Main" && same name "main" then "main"
-    else cat ["m.", encode-chars (unpack home), ".", encode-chars (unpack name)]
+    else pack (Cons 'm' (Cons '.' (encode-identity (unpack home) (Cons '.' (encode-identity (unpack name) Nil)))))
 
   short-name :: String -> String
   short-name text = pack (short-chars (unpack text) Nil)

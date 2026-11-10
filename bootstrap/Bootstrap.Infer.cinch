@@ -33,6 +33,7 @@ module Bootstrap.Infer where
   import Text.Lex (Span, span-line, span-col)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core, elaboration-law-observations
@@ -75,7 +76,9 @@ module Bootstrap.Infer where
     MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
     MkForeignBinding :: String -> Scheme -> ForeignPlan -> CheckedBinding
     MkBodyBinding :: BodyBinding -> CheckedBinding
-    MkBodyContext :: BodyBindings -> CheckedBinding
+    -- The module environment's cache entry: the checked body contracts and
+    -- the position of each name's first binding in the rest of the list.
+    MkBodyContext :: BodyBindings -> HashMap String Nat -> CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
     MkConditionalBinding :: String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
     MkGivenBinding :: String -> UType -> String -> CheckedBinding
@@ -89,11 +92,11 @@ module Bootstrap.Infer where
     MkErasedBinding :: String -> UType -> Nat -> Span -> Option Span -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names -> "body-context"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding name owner slot dictionary head sc guarded -> "external"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -1387,8 +1390,22 @@ module Bootstrap.Infer where
         else collect-kinds rest kinds st
       other -> collect-kinds rest kinds st
 
+  -- The first binding named `name`. Below the module environment's cache
+  -- entry the name index gives its position in the list. Positions and
+  -- names survive invalidate-proof-bindings, which rebuilds the list one
+  -- for one, so the binding is read from the current list.
   lookup-binding :: String -> List CheckedBinding -> Option CheckedBinding
-  lookup-binding name env = case env of Nil -> None; Cons b rest -> if same name (checked-name b) then Some b else lookup-binding name rest
+  lookup-binding name env = case env of
+    Nil -> None
+    Cons b rest -> if same name (checked-name b) then Some b else case b of
+      MkBodyContext context names -> (case hash-map-lookup name names of
+        None -> None
+        Some position -> binding-at rest position)
+      other -> lookup-binding name rest
+  binding-at :: List CheckedBinding -> Nat -> Option CheckedBinding
+  binding-at env position = case env of
+    Nil -> None
+    Cons b rest -> if position == 0 then Some b else binding-at rest (position - 1)
   add-binding :: Span -> String -> Scheme -> String -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   add-binding sp name sc role env st = case lookup-binding name env of
     Some prior -> (env, add-error sp (string-concat "duplicate signature or constructor: " name) st)
@@ -2547,13 +2564,20 @@ module Bootstrap.Infer where
   env-body-context :: List CheckedBinding -> BodyBindings
   env-body-context env = case env of
     Nil -> empty-body-bindings
-    Cons (MkBodyContext context) rest -> context
+    Cons (MkBodyContext context names) rest -> context
     Cons (MkBodyBinding binding) rest -> (case extend-body-bindings binding (env-body-context rest) of Some context -> context; None -> empty-body-bindings)
     Cons other rest -> env-body-context rest
   cache-body-context :: List CheckedBinding -> Store -> (List CheckedBinding, Store)
   cache-body-context env st = case check-body-bindings (env-body-bindings env) of
-    Some context -> (Cons (MkBodyContext context) env, st)
+    Some context -> (Cons (MkBodyContext context (binding-names env)) env, st)
     None -> (env, add-error zero "conflicting body contracts in proof context" st)
+  -- The position of the first binding of each name in `env`.
+  binding-names :: List CheckedBinding -> HashMap String Nat
+  binding-names env = binding-positions env 0
+  binding-positions :: List CheckedBinding -> Nat -> HashMap String Nat
+  binding-positions env position = case env of
+    Nil -> hash-map-empty
+    Cons b rest -> hash-map-insert (checked-name b) position (binding-positions rest (position + 1))
   env-body-bindings :: List CheckedBinding -> List BodyBinding
   env-body-bindings env = case env of Nil -> Nil; Cons (MkBodyBinding binding) rest -> Cons binding (env-body-bindings rest); Cons other rest -> env-body-bindings rest
   proof-erased :: List CheckedBinding -> Store -> ProofScope -> ProofScope
@@ -2644,7 +2668,9 @@ module Bootstrap.Infer where
 
   decision-syntax-head :: List CheckedBinding -> Expr -> Bool
   decision-syntax-head env expression = case expression of
-    EVar sp name -> (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol "b.decide"; other -> False)
+    -- A syntax binding is named by its own symbol, so only `b.decide` can
+    -- find one; other heads skip the environment scan.
+    EVar sp name -> same name "b.decide" && (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> same symbol "b.decide"; other -> False)
     other -> False
   decision-boolean :: Span -> Bool -> CoreTerm
   decision-boolean sp value = CPrimitive sp (primitive-type "Bool") (if value then "decision-true" else "decision-false") (CArgumentsEnd sp)
@@ -3210,7 +3236,7 @@ module Bootstrap.Infer where
         case check-refined-binding classes kinds families bound locals sp at name rest body expected level (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s expected id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
@@ -3315,7 +3341,7 @@ module Bootstrap.Infer where
   apply-source-argument classes kinds families env locals sp fun arg value before checked =
     if not (let-chain-mentions (type-all-ids (normalize checked (core-type fun))) value) then
       apply-runtime-argument classes sp env fun value checked
-    else case generalize-application-with (env-metas env before) (core-type fun) before of
+    else case generalize-application-with (\u -> env-metas env before) (core-type fun) before of
       (scheme, Nil) -> apply-runtime-argument classes sp env fun value checked
       (scheme, pairs) -> case fresh-id before of
         (id, fresh) ->
@@ -3529,7 +3555,7 @@ module Bootstrap.Infer where
         case infer-let-binding classes kinds families bound locals sp at name rest body level wanted (map-term-types (relocate-local-index id level) (map-term-types (normalize st) inner)) st of
           (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
       other -> term-error at "dependent let result has no retained witness scope" st)
-    else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+    else let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
       case fresh-id (restore-level level st) of
         (id, fresh) -> case let-binding at env name scheme id level value fresh of
           (binding, prepared) -> case infer-let-with-expected classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body wanted prepared of
@@ -3609,7 +3635,7 @@ module Bootstrap.Infer where
     other -> (env, Nil, add-error (expr-span bindings) "malformed local binding group" st)
   bind-group-value :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> Nat -> CoreTerm -> Store -> (List CheckedBinding, LocalStep, Store)
   bind-group-value classes kinds families env locals sp pattern level value st = case pattern of
-    PVar at name -> let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+    PVar at name -> let (scheme, pairs) = generalize-with level (\u -> env-metas env st) (core-type value) st in
       (case fresh-id (restore-level level st) of
         (id, fresh) -> (case let-binding at env name scheme id level value fresh of
           (binding, ready) -> (proof-let-env env binding id scheme value ready,
@@ -4556,17 +4582,32 @@ module Bootstrap.Infer where
   -- Keep the large declaration match out of the recursive list frame.
   -- Complete top-level signatures make each body's inference independent;
   -- seal it while its substitution cells are still near the store's head.
-  check-body-declaration :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> Decl -> Store -> (List String, Option CoreDefinition, Store)
-  check-body-declaration classes kinds families env seen all d st = case d of
-    DFun s name cs -> if has name seen then (seen, None, st)
-      else case check-definition classes kinds families env s name (function-clauses name all) st of
+  check-body-declaration :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> HashMap String Nat -> HashMap String (List (List Pat, Expr)) -> Decl -> Store -> (HashMap String Nat, Option CoreDefinition, Store)
+  check-body-declaration classes kinds families env seen clauses d st = case d of
+    DFun s name cs -> if indexed name seen then (seen, None, st)
+      else case check-definition classes kinds families env s name (indexed-clauses name clauses) st of
         (definition, ss) -> case definition of
-          None -> (Cons name seen, None, ss)
+          None -> (hash-map-insert name 0 seen, None, ss)
           Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
             (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
-              (Cons name seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
-    DSig s name ty -> (seen, None, if has-definition name all then st else add-error s (string-concat "signature has no definition: " name) st)
+              (hash-map-insert name 0 seen, Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved), completed)
+    DSig s name ty -> (seen, None, if indexed name clauses then st else add-error s (string-concat "signature has no definition: " name) st)
     other -> (seen, None, st)
+  -- Every equation of each defined name, in declaration order (what
+  -- function-clauses collects), indexed once per body pass.
+  clause-index :: List Decl -> HashMap String (List (List Pat, Expr)) -> HashMap String (List (List Pat, Expr))
+  clause-index ds index = case ds of
+    Nil -> index
+    Cons (DFun s name cs) rest -> clause-index rest (hash-map-insert name (indexed-clauses name index <> cs) index)
+    Cons other rest -> clause-index rest index
+  indexed-clauses :: String -> HashMap String (List (List Pat, Expr)) -> List (List Pat, Expr)
+  indexed-clauses name index = case hash-map-lookup name index of Some cs -> cs; None -> Nil
+  indexed :: forall v. String -> HashMap String v -> Bool
+  indexed name index = case hash-map-lookup name index of Some found -> True; None -> False
+  -- A set of names. The values are unused; Nat values keep to the HashMap
+  -- variants the pinned library object provides.
+  name-set :: List String -> HashMap String Nat
+  name-set names = case names of Nil -> hash-map-empty; Cons name rest -> hash-map-insert name 0 (name-set rest)
   -- Task errors left unconstrained by the complete body are existential
   -- monotypes, not caller-selected parameters. Choose Unit only after all
   -- source constraints, numeric defaults and dictionary resolution finish.
@@ -4587,17 +4628,17 @@ module Bootstrap.Infer where
   default-task-failure-terms :: List CoreTerm -> Store -> Store
   default-task-failure-terms terms st = case terms of Nil -> st; Cons first rest -> default-task-failure-terms rest (default-task-failure-term first st)
   check-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
-  check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env seen all ds Nil st
-  check-body-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
+  check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env (name-set seen) (clause-index all hash-map-empty) ds Nil st
+  check-body-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> HashMap String Nat -> HashMap String (List (List Pat, Expr)) -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
   -- A failed body leaves recovery types and an undischarged store. Do not
   -- treat that store as evidence while checking later definitions: their
   -- coverage/type diagnostics would be artifacts of the original failure.
-  check-body-loop classes kinds families env seen all ds backwards st = case store-errors st of
+  check-body-loop classes kinds families env seen clauses ds backwards st = case store-errors st of
     Cons error rest -> (reverse backwards, st)
     Nil -> case ds of
       Nil -> (reverse backwards, st)
-      Cons d rest -> case check-body-declaration classes kinds families env seen all d st of
-        (names, definition, ss) -> check-body-loop classes kinds families env names all rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
+      Cons d rest -> case check-body-declaration classes kinds families env seen clauses d st of
+        (names, definition, ss) -> check-body-loop classes kinds families env names clauses rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
   contexts :: List Decl -> List Json
   contexts ds = case ds of
     Nil -> Nil
@@ -4612,7 +4653,7 @@ module Bootstrap.Infer where
   finish-binding :: Store -> CheckedBinding -> CheckedBinding
   finish-binding st b = case b of
     MkBodyBinding binding -> b
-    MkBodyContext context -> b
+    MkBodyContext context names -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkForeignBinding n sc plan -> MkForeignBinding n sc plan
     MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
@@ -4626,7 +4667,7 @@ module Bootstrap.Infer where
     MkErasedBinding name predicate id origin invalidated -> MkErasedBinding name (normalize st predicate) id origin invalidated
     MkSyntaxBinding name -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
-  finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
+  finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context names) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
   global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
   global-bindings bindings globals = case bindings of
     Nil -> globals

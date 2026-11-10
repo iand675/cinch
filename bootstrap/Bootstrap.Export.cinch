@@ -22,6 +22,7 @@ module Bootstrap.Export where
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Json (canonical-bytes)
   import Text.Lex (bytes-slice)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export export-interfaces, interface-hash, build-manifest
   same :: String -> String -> Bool
@@ -619,14 +620,29 @@ module Bootstrap.Export where
         (Err error, other) -> Err error
         (other, Err error) -> Err error)
       else instance-rows typed interfaces context rest
+  -- The checked bindings and data declarations by name, built once for all
+  -- modules: every public row looks its symbol up in both. Each map keeps
+  -- the first entry of a name, as find-binding and find-data do.
+  data ExportIndex where
+    ExportIndex :: HashMap String CheckedBinding -> HashMap String CoreData -> ExportIndex
+  export-index :: Elaboration -> ExportIndex
+  export-index typed = ExportIndex (binding-index (elaboration-bindings typed)) (data-index (elaboration-data typed))
+  binding-index :: List CheckedBinding -> HashMap String CheckedBinding
+  binding-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (checked-name row) row (binding-index rest)
+  data-index :: List CoreData -> HashMap String CoreData
+  data-index rows = case rows of Nil -> hash-map-empty; Cons row rest -> hash-map-insert (core-data-name row) row (data-index rest)
+  indexed-binding :: String -> ExportIndex -> Option CheckedBinding
+  indexed-binding name index = case index of ExportIndex bindings datas -> hash-map-lookup name bindings
+  indexed-data :: String -> ExportIndex -> Option CoreData
+  indexed-data name index = case index of ExportIndex bindings datas -> hash-map-lookup name datas
   -- Constructors and erased equation methods have their own checked
   -- tables. Neither needs an ordinary value row.
-  exports :: Elaboration -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
-  exports typed interfaces surface rows = case rows of
+  exports :: Elaboration -> ExportIndex -> List LoadedInterface -> Json -> Json -> Result String (Json, Json)
+  exports typed index interfaces surface rows = case rows of
     JArr row rest -> let name = text (field "name" row) in let symbol = text (field "symbol" row) in
-      case exports typed interfaces surface rest of
+      case exports typed index interfaces surface rest of
         Err error -> Err error
-        Ok (values, types) -> case find-data symbol (elaboration-data typed) of
+        Ok (values, types) -> case indexed-data symbol index of
           Some declaration -> case type-row typed interfaces surface name declaration of
             Err error -> Err error
             Ok actual -> Ok (values, insert-row "name" actual types)
@@ -640,7 +656,7 @@ module Bootstrap.Export where
               None -> case imported-refinement-type interfaces symbol of
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
-                  else case find-binding symbol (elaboration-bindings typed) of
+                  else case indexed-binding symbol index of
                     None -> if equation-method-present symbol (elaboration-classes typed) then Ok (values, types)
                       else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
@@ -867,11 +883,11 @@ module Bootstrap.Export where
     Nil -> JArrEnd
     Cons (name, hash, doc) rest -> append (field "laws" doc) (build-law-rows rest)
 
-  export-loop :: Elaboration -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
-  export-loop typed interfaces source produced contexts = case contexts of
+  export-loop :: Elaboration -> ExportIndex -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
+  export-loop typed index interfaces source produced contexts = case contexts of
     Nil -> Ok Nil
     Cons context rest -> case field "module" context of
-      JStr name -> case (exports typed interfaces (field "exports" context) (field "exports" context), source-hash source context) of
+      JStr name -> case (exports typed index interfaces (field "exports" context) (field "exports" context), source-hash source context) of
           (Ok (values, types), Ok hash) ->
             (case instance-rows typed interfaces context (elaboration-instances typed) of
               Err error -> Err error
@@ -884,13 +900,13 @@ module Bootstrap.Export where
                   (other, Err error, more) -> Err error
                   (other, more, Err error) -> Err error
                   (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
-                    (case export-loop typed interfaces source (Cons (name, interface-hash doc) produced) rest of
+                    (case export-loop typed index interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))
             )
           (Err error, other) -> Err (string-concat-all [name, ": ", error])
           (other, Err error) -> Err (string-concat-all [name, ": ", error])
-      other -> export-loop typed interfaces source produced rest
+      other -> export-loop typed index interfaces source produced rest
   -- A direct task forwarder is callable from source. Its transfer
   -- obligations cannot travel through this interface schema.
   source-only-task-forwarders :: List CoreDefinition -> List String
@@ -920,7 +936,7 @@ module Bootstrap.Export where
   export-interfaces checked interfaces source = let typed = checked-elaboration checked in
     case unsupported-modules (program-modules (checked-surface checked)) (elaboration-contexts typed) (elaboration-bindings typed) of
       Some message -> Err message
-      None -> export-loop typed interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
+      None -> export-loop typed (export-index typed) interfaces source Nil (interface-contexts (source-only-task-forwarders (elaboration-core typed)) (elaboration-contexts typed))
   retained-intrinsic :: String -> String -> List Json -> Bool
   retained-intrinsic name identity rows = case rows of
     Nil -> False

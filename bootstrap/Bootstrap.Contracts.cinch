@@ -7,7 +7,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Builtin (builtin-syntax-metadata)
   import Bootstrap.Load
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved)
+  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved, encode-identity)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.Json
   import Text.Lex (Span)
@@ -23,15 +23,10 @@ module Bootstrap.Contracts where
   zero :: Span
   zero = Span 0 0 1 1
 
-  encode :: List Char -> String
-  encode chars = case chars of
-    Nil -> ""
-    Cons c rest -> string-concat-all [nat-to-string (char-code c), "_", encode rest]
-
   public-global :: LoadedInterface -> String -> String
   public-global i name = case identities name (loaded-exports i) Nil of
     Cons identity Nil -> interface-global identity
-    other -> string-concat-all ["o.", encode (unpack (loaded-module i)), ".", encode (unpack name)]
+    other -> pack (Cons 'o' (Cons '.' (encode-identity (unpack (loaded-module i)) (Cons '.' (encode-identity (unpack name) Nil)))))
 
   identities :: String -> List (String, String, String) -> List String -> List String
   identities name exports seen = case exports of

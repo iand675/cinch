@@ -49,6 +49,7 @@ module Bootstrap.Parse where
   import Data.String
   import Text.Show (nat-to-string, char-string)
   import Algebra.Semigroup
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export parse-program, parse-program-with, parse-scheme, exported-fixities
 
@@ -340,40 +341,64 @@ module Bootstrap.Parse where
         let renamed-name = case alias of None -> name; Some renamed -> renamed in
         Cons (renamed-name, fix) (select-fixes rest surface)
 
-  import-selected-fixes :: Decl -> List Module -> List String -> List (String, Fix)
-  import-selected-fixes d modules seen = case d of
-    DImport s path mods alias members args -> case members of
-      Nil -> module-fixes path modules seen
-      Cons first rest -> select-fixes members (module-fixes path modules seen)
-    other -> Nil
+  -- Fixity resolution walks the import graph from every module. A module's
+  -- exported fixities are cached once computed, unless the walk below it
+  -- was cut by the `seen` path (an import cycle through it): only then can
+  -- the result depend on the importer's path. The flag reports such a cut.
+  data FixWalk where
+    FixWalk :: List (String, Fix) -> HashMap String (List (String, Fix)) -> Bool -> FixWalk
 
-  import-bare-fixes :: Decl -> List Module -> List String -> List (String, Fix)
-  import-bare-fixes d modules seen = case d of
-    DImport s path mods (Some alias) Nil args -> Nil
-    other -> import-selected-fixes d modules seen
+  walk-fixes :: FixWalk -> List (String, Fix)
+  walk-fixes walk = case walk of FixWalk fixes cache cut -> fixes
+
+  -- `first` then `second`, the second walk continuing with the first's cache.
+  append-walk :: FixWalk -> (HashMap String (List (String, Fix)) -> FixWalk) -> FixWalk
+  append-walk first second = case first of
+    FixWalk fixes cache cut -> case second cache of
+      FixWalk more next later -> FixWalk (fixes <> more) next (cut || later)
+
+  import-selected-fixes :: Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  import-selected-fixes d modules seen cache = case d of
+    DImport s path mods alias members args -> case members of
+      Nil -> module-fixes path modules seen cache
+      Cons first rest -> case module-fixes path modules seen cache of
+        FixWalk surface next cut -> FixWalk (select-fixes members surface) next cut
+    other -> FixWalk Nil cache False
+
+  import-bare-fixes :: Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  import-bare-fixes d modules seen cache = case d of
+    DImport s path mods (Some alias) Nil args -> FixWalk Nil cache False
+    other -> import-selected-fixes d modules seen cache
 
   -- Only the exported operator surface crosses an import. An absent
   -- fixity travels too, preventing an inherited fixity from being used
   -- for a different operator with the same spelling.
-  module-fixes :: String -> List Module -> List String -> List (String, Fix)
-  module-fixes name modules seen = if name-seen name seen then Nil else case find-fix-module name modules of
-    None -> external-fixes name
-    Some m -> case fix-export-items (module-decls m) of
-      Nil -> owned-fixes m
-      items -> export-fixes items (module-decls m) (private-module-fixes m modules (Cons name seen)) modules (Cons name seen)
+  module-fixes :: String -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  module-fixes name modules seen cache = if name-seen name seen then FixWalk Nil cache True else case hash-map-lookup name cache of
+    Some fixes -> FixWalk fixes cache False
+    None -> case find-fix-module name modules of
+      None -> FixWalk (external-fixes name) cache False
+      Some m -> case fix-export-items (module-decls m) of
+        Nil -> let fixes = owned-fixes m in FixWalk fixes (hash-map-insert name fixes cache) False
+        items -> case private-module-fixes m modules (Cons name seen) cache of
+          FixWalk visible next cut -> case export-fixes items (module-decls m) visible modules (Cons name seen) next of
+            FixWalk fixes last later -> if cut || later then FixWalk fixes last True else FixWalk fixes (hash-map-insert name fixes last) False
 
-  private-module-fixes :: Module -> List Module -> List String -> List (String, Fix)
-  private-module-fixes m modules seen = owned-fixes m <> imported-fixes (module-decls m) modules seen <> implicit-fixes modules seen
+  private-module-fixes :: Module -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  private-module-fixes m modules seen cache =
+    append-walk (append-walk (FixWalk (owned-fixes m) cache False) (\c -> imported-fixes (module-decls m) modules seen c)) (\c -> implicit-fixes modules seen c)
 
-  implicit-fixes :: List Module -> List String -> List (String, Fix)
-  implicit-fixes modules seen = case find-fix-module "Prelude" modules of
-    None -> prelude-fixes
-    Some m -> Cons ("$bootstrap-checked-prelude", MkFix "marker" 0) (module-fixes "Prelude" modules seen)
+  implicit-fixes :: List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  implicit-fixes modules seen cache = case find-fix-module "Prelude" modules of
+    None -> FixWalk prelude-fixes cache False
+    Some m -> case module-fixes "Prelude" modules seen cache of
+      FixWalk fixes next cut -> FixWalk (Cons ("$bootstrap-checked-prelude", MkFix "marker" 0) fixes) next cut
 
-  imported-fixes :: List Decl -> List Module -> List String -> List (String, Fix)
-  imported-fixes ds modules seen = case ds of
-    Nil -> Nil
-    Cons d rest -> imported-fixes rest modules seen <> import-bare-fixes d modules seen
+  -- The imports' fixities, the last import first.
+  imported-fixes :: List Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  imported-fixes ds modules seen cache = case ds of
+    Nil -> FixWalk Nil cache False
+    Cons d rest -> append-walk (imported-fixes rest modules seen cache) (\c -> import-bare-fixes d modules seen c)
 
   fix-export-items :: List Decl -> List ExportItem
   fix-export-items ds = case ds of
@@ -390,24 +415,25 @@ module Bootstrap.Parse where
     Nil -> reverse acc
     Cons c rest -> if char-code c == 46 then qualifier-chars rest Nil else qualifier-chars rest (Cons c acc)
 
-  export-member-fix :: String -> String -> List Decl -> List Module -> List String -> List (String, Fix)
-  export-member-fix qualifier name ds modules seen = case ds of
-    Nil -> Nil
+  export-member-fix :: String -> String -> List Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  export-member-fix qualifier name ds modules seen cache = case ds of
+    Nil -> FixWalk Nil cache False
     Cons d rest -> case d of
       DImport s path mods alias members args -> if string-compare qualifier (import-qualifier path alias) == 0 then
-        case find-fix name (import-selected-fixes d modules seen) of
-          None -> Nil
-          Some fix -> Cons (name, fix) Nil
-        else export-member-fix qualifier name rest modules seen
-      other -> export-member-fix qualifier name rest modules seen
+        (case import-selected-fixes d modules seen cache of
+          FixWalk surface next cut -> case find-fix name surface of
+            None -> FixWalk Nil next cut
+            Some fix -> FixWalk (Cons (name, fix) Nil) next cut)
+        else export-member-fix qualifier name rest modules seen cache
+      other -> export-member-fix qualifier name rest modules seen cache
 
-  export-module-fix :: String -> List Decl -> List Module -> List String -> List (String, Fix)
-  export-module-fix name ds modules seen = case ds of
-    Nil -> Nil
+  export-module-fix :: String -> List Decl -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  export-module-fix name ds modules seen cache = case ds of
+    Nil -> FixWalk Nil cache False
     Cons d rest -> case d of
-      DImport s path mods alias members args -> if string-compare name path == 0 || string-compare name (import-qualifier path alias) == 0 then import-selected-fixes d modules seen
-        else export-module-fix name rest modules seen
-      other -> export-module-fix name rest modules seen
+      DImport s path mods alias members args -> if string-compare name path == 0 || string-compare name (import-qualifier path alias) == 0 then import-selected-fixes d modules seen cache
+        else export-module-fix name rest modules seen cache
+      other -> export-module-fix name rest modules seen cache
 
   export-name-tail :: List String -> String
   export-name-tail names = case names of
@@ -421,20 +447,20 @@ module Bootstrap.Parse where
     Cons name Nil -> Nil
     Cons name rest -> Cons name (export-name-prefix rest)
 
-  export-fixes :: List ExportItem -> List Decl -> List (String, Fix) -> List Module -> List String -> List (String, Fix)
-  export-fixes items ds visible modules seen = case items of
-    Nil -> Nil
-    Cons item rest -> (case item of
-      ExportName s (Cons name Nil) -> case find-fix name visible of None -> Nil; Some fix -> Cons (name, fix) Nil
-      ExportName s parts -> export-member-fix (string-concat-all (with-dots (export-name-prefix parts) True)) (export-name-tail parts) ds modules seen
-      ExportModule s name -> export-module-fix name ds modules seen) <> export-fixes rest ds visible modules seen
+  export-fixes :: List ExportItem -> List Decl -> List (String, Fix) -> List Module -> List String -> HashMap String (List (String, Fix)) -> FixWalk
+  export-fixes items ds visible modules seen cache = case items of
+    Nil -> FixWalk Nil cache False
+    Cons item rest -> append-walk (case item of
+      ExportName s (Cons name Nil) -> FixWalk (case find-fix name visible of None -> Nil; Some fix -> Cons (name, fix) Nil) cache False
+      ExportName s parts -> export-member-fix (string-concat-all (with-dots (export-name-prefix parts) True)) (export-name-tail parts) ds modules seen cache
+      ExportModule s name -> export-module-fix name ds modules seen cache) (\c -> export-fixes rest ds visible modules seen c)
 
   module-scope-fixes :: String -> List Module -> List (String, Fix) -> List (String, Fix)
   module-scope-fixes name headers fallback = case headers of
     Nil -> fallback
     Cons first rest -> case find-fix-module name headers of
       None -> fallback
-      Some m -> private-module-fixes m headers (Cons name Nil)
+      Some m -> walk-fixes (private-module-fixes m headers (Cons name Nil) hash-map-empty)
 
   -- Interface output uses the same defining facts as source parsing,
   -- including selected/renamed reexports and prefix-only shadowing.
@@ -442,7 +468,7 @@ module Bootstrap.Parse where
   exported-fixities :: String -> List Module -> List String -> List (String, String, Nat)
   exported-fixities name modules names = case exported-operators names of
     Nil -> Nil
-    wanted -> exported-fixity-facts wanted (module-fixes name modules Nil)
+    wanted -> exported-fixity-facts wanted (walk-fixes (module-fixes name modules Nil hash-map-empty))
   exported-operators :: List String -> List String
   exported-operators names = case names of
     Nil -> Nil
